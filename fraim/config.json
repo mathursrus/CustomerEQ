@@ -1,7 +1,10 @@
 {
   "version": "unknown",
   "project": {
-    "name": "CustomerEQ"
+    "name": "CustomerEQ",
+    "domain": "b2b-saas",
+    "industry": "cx-loyalty-platform",
+    "description": "Unified CX-Loyalty platform — real-time feedback-to-action automation for mid-market companies"
   },
   "repository": {
     "provider": "github",
@@ -17,5 +20,38 @@
     "url": "https://github.com/mathursrus/CustomerEQ/",
     "defaultBranch": "main"
   },
-  "customizations": {}
+  "customizations": {
+    "architectureDoc": "docs/architecture/architecture.md",
+    "dataModelsDoc": "docs/replicate/analysis/data-models.md",
+    "useCasesDoc": "docs/replicate/analysis/use-cases.md",
+    "implementationRoadmap": "docs/replicate/IMPLEMENTATION_ROADMAP.md",
+    "validation": {
+      "build": "pnpm build",
+      "test": "pnpm test",
+      "typecheck": "pnpm typecheck",
+      "lint": "pnpm lint",
+      "smoke": "pnpm build && pnpm typecheck && pnpm test",
+      "e2e": "pnpm test:e2e"
+    },
+    "compliance": {
+      "gdpr": true,
+      "ccpa": true,
+      "soc2": "target-month-12",
+      "pci": "minimal-scope"
+    },
+    "stack": {
+      "frontend": "next.js-15",
+      "ui": "shadcn-tailwind-v4",
+      "backend": "fastify-v5",
+      "database": "postgresql-16",
+      "cache": "redis-7",
+      "queue": "bullmq-v5",
+      "auth": "clerk",
+      "ai": "openai-gpt4o",
+      "infra": "azure-container-apps",
+      "frontend-deploy": "vercel",
+      "iac": "terraform",
+      "monorepo": "turborepo-pnpm"
+    }
+  }
 }
