@@ -1,0 +1,21 @@
+{
+  "version": "unknown",
+  "project": {
+    "name": "CustomerEQ"
+  },
+  "repository": {
+    "provider": "github",
+    "owner": "mathursrus",
+    "name": "CustomerEQ",
+    "url": "https://github.com/mathursrus/CustomerEQ/",
+    "defaultBranch": "main"
+  },
+  "issueTracking": {
+    "provider": "github",
+    "owner": "mathursrus",
+    "name": "CustomerEQ",
+    "url": "https://github.com/mathursrus/CustomerEQ/",
+    "defaultBranch": "main"
+  },
+  "customizations": {}
+}
