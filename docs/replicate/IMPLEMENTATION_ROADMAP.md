@@ -5,14 +5,57 @@ Based on the Annex Cloud replication analysis. Informed by the CustomerEQ busine
 
 ---
 
+## The Two Cutoff Lines
+
+### Cutoff 1 — Sufficient Parity (minimum viable loyalty platform): 4 issues
+
+These 4 issues are table stakes. Annex Cloud, Yotpo, and Smile.io all have them. Without all four you don't have a loyalty platform — but having only these four gives you nothing to sell against competitors.
+
+| Issue | Title |
+|-------|-------|
+| [#2](https://github.com/mathursrus/CustomerEQ/issues/2) | Configure Loyalty Program |
+| [#3](https://github.com/mathursrus/CustomerEQ/issues/3) | Member Enrollment |
+| [#4](https://github.com/mathursrus/CustomerEQ/issues/4) | Earn Points — Rules Engine |
+| [#5](https://github.com/mathursrus/CustomerEQ/issues/5) | Redeem Reward |
+
+### Cutoff 2 — Sufficient Differentiation (what justifies CustomerEQ existing): 3 more issues
+
+These 3 issues, on top of the parity foundation, constitute the MVP worth selling. **Issue #6 is the line** — everything before it exists in every competitor; Issue #6 exists in none of them.
+
+| Issue | Title | Why it differentiates |
+|-------|-------|-----------------------|
+| [#6](https://github.com/mathursrus/CustomerEQ/issues/6) | ⭐ Real-Time CX-to-Loyalty Campaign | No competitor connects CX feedback to loyalty action automatically. Industry avg: 82 hours. CustomerEQ target: <15 min. |
+| [#7](https://github.com/mathursrus/CustomerEQ/issues/7) | Analytics Dashboard — ROI Measurement | 41% of loyalty leaders can't prove program ROI. This is the CFO conversation. |
+| [#9](https://github.com/mathursrus/CustomerEQ/issues/9) | CRM Integration (Salesforce + HubSpot) | Eliminates the $75K/yr integration tax. Makes #6 possible via CX event ingestion. |
+
+### The MVP = Cutoff 1 + Cutoff 2 = 7 issues
+
+```
+#2 Configure Program
+    ↓
+#3 Member Enrollment
+    ↓
+#4 Earn Points  ←──── #9 CRM Integration (feeds CX events in)
+    ↓
+#5 Redeem Reward    #6 ⭐ Campaign (hero)    #7 Analytics
+```
+
+**#8 Demo Request Form** is also MVP but independent — build it in parallel.
+
+Everything from **#10 onward** (tiers, segmentation, journey builder, gamification, social loyalty, receipt scanning, multi-brand, AI) makes the platform better after you have paying customers. **Do not let Phase 2/3 features delay shipping the 7-issue MVP.**
+
+> ⚠️ **Feature Parity Trap (70% probability risk)**: Attempting to match every Annex Cloud feature before shipping dilutes the value proposition and delays market entry. The business validation report names this as a critical risk. Resist it.
+
+---
+
 ## Strategic Context
 
 CustomerEQ's differentiation is not feature parity with Annex Cloud — it's the **real-time CX-to-loyalty feedback loop** that Annex Cloud lacks. The build order reflects this:
 
-1. Build the foundational loyalty engine (earn/burn/tier)
-2. Add the hero differentiator: real-time feedback-to-action automation
-3. Layer on engagement features (gamification, referral, surveys)
-4. Add enterprise/scale features last
+1. Build the foundational loyalty engine (earn/burn/tier) — **just enough for the hero to work**
+2. Ship the hero differentiator: real-time feedback-to-action automation — **this is the product**
+3. Layer on engagement features after paying customers validate the core
+4. Add enterprise/scale features last, if at all for mid-market ICP
 
 ---
 
