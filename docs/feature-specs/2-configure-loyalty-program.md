@@ -106,6 +106,26 @@ Mocks use the **generic UI baseline**: Tailwind-equivalent utility classes, shad
 
 ---
 
+## Scope Boundaries
+
+### Out of Scope (MVP): Indirect-Channel Loyalty
+
+This spec covers brands that **own the transaction pipeline** — i.e., brands with a direct ecommerce channel (Shopify, custom storefront) where purchase and review events can be delivered to CustomerEQ via webhook or CRM integration.
+
+**Not covered in this spec:** Manufacturers that sell *only* through third-party online retailers (Amazon, Costco Direct, Walmart.com, etc.). This scenario requires a different event ingestion mechanism because:
+
+- Third-party retailers do not push purchase webhooks to the brand
+- Customer identity is unknown at time of purchase (the retailer owns the transaction)
+- Reviews on external retail platforms cannot be directly subscribed to
+
+The practical solutions — **receipt scanning** (customer submits receipt post-purchase) and **product registration** (customer registers product with serial number) — are Phase 2 features tracked in **Issue #24**.
+
+> **Partial workaround (MVP):** If a brand's Amazon order data flows into Salesforce or HubSpot, Issue #9 (CRM Integration) can serve as an event ingestion path into CustomerEQ today. The rules engine processes those events identically — no changes to this spec required.
+
+The rules engine architecture in this spec is **source-agnostic by design**. When receipt scanning ships (Phase 2), it will emit standard `purchase` events that flow through the same rules configured here.
+
+---
+
 ## Compliance Requirements
 
 **Source**: Inferred from project context (GDPR/CCPA obligations in `fraim/personalized-employee/rules/project_rules.md`, Rule 13).
