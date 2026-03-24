@@ -1,0 +1,243 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum RuleStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  ERASED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum RedemptionStatus {
+  PENDING
+  FULFILLED
+  CANCELLED
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model Brand {
+  id         String    @id @default(cuid())
+  clerkOrgId String    @unique // Clerk organization ID → brandId mapping
+  name       String
+  programs   Program[]
+  members    Member[]
+  createdAt  DateTime  @default(now())
+
+  @@map("brands")
+}
+
+model Program {
+  id                   String        @id @default(cuid())
+  brandId              String
+  brand                Brand         @relation(fields: [brandId], references: [id])
+  name                 String
+  description          String?
+  pointCurrencyName    String        @default("Points")
+  pointToCurrencyRatio Float         @default(0.01) // $0.01 per point
+  status               ProgramStatus @default(DRAFT)
+  earningRules         EarningRule[]
+  campaigns            Campaign[]
+  rewards              Reward[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([brandId])
+  @@map("programs")
+}
+
+model EarningRule {
+  id               String     @id @default(cuid())
+  programId        String
+  program          Program    @relation(fields: [programId], references: [id])
+  brandId          String
+  name             String
+  triggerEvent     String // e.g. "purchase", "survey_complete", "enrollment"
+  pointsAwarded    Int
+  multiplier       Float      @default(1.0)
+  conditions       Json? // JSONB: AND/OR condition logic
+  maxUsesPerMember Int? // null = unlimited
+  status           RuleStatus @default(ACTIVE)
+  validFrom        DateTime   @default(now())
+  validTo          DateTime?
+  createdAt        DateTime   @default(now())
+
+  @@index([programId, status])
+  @@index([brandId])
+  @@map("earning_rules")
+}
+
+model Member {
+  id             String         @id @default(cuid())
+  brandId        String
+  brand          Brand          @relation(fields: [brandId], references: [id])
+  email          String
+  firstName      String?
+  lastName       String?
+  phone          String?
+  pointsBalance  Int            @default(0)
+  status         MemberStatus   @default(ACTIVE)
+  consentGivenAt DateTime?
+  consentVersion String?
+  deletedAt      DateTime? // soft delete (C-02)
+  erased         Boolean        @default(false) // GDPR erasure flag (C-03)
+  loyaltyEvents  LoyaltyEvent[]
+  redemptions    Redemption[]
+  campaignEvents CampaignEvent[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([brandId, email])
+  @@index([brandId])
+  @@map("members")
+}
+
+model LoyaltyEvent {
+  id             String   @id @default(cuid())
+  brandId        String
+  memberId       String
+  member         Member   @relation(fields: [memberId], references: [id])
+  eventType      String // "purchase", "cx.nps_submitted", "campaign_award", etc.
+  pointsEarned   Int // positive = earn, negative = burn (redemption deduction)
+  payload        Json? // raw event payload
+  idempotencyKey String? // stored in Redis; also here for audit trail
+  rulesApplied   String[] // array of EarningRule IDs applied
+  campaignId     String? // if triggered by a campaign
+  processedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([brandId, createdAt]) // critical for analytics queries (R7.1, R7.5)
+  @@index([memberId])
+  @@index([idempotencyKey])
+  @@map("loyalty_events")
+}
+
+model Reward {
+  id          String       @id @default(cuid())
+  brandId     String
+  programId   String
+  program     Program      @relation(fields: [programId], references: [id])
+  name        String
+  description String?
+  pointsCost  Int
+  stock       Int? // null = unlimited
+  isAvailable Boolean      @default(true)
+  redemptions Redemption[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([brandId, isAvailable])
+  @@map("rewards")
+}
+
+model Redemption {
+  id          String           @id @default(cuid())
+  brandId     String
+  memberId    String
+  member      Member           @relation(fields: [memberId], references: [id])
+  rewardId    String
+  reward      Reward           @relation(fields: [rewardId], references: [id])
+  pointsSpent Int
+  status      RedemptionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  @@index([brandId, memberId])
+  @@map("redemptions")
+}
+
+model Campaign {
+  id               String          @id @default(cuid())
+  brandId          String
+  programId        String
+  program          Program         @relation(fields: [programId], references: [id])
+  name             String
+  triggerType      String // "cx.nps_submitted", "cx.ticket_resolved"
+  triggerCondition Json // e.g. { "field": "nps_score", "op": "lt", "value": 7 }
+  actionType       String // "award_points", "award_reward", "send_message"
+  actionConfig     Json // e.g. { "points": 500, "message": "..." }
+  budgetCap        Float? // USD value cap
+  budgetSpent      Float           @default(0)
+  status           CampaignStatus  @default(DRAFT)
+  startDate        DateTime
+  endDate          DateTime?
+  campaignEvents   CampaignEvent[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([brandId, status])
+  @@map("campaigns")
+}
+
+model CampaignEvent {
+  id          String    @id @default(cuid())
+  brandId     String
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  memberId    String
+  member      Member    @relation(fields: [memberId], references: [id])
+  triggeredAt DateTime  @default(now())
+  executedAt  DateTime?
+  latencyMs   Int? // measured latency from event ingestion to action execution
+  status      String    @default("executed")
+
+  @@unique([campaignId, memberId]) // dedup: one trigger per member per campaign (R6.4)
+  @@index([brandId, campaignId])
+  @@map("campaign_events")
+}
+
+model DemoRequest {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  workEmail   String
+  companyName String
+  companySize String?
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("demo_requests")
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  brandId      String? // null for system-level events
+  actorId      String // Clerk user ID
+  action       String // "program.create", "campaign.activate", etc.
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([brandId, createdAt])
+  @@map("audit_events")
+}
