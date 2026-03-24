@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Member Portal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f7; color: #111827; font-size: 14px; min-height: 100vh; }
+
+    /* Header */
+    header { background: white; border-bottom: 1px solid #e5e7eb; padding: 0 40px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .logo-mark { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; }
+    .brand-name { font-weight: 700; font-size: 16px; color: #111827; }
+    .brand-program { font-size: 12px; color: #6b7280; }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .member-chip { display: flex; align-items: center; gap: 8px; background: #f5f3ff; padding: 6px 12px; border-radius: 999px; }
+    .member-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 700; }
+    .member-name { font-size: 13px; font-weight: 600; color: #4c1d95; }
+
+    main { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+
+    /* Balance hero */
+    .balance-hero { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #a78bfa 100%); border-radius: 16px; padding: 36px; color: white; margin-bottom: 28px; position: relative; overflow: hidden; }
+    .balance-hero::before { content: ''; position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; background: rgba(255,255,255,0.06); border-radius: 50%; }
+    .balance-hero::after { content: ''; position: absolute; bottom: -60px; right: 40px; width: 150px; height: 150px; background: rgba(255,255,255,0.04); border-radius: 50%; }
+    .balance-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; margin-bottom: 4px; }
+    .balance-amount { font-size: 52px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+    .balance-currency { font-size: 18px; opacity: 0.85; }
+    .balance-actions { display: flex; gap: 12px; margin-top: 28px; position: relative; z-index: 1; }
+    .balance-btn { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+    .balance-btn-primary { background: white; color: #6366f1; }
+    .balance-btn-outline { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4); }
+    .tier-badge { position: absolute; top: 28px; right: 32px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px; }
+    .card-title { font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .card-link { font-size: 12px; color: #6366f1; font-weight: 500; cursor: pointer; }
+
+    /* Activity list */
+    .activity-list { display: flex; flex-direction: column; gap: 1px; }
+    .activity-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f9fafb; }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .activity-icon.earn { background: #d1fae5; }
+    .activity-icon.redeem { background: #fee2e2; }
+    .activity-icon.bonus { background: #ede9fe; }
+    .activity-desc { flex: 1; }
+    .activity-desc-title { font-size: 13px; font-weight: 500; color: #111827; }
+    .activity-desc-date { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .activity-points { font-size: 13px; font-weight: 700; }
+    .activity-points.earn { color: #059669; }
+    .activity-points.redeem { color: #dc2626; }
+    .activity-points.bonus { color: #7c3aed; }
+
+    /* Rewards grid */
+    .rewards-section { margin-bottom: 28px; }
+    .rewards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 640px) { .rewards-grid { grid-template-columns: 1fr; } }
+    .reward-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; cursor: pointer; transition: box-shadow 0.15s; }
+    .reward-card:hover { box-shadow: 0 4px 20px rgba(99,102,241,0.12); border-color: #a5b4fc; }
+    .reward-img { height: 100px; background: linear-gradient(135deg, #ede9fe, #ddd6fe); display: flex; align-items: center; justify-content: center; font-size: 40px; }
+    .reward-body { padding: 14px; }
+    .reward-name { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+    .reward-cost { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .reward-points { font-size: 13px; font-weight: 700; color: #6366f1; }
+    .reward-btn { font-size: 11px; font-weight: 600; padding: 5px 10px; background: #eef2ff; color: #6366f1; border-radius: 6px; border: none; cursor: pointer; }
+    .reward-btn:hover { background: #6366f1; color: white; }
+    .reward-btn.disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+    .progress-bar { background: #e5e7eb; border-radius: 999px; height: 5px; margin-top: 6px; overflow: hidden; }
+    .progress-fill { background: #6366f1; height: 100%; border-radius: 999px; }
+    .reward-progress-label { font-size: 10px; color: #9ca3af; margin-top: 3px; }
+
+    /* Notification banner */
+    .notification { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .notification-icon { font-size: 20px; flex-shrink: 0; }
+    .notification-text { font-size: 13px; color: #92400e; flex: 1; }
+    .notification-text strong { font-weight: 700; }
+    .notification-close { cursor: pointer; color: #b45309; font-size: 18px; line-height: 1; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .section-title { font-size: 16px; font-weight: 700; color: #111827; }
+    .section-link { font-size: 13px; color: #6366f1; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-logo">
+      <div class="logo-mark">C</div>
+      <div>
+        <div class="brand-name">Acme Co. Rewards</div>
+        <div class="brand-program">Powered by CustomerEQ</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="member-chip">
+        <div class="member-avatar">JD</div>
+        <span class="member-name">Jane Doe</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Notification from campaign trigger -->
+    <div class="notification">
+      <div class="notification-icon">🎉</div>
+      <div class="notification-text">
+        <strong>We noticed your recent experience wasn't perfect.</strong> As a thank-you for your feedback, we've added <strong>500 bonus Stars</strong> to your balance — redeemable now!
+      </div>
+      <div class="notification-close">×</div>
+    </div>
+
+    <!-- Balance Hero -->
+    <div class="balance-hero">
+      <div class="tier-badge">⭐ Silver Member</div>
+      <div class="balance-label">Your Stars Balance</div>
+      <div class="balance-amount">2,840 <span class="balance-currency">Stars</span></div>
+      <div style="font-size:13px; opacity:0.8; margin-top:4px;">≈ $28.40 value · 4,160 Stars to Gold tier</div>
+      <div class="balance-actions">
+        <button class="balance-btn balance-btn-primary">Redeem Rewards</button>
+        <button class="balance-btn balance-btn-outline">View History</button>
+      </div>
+    </div>
+
+    <!-- Stats + Activity -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">
+          Recent Activity
+          <span class="card-link">View all</span>
+        </div>
+        <div class="activity-list">
+          <div class="activity-item">
+            <div class="activity-icon bonus">🎁</div>
+            <div class="activity-desc">
+              <div class="activity-desc-title">CX Feedback Bonus</div>
+              <div class="activity-desc-date">Just now</div>
+            </div>
+            <div class="activity-points bonus">+500</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon earn">🛒</div>
+            <div class="activity-desc">
+              <div class="activity-desc-title">Purchase — Order #ORD-8821</div>
+              <div class="activity-desc-date">2 days ago</div>
+            </div>
+            <div class="activity-points earn">+340</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon redeem">🎫</div>
+            <div class="activity-desc">
+              <div class="activity-desc-title">Redeemed: $10 Gift Card</div>
+              <div class="activity-desc-date">5 days ago</div>
+            </div>
+            <div class="activity-points redeem">−1,000</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon earn">📋</div>
+            <div class="activity-desc">
+              <div class="activity-desc-title">Survey Completed</div>
+              <div class="activity-desc-date">1 week ago</div>
+            </div>
+            <div class="activity-points earn">+50</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Your Progress</div>
+        <div style="margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px; color:#6b7280;">
+            <span>Silver → Gold</span>
+            <span style="font-weight:600; color:#6366f1;">2,840 / 7,000 Stars</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:41%"></div></div>
+          <div style="font-size:11px; color:#9ca3af; margin-top:4px;">Earn 4,160 more Stars to reach Gold tier</div>
+        </div>
+        <div style="background:#f9fafb; border-radius:10px; padding:14px;">
+          <div style="font-size:12px; font-weight:600; color:#374151; margin-bottom:10px;">Gold Benefits Unlocked</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#6b7280;"><span>⚡</span> 2× points on every purchase</div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#6b7280;"><span>🎁</span> Exclusive Gold-only rewards</div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#6b7280;"><span>🚀</span> Early access to new rewards</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rewards -->
+    <div class="rewards-section">
+      <div class="section-header">
+        <div class="section-title">Redeem Your Stars</div>
+        <div class="section-link">Browse all rewards →</div>
+      </div>
+      <div class="rewards-grid">
+        <div class="reward-card">
+          <div class="reward-img">☕</div>
+          <div class="reward-body">
+            <div class="reward-name">$5 Coffee Gift Card</div>
+            <div style="font-size:11px; color:#9ca3af;">Digital delivery · Instant</div>
+            <div class="reward-cost">
+              <span class="reward-points">500 Stars</span>
+              <button class="reward-btn">Redeem</button>
+            </div>
+          </div>
+        </div>
+        <div class="reward-card">
+          <div class="reward-img">🛍️</div>
+          <div class="reward-body">
+            <div class="reward-name">$10 Amazon Gift Card</div>
+            <div style="font-size:11px; color:#9ca3af;">Digital delivery · Instant</div>
+            <div class="reward-cost">
+              <span class="reward-points">1,000 Stars</span>
+              <button class="reward-btn">Redeem</button>
+            </div>
+          </div>
+        </div>
+        <div class="reward-card">
+          <div class="reward-img">✈️</div>
+          <div class="reward-body">
+            <div class="reward-name">$50 Travel Voucher</div>
+            <div style="font-size:11px; color:#9ca3af;">Email delivery · 2 days</div>
+            <div class="reward-cost">
+              <span class="reward-points">5,000 Stars</span>
+              <button class="reward-btn disabled">5,000 needed</button>
+            </div>
+            <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:57%"></div></div>
+            <div class="reward-progress-label">2,840 / 5,000 Stars</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
