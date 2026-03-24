@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Issue #2 — Configure Loyalty Program Wizard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  /* ── Top nav ── */
+  .topnav {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo { font-weight: 700; font-size: 18px; color: #6366f1; letter-spacing: -0.5px; }
+  .logo span { color: #0f172a; }
+  .nav-user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar {
+    width: 220px;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+    padding: 20px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-item {
+    padding: 8px 20px;
+    font-size: 13px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 0;
+    transition: background 0.1s;
+  }
+  .sidebar-item:hover { background: #f1f5f9; }
+  .sidebar-item.active { background: #eef2ff; color: #6366f1; font-weight: 500; }
+  .sidebar-icon { font-size: 14px; }
+
+  .main { flex: 1; padding: 32px; max-width: 900px; }
+
+  /* ── Page header ── */
+  .page-header { margin-bottom: 28px; }
+  .breadcrumb { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+  .page-title { font-size: 22px; font-weight: 700; }
+  .page-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+  /* ── Stepper ── */
+  .stepper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 32px;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    flex: 1;
+    min-width: 80px;
+  }
+  .step-connector {
+    position: absolute;
+    top: 14px;
+    left: calc(-50% + 14px);
+    right: calc(50% + 14px);
+    height: 2px;
+    background: #e2e8f0;
+    z-index: 0;
+  }
+  .step-connector.done { background: #6366f1; }
+  .step-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #e2e8f0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    z-index: 1;
+    position: relative;
+  }
+  .step-circle.done { background: #6366f1; border-color: #6366f1; color: #fff; }
+  .step-circle.current { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+  .step-label { font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: center; white-space: nowrap; }
+  .step-label.current { color: #6366f1; font-weight: 500; }
+  .step-label.done { color: #6366f1; }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .card-desc { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+
+  /* ── Form elements ── */
+  .form-group { margin-bottom: 16px; }
+  .form-row { display: flex; gap: 16px; }
+  .form-row .form-group { flex: 1; }
+  label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+  input[type="text"], input[type="date"], select, textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #0f172a;
+    background: #fff;
+    transition: border-color 0.15s;
+    outline: none;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 2px #eef2ff; }
+  textarea { resize: vertical; min-height: 70px; }
+  .hint { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+  /* ── Program type selector ── */
+  .type-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .type-card {
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .type-card:hover { border-color: #a5b4fc; background: #fafbff; }
+  .type-card.selected { border-color: #6366f1; background: #eef2ff; }
+  .type-card-icon { font-size: 22px; margin-bottom: 8px; }
+  .type-card-name { font-weight: 600; font-size: 13px; }
+  .type-card-desc { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.4; }
+
+  /* ── Rules ── */
+  .rule-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: #fafbff;
+  }
+  .rule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .rule-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #6366f1; }
+  .condition-group {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+    margin-bottom: 10px;
+  }
+  .condition-logic { display: flex; gap: 4px; margin-bottom: 8px; }
+  .logic-btn {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+  }
+  .logic-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .condition-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .condition-row select, .condition-row input { flex: 1; }
+  .remove-btn {
+    padding: 4px 8px;
+    border: none;
+    background: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+  .remove-btn:hover { background: #fee2e2; color: #ef4444; }
+  .add-btn {
+    padding: 6px 14px;
+    border: 1px dashed #a5b4fc;
+    background: none;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #6366f1;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.1s;
+  }
+  .add-btn:hover { background: #eef2ff; }
+
+  /* ── Tiers ── */
+  .tier-ladder { display: flex; flex-direction: column; gap: 8px; }
+  .tier-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .tier-icon { font-size: 20px; }
+  .tier-info { flex: 1; }
+  .tier-name { font-weight: 600; font-size: 13px; }
+  .tier-criteria { font-size: 11px; color: #64748b; }
+  .tier-mult { font-size: 12px; color: #6366f1; font-weight: 600; }
+  .tier-badge { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+
+  /* ── Preview panel ── */
+  .preview-phone {
+    width: 280px;
+    border: 8px solid #0f172a;
+    border-radius: 36px;
+    overflow: hidden;
+    margin: 0 auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+  .phone-screen {
+    background: #fff;
+    min-height: 500px;
+    padding: 20px 16px;
+    font-size: 12px;
+  }
+  .phone-header { text-align: center; margin-bottom: 16px; }
+  .phone-logo { font-weight: 700; font-size: 14px; color: #6366f1; }
+  .phone-subtitle { font-size: 10px; color: #94a3b8; }
+  .points-big { text-align: center; margin: 16px 0; }
+  .points-num { font-size: 36px; font-weight: 700; color: #6366f1; }
+  .points-label { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+  .progress-bar-wrap { margin: 12px 0; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; margin-bottom: 4px; }
+  .progress-bar { height: 6px; background: #e2e8f0; border-radius: 999px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 999px; width: 35%; }
+  .reward-mini { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 6px; }
+  .reward-icon { font-size: 16px; }
+  .reward-info { flex: 1; }
+  .reward-name { font-weight: 600; font-size: 11px; }
+  .reward-cost { font-size: 10px; color: #94a3b8; }
+  .redeem-btn-mini { padding: 4px 8px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 10px; cursor: pointer; font-family: inherit; }
+
+  /* ── Simulate panel ── */
+  .simulate-panel { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .simulate-title { font-size: 13px; font-weight: 600; color: #166534; margin-bottom: 10px; }
+  .simulate-result { font-size: 12px; color: #166534; margin-top: 8px; padding: 8px; background: #dcfce7; border-radius: 6px; }
+  .simulate-result strong { font-weight: 700; }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+  .btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .btn-ghost { background: transparent; border-color: #e2e8f0; color: #374151; }
+  .btn-ghost:hover { background: #f8fafc; }
+  .btn-outline { background: transparent; border-color: #6366f1; color: #6366f1; }
+  .btn-outline:hover { background: #eef2ff; }
+  .btn-primary { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn-success:hover { background: #15803d; }
+
+  /* ── Tab nav ── */
+  .tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 24px; }
+  .tab { padding: 10px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: #64748b; margin-bottom: -1px; }
+  .tab.active { color: #6366f1; border-bottom-color: #6366f1; font-weight: 500; }
+
+  /* ── Status badge ── */
+  .badge { padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .badge-draft { background: #f1f5f9; color: #64748b; }
+  .badge-active { background: #dcfce7; color: #166534; }
+  .badge-paused { background: #fef9c3; color: #854d0e; }
+
+  /* ── Budget bar ── */
+  .budget-bar-wrap { margin-top: 8px; }
+  .budget-bar { height: 8px; background: #e2e8f0; border-radius: 999px; }
+  .budget-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #86efac); width: 12%; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; margin-top: 8px; }
+  .checklist li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .checklist li:last-child { border-bottom: none; }
+  .check-icon { font-size: 14px; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .modal-desc { font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
+  .modal-warning { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+
+  /* ── Step panels ── */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  /* ── Notification banner ── */
+  .banner {
+    display: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    align-items: center;
+    gap: 8px;
+  }
+  .banner.show { display: flex; }
+  .banner-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="topnav">
+  <div class="logo">Customer<span>EQ</span></div>
+  <div class="nav-user">
+    <div class="avatar">AM</div>
+    Acme Brand Admin
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-item"><span class="sidebar-icon">🏠</span> Dashboard</div>
+    <div class="sidebar-item active"><span class="sidebar-icon">🎁</span> Programs</div>
+    <div class="sidebar-item"><span class="sidebar-icon">👥</span> Members</div>
+    <div class="sidebar-item"><span class="sidebar-icon">📣</span> Campaigns</div>
+    <div class="sidebar-item"><span class="sidebar-icon">📊</span> Analytics</div>
+    <div class="sidebar-item"><span class="sidebar-icon">🔗</span> Integrations</div>
+    <div class="sidebar-item"><span class="sidebar-icon">⚙️</span> Settings</div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    <div class="page-header">
+      <div class="breadcrumb">Programs › Create New Program</div>
+      <div class="page-title">Configure Loyalty Program</div>
+      <div class="page-subtitle">Complete each step to set up your program. Progress is auto-saved.</div>
+    </div>
+
+    <!-- Save banner -->
+    <div id="saveBanner" class="banner banner-success">
+      ✅ Draft saved automatically.
+    </div>
+
+    <!-- Stepper -->
+    <div class="stepper" id="stepper">
+      <!-- Steps rendered by JS -->
+    </div>
+
+    <!-- Step Panels -->
+
+    <!-- Step 1: Program Type -->
+    <div class="step-panel active" id="panel-1">
+      <div class="card">
+        <div class="card-title">Program Type</div>
+        <div class="card-desc">Choose the loyalty model that best fits your brand's goals.</div>
+        <div class="type-grid">
+          <div class="type-card selected" onclick="selectType(this, 'points')">
+            <div class="type-card-icon">⭐</div>
+            <div class="type-card-name">Points</div>
+            <div class="type-card-desc">Members earn points for actions and redeem them for rewards. Most common program type.</div>
+          </div>
+          <div class="type-card" onclick="selectType(this, 'tiered')">
+            <div class="type-card-icon">🏆</div>
+            <div class="type-card-name">Tiered</div>
+            <div class="type-card-desc">Members progress through tiers (e.g., Bronze → Gold) unlocking better benefits.</div>
+          </div>
+          <div class="type-card" onclick="selectType(this, 'cashback')">
+            <div class="type-card-icon">💵</div>
+            <div class="type-card-name">Cashback</div>
+            <div class="type-card-desc">Customers earn a percentage back on purchases as store credit or statement credit.</div>
+          </div>
+          <div class="type-card" onclick="selectType(this, 'hybrid')">
+            <div class="type-card-icon">🔀</div>
+            <div class="type-card-name">Hybrid</div>
+            <div class="type-card-desc">Combine points, tiers, and cashback into a single unified program.</div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="goToStep(2)">Next: Basic Info →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Basic Info -->
+    <div class="step-panel" id="panel-2">
+      <div class="card">
+        <div class="card-title">Basic Info</div>
+        <div class="card-desc">Name your program and set the active period.</div>
+        <div class="form-group">
+          <label>Program Name *</label>
+          <input type="text" value="Summer Rewards 2026" placeholder="e.g. Summer Rewards 2026" />
+          <div class="hint">Shown to members on their loyalty portal.</div>
+        </div>
+        <div class="form-group">
+          <label>Member-Facing Description</label>
+          <textarea>Earn stars for every purchase and unlock exclusive rewards. The more you shop, the more you save!</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Date *</label>
+            <input type="date" value="2026-04-01" />
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
+            <input type="date" value="" placeholder="Leave blank for ongoing" />
+            <div class="hint">Leave blank for ongoing program.</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Currency Symbol (what to call points)</label>
+          <input type="text" value="Stars" placeholder="Stars, Coins, Points, Sparks…" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToStep(1)">← Back</button>
+        <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="goToStep(3)">Next: Earning Rules →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Earning Rules -->
+    <div class="step-panel" id="panel-3">
+      <div class="card">
+        <div class="card-title">Earning Rules</div>
+        <div class="card-desc">Define how members earn points. Rules are evaluated in priority order when an event occurs.</div>
+
+        <!-- Rule 1 -->
+        <div class="rule-item">
+          <div class="rule-header">
+            <span class="rule-badge">Rule 1 · Priority 1</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select style="width:160px;font-size:12px">
+                <option>purchase</option>
+                <option>review</option>
+                <option>referral</option>
+                <option>social share</option>
+                <option>enrollment</option>
+              </select>
+              <button class="remove-btn">✕</button>
+            </div>
+          </div>
+
+          <div class="condition-group">
+            <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px;">Conditions</div>
+            <div class="condition-logic">
+              <button class="logic-btn active">AND</button>
+              <button class="logic-btn">OR</button>
+            </div>
+            <div class="condition-row">
+              <select><option>product_category</option><option>channel</option><option>spend_amount</option><option>time_of_day</option></select>
+              <select style="max-width:80px"><option>=</option><option>≠</option><option>≥</option><option>≤</option></select>
+              <input type="text" value="Electronics" />
+              <button class="remove-btn">✕</button>
+            </div>
+            <div class="condition-row">
+              <select><option>channel</option><option>product_category</option><option>spend_amount</option></select>
+              <select style="max-width:80px"><option>=</option><option>≠</option></select>
+              <input type="text" value="web" />
+              <button class="remove-btn">✕</button>
+            </div>
+            <button class="add-btn" style="margin-top:6px">+ Add condition</button>
+          </div>
+
+          <div class="form-row" style="margin-top:8px">
+            <div class="form-group">
+              <label>Action</label>
+              <select>
+                <option>Award points</option>
+                <option>Multiplier on base</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Value</label>
+              <input type="text" value="2× multiplier" />
+            </div>
+            <div class="form-group">
+              <label>Budget Cap (points)</label>
+              <input type="text" value="50,000" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Rule 2 -->
+        <div class="rule-item">
+          <div class="rule-header">
+            <span class="rule-badge">Rule 2 · Priority 2</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select style="width:160px;font-size:12px">
+                <option selected>purchase</option>
+                <option>review</option>
+                <option>referral</option>
+              </select>
+              <button class="remove-btn">✕</button>
+            </div>
+          </div>
+          <div class="condition-group">
+            <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px;">Conditions</div>
+            <div class="condition-logic">
+              <button class="logic-btn active">AND</button>
+              <button class="logic-btn">OR</button>
+            </div>
+            <div class="condition-row">
+              <select><option>spend_amount</option><option>channel</option></select>
+              <select style="max-width:80px"><option>≥</option><option>=</option></select>
+              <input type="text" value="$1" />
+              <button class="remove-btn">✕</button>
+            </div>
+            <button class="add-btn" style="margin-top:6px">+ Add condition</button>
+          </div>
+          <div class="form-row" style="margin-top:8px">
+            <div class="form-group">
+              <label>Action</label>
+              <select><option>Award points</option></select>
+            </div>
+            <div class="form-group">
+              <label>Value</label>
+              <input type="text" value="1 point per $1" />
+            </div>
+            <div class="form-group">
+              <label>Budget Cap (points)</label>
+              <input type="text" placeholder="Unlimited" />
+            </div>
+          </div>
+        </div>
+
+        <button class="add-btn" onclick="alert('New rule added (demo)')">+ Add rule</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToStep(2)">← Back</button>
+        <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="goToStep(4)">Next: Tier Config →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Tiers -->
+    <div class="step-panel" id="panel-4">
+      <div class="card">
+        <div class="card-title">Tier Configuration</div>
+        <div class="card-desc">Define progression tiers that unlock better benefits as members earn more.</div>
+
+        <div class="tier-ladder">
+          <div class="tier-item">
+            <div class="tier-icon">🥉</div>
+            <div class="tier-info">
+              <div class="tier-name">Bronze</div>
+              <div class="tier-criteria">Entry: 0 Stars · Benefits: Free shipping on orders $50+</div>
+            </div>
+            <div class="tier-mult">1.0×</div>
+            <span class="badge badge-active">Default</span>
+          </div>
+          <div style="text-align:center;font-size:18px;color:#94a3b8">↑</div>
+          <div class="tier-item">
+            <div class="tier-icon">🥈</div>
+            <div class="tier-info">
+              <div class="tier-name">Silver</div>
+              <div class="tier-criteria">Entry: 500 Stars · Benefits: Free shipping + 5% off</div>
+            </div>
+            <div class="tier-mult">1.25×</div>
+          </div>
+          <div style="text-align:center;font-size:18px;color:#94a3b8">↑</div>
+          <div class="tier-item">
+            <div class="tier-icon">🥇</div>
+            <div class="tier-info">
+              <div class="tier-name">Gold</div>
+              <div class="tier-criteria">Entry: 2,000 Stars · Benefits: Free shipping + 10% off + Priority support</div>
+            </div>
+            <div class="tier-mult">1.5×</div>
+          </div>
+          <div style="text-align:center;font-size:18px;color:#94a3b8">↑</div>
+          <div class="tier-item" style="border-color:#f59e0b">
+            <div class="tier-icon">💎</div>
+            <div class="tier-info">
+              <div class="tier-name">Platinum</div>
+              <div class="tier-criteria">Entry: 5,000 Stars · Benefits: All Gold perks + Dedicated account manager</div>
+            </div>
+            <div class="tier-mult" style="color:#f59e0b">2.0×</div>
+            <span class="badge" style="background:#fef3c7;color:#92400e">Elite</span>
+          </div>
+        </div>
+
+        <button class="add-btn" style="margin-top:16px" onclick="alert('Add tier dialog (demo)')">+ Add tier</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToStep(3)">← Back</button>
+        <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="goToStep(5)">Next: Rewards →</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Rewards -->
+    <div class="step-panel" id="panel-5">
+      <div class="card">
+        <div class="card-title">Rewards Catalog</div>
+        <div class="card-desc">Add the rewards members can redeem their Stars for.</div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="rule-item">
+            <div class="rule-header">
+              <span style="font-weight:600;font-size:13px">🎟️ 10% Discount Code</span>
+              <span class="badge badge-active">Active</span>
+            </div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:8px">Discount code for 10% off next purchase</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Type</label>
+                <select><option>Discount Code</option></select>
+              </div>
+              <div class="form-group">
+                <label>Points Cost</label>
+                <input type="text" value="200 Stars" />
+              </div>
+              <div class="form-group">
+                <label>Stock</label>
+                <input type="text" value="Unlimited" />
+              </div>
+              <div class="form-group">
+                <label>Eligible Tiers</label>
+                <select><option>All Tiers</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="rule-item">
+            <div class="rule-header">
+              <span style="font-weight:600;font-size:13px">🎁 Free Product (up to $25)</span>
+              <span class="badge badge-active">Active</span>
+            </div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:8px">Redeem for any product up to $25 value</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Type</label>
+                <select><option>Free Product</option></select>
+              </div>
+              <div class="form-group">
+                <label>Points Cost</label>
+                <input type="text" value="500 Stars" />
+              </div>
+              <div class="form-group">
+                <label>Stock</label>
+                <input type="text" value="100 remaining" />
+              </div>
+              <div class="form-group">
+                <label>Eligible Tiers</label>
+                <select><option>Silver, Gold, Platinum</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="add-btn" style="margin-top:16px" onclick="alert('Add reward dialog (demo)')">+ Add reward</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToStep(4)">← Back</button>
+        <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="goToStep(6)">Next: Budget →</button>
+      </div>
+    </div>
+
+    <!-- Step 6: Budget -->
+    <div class="step-panel" id="panel-6">
+      <div class="card">
+        <div class="card-title">Budget &amp; Spend Controls</div>
+        <div class="card-desc">Set guardrails to prevent the program from exceeding your loyalty budget.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Program Budget (USD) *</label>
+            <input type="text" value="$50,000" />
+            <div class="hint">Hard cap on total points value issued.</div>
+          </div>
+          <div class="form-group">
+            <label>Monthly Rolling Cap (USD)</label>
+            <input type="text" value="$8,000" />
+            <div class="hint">Resets on the 1st of each month.</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Alert Threshold</label>
+          <select>
+            <option>Alert me at 80% consumed</option>
+            <option>Alert me at 70% consumed</option>
+            <option>Alert me at 90% consumed</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>When budget cap is reached</label>
+          <select>
+            <option>Pause all rule evaluations (members can still redeem)</option>
+            <option>Pause entire program</option>
+          </select>
+        </div>
+
+        <div style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+            <span style="color:#64748b">Budget consumed (preview)</span>
+            <span style="font-weight:600">$0 / $50,000 (0%)</span>
+          </div>
+          <div class="budget-bar"><div class="budget-fill"></div></div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px">No points issued yet — program not activated.</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goToStep(5)">← Back</button>
+        <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="goToStep(7)">Next: Preview &amp; Activate →</button>
+      </div>
+    </div>
+
+    <!-- Step 7: Preview & Activate -->
+    <div class="step-panel" id="panel-7">
+      <div style="display:flex;gap:24px;align-items:flex-start">
+        <!-- Left: checklist + simulate -->
+        <div style="flex:1">
+          <div class="card">
+            <div class="card-title">Pre-Activation Checklist</div>
+            <div class="card-desc">Confirm all required settings before activating.</div>
+            <ul class="checklist">
+              <li><span class="check-icon">✅</span> Program type selected (Points)</li>
+              <li><span class="check-icon">✅</span> Program name set (Summer Rewards 2026)</li>
+              <li><span class="check-icon">✅</span> Start date configured (Apr 1, 2026)</li>
+              <li><span class="check-icon">✅</span> 2 earning rules configured</li>
+              <li><span class="check-icon">✅</span> 4 tiers configured</li>
+              <li><span class="check-icon">✅</span> 2 rewards in catalog</li>
+              <li><span class="check-icon">✅</span> Budget cap set ($50,000)</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <div class="card-title">🧪 Simulate Member Action</div>
+            <div class="card-desc">Test your rules before going live.</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Purchase Amount</label>
+                <input type="text" id="simAmount" value="$120" />
+              </div>
+              <div class="form-group">
+                <label>Product Category</label>
+                <select id="simCat">
+                  <option>Electronics</option>
+                  <option>Apparel</option>
+                  <option>Home &amp; Garden</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Channel</label>
+                <select id="simChan">
+                  <option>web</option>
+                  <option>mobile app</option>
+                  <option>in-store</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-outline" onclick="runSimulation()">Run Simulation</button>
+
+            <div class="simulate-panel" id="simResult" style="display:none">
+              <div class="simulate-title">✅ Simulation Result</div>
+              <div style="font-size:12px;color:#166534">Rule fired: <strong>Rule 1</strong> (Electronics + web → 2× multiplier)</div>
+              <div class="simulate-result">Member earns: <strong>240 Stars</strong> (120 base × 2× multiplier)</div>
+              <div style="font-size:11px;color:#64748b;margin-top:6px">Budget remaining after award: $49,997.60 of $50,000</div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="goToStep(6)">← Back</button>
+            <button class="btn btn-outline" onclick="saveDraft()">Save as Draft</button>
+            <button class="btn btn-success" onclick="showActivateModal()">🚀 Activate Program</button>
+          </div>
+        </div>
+
+        <!-- Right: phone mock -->
+        <div style="flex-shrink:0">
+          <div style="text-align:center;font-size:11px;color:#94a3b8;margin-bottom:10px">Member experience preview</div>
+          <div class="preview-phone">
+            <div class="phone-screen">
+              <div class="phone-header">
+                <div class="phone-logo">Summer Rewards</div>
+                <div class="phone-subtitle">Powered by CustomerEQ</div>
+              </div>
+              <div style="text-align:center;margin-bottom:12px">
+                <span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px">🥈 Silver Member</span>
+              </div>
+              <div class="points-big">
+                <div class="points-num">840</div>
+                <div class="points-label">Stars balance</div>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-label">
+                  <span>Silver (500 ★)</span>
+                  <span>Gold (2,000 ★)</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <div style="font-size:10px;color:#94a3b8;margin-top:3px">1,160 Stars to Gold tier</div>
+              </div>
+              <div style="margin-top:14px;font-size:11px;font-weight:600;margin-bottom:6px">Available Rewards</div>
+              <div class="reward-mini">
+                <div class="reward-icon">🎟️</div>
+                <div class="reward-info">
+                  <div class="reward-name">10% Discount Code</div>
+                  <div class="reward-cost">200 Stars</div>
+                </div>
+                <button class="redeem-btn-mini">Redeem</button>
+              </div>
+              <div class="reward-mini" style="opacity:0.5">
+                <div class="reward-icon">🎁</div>
+                <div class="reward-info">
+                  <div class="reward-name">Free Product ($25)</div>
+                  <div class="reward-cost">500 Stars · Silver+ only</div>
+                </div>
+                <button class="redeem-btn-mini" disabled style="background:#e2e8f0;color:#94a3b8">Locked</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Activate Confirmation Modal -->
+<div class="modal-overlay" id="activateModal">
+  <div class="modal">
+    <div class="modal-title">Activate "Summer Rewards 2026"?</div>
+    <div class="modal-desc">Once activated, members can start earning Stars immediately. Rules will evaluate against all new events within seconds.</div>
+    <div class="modal-warning">⚠️ To confirm, type the program name below:</div>
+    <div class="form-group">
+      <input type="text" id="confirmName" placeholder="Summer Rewards 2026" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-success" onclick="activateProgram()">Activate Now</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const steps = [
+    { label: 'Program Type' },
+    { label: 'Basic Info' },
+    { label: 'Earn Rules' },
+    { label: 'Tiers' },
+    { label: 'Rewards' },
+    { label: 'Budget' },
+    { label: 'Preview' },
+  ];
+
+  let currentStep = 1;
+
+  function renderStepper() {
+    const el = document.getElementById('stepper');
+    el.innerHTML = steps.map((s, i) => {
+      const n = i + 1;
+      const done = n < currentStep;
+      const cur = n === currentStep;
+      return `
+        <div class="step">
+          ${n > 1 ? `<div class="step-connector ${done || cur ? 'done' : ''}"></div>` : ''}
+          <div class="step-circle ${done ? 'done' : cur ? 'current' : ''}">${done ? '✓' : n}</div>
+          <div class="step-label ${done ? 'done' : cur ? 'current' : ''}">${s.label}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function goToStep(n) {
+    document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + n).classList.add('active');
+    currentStep = n;
+    renderStepper();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function selectType(el, type) {
+    document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  function saveDraft() {
+    const b = document.getElementById('saveBanner');
+    b.classList.add('show');
+    setTimeout(() => b.classList.remove('show'), 2500);
+  }
+
+  function runSimulation() {
+    document.getElementById('simResult').style.display = 'block';
+  }
+
+  function showActivateModal() {
+    document.getElementById('activateModal').classList.add('show');
+  }
+
+  function closeModal() {
+    document.getElementById('activateModal').classList.remove('show');
+  }
+
+  function activateProgram() {
+    const val = document.getElementById('confirmName').value.trim();
+    if (val === 'Summer Rewards 2026') {
+      closeModal();
+      alert('🎉 Program activated! Members can now earn Stars.');
+    } else {
+      document.getElementById('confirmName').style.borderColor = '#ef4444';
+    }
+  }
+
+  // logic btn toggle
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('logic-btn')) {
+      const group = e.target.closest('.condition-logic');
+      group.querySelectorAll('.logic-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+    }
+  });
+
+  renderStepper();
+</script>
+</body>
+</html>
