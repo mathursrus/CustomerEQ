@@ -90,5 +90,35 @@ All 8 files are syntactically correct TypeScript:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | test-planning | Complete | Architecture doc + data models + project rules reviewed |
-| test-implementation | Complete | 8 files, ~65 test cases written |
+| test-implementation | Complete | 8 integration files (~65 cases) + 7 unit files (119 cases) written |
 | test-verification | Blocked (environment) | pnpm unavailable; expected red state documented |
+
+---
+
+## Unit Test Suite — Added 2026-03-24
+
+A second test-execution pass added 7 unit test files as a TDD baseline for the pure-function and plugin layer. All imports were cross-referenced against the existing schema source files on disk.
+
+### Files Created
+
+| File | it-blocks | expect-calls | Description |
+|------|-----------|--------------|-------------|
+| `packages/shared/src/zod/program.schema.test.ts` | 19 | 29 | CreateProgramSchema + UpdateProgramSchema: name required, optional ratio/currency, negative/zero ratio rejected |
+| `packages/shared/src/zod/member.schema.test.ts` | 18 | 29 | EnrollMemberSchema: email, consentGivenAt, programId required; optional firstName/lastName |
+| `packages/shared/src/zod/event.schema.test.ts` | 13 | 21 | IngestEventSchema: eventType + memberId required, optional payload + idempotencyKey |
+| `packages/shared/src/zod/campaign.schema.test.ts` | 25 | 40 | CreateCampaignSchema: ISO-string dates, op enum, actionConfig refine (points or rewardId) |
+| `apps/api/src/plugins/multiTenant.test.ts` | 9 | 15 | preValidation hook: body with brandId → 400; without → pass-through. Uses Fastify inject. |
+| `apps/worker/src/processors/loyaltyEvents.test.ts` | 18 | 18 | evaluateRules pure function: points, multiplier, INACTIVE skip, maxUsesPerMember, multi-rule sum |
+| `apps/worker/src/processors/campaignTriggers.test.ts` | 17 | 24 | processCampaignTrigger: dedup, inactive guard, budget cap, latencyMs, notification enqueue |
+
+**Unit test totals**: 119 `it`-blocks / 176 `expect`-calls
+
+### Validation
+
+All 7 files parsed correctly by Node.js module reader. Named imports verified against on-disk schema exports:
+- `CreateProgramSchema`, `UpdateProgramSchema` — present in `program.schema.ts`
+- `EnrollMemberSchema` — present in `member.schema.ts`
+- `IngestEventSchema` — present in `event.schema.ts`
+- `CreateCampaignSchema` — present in `campaign.schema.ts`
+
+The two processor test files (`loyaltyEvents.test.ts`, `campaignTriggers.test.ts`) use inline stub functions that `throw new Error('not yet implemented')`, guaranteeing red state until real implementations are provided.
