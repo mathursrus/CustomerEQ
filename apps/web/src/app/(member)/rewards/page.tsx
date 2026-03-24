@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -15,6 +15,7 @@ interface Reward {
 
 export default function RewardsPage() {
   const { getToken } = useAuth()
+  const { user } = useUser()
   const [rewards, setRewards] = useState<Reward[]>([])
   const [balance, setBalance] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -24,21 +25,25 @@ export default function RewardsPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!user?.id) return
     async function fetchData() {
       const token = await getToken()
       const [rewardsRes, balanceRes] = await Promise.all([
         fetch(`${API_URL}/v1/rewards`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/v1/members/me/balance`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/v1/members/${user!.id}/balance`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
-      if (rewardsRes.ok) setRewards(await rewardsRes.json())
+      if (rewardsRes.ok) {
+        const d = await rewardsRes.json()
+        setRewards(d.rewards ?? d ?? [])
+      }
       if (balanceRes.ok) {
-        const data = await balanceRes.json()
-        setBalance(data.pointsBalance)
+        const d = await balanceRes.json()
+        setBalance(d.pointsBalance ?? d.balance ?? 0)
       }
       setLoading(false)
     }
     fetchData()
-  }, [getToken])
+  }, [getToken, user?.id])
 
   async function handleRedeem(reward: Reward) {
     setRedeeming(reward.id)
@@ -54,10 +59,16 @@ export default function RewardsPage() {
         setBalance((b) => b - reward.pointsCost)
         setSuccess(`Successfully redeemed "${reward.name}"!`)
         setConfirmReward(null)
-        setTimeout(() => setSuccess(null), 3000)
+        setTimeout(() => setSuccess(null), 4000)
       } else {
-        const data = await res.json()
-        setError(data.error ?? 'Redemption failed')
+        const data = await res.json().catch(() => ({}))
+        const msg: string = data?.message ?? data?.error ?? ''
+        if (res.status === 422 || msg.toLowerCase().includes('insufficient')) {
+          setError('Insufficient points balance')
+        } else {
+          setError(msg || 'Redemption failed. Please try again.')
+        }
+        setConfirmReward(null)
       }
     } catch {
       setError('Network error. Please try again.')
@@ -66,7 +77,11 @@ export default function RewardsPage() {
     }
   }
 
-  if (loading) return <div className="text-gray-500">Loading rewards...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center py-12">
+      <div className="h-8 w-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
+    </div>
+  )
 
   return (
     <div>
