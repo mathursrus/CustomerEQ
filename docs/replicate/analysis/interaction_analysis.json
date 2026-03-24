@@ -1,0 +1,59 @@
+{
+  "base_url": "https://www.annexcloud.com",
+  "analysis_date": "2026-03-24T11:18:21.393418",
+  "pages_visited": [
+    {
+      "name": "01_homepage",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\01_homepage_20260324_111810.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "Initial homepage load",
+      "timestamp": "20260324_111810"
+    },
+    {
+      "name": "02_before_click_1",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\02_before_click_1_20260324_111811.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "Before clicking: Accept",
+      "timestamp": "20260324_111811"
+    },
+    {
+      "name": "03_after_click_1",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\03_after_click_1_20260324_111815.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "After clicking: Accept - URL: https://www.annexcloud.com/",
+      "timestamp": "20260324_111815"
+    },
+    {
+      "name": "04_form_page_1",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\04_form_page_1_20260324_111815.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "Page with forms/inputs",
+      "timestamp": "20260324_111815"
+    },
+    {
+      "name": "02_before_click_2",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\02_before_click_2_20260324_111816.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "Before clicking: ",
+      "timestamp": "20260324_111816"
+    },
+    {
+      "name": "99_final_state",
+      "filename": "C:\\Users\\sidma\\OneDrive\\Code\\CustomerEQ\\docs\\replicate\\analysis\\screenshots\\99_final_state_20260324_111820.png",
+      "url": "https://www.annexcloud.com/",
+      "description": "Final state after exploration",
+      "timestamp": "20260324_111820"
+    }
+  ],
+  "use_cases": [
+    {
+      "use_case": "Data Collection",
+      "confidence": "medium",
+      "keywords_found": [
+        "form",
+        "data"
+      ]
+    }
+  ],
+  "total_screenshots": 6
+}

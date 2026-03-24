@@ -1,0 +1,211 @@
+{
+  "target_url": "https://www.annexcloud.com",
+  "scrape_date": "2026-03-24",
+  "total_pages_analyzed": 17,
+  "site_title": "Annex Cloud | Enterprise Loyalty Platform",
+  "navigation_structure": {
+    "why_annexcloud": "/why-annexcloud/",
+    "platform": {
+      "overview": "/loyalty-experience-platform/",
+      "capabilities_overview": "/capabilities-overview/",
+      "integrations": "/platform-integrations/",
+      "data_management": "/data-management/",
+      "journey_catalyst": "/journey-catalyst/",
+      "ai_solutions": "/elevating-loyalty-through-ai-powered-solutions/",
+      "engage": {
+        "gamification": "/loyalty-gamification/",
+        "social_loyalty": "/social-loyalty/",
+        "surveys_quizzes_contests": "/surveys-quizzes-contests/"
+      },
+      "personalize": {
+        "advanced_segmentation": "/advanced-segmentation/",
+        "microsite_raas": "/microsite/",
+        "multi_template_instances": "/multi-template/",
+        "progressive_profiling": "/progressive-profiling/"
+      },
+      "retain": {
+        "incentive_engine": "/rewards-and-incentives-engine/",
+        "program_types_features": "/loyalty-program-templates-and-instances/",
+        "receipt_scanning": "/receipt-scanning/",
+        "rewards": "/customer-loyalty-rewards/",
+        "reporting": "/customer-loyalty-reporting/"
+      },
+      "advocate": {
+        "refer_a_friend": "/referral-marketing-program/"
+      }
+    },
+    "use_cases": "/use-cases/",
+    "business_case": "/business-case/",
+    "resources": {
+      "resource_center": "/resources/",
+      "loyalty_lounge": "https://loyaltylounge.annexcloud.com/",
+      "glossary": "/glossary/",
+      "faqs": "/faqs/"
+    },
+    "implement": {
+      "integrations_overview": "/integrations-overview/",
+      "implementation_process": "/implementation-process/",
+      "migration": "/migration/",
+      "data_privacy": "/global-data-privacy-and-protection/",
+      "enterprise_readiness": "/enterprise-readiness/"
+    },
+    "optimize": {
+      "configurability": "/configurability/",
+      "customer_success": "/customer-success/"
+    },
+    "marketplace": { "partner_program": "/partners/" },
+    "about": {
+      "about_us": "/about-us/",
+      "careers": "/careers/",
+      "in_the_news": "/in-the-news/",
+      "contact_us": "/contact-us/"
+    }
+  },
+  "key_stats": {
+    "brands_revenue": "$1B",
+    "integrations": 125,
+    "countries_served": 80,
+    "rewards_catalog_items": "6M+",
+    "rewards_brands": "614+",
+    "rewards_countries": "116+",
+    "data_centers": 12,
+    "certifications": ["SOC 2 Type 2", "ISO 27001"],
+    "business_results": {
+      "increased_aov": "11%",
+      "repeat_purchases": "32%",
+      "customer_ltv": "40%"
+    }
+  },
+  "pages": [
+    {
+      "url": "https://www.annexcloud.com/",
+      "title": "Annex Cloud | Enterprise Loyalty Platform",
+      "headline": "The enterprise platform built for a lifetime of loyalty",
+      "key_features": ["Engage", "Personalize", "Retain", "Advocate"],
+      "description": "The industry's most robust, flexible and easy-to-use enterprise loyalty platform."
+    },
+    {
+      "url": "https://www.annexcloud.com/loyalty-experience-platform/",
+      "title": "Loyalty Experience Platform | Annex Cloud",
+      "headline": "The Loyalty Experience Platform: Built for Modern Enterprises",
+      "key_features": ["Intelligent program logic","Flexible rules engine","Action-driven rewards","Unlimited reward options","Rich customer insights","Holistic view","Customizable attributes","360-degree engagement","Seamless tech integration","125+ connectors","API-first approach","Enterprise-grade scalability","Agile deployment","Global reach"]
+    },
+    {
+      "url": "https://www.annexcloud.com/capabilities-overview/",
+      "title": "Loyalty Capabilities | Annex Cloud",
+      "headline": "Access the latest loyalty capabilities on demand",
+      "key_features": ["Gamification","Social Loyalty","Surveys/Quizzes/Contests","Advanced Segmentation","Microsite & RaaS","Multi-template","Progressive Profiling","Incentive Engine","Program Types","Receipt Scanning","Rewards","Reporting","Refer A Friend"]
+    },
+    {
+      "url": "https://www.annexcloud.com/journey-catalyst/",
+      "title": "Journey Catalyst | Build Personalized Journeys at Scale",
+      "headline": "Journey Catalyst",
+      "key_features": ["No-code workflow builder","AI to guide your next move","Real time dynamic segmentation","Spend controls","Replicate success, refine with ease","Budget with confidence"]
+    },
+    {
+      "url": "https://www.annexcloud.com/elevating-loyalty-through-ai-powered-solutions/",
+      "title": "Elevating Loyalty with AI-Powered Solutions",
+      "headline": "Elevating Loyalty Through AI-Powered Solutions",
+      "key_features": ["Data Enrichment","Personalization","Dynamic Segmentation","Predictive Analytics","Intelligent Offers","Fraud Detection","Engagement Analysis","Performance Measurement","Chatbots & Virtual Assistants","Virtual Program Manager"]
+    },
+    {
+      "url": "https://www.annexcloud.com/platform-integrations/",
+      "title": "Annex Cloud Integrations | Loyalty Experience Platform",
+      "headline": "Powerful integrations that enable consistent, seamless experiences",
+      "key_features": ["SAP","Microsoft Dynamics","Adobe Commerce","Adyen","Bazaarvoice","BigCommerce","Bloomreach","Braze","commercetools","Emarsys","Google Analytics","HubSpot","Klaviyo","Mailchimp","Salesforce","Shopify","Stripe","Twilio","Zendesk"]
+    },
+    {
+      "url": "https://www.annexcloud.com/rewards-and-incentives-engine/",
+      "title": "Loyalty Incentive Engine | Annex Cloud",
+      "headline": "Intuitive, omnichannel promotions",
+      "key_features": ["Launch new rewards in minutes","Personalize incentives for every customer","Track performance in real time","Omnichannel reward management"]
+    },
+    {
+      "url": "https://www.annexcloud.com/advanced-segmentation/",
+      "title": "Advanced Segmentation in Loyalty Programs | Annex Cloud",
+      "headline": "Where data meets intelligent action",
+      "key_features": ["Built-in RFM dashboard","Segments and sources","Take personalized action","Share cohorts","Select & rank using RFM"]
+    },
+    {
+      "url": "https://www.annexcloud.com/loyalty-gamification/",
+      "title": "Gamification in Loyalty Programs | Annex Cloud",
+      "headline": "Make engagement fun and rewarding",
+      "key_features": ["Leverage human nature","Campaigns and milestones","Leaderboards","Badges","Contests"]
+    },
+    {
+      "url": "https://www.annexcloud.com/social-loyalty/",
+      "title": "Social Loyalty | Annex Cloud Capabilities",
+      "headline": "Reward customers for social media engagement",
+      "key_features": ["Drive social behaviors","Boost customer spend","Motivate social connections","Prove impact of social engagement","Turn fans into advocates"]
+    },
+    {
+      "url": "https://www.annexcloud.com/surveys-quizzes-contests/",
+      "title": "Surveys, Quizzes, Contests | Annex Cloud Capabilities",
+      "headline": "Incentivized surveys gather the best data",
+      "key_features": ["Turn insights into action","Create custom touchpoints","Incentivize customers to engage","Report & export data"]
+    },
+    {
+      "url": "https://www.annexcloud.com/progressive-profiling/",
+      "title": "Progressive Profiling | Annex Cloud Capabilities",
+      "headline": "Build Loyalty One Insight at a Time",
+      "key_features": ["Constant cycle of intelligence","Right questions at right time","Effortlessly segment as profiles evolve"]
+    },
+    {
+      "url": "https://www.annexcloud.com/customer-loyalty-rewards/",
+      "title": "Rewards | Annex Cloud Capabilities",
+      "headline": "Give members rewards they value",
+      "key_features": ["Merchandise","Gift cards","Travel","Charities","Experiences","NFTs","6M+ rewards, 614+ brands, 116+ countries"]
+    },
+    {
+      "url": "https://www.annexcloud.com/customer-loyalty-reporting/",
+      "title": "Reporting | Annex Cloud Capabilities",
+      "headline": "Actionable reports",
+      "key_features": ["Loyalty dashboard","Engagement reporting","Rewards reporting","Data feed to enterprise tech stack"]
+    },
+    {
+      "url": "https://www.annexcloud.com/referral-marketing-program/",
+      "title": "Refer A Friend | Annex Cloud Capabilities",
+      "headline": "Let your customers do the talking",
+      "key_features": ["Make sharing easy","Recognize your members","Create an advocacy network","Low cost high CLV acquisition"]
+    },
+    {
+      "url": "https://www.annexcloud.com/data-management/",
+      "title": "Loyalty Data Management | Annex Cloud",
+      "headline": "Protect and leverage your most important asset",
+      "key_features": ["Data control","Enterprise-wide data integration","Global cloud-based infrastructure","Privacy and security","Database backup and recovery"]
+    },
+    {
+      "url": "https://www.annexcloud.com/use-cases/",
+      "title": "Use Cases | Annex Cloud Loyalty Experience Platform",
+      "headline": "Built for complex enterprises",
+      "key_features": ["Enhance retail media","Incentivize Training","Tiering as growth accelerator","Incentivize cross-store purchases","Rewarding without points","Influence desired behaviors","Drive advocacy and acquisition","Increase customer retention","Boost B2B engagement","Collect 1st/0-party data","Global multiple brands","Increase basket size","Increase CLTV","Increase frequency","Personalize customer journey"]
+    },
+    {
+      "url": "https://www.annexcloud.com/request-demo/",
+      "title": "Request a Demo | Annex Cloud",
+      "headline": "Unlock the Power of Loyalty: See Annex Cloud in Action",
+      "forms": [{"name": "Demo Request Form","fields": ["First Name","Last Name","Work Email","Company Name","Phone","Company Size","Message"],"cta": "Submit"}]
+    }
+  ],
+  "technology_indicators": {
+    "cms": "WordPress",
+    "frontend": "jQuery, jQuery Migrate 3.4.1",
+    "analytics": "HubSpot (ID: 9462504)",
+    "security": "Cloudflare",
+    "architecture": "SaaS, API-first, Cloud-native",
+    "certifications": ["SOC 2 Type 2", "ISO 27001"],
+    "infrastructure": "12 global data centers"
+  },
+  "ui_patterns": {
+    "primary_color": "Purple (#6B21D6 range)",
+    "accent_colors": ["Orange/Red gradient", "Dark navy"],
+    "logo": "Annex Cloud triangle logo (red/orange/pink gradient)",
+    "nav_style": "Hamburger menu (mobile-first), sticky header",
+    "cta_style": "Purple filled button with arrow",
+    "page_structure": "Hero → Stats bar → Feature grid → Testimonials → CTA → Resources"
+  },
+  "forms_detected": [
+    {"page": "/request-demo/","name": "Demo Request Form","fields": ["First Name","Last Name","Work Email","Company Name","Phone","Company Size","Message"]},
+    {"page": "Footer (all pages)","name": "Newsletter Subscription","fields": ["Work Email"]}
+  ]
+}

@@ -1,0 +1,117 @@
+# Annex Cloud Replication — Quick Reference Index
+
+**Target**: https://www.annexcloud.com
+**Analysis Date**: 2026-03-24
+**Analyst**: CustomerEQ / FRAIM application-replication-workflow
+
+---
+
+## Statistics
+
+| Metric | Value |
+|--------|-------|
+| Pages analyzed | 17 |
+| Screenshots captured | 69 total (21 curated + 48 automated) |
+| Use cases documented | 20 |
+| User roles identified | 6 |
+| Data entities modeled | 13 |
+| Integrations cataloged | 125+ (22 named specifically) |
+| UI components identified | 18 |
+
+---
+
+## Master Report
+
+| Document | Path | Description |
+|---------|------|-------------|
+| **Replication Analysis** | [`reports/REPLICATION_ANALYSIS.md`](reports/REPLICATION_ANALYSIS.md) | Full analysis with executive summary, tech stack, use cases, recommendations |
+
+---
+
+## Analysis Files
+
+| Document | Path | Description |
+|---------|------|-------------|
+| Site Analysis JSON | [`analysis/site_analysis.json`](analysis/site_analysis.json) | Raw scraped data: pages, nav, forms, tech indicators |
+| Technology Stack | [`analysis/technology-stack.md`](analysis/technology-stack.md) | Confirmed and inferred tech; recommended CustomerEQ stack |
+| Data Models | [`analysis/data-models.md`](analysis/data-models.md) | 13 entity models with field definitions and relationships |
+| Use Cases | [`analysis/use-cases.md`](analysis/use-cases.md) | 20 use cases with actor, steps, acceptance criteria |
+| Interaction Analysis | [`analysis/interaction_analysis.json`](analysis/interaction_analysis.json) | Dynamic interaction exploration results |
+| Comprehensive Analysis | [`analysis/comprehensive_analysis.json`](analysis/comprehensive_analysis.json) | Multi-page exploration results |
+
+---
+
+## UI Documentation
+
+| Document | Path | Description |
+|---------|------|-------------|
+| Component Catalog | [`screenshots/component-catalog.md`](screenshots/component-catalog.md) | All UI components: nav, buttons, cards, forms, carousels |
+| Layout Patterns | [`screenshots/layout-patterns.md`](screenshots/layout-patterns.md) | Page templates, grid systems, responsive behavior |
+| Screenshot Index | [`screenshots/screenshot-index.md`](screenshots/screenshot-index.md) | All screenshots with route, description, key elements |
+
+---
+
+## Screenshots by Category
+
+| Category | Directory | Count | Contents |
+|----------|-----------|-------|---------|
+| Platform pages | [`screenshots/platform/`](screenshots/platform/) | 8 | Homepage, platform overview, capabilities, journey catalyst, AI, integrations, data mgmt, use cases |
+| Capability pages | [`screenshots/capabilities/`](screenshots/capabilities/) | 9 | Gamification, social loyalty, surveys, segmentation, profiling, incentive engine, rewards, reporting, referral |
+| Form pages | [`screenshots/forms/`](screenshots/forms/) | 1 | Demo request form |
+| Interaction states | [`screenshots/interactions/`](screenshots/interactions/) | 3 | Homepage load, post-consent, nav state |
+
+---
+
+## Technology Summary
+
+| Layer | Technology |
+|-------|-----------|
+| Marketing site CMS | WordPress |
+| Frontend | jQuery 3.4.1 |
+| CRM / Forms | HubSpot (ID: 9462504) |
+| CDN / Security | Cloudflare |
+| Platform arch | Event-driven SaaS, API-first |
+| Data centers | 12 global |
+| Certifications | SOC 2 Type 2, ISO 27001 |
+
+---
+
+## Use Cases Quick Reference
+
+| ID | Title | Actor | Priority |
+|----|-------|-------|----------|
+| UC-01 | Request a Demo | Guest | P0 |
+| UC-02 | Newsletter Subscription | Guest | P1 |
+| UC-03 | Member Enrollment | Loyalty Member | P0 |
+| UC-04 | Earn Points | Loyalty Member | P0 |
+| UC-05 | Redeem Reward | Loyalty Member | P0 |
+| UC-06 | Tier Progression | Loyalty Member | P1 |
+| UC-07 | Complete Survey/Quiz | Loyalty Member | P1 |
+| UC-08 | Refer a Friend | Loyalty Member | P1 |
+| UC-09 | Configure Loyalty Program | Admin | P0 |
+| UC-10 | Create and Launch Campaign | Marketing Manager | P0 |
+| UC-11 | Build Customer Journey | Marketing Manager | P1 |
+| UC-12 | Segment Members | Marketing Manager | P1 |
+| UC-13 | View Loyalty Analytics | Analyst | P0 |
+| UC-14 | Configure Integration | IT/Developer | P1 |
+| UC-15 | Progressive Profiling | Loyalty Member | P1 |
+| UC-16 | Social Loyalty Action | Loyalty Member | P2 |
+| UC-17 | Receipt Scanning | Loyalty Member | P2 |
+| UC-18 | Gamification Engagement | Loyalty Member | P2 |
+| UC-19 | Multi-Brand Management | Admin | P2 |
+| UC-20 | AI-Powered Personalization | System | P2 |
+
+---
+
+## Implementation Roadmap
+
+| Phase | Timeline | Use Cases | Key Deliverable |
+|-------|----------|-----------|----------------|
+| Concierge MVP | Months 1-2 | UC-03 to UC-05 (manual) | Validate feedback-to-action value |
+| Platform MVP | Months 3-10 | UC-01, UC-03 to UC-05, UC-09, UC-10, UC-13, UC-14 | Paying customers on automated platform |
+| Enhanced | Months 10-18 | UC-06 to UC-08, UC-11, UC-12, UC-15 | Full program lifecycle |
+| Advanced | Months 18+ | UC-16 to UC-20 | Enterprise-ready feature parity |
+
+---
+
+*Generated by FRAIM application-replication-workflow | 2026-03-24*
