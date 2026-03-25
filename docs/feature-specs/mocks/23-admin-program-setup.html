@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Admin Program Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f7; color: #111827; font-size: 14px; display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: #1e1b4b; color: #c7d2fe; display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-logo { padding: 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #312e81; }
+    .sidebar-logo-mark { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+    .sidebar-logo-text { font-weight: 700; font-size: 16px; color: #e0e7ff; }
+    .nav-section { padding: 16px 0; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6366f1; padding: 0 16px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; color: #a5b4fc; border-radius: 0; transition: background 0.15s; }
+    .nav-item:hover { background: #312e81; color: #e0e7ff; }
+    .nav-item.active { background: #312e81; color: #ffffff; font-weight: 600; }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: white; border-bottom: 1px solid #e5e7eb; padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-title { font-weight: 600; font-size: 15px; color: #111827; }
+    .breadcrumb { font-size: 12px; color: #6b7280; }
+    .breadcrumb span { color: #6366f1; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px; cursor: pointer; }
+
+    .content { flex: 1; padding: 32px; overflow-y: auto; }
+
+    /* Wizard */
+    .wizard-header { margin-bottom: 28px; }
+    .wizard-header h1 { font-size: 22px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    .wizard-header p { color: #6b7280; font-size: 13px; }
+
+    .steps-bar { display: flex; align-items: center; margin-bottom: 32px; }
+    .step { display: flex; align-items: center; gap: 8px; }
+    .step-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .step-circle.done { background: #6366f1; color: white; }
+    .step-circle.active { background: #6366f1; color: white; box-shadow: 0 0 0 3px #c7d2fe; }
+    .step-circle.inactive { background: #e5e7eb; color: #9ca3af; }
+    .step-label { font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .step-label.active { color: #6366f1; font-weight: 600; }
+    .step-label.inactive { color: #9ca3af; }
+    .step-connector { flex: 1; height: 2px; background: #e5e7eb; margin: 0 8px; }
+    .step-connector.done { background: #6366f1; }
+
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 28px; margin-bottom: 20px; }
+    .card-title { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+    .card-subtitle { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: 12px; font-weight: 600; color: #374151; }
+    input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #111827; width: 100%; outline: none; background: white; transition: border-color 0.15s; }
+    input:focus, select:focus, textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px #ede9fe; }
+    .hint { font-size: 11px; color: #9ca3af; }
+
+    /* Rules table */
+    .rules-table { width: 100%; border-collapse: collapse; }
+    .rules-table th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; text-align: left; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+    .rules-table td { padding: 12px; border-bottom: 1px solid #f9fafb; font-size: 13px; vertical-align: middle; }
+    .rules-table tr:last-child td { border-bottom: none; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-secondary { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background: #f9fafb; }
+    .btn-ghost { background: transparent; color: #6366f1; padding: 6px 10px; }
+    .btn-ghost:hover { background: #eef2ff; }
+    .btn-danger-ghost { background: transparent; color: #ef4444; padding: 6px 10px; font-size: 12px; }
+
+    .actions-row { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid #f3f4f6; margin-top: 4px; }
+    .add-rule-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+
+    .preview-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px 20px; display: flex; align-items: flex-start; gap: 12px; }
+    .preview-icon { font-size: 20px; flex-shrink: 0; }
+    .preview-text { font-size: 13px; color: #166534; line-height: 1.6; }
+    .preview-text strong { font-weight: 700; }
+
+    .status-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .radio-group { display: flex; gap: 12px; }
+    .radio-option { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1.5px solid #d1d5db; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .radio-option.selected { border-color: #6366f1; background: #eef2ff; color: #6366f1; font-weight: 600; }
+    .radio-option input[type=radio] { display: none; }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">C</div>
+      <span class="sidebar-logo-text">CustomerEQ</span>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Programs</div>
+      <div class="nav-item active">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        Programs
+      </div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        Members
+      </div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a4 4 0 00-4-4H8.8M4 16H2.8A.8.8 0 012 15.2V9.8A.8.8 0 012.8 9H7m14 7h1.2a.8.8 0 00.8-.8V9.8a.8.8 0 00-.8-.8H16"/></svg>
+        Rewards
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Automation</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Campaigns
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Analytics
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">New Loyalty Program</div>
+        <div class="breadcrumb">Programs / <span>Create New</span></div>
+      </div>
+      <div class="avatar">SM</div>
+    </div>
+
+    <div class="content">
+      <div class="wizard-header">
+        <h1>Configure Your Loyalty Program</h1>
+        <p>Set up your program details, earning rules, and rewards in just a few steps.</p>
+      </div>
+
+      <!-- Step Indicator -->
+      <div class="steps-bar">
+        <div class="step">
+          <div class="step-circle done">✓</div>
+          <span class="step-label" style="color:#6366f1">Program Details</span>
+        </div>
+        <div class="step-connector done"></div>
+        <div class="step">
+          <div class="step-circle active">2</div>
+          <span class="step-label active">Earning Rules</span>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step">
+          <div class="step-circle inactive">3</div>
+          <span class="step-label inactive">Rewards Catalog</span>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step">
+          <div class="step-circle inactive">4</div>
+          <span class="step-label inactive">Activate</span>
+        </div>
+      </div>
+
+      <!-- Step 1 (completed summary) -->
+      <div class="card" style="border-left: 3px solid #6366f1;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div class="card-title">✓ Program Details</div>
+            <div style="font-size:13px; color:#6b7280; margin-top:4px;">Acme Rewards · Stars · $1 = 10 Stars</div>
+          </div>
+          <button class="btn btn-ghost" style="font-size:12px;">Edit</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Earning Rules -->
+      <div class="card">
+        <div class="card-title">Earning Rules</div>
+        <div class="card-subtitle">Define how members earn Stars. Rules are evaluated in priority order when an event is received.</div>
+
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>Rule Name</th>
+              <th>Trigger Event</th>
+              <th>Points Awarded</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Base Purchase Earn</strong></td>
+              <td>Purchase · Every $1 spent</td>
+              <td>10 Stars</td>
+              <td><span class="badge badge-green">Active</span></td>
+              <td><button class="btn-danger-ghost btn">Remove</button></td>
+            </tr>
+            <tr>
+              <td><strong>Double Points Weekend</strong></td>
+              <td>Purchase · Sat–Sun only</td>
+              <td>20 Stars (2×)</td>
+              <td><span class="badge badge-amber">Draft</span></td>
+              <td><button class="btn-danger-ghost btn">Remove</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="add-rule-row">
+          <button class="btn btn-secondary">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add Earning Rule
+          </button>
+          <span style="font-size:12px; color:#9ca3af;">Min. 1 rule required to activate the program</span>
+        </div>
+
+        <div style="margin-top:24px;">
+          <div class="card-title" style="margin-bottom:12px;">Add New Rule</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Rule Name</label>
+              <input type="text" value="Enrollment Bonus" />
+            </div>
+            <div class="form-group">
+              <label>Trigger Event</label>
+              <select>
+                <option>Member Enrollment</option>
+                <option selected>Purchase</option>
+                <option>Survey Completed</option>
+                <option>Referral Converted</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Points Awarded</label>
+              <input type="number" value="100" />
+            </div>
+            <div class="form-group">
+              <label>Max Uses Per Member</label>
+              <input type="number" placeholder="Unlimited" />
+              <span class="hint">Leave blank for unlimited</span>
+            </div>
+          </div>
+          <div style="margin-top:16px; display:flex; gap:8px;">
+            <button class="btn btn-primary">Save Rule</button>
+            <button class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+
+        <div class="actions-row">
+          <button class="btn btn-secondary">← Back</button>
+          <button class="btn btn-primary">Continue to Rewards →</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-box">
+        <div class="preview-icon">✨</div>
+        <div class="preview-text">
+          <strong>Program Preview:</strong> Members earn <strong>10 Stars per $1 spent</strong> on standard purchases.
+          On weekends, they earn <strong>20 Stars per $1</strong>. Stars can be redeemed for rewards in the catalog you'll configure next.
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

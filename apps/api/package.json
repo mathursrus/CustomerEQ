@@ -1,0 +1,40 @@
+{
+  "name": "@customerEQ/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --reporter=verbose",
+    "test:integration": "vitest run --config vitest.integration.config.ts --reporter=verbose",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@clerk/backend": "^1.13.0",
+    "@clerk/fastify": "^3.1.4",
+    "@customerEQ/database": "workspace:*",
+    "@prisma/client": "^5.13.0",
+    "@customerEQ/shared": "workspace:*",
+    "@fastify/sensible": "^5.6.0",
+    "bullmq": "^5.7.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^4.5.0",
+    "ioredis": "^5.3.0",
+    "pino": "^9.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@customerEQ/config": "workspace:*",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.9.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.0"
+  }
+}
