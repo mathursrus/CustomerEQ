@@ -1,1 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+*.js.map
+*.d.ts.map
+
+# Turbo
+.turbo/
+
+# TypeScript generated
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
 .codex/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
