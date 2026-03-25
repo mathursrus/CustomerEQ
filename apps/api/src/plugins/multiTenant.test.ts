@@ -1,21 +1,7 @@
 /// <reference types="vitest" />
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
-
-// Inline plugin definition used for tests: the real implementation will live
-// in multiTenant.ts. This mirrors the contract described in the spec so that
-// when the real plugin is imported it must satisfy the same behaviour.
-async function multiTenantPlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.addHook('preValidation', async (request, reply) => {
-    if (
-      request.body &&
-      typeof request.body === 'object' &&
-      'brandId' in (request.body as object)
-    ) {
-      return reply.status(400).send({ error: 'brandId must not be provided in request body' })
-    }
-  })
-}
+import multiTenantPlugin from './multiTenant.js'
 
 describe('multiTenantPlugin', () => {
   let app: FastifyInstance

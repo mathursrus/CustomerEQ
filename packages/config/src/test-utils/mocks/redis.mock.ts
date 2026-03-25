@@ -2,7 +2,9 @@
 // suitable for integration tests without a real Redis server
 import RedisMock from 'ioredis-mock'
 
-export function createMockRedis() {
+export type MockRedis = InstanceType<typeof RedisMock>
+
+export function createMockRedis(): MockRedis {
   return new RedisMock()
 }
 

@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq'
 import { prisma } from '@customerEQ/database'
+import type { Prisma } from '@prisma/client'
 import type { LoyaltyEventPayload } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
@@ -134,14 +135,14 @@ export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promis
   const rulesApplied = firedRules.map((r) => r.ruleId)
 
   if (totalPoints > 0) {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.loyaltyEvent.create({
         data: {
           brandId,
           memberId,
           eventType,
           pointsEarned: totalPoints,
-          payload,
+          payload: payload as Prisma.InputJsonValue,
           idempotencyKey: idempotencyKey ?? null,
           rulesApplied,
         },

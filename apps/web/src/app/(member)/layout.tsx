@@ -23,17 +23,17 @@ function MemberHeader() {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <Link href="/member" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-lg bg-indigo-600 flex items-center justify-center">
             <span className="text-white text-xs font-bold">C</span>
           </div>
           <span className="text-base font-semibold text-gray-900">CustomerEQ</span>
         </Link>
         <nav className="flex items-center gap-4">
-          <Link href="/member" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors">
+          <Link href="/dashboard" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors">
             Dashboard
           </Link>
-          <Link href="/member/rewards" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors">
+          <Link href="/rewards" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors">
             Rewards
           </Link>
         </nav>

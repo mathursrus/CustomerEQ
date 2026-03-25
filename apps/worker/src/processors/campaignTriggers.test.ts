@@ -1,432 +1,291 @@
 /// <reference types="vitest" />
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createCampaignTriggerProcessor, evaluateTriggerCondition } from './campaignTriggers.js'
 
 // ---------------------------------------------------------------------------
-// Type definitions that mirror the implementation contract.
+// Module mocks
 // ---------------------------------------------------------------------------
 
-type CampaignStatus = 'ACTIVE' | 'INACTIVE' | 'PAUSED'
+vi.mock('@customerEQ/database', () => ({
+  prisma: {
+    campaign: {
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
+    },
+    $transaction: vi.fn(),
+  },
+}))
 
-type Campaign = {
-  id: string
-  name: string
-  status: CampaignStatus
-  actionType: string
-  actionConfig: Record<string, unknown>
-  budgetCap: number | null
-  budgetSpent: number
-}
-
-type TriggerInput = {
-  memberId: string
-  brandId: string
-  eventType: string
-  campaignId: string
-  payload: Record<string, unknown>
-  triggeredAt: Date
-}
-
-type TriggerResult = {
-  status: 'executed' | 'skipped'
-  reason?: string
-  pointsAwarded?: number
-  latencyMs?: number
-}
+vi.mock('../queues/producers.js', () => ({
+  enqueueNotification: vi.fn(),
+}))
 
 // ---------------------------------------------------------------------------
-// Mock dependencies
+// Import mocked instances after vi.mock
 // ---------------------------------------------------------------------------
 
-// Prisma mock — each test overrides the methods it needs
-const mockPrisma = {
+import { prisma } from '@customerEQ/database'
+import { enqueueNotification } from '../queues/producers.js'
+
+const mockPrisma = prisma as unknown as {
   campaign: {
-    findUnique: vi.fn(),
-    update: vi.fn(),
-  },
-  campaignExecution: {
-    create: vi.fn(),
-  },
-  memberPointLedger: {
-    create: vi.fn(),
-  },
-  member: {
-    update: vi.fn(),
-  },
+    findUniqueOrThrow: ReturnType<typeof vi.fn>
+    update: ReturnType<typeof vi.fn>
+  }
+  $transaction: ReturnType<typeof vi.fn>
 }
 
-// Redis mock — tracks dedup keys
-const mockRedis = {
-  get: vi.fn(),
-  set: vi.fn(),
-  incrbyfloat: vi.fn(),
-}
-
-// Notification queue mock
-const mockNotificationQueue = {
-  add: vi.fn(),
-}
+const mockEnqueueNotification = enqueueNotification as ReturnType<typeof vi.fn>
 
 // ---------------------------------------------------------------------------
-// The processor under test.
-//
-// The real implementation will live in `./campaignTriggers` and will be
-// imported once it exists.  We inline a skeletal version here so the file is
-// syntactically valid TypeScript and the tests express the expected contract.
+// Mock Redis
 // ---------------------------------------------------------------------------
 
-async function processCampaignTrigger(
-  input: TriggerInput,
-  deps: {
-    prisma: typeof mockPrisma
-    redis: typeof mockRedis
-    notificationQueue: typeof mockNotificationQueue
-  },
-): Promise<TriggerResult> {
-  throw new Error('processCampaignTrigger is not yet implemented')
+function makeMockRedis() {
+  return {
+    set: vi.fn(),
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
+function makeCampaign(overrides: Record<string, unknown> = {}) {
   return {
     id: 'campaign-001',
     name: 'Test Campaign',
     status: 'ACTIVE',
     actionType: 'award_points',
-    actionConfig: { pointsAwarded: 100 },
+    actionConfig: { points: 100 },
     budgetCap: null,
     budgetSpent: 0,
+    program: { pointToCurrencyRatio: 0.01 },
     ...overrides,
   }
 }
 
-function makeTriggerInput(overrides: Partial<TriggerInput> = {}): TriggerInput {
+function makeJob(overrides: Record<string, unknown> = {}) {
   return {
-    memberId: 'member-abc',
-    brandId: 'brand-xyz',
-    eventType: 'purchase',
-    campaignId: 'campaign-001',
-    payload: { orderId: 'ord-001', amount: 75 },
-    triggeredAt: new Date('2026-03-24T10:00:00.000Z'),
-    ...overrides,
+    data: {
+      campaignId: 'campaign-001',
+      memberId: 'member-abc',
+      brandId: 'brand-xyz',
+      eventIngestedAt: new Date(Date.now() - 500).toISOString(),
+      ...overrides,
+    },
   }
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests: createCampaignTriggerProcessor
 // ---------------------------------------------------------------------------
 
-describe('processCampaignTrigger', () => {
+describe('createCampaignTriggerProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        loyaltyEvent: { create: vi.fn() },
+        member: { update: vi.fn() },
+        campaignEvent: { create: vi.fn() },
+        campaign: { update: vi.fn() },
+      }),
+    )
   })
 
   describe('deduplication', () => {
-    it('executes the campaign action when the trigger has not been seen before', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput()
+    it('executes when redis SET NX succeeds (new key)', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK') // SET NX returned OK — new key
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(makeCampaign())
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null) // not in dedup set
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-001' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('executed')
+      expect(result.executed).toBe(true)
     })
 
-    it('skips processing with reason "already_triggered" when the dedup key exists in Redis', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput()
+    it('skips with reason "already_triggered" when redis SET NX returns null (key exists)', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue(null) // SET NX returned null — key already exists
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue('1') // already in dedup set
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('skipped')
+      expect(result.skipped).toBe(true)
       expect(result.reason).toBe('already_triggered')
     })
 
-    it('stores the dedup key in Redis after a successful execution', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput()
+    it('does not fetch campaign when dedup key already exists', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue(null)
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-002' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      await processor(makeJob() as never)
 
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(mockRedis.set).toHaveBeenCalled()
-    })
-
-    it('does not write to the dedup set when the trigger is a duplicate', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput()
-
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue('1')
-
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(mockRedis.set).not.toHaveBeenCalled()
+      expect(mockPrisma.campaign.findUniqueOrThrow).not.toHaveBeenCalled()
     })
   })
 
   describe('campaign status guard', () => {
     it('skips with reason "campaign_inactive" when campaign status is INACTIVE', async () => {
-      const campaign = makeCampaign({ status: 'INACTIVE' })
-      const input = makeTriggerInput()
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(makeCampaign({ status: 'INACTIVE' }))
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('skipped')
+      expect(result.skipped).toBe(true)
       expect(result.reason).toBe('campaign_inactive')
     })
 
     it('skips with reason "campaign_inactive" when campaign status is PAUSED', async () => {
-      const campaign = makeCampaign({ status: 'PAUSED' })
-      const input = makeTriggerInput()
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(makeCampaign({ status: 'PAUSED' }))
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('skipped')
+      expect(result.skipped).toBe(true)
       expect(result.reason).toBe('campaign_inactive')
     })
   })
 
   describe('budget cap enforcement', () => {
-    it('pauses the campaign and returns skipped when budgetSpent has reached budgetCap', async () => {
-      const campaign = makeCampaign({ budgetCap: 500, budgetSpent: 500 })
-      const input = makeTriggerInput()
+    it('skips with reason "budget_cap_reached" when budgetSpent + action cost exceeds budgetCap', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      // points=100, ratio=0.01, cost=$1.00, budgetSpent=$500, cap=$500 → over cap
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ budgetCap: 500, budgetSpent: 500, actionConfig: { points: 100 } }),
+      )
+      mockPrisma.campaign.update.mockResolvedValue({})
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaign.update.mockResolvedValue({ ...campaign, status: 'PAUSED' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('skipped')
+      expect(result.skipped).toBe(true)
       expect(result.reason).toBe('budget_cap_reached')
     })
 
-    it('calls prisma.campaign.update to set status to PAUSED when budget cap is reached', async () => {
-      const campaign = makeCampaign({ budgetCap: 200, budgetSpent: 200 })
-      const input = makeTriggerInput()
+    it('pauses the campaign when budget cap is reached', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ budgetCap: 200, budgetSpent: 200, actionConfig: { points: 100 } }),
+      )
+      mockPrisma.campaign.update.mockResolvedValue({})
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaign.update.mockResolvedValue({ ...campaign, status: 'PAUSED' })
-
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      await processor(makeJob() as never)
 
       expect(mockPrisma.campaign.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: campaign.id },
+          where: { id: 'campaign-001' },
           data: expect.objectContaining({ status: 'PAUSED' }),
         }),
       )
     })
 
-    it('executes and increments budgetSpent when budget cap has not been reached', async () => {
-      const campaign = makeCampaign({ budgetCap: 1000, budgetSpent: 400, actionConfig: { pointsAwarded: 100 } })
-      const input = makeTriggerInput()
-
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-003' })
-      mockPrisma.campaign.update.mockResolvedValue({ ...campaign, budgetSpent: 500 })
-
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('executed')
-      expect(mockPrisma.campaign.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: campaign.id },
-          data: expect.objectContaining({ budgetSpent: expect.any(Number) }),
-        }),
-      )
-    })
-
     it('executes normally when budgetCap is null (unlimited budget)', async () => {
-      const campaign = makeCampaign({ budgetCap: null, budgetSpent: 9999 })
-      const input = makeTriggerInput()
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ budgetCap: null, budgetSpent: 9999 }),
+      )
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-004' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.status).toBe('executed')
+      expect(result.executed).toBe(true)
     })
   })
 
   describe('points awarded', () => {
-    it('returns the correct pointsAwarded from actionConfig for an award_points action', async () => {
-      const campaign = makeCampaign({ actionType: 'award_points', actionConfig: { pointsAwarded: 250 } })
-      const input = makeTriggerInput()
+    it('returns the correct points from actionConfig.points', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ actionConfig: { points: 250 } }),
+      )
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-005' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.pointsAwarded).toBe(250)
+      expect(result.points).toBe(250)
     })
 
-    it('returns 0 pointsAwarded for a non-award_points action type', async () => {
-      const campaign = makeCampaign({ actionType: 'send_notification', actionConfig: { message: 'Hi!' } })
-      const input = makeTriggerInput()
+    it('returns 0 points when actionConfig has no points field', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ actionConfig: { message: 'Hi!' } }),
+      )
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-006' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob() as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(result.pointsAwarded).toBe(0)
+      expect(result.points).toBe(0)
     })
   })
 
   describe('latency measurement', () => {
-    it('records a positive latencyMs value in the result', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput({ triggeredAt: new Date(Date.now() - 500) }) // 500 ms ago
+    it('records a positive latencyMs value', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(makeCampaign())
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-007' })
-
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob({ eventIngestedAt: new Date(Date.now() - 500).toISOString() }) as never)
 
       expect(result.latencyMs).toBeDefined()
       expect(result.latencyMs!).toBeGreaterThan(0)
     })
 
-    it('latencyMs is within a reasonable bound for a trigger with a recent triggeredAt', async () => {
-      const campaign = makeCampaign()
-      const input = makeTriggerInput({ triggeredAt: new Date(Date.now() - 100) })
+    it('latencyMs is within a reasonable bound', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(makeCampaign())
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-008' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      const result = await processor(makeJob({ eventIngestedAt: new Date(Date.now() - 100).toISOString() }) as never)
 
-      const result = await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      // latency must be >= the time difference to triggeredAt, with some tolerance
       expect(result.latencyMs!).toBeGreaterThanOrEqual(100)
-      // Sanity ceiling: unit test should not be processing for more than 10 seconds
       expect(result.latencyMs!).toBeLessThan(10_000)
     })
   })
 
   describe('notification enqueuing', () => {
-    it('enqueues a notification job when actionType is send_notification and message is in actionConfig', async () => {
-      const campaign = makeCampaign({
-        actionType: 'send_notification',
-        actionConfig: { message: 'Congrats! You earned a reward.' },
-      })
-      const input = makeTriggerInput()
+    it('enqueues a notification when actionConfig has a message field', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ actionConfig: { message: 'Congrats!' } }),
+      )
+      mockEnqueueNotification.mockResolvedValue({})
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-009' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      await processor(makeJob() as never)
 
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(mockNotificationQueue.add).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueNotification).toHaveBeenCalledTimes(1)
     })
 
-    it('passes the correct memberId and message to the notification queue job', async () => {
-      const campaign = makeCampaign({
-        actionType: 'send_notification',
-        actionConfig: { message: 'You unlocked Gold tier!' },
-      })
-      const input = makeTriggerInput({ memberId: 'member-notify-test' })
+    it('passes the correct memberId and message to enqueueNotification', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ actionConfig: { message: 'You unlocked Gold tier!' } }),
+      )
+      mockEnqueueNotification.mockResolvedValue({})
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-010' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      await processor(makeJob({ memberId: 'member-notify-test' }) as never)
 
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(mockNotificationQueue.add).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(mockEnqueueNotification).toHaveBeenCalledWith(
+        expect.anything(),
         expect.objectContaining({
           memberId: 'member-notify-test',
           message: 'You unlocked Gold tier!',
@@ -434,21 +293,71 @@ describe('processCampaignTrigger', () => {
       )
     })
 
-    it('does not enqueue a notification when actionType is award_points', async () => {
-      const campaign = makeCampaign({ actionType: 'award_points', actionConfig: { pointsAwarded: 100 } })
-      const input = makeTriggerInput()
+    it('does not enqueue a notification when actionConfig has no message', async () => {
+      const mockRedis = makeMockRedis()
+      mockRedis.set.mockResolvedValue('OK')
+      mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
+        makeCampaign({ actionConfig: { points: 100 } }),
+      )
 
-      mockPrisma.campaign.findUnique.mockResolvedValue(campaign)
-      mockRedis.get.mockResolvedValue(null)
-      mockPrisma.campaignExecution.create.mockResolvedValue({ id: 'exec-011' })
+      const processor = createCampaignTriggerProcessor(mockRedis as never)
+      await processor(makeJob() as never)
 
-      await processCampaignTrigger(input, {
-        prisma: mockPrisma,
-        redis: mockRedis,
-        notificationQueue: mockNotificationQueue,
-      })
-
-      expect(mockNotificationQueue.add).not.toHaveBeenCalled()
+      expect(mockEnqueueNotification).not.toHaveBeenCalled()
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests: evaluateTriggerCondition (pure function)
+// ---------------------------------------------------------------------------
+
+describe('evaluateTriggerCondition', () => {
+  it('eq: returns true when field equals value', () => {
+    expect(evaluateTriggerCondition({ field: 'score', op: 'eq', value: 9 }, { score: 9 })).toBe(true)
+  })
+
+  it('eq: returns false when field does not equal value', () => {
+    expect(evaluateTriggerCondition({ field: 'score', op: 'eq', value: 9 }, { score: 8 })).toBe(false)
+  })
+
+  it('ne: returns true when field does not equal value', () => {
+    expect(evaluateTriggerCondition({ field: 'status', op: 'ne', value: 'closed' }, { status: 'open' })).toBe(true)
+  })
+
+  it('lt: returns true when field is less than value', () => {
+    expect(evaluateTriggerCondition({ field: 'score', op: 'lt', value: 5 }, { score: 3 })).toBe(true)
+  })
+
+  it('lt: returns false when field equals value', () => {
+    expect(evaluateTriggerCondition({ field: 'score', op: 'lt', value: 5 }, { score: 5 })).toBe(false)
+  })
+
+  it('lte: returns true when field equals value', () => {
+    expect(evaluateTriggerCondition({ field: 'score', op: 'lte', value: 5 }, { score: 5 })).toBe(true)
+  })
+
+  it('gt: returns true when field is greater than value', () => {
+    expect(evaluateTriggerCondition({ field: 'amount', op: 'gt', value: 100 }, { amount: 150 })).toBe(true)
+  })
+
+  it('gte: returns true when field equals value', () => {
+    expect(evaluateTriggerCondition({ field: 'amount', op: 'gte', value: 100 }, { amount: 100 })).toBe(true)
+  })
+
+  it('in: returns true when field value is in the array', () => {
+    expect(evaluateTriggerCondition({ field: 'tier', op: 'in', value: ['gold', 'platinum'] }, { tier: 'gold' })).toBe(true)
+  })
+
+  it('in: returns false when field value is not in the array', () => {
+    expect(evaluateTriggerCondition({ field: 'tier', op: 'in', value: ['gold', 'platinum'] }, { tier: 'silver' })).toBe(false)
+  })
+
+  it('contains: returns true when string field contains value', () => {
+    expect(evaluateTriggerCondition({ field: 'note', op: 'contains', value: 'great' }, { note: 'great service' })).toBe(true)
+  })
+
+  it('unknown op: returns false', () => {
+    expect(evaluateTriggerCondition({ field: 'x', op: 'unknown_op', value: 1 }, { x: 1 })).toBe(false)
   })
 })

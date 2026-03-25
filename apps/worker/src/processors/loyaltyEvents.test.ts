@@ -1,10 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-
-// ---------------------------------------------------------------------------
-// Type definitions that mirror the implementation contract.
-// The real implementation will export `evaluateRules` from loyaltyEvents.ts.
-// ---------------------------------------------------------------------------
+import { evaluateRules } from './loyaltyEvents.js'
 
 type EarningRule = {
   id: string
@@ -13,24 +9,6 @@ type EarningRule = {
   multiplier: number
   maxUsesPerMember: number | null
   status: 'ACTIVE' | 'INACTIVE'
-}
-
-/**
- * Pure function under test.
- *
- * The real implementation lives in `./loyaltyEvents`.  We redeclare the
- * signature here so TypeScript can compile this file before the implementation
- * exists; the actual function will be imported once available.
- */
-function evaluateRules(
-  eventType: string,
-  payload: Record<string, unknown>,
-  rules: EarningRule[],
-  memberRuleUsage: Record<string, number>,
-): number {
-  // Placeholder body — this file will fail at runtime until the real
-  // implementation is provided.  The tests drive the expected contract.
-  throw new Error('evaluateRules is not yet implemented')
 }
 
 // ---------------------------------------------------------------------------

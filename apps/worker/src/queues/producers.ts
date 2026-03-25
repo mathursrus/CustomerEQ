@@ -1,11 +1,10 @@
-import { Queue, Job } from 'bullmq'
-import type Redis from 'ioredis'
+import { Queue, type Job, type ConnectionOptions } from 'bullmq'
 import { QUEUES } from '@customerEQ/shared'
 import type { LoyaltyEventPayload, CampaignTriggerPayload, NotificationPayload } from '@customerEQ/shared'
 import { createQueue } from './definitions.js'
 
 export async function enqueueEvent(
-  connection: Redis,
+  connection: ConnectionOptions,
   payload: LoyaltyEventPayload,
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.LOYALTY_EVENTS, connection)
@@ -13,7 +12,7 @@ export async function enqueueEvent(
 }
 
 export async function enqueueCampaignTrigger(
-  connection: Redis,
+  connection: ConnectionOptions,
   payload: CampaignTriggerPayload,
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.CAMPAIGN_TRIGGERS, connection)
@@ -21,7 +20,7 @@ export async function enqueueCampaignTrigger(
 }
 
 export async function enqueueNotification(
-  connection: Redis,
+  connection: ConnectionOptions,
   payload: NotificationPayload,
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.NOTIFICATIONS, connection)

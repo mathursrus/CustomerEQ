@@ -28,7 +28,6 @@
   },
   "devDependencies": {
     "prisma": "^5.13.0",
-    "typescript": "^5.4.0",
-    "@customerEQ/config": "workspace:*"
+    "typescript": "^5.4.0"
   }
 }

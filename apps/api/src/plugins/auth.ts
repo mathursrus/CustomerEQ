@@ -15,7 +15,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     // Skip auth for public routes that have no Authorization header
     if (!authHeader) {
-      if ((request.routeOptions?.config as Record<string, unknown>)?.public === true) {
+      if ((request.routeOptions?.config as unknown as Record<string, unknown>)?.public === true) {
         return
       }
       return reply

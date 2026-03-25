@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { CreateCampaignSchema, UpdateCampaignStatusSchema } from '@customerEQ/shared'
 
 const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -29,9 +30,9 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
         programId: data.programId,
         name: data.name,
         triggerType: data.triggerType,
-        triggerCondition: data.triggerCondition,
+        triggerCondition: data.triggerCondition as Prisma.InputJsonValue,
         actionType: data.actionType,
-        actionConfig: data.actionConfig,
+        actionConfig: data.actionConfig as Prisma.InputJsonValue,
         budgetCap: data.budgetCap ?? undefined,
         startDate: new Date(data.startDate),
         endDate: data.endDate ? new Date(data.endDate) : undefined,

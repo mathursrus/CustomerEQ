@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client'
+import type { PrismaClient, Prisma } from '@prisma/client'
 
 let counter = 0
 
@@ -23,9 +23,9 @@ export async function createCampaign(
       programId,
       name: overrides.name ?? `Test Campaign ${counter}`,
       triggerType: trigger.type,
-      triggerCondition: trigger.condition,
+      triggerCondition: trigger.condition as Prisma.InputJsonValue,
       actionType: action.type,
-      actionConfig: action.config,
+      actionConfig: action.config as Prisma.InputJsonValue,
       budgetCap: overrides.budgetCap !== undefined ? overrides.budgetCap : null,
       status: overrides.status ?? 'ACTIVE',
       startDate: overrides.startDate ?? new Date(Date.now() - 1000), // started 1 second ago

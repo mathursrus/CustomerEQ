@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
-import type Redis from 'ioredis'
+import type { Redis } from 'ioredis'
 import { prisma } from '@customerEQ/database'
+import type { Prisma } from '@prisma/client'
 import type { CampaignTriggerPayload } from '@customerEQ/shared'
 import { enqueueNotification } from '../queues/producers.js'
 
@@ -91,7 +92,7 @@ export function createCampaignTriggerProcessor(redis: Redis) {
     const points = (campaign.actionConfig as { points?: number }).points ?? 0
     const latencyMs = Date.now() - new Date(eventIngestedAt).getTime()
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.loyaltyEvent.create({
         data: {
           memberId,

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { CreateProgramSchema, UpdateProgramSchema } from '@customerEQ/shared'
 import { z } from 'zod'
 
@@ -143,7 +144,7 @@ const programsRoutes: FastifyPluginAsync = async (fastify) => {
           triggerEvent: data.triggerEvent,
           pointsAwarded: data.pointsAwarded,
           multiplier: data.multiplier,
-          conditions: data.conditions ?? undefined,
+          conditions: (data.conditions ?? undefined) as Prisma.InputJsonValue | undefined,
           maxUsesPerMember: data.maxUsesPerMember ?? undefined,
           validFrom: data.validFrom ? new Date(data.validFrom) : undefined,
           validTo: data.validTo ? new Date(data.validTo) : undefined,

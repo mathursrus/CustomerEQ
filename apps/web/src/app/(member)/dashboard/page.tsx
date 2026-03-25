@@ -70,7 +70,7 @@ export default function MemberDashboardPage() {
           )}
         </p>
         <Link
-          href="/member/rewards"
+          href="/rewards"
           data-testid="browse-rewards-btn"
           className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white/20 hover:bg-white/30 px-5 py-2.5 text-sm font-semibold text-white transition-colors"
         >

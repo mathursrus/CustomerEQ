@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { RedeemSchema } from '@customerEQ/shared'
 
 const redemptionsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -17,7 +18,7 @@ const redemptionsRoutes: FastifyPluginAsync = async (fastify) => {
     const brandId = request.brandId
 
     try {
-      const redemption = await fastify.prisma.$transaction(async (tx) => {
+      const redemption = await fastify.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1. Lock + check member balance (scoped to brand)
         const member = await tx.member.findUnique({
           where: { id: memberId },

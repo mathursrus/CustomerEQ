@@ -20,7 +20,7 @@ interface HubSpotWebhookPayload {
   [key: string]: unknown
 }
 
-function verifySalesforceSignature(
+export function verifySalesforceSignature(
   rawBody: Buffer,
   sig: string,
   secret: string,
@@ -39,7 +39,7 @@ function verifySalesforceSignature(
   }
 }
 
-function verifyHubSpotSignature(
+export function verifyHubSpotSignature(
   method: string,
   uri: string,
   body: string,
@@ -62,7 +62,7 @@ function verifyHubSpotSignature(
   }
 }
 
-function normalizeSalesforcePayload(body: SalesforceNPSPayload): InternalCxEvent {
+export function normalizeSalesforcePayload(body: SalesforceNPSPayload): InternalCxEvent {
   return {
     type: 'cx.nps_submitted',
     externalId: body.caseId ?? body.surveyResponseId ?? 'unknown',
@@ -74,7 +74,7 @@ function normalizeSalesforcePayload(body: SalesforceNPSPayload): InternalCxEvent
   }
 }
 
-function normalizeHubSpotPayload(body: HubSpotWebhookPayload): InternalCxEvent {
+export function normalizeHubSpotPayload(body: HubSpotWebhookPayload): InternalCxEvent {
   const type =
     body.subscriptionType === 'deal.propertyChange'
       ? 'cx.deal_closed'
