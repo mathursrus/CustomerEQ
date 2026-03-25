@@ -45,6 +45,7 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Lists all existing programs in a table: name, type, status badge (Active / Paused / Draft), date range, member count, budget consumption bar
 - Primary CTA: **"+ Create New Program"** (top-right) — launches the wizard
 - Per-row actions: **"Edit"** (re-opens wizard pre-populated), **"Pause"** / **"Reactivate"** / **"Continue Setup"** depending on status
+- **Double-clicking a row** opens the program in **view-only mode** — all fields are read-only with a yellow "View-only" banner; an "✏️ Edit Program" button in the header switches to edit mode
 - Provides the overview context admins need before creating or editing a program
 
 **Step 1 — Program Type**
@@ -58,10 +59,11 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Start date / End date (or "Ongoing")
 - **Currency symbol** — dropdown with preset options: Stars, Points, Coins, Miles, Credits, Sparks, Cash Back, plus "Other (custom)…" which reveals a free-text field for any custom name
 
-**Steps 3–7 — Program Context Bar** *(persistent reference strip shown on all steps after Basic Info)*
-- A slim bar at the top of each step (3 through 7) displays the program name and date range entered in Step 2
-- Updates live as the admin edits Step 2 fields; includes an inline "Edit" link to jump back to Step 2
-- Particularly useful during editing: admin always knows which program they are configuring without navigating away
+**Program Name + Date Range in Wizard Header** *(inline reference in the page title row)*
+- The program name is the wizard page title; the date range from Step 2 appears on the same row in smaller text
+- When **creating**: date range appears in the header from Step 3 onward (once Basic Info is filled)
+- When **editing or viewing**: date range appears in the header on **all steps including 1 and 2**, so the admin always knows which program they are configuring
+- Updates live as the admin edits the name or dates in Step 2 — no separate bar, no duplication
 
 **Step 3 — Earning Rules**
 - Admin adds one or more earning rules

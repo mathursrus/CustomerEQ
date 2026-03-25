@@ -94,23 +94,21 @@
   .prog-meta { font-size: 11px; color: #94a3b8; margin-top: 2px; }
   .prog-actions { display: flex; gap: 8px; }
 
-  /* ── Context bar ── */
-  .context-bar {
+  /* ── View-only banner ── */
+  .view-only-bar {
     display: none;
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
+    background: #fef9c3;
+    border: 1px solid #fde68a;
     border-radius: 8px;
     padding: 8px 14px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-size: 12px;
-    color: #4338ca;
+    color: #92400e;
     align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
   }
-  .context-bar.show { display: flex; }
-  .context-bar strong { font-weight: 600; }
-  .context-bar .ctx-sep { color: #c7d2fe; }
+  .view-only-bar.show { display: flex; }
 
   /* ── Stepper ── */
   .stepper {
@@ -458,7 +456,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr>
+          <tr style="cursor:pointer" title="Double-click to view" ondblclick="showWizard('view', 'Summer Rewards 2026', 'Points', 'Apr 1, 2026', 'Ongoing')">
             <td>
               <div class="prog-name">Summer Rewards 2026</div>
               <div class="prog-meta">Created Mar 20, 2026</div>
@@ -475,12 +473,12 @@
             </td>
             <td>
               <div class="prog-actions">
-                <button class="btn btn-outline btn-sm" onclick="showWizard('edit', 'Summer Rewards 2026', 'Points', 'Apr 1, 2026', 'Ongoing')">Edit</button>
-                <button class="btn btn-ghost btn-sm">Pause</button>
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();showWizard('edit', 'Summer Rewards 2026', 'Points', 'Apr 1, 2026', 'Ongoing')">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">Pause</button>
               </div>
             </td>
           </tr>
-          <tr>
+          <tr style="cursor:pointer" title="Double-click to view" ondblclick="showWizard('view', 'Holiday Cashback 2025', 'Cashback', 'Nov 1, 2025', 'Dec 31, 2025')">
             <td>
               <div class="prog-name">Holiday Cashback 2025</div>
               <div class="prog-meta">Created Oct 15, 2025</div>
@@ -497,12 +495,12 @@
             </td>
             <td>
               <div class="prog-actions">
-                <button class="btn btn-outline btn-sm" onclick="showWizard('edit', 'Holiday Cashback 2025', 'Cashback', 'Nov 1, 2025', 'Dec 31, 2025')">Edit</button>
-                <button class="btn btn-ghost btn-sm">Reactivate</button>
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();showWizard('edit', 'Holiday Cashback 2025', 'Cashback', 'Nov 1, 2025', 'Dec 31, 2025')">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">Reactivate</button>
               </div>
             </td>
           </tr>
-          <tr>
+          <tr style="cursor:pointer" title="Double-click to view" ondblclick="showWizard('view', 'VIP Elite Club', 'Tiered', '—', '—')">
             <td>
               <div class="prog-name">VIP Elite Club</div>
               <div class="prog-meta">Created Mar 24, 2026</div>
@@ -514,7 +512,7 @@
             <td style="font-size:11px;color:#94a3b8">Not activated</td>
             <td>
               <div class="prog-actions">
-                <button class="btn btn-primary btn-sm" onclick="showWizard('edit', 'VIP Elite Club', 'Tiered', '—', '—')">Continue Setup</button>
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showWizard('edit', 'VIP Elite Club', 'Tiered', '—', '—')">Continue Setup</button>
               </div>
             </td>
           </tr>
@@ -527,8 +525,16 @@
   <main class="main view" id="view-wizard">
     <div class="page-header">
       <div class="breadcrumb" id="wizardBreadcrumb">Programs › Create New Program</div>
-      <div class="page-title" id="wizardTitle">Configure Loyalty Program</div>
-      <div class="page-subtitle">Complete each step to set up your program. Progress is auto-saved.</div>
+      <div class="page-header-row" style="align-items:center">
+        <div>
+          <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+            <div class="page-title" id="wizardTitle">Configure Loyalty Program</div>
+            <div id="wizardDateRange" style="display:none;font-size:13px;color:#64748b;font-weight:400"></div>
+          </div>
+          <div class="page-subtitle" id="wizardSubtitle">Complete each step to set up your program. Progress is auto-saved.</div>
+        </div>
+        <button id="wizardEditBtn" class="btn btn-outline" style="display:none;flex-shrink:0;margin-left:16px" onclick="switchToEdit()">✏️ Edit Program</button>
+      </div>
     </div>
 
     <!-- Save banner -->
@@ -536,13 +542,9 @@
       ✅ Draft saved automatically.
     </div>
 
-    <!-- Context bar (shown on steps 3–7) -->
-    <div class="context-bar" id="contextBar">
-      <span>📋 <strong id="ctxName">—</strong></span>
-      <span class="ctx-sep">|</span>
-      <span>📅 <span id="ctxDates">—</span></span>
-      <span class="ctx-sep">|</span>
-      <span style="color:#6366f1;cursor:pointer;text-decoration:underline;font-size:11px" onclick="goToStep(2)">Edit</span>
+    <!-- View-only banner -->
+    <div class="view-only-bar" id="viewOnlyBar">
+      <span>👁️ View-only — double-click any field or click "Edit Program" to make changes.</span>
     </div>
 
     <!-- Stepper -->
@@ -593,7 +595,7 @@
         <div class="card-desc">Name your program and set the active period.</div>
         <div class="form-group">
           <label>Program Name *</label>
-          <input type="text" id="progName" value="Summer Rewards 2026" placeholder="e.g. Summer Rewards 2026" oninput="updateContextBar()" />
+          <input type="text" id="progName" value="Summer Rewards 2026" placeholder="e.g. Summer Rewards 2026" oninput="updateHeaderDateRange()" />
           <div class="hint">Shown to members on their loyalty portal.</div>
         </div>
         <div class="form-group">
@@ -603,11 +605,11 @@
         <div class="form-row">
           <div class="form-group">
             <label>Start Date *</label>
-            <input type="date" id="progStart" value="2026-04-01" oninput="updateContextBar()" />
+            <input type="date" id="progStart" value="2026-04-01" oninput="updateHeaderDateRange()" />
           </div>
           <div class="form-group">
             <label>End Date</label>
-            <input type="date" id="progEnd" value="" oninput="updateContextBar()" />
+            <input type="date" id="progEnd" value="" oninput="updateHeaderDateRange()" />
             <div class="hint">Leave blank for ongoing program.</div>
           </div>
         </div>
@@ -1060,6 +1062,8 @@
   ];
 
   let currentStep = 1;
+  let isEditMode = false;
+  let isViewOnly = false;
 
   // ── View switching ──────────────────────────────────────
 
@@ -1068,23 +1072,55 @@
     document.getElementById('view-programs-list').classList.add('active');
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
     document.getElementById('nav-programs').classList.add('active');
+    isEditMode = false;
+    isViewOnly = false;
   }
 
   function showWizard(mode, name, type, startDate, endDate) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-wizard').classList.add('active');
 
-    if (mode === 'edit' && name) {
+    isEditMode = (mode === 'edit' || mode === 'view');
+    isViewOnly = (mode === 'view');
+
+    if (isEditMode && name) {
       document.getElementById('wizardBreadcrumb').textContent = 'Programs › ' + name;
-      document.getElementById('wizardTitle').textContent = 'Edit: ' + name;
+      document.getElementById('wizardTitle').textContent = (isViewOnly ? '' : 'Edit: ') + name;
       document.getElementById('progName').value = name;
     } else {
       document.getElementById('wizardBreadcrumb').textContent = 'Programs › Create New Program';
       document.getElementById('wizardTitle').textContent = 'Configure Loyalty Program';
     }
 
+    document.getElementById('wizardSubtitle').textContent = isViewOnly
+      ? 'View-only — click "Edit Program" to make changes.'
+      : 'Complete each step to set up your program. Progress is auto-saved.';
+
+    setViewOnly(isViewOnly);
     goToStep(1);
-    updateContextBar();
+    updateHeaderDateRange();
+  }
+
+  // ── View-only mode ──────────────────────────────────────
+
+  function setViewOnly(on) {
+    const wizard = document.getElementById('view-wizard');
+    wizard.querySelectorAll('input, select, textarea, button.btn-primary, button.btn-success, button.btn-outline, button.add-btn, button.remove-btn, button.logic-btn')
+      .forEach(el => {
+        // Keep navigation buttons and the Edit Program button always active
+        const isNav = el.id === 'wizardEditBtn' || el.onclick && (el.getAttribute('onclick') || '').includes('goToStep') || el.textContent.trim().startsWith('←');
+        if (!isNav) el.disabled = on;
+      });
+    document.getElementById('viewOnlyBar').classList.toggle('show', on);
+    document.getElementById('wizardEditBtn').style.display = on ? 'inline-flex' : 'none';
+    document.getElementById('saveBanner').style.display = on ? 'none' : '';
+  }
+
+  function switchToEdit() {
+    isViewOnly = false;
+    document.getElementById('wizardTitle').textContent = 'Edit: ' + document.getElementById('progName').value.trim();
+    document.getElementById('wizardSubtitle').textContent = 'Complete each step to set up your program. Progress is auto-saved.';
+    setViewOnly(false);
   }
 
   // ── Stepper ─────────────────────────────────────────────
@@ -1109,34 +1145,28 @@
     document.getElementById('panel-' + n).classList.add('active');
     currentStep = n;
     renderStepper();
-
-    // Show context bar on steps 3–7
-    const bar = document.getElementById('contextBar');
-    if (n >= 3) {
-      updateContextBar();
-      bar.classList.add('show');
-    } else {
-      bar.classList.remove('show');
-    }
-
+    updateHeaderDateRange();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // ── Context bar ─────────────────────────────────────────
+  // ── Header date range (replaces context bar) ────────────
+  // Shown in the page title row for all steps when editing/viewing,
+  // and for steps 3–7 when creating new (reads live from Step 2 inputs).
 
-  function updateContextBar() {
-    const name = document.getElementById('progName').value.trim() || '—';
+  function updateHeaderDateRange() {
+    const dateRangeEl = document.getElementById('wizardDateRange');
+    const showIt = isEditMode || currentStep >= 3;
+    if (!showIt) { dateRangeEl.style.display = 'none'; return; }
+
     const start = document.getElementById('progStart').value;
     const end = document.getElementById('progEnd').value;
-
-    document.getElementById('ctxName').textContent = name;
-
-    let dateStr = '—';
+    let dateStr = '';
     if (start) {
       const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       dateStr = fmt(start) + ' – ' + (end ? fmt(end) : 'Ongoing');
     }
-    document.getElementById('ctxDates').textContent = dateStr;
+    dateRangeEl.textContent = dateStr;
+    dateRangeEl.style.display = dateStr ? 'block' : 'none';
   }
 
   // ── Currency custom field ────────────────────────────────
