@@ -15,7 +15,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "pnpm --filter @customerEQ/web test:e2e",
-    "test:all": "turbo run test && turbo run test:integration",
+    "test:all": "turbo run test test:integration",
     "clean": "turbo run clean && rm -rf node_modules",
 
     "db:studio": "pnpm --filter @customerEQ/database studio",

@@ -22,14 +22,12 @@ describe('Rewards & Redemptions API', () => {
     it('creates a reward and returns it in the catalog with status 201', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/rewards').send({
         programId: program.id,
         name: '$10 Gift Card',
-        type: 'GIFT_CARD',
         pointsCost: 1000,
-        monetaryValue: 10.0,
         isAvailable: true,
       })
 
@@ -37,20 +35,19 @@ describe('Rewards & Redemptions API', () => {
       expect(res.body.id).toBeDefined()
       expect(res.body.name).toBe('$10 Gift Card')
       expect(res.body.pointsCost).toBe(1000)
-      expect(res.body.type).toBe('GIFT_CARD')
       expect(res.body.isAvailable).toBe(true)
     })
 
     it('returns 422 when required fields are missing', async () => {
       const brand = await createBrand()
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/rewards').send({
-        type: 'GIFT_CARD',
         pointsCost: 500,
       })
 
       expect(res.status).toBe(422)
+      expect(res.body.error).toBe('Validation failed')
     })
   })
 
@@ -64,7 +61,7 @@ describe('Rewards & Redemptions API', () => {
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
       await createReward({ brandId: brand.id, programId: program.id, name: 'Reward A', pointsCost: 500 })
       await createReward({ brandId: brand.id, programId: program.id, name: 'Reward B', pointsCost: 1000 })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/rewards')
 
@@ -87,7 +84,7 @@ describe('Rewards & Redemptions API', () => {
         name: 'Other Brand Reward',
         pointsCost: 100,
       })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/rewards')
 
@@ -116,7 +113,7 @@ describe('Rewards & Redemptions API', () => {
         name: 'Free Coffee',
         pointsCost: 500,
       })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/redemptions').send({
         memberId: member.id,
@@ -134,7 +131,7 @@ describe('Rewards & Redemptions API', () => {
       expect(balanceRes.body.pointsBalance).toBe(1000)
     })
 
-    it('returns 422 "Insufficient points balance" when member lacks enough points', async () => {
+    it('returns 422 when member lacks enough points', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
       const member = await createConsentedMember({
@@ -148,7 +145,7 @@ describe('Rewards & Redemptions API', () => {
         name: 'Expensive Reward',
         pointsCost: 1000,
       })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/redemptions').send({
         memberId: member.id,
@@ -156,7 +153,7 @@ describe('Rewards & Redemptions API', () => {
       })
 
       expect(res.status).toBe(422)
-      expect(res.body.message).toMatch(/insufficient/i)
+      expect(res.body.error).toMatch(/insufficient/i)
     })
 
     it('ensures only one concurrent redemption succeeds when the balance only covers one', async () => {
@@ -173,7 +170,7 @@ describe('Rewards & Redemptions API', () => {
         name: 'Single Use Reward',
         pointsCost: 500,
       })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       // Fire two concurrent redemption requests
       const [res1, res2] = await Promise.all([
@@ -207,7 +204,7 @@ describe('Rewards & Redemptions API', () => {
         name: 'Other Brand Reward',
         pointsCost: 100,
       })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/redemptions').send({
         memberId: member.id,

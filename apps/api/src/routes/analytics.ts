@@ -33,12 +33,12 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.$queryRaw<AnalyticsTotals[]>`
         SELECT
           COUNT(DISTINCT m.id)::int AS "totalMembers",
-          COALESCE(SUM(le.points_earned) FILTER (WHERE le.points_earned > 0), 0)::int AS "totalPointsIssued",
-          COALESCE(SUM(ABS(le.points_earned)) FILTER (WHERE le.points_earned < 0), 0)::int AS "totalPointsRedeemed"
+          COALESCE(SUM(le."pointsEarned") FILTER (WHERE le."pointsEarned" > 0), 0)::int AS "totalPointsIssued",
+          COALESCE(SUM(ABS(le."pointsEarned")) FILTER (WHERE le."pointsEarned" < 0), 0)::int AS "totalPointsRedeemed"
         FROM loyalty_events le
-        JOIN members m ON le.member_id = m.id
-        WHERE le.brand_id = ${brandId}
-          AND le.created_at BETWEEN ${startDate} AND ${endDate}
+        JOIN members m ON le."memberId" = m.id
+        WHERE le."brandId" = ${brandId}
+          AND le."createdAt" BETWEEN ${startDate} AND ${endDate}
       `,
       fastify.prisma.redemption.groupBy({
         by: ['rewardId'],
