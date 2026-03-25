@@ -178,4 +178,36 @@ describe('Members API — /v1/members', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/members/me/balance
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/members/me/balance', () => {
+    it('returns balance for an authenticated member', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createMember({
+        brandId: brand.id,
+        programId: program.id,
+        clerkUserId: 'user_test_123',
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/members/me/balance')
+
+      expect(res.status).toBe(200)
+      expect(res.body.pointsBalance).toBe(0)
+      expect(Array.isArray(res.body.recentEvents)).toBe(true)
+    })
+
+    it('returns 404 when no member exists for the authenticated user', async () => {
+      const brand = await createBrand()
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/members/me/balance')
+
+      expect(res.status).toBe(404)
+    })
+  })
 })

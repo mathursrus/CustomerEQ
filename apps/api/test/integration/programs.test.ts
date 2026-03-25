@@ -164,4 +164,52 @@ describe('Programs API — /v1/programs', () => {
       expect(res.status).toBe(422)
     })
   })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/programs
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/programs', () => {
+    it('returns a list of programs for the brand', async () => {
+      const brand = await createBrand()
+      await createProgram({ brandId: brand.id })
+      await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body.length).toBe(2)
+      expect(res.body[0].brandId).toBe(brand.id)
+      expect(res.body[1].brandId).toBe(brand.id)
+    })
+
+    it('returns an empty array for a brand with no programs', async () => {
+      const brand = await createBrand()
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body).toHaveLength(0)
+    })
+
+    it('does not include programs from other brands (tenant isolation)', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      await createProgram({ brandId: brandA.id })
+      await createProgram({ brandId: brandB.id })
+      const request = await authenticatedRequest(brandA.id)
+
+      const res = await request.get('/v1/programs')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body.length).toBe(1)
+      expect(res.body[0].brandId).toBe(brandA.id)
+      expect(res.body.every((p: { brandId: string }) => p.brandId === brandA.id)).toBe(true)
+    })
+  })
 })

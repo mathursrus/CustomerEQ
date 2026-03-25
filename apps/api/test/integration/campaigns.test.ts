@@ -298,4 +298,71 @@ describe('Campaigns API — /v1/campaigns', () => {
       expect(campaignRes.body.status).toBe('PAUSED')
     })
   })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/campaigns
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/campaigns', () => {
+    it('returns a list of campaigns for the brand', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createCampaign({
+        brandId: brand.id,
+        programId: program.id,
+        triggerEventType: 'cx.nps_submitted',
+      })
+      await createCampaign({
+        brandId: brand.id,
+        programId: program.id,
+        triggerEventType: 'cx.csat_submitted',
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/campaigns')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body.length).toBe(2)
+      expect(res.body[0].brandId).toBe(brand.id)
+      expect(res.body[1].brandId).toBe(brand.id)
+    })
+
+    it('returns an empty array for a brand with no campaigns', async () => {
+      const brand = await createBrand()
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/campaigns')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body).toHaveLength(0)
+    })
+
+    it('does not include campaigns from other brands (tenant isolation)', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      const programA = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
+      const programB = await createProgram({ brandId: brandB.id, status: 'ACTIVE' })
+      await createCampaign({
+        brandId: brandA.id,
+        programId: programA.id,
+        triggerEventType: 'cx.nps_submitted',
+      })
+      await createCampaign({
+        brandId: brandB.id,
+        programId: programB.id,
+        triggerEventType: 'cx.nps_submitted',
+      })
+      const request = await authenticatedRequest(brandA.id)
+
+      const res = await request.get('/v1/campaigns')
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body)).toBe(true)
+      expect(res.body.length).toBe(1)
+      expect(res.body[0].brandId).toBe(brandA.id)
+      expect(res.body.every((c: { brandId: string }) => c.brandId === brandA.id)).toBe(true)
+    })
+  })
 })
