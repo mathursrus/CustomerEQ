@@ -1,27 +1,25 @@
-import type { PrismaClient } from '@prisma/client'
+import { getTestPrisma } from '../db/setup.js'
 
 let counter = 0
 
-export async function createReward(
-  prisma: PrismaClient,
-  brandId: string,
-  programId: string,
-  overrides: Partial<{
-    name: string
-    pointsCost: number
-    stock: number | null
-    isAvailable: boolean
-  }> = {}
-) {
+export async function createReward(opts: {
+  brandId: string
+  programId: string
+  name?: string
+  pointsCost?: number
+  stock?: number | null
+  isAvailable?: boolean
+}) {
+  const prisma = getTestPrisma()
   counter++
   return prisma.reward.create({
     data: {
-      brandId,
-      programId,
-      name: overrides.name ?? `Test Reward ${counter}`,
-      pointsCost: overrides.pointsCost ?? 500,
-      stock: overrides.stock !== undefined ? overrides.stock : null,
-      isAvailable: overrides.isAvailable !== undefined ? overrides.isAvailable : true,
+      brandId: opts.brandId,
+      programId: opts.programId,
+      name: opts.name ?? `Test Reward ${counter}`,
+      pointsCost: opts.pointsCost ?? 500,
+      stock: opts.stock !== undefined ? opts.stock : null,
+      isAvailable: opts.isAvailable !== undefined ? opts.isAvailable : true,
     },
   })
 }

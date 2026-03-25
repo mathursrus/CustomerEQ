@@ -9,7 +9,7 @@ let prisma: PrismaClient
  */
 export async function setupTestDb(): Promise<PrismaClient> {
   const schemaName = `test_${process.pid}_${Date.now()}`
-  const baseUrl = process.env.DATABASE_URL ?? 'postgresql://customerEQ:customerEQ@localhost:5432/customerEQ'
+  const baseUrl = process.env.DATABASE_URL ?? 'postgresql://customereq:customereq@localhost:5432/customereq'
   const testUrl = `${baseUrl}?schema=${schemaName}`
 
   process.env.DATABASE_URL = testUrl
@@ -18,16 +18,26 @@ export async function setupTestDb(): Promise<PrismaClient> {
     datasources: { db: { url: testUrl } },
   })
 
-  // Create schema and run migrations
+  // Create schema and push tables
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`)
 
   try {
-    execSync(`pnpm --filter @customerEQ/database db:migrate`, {
+    execSync(`npx prisma db push --skip-generate --accept-data-loss --schema="${process.cwd()}/../../packages/database/prisma/schema.prisma"`, {
       env: { ...process.env, DATABASE_URL: testUrl },
       stdio: 'pipe',
+      cwd: process.cwd(),
     })
-  } catch {
-    // Migration may fail if schema already exists — that's ok for test runs
+  } catch (err) {
+    // Try alternative path (running from repo root)
+    try {
+      execSync(`npx prisma db push --skip-generate --accept-data-loss --schema="./packages/database/prisma/schema.prisma"`, {
+        env: { ...process.env, DATABASE_URL: testUrl },
+        stdio: 'pipe',
+        cwd: process.cwd(),
+      })
+    } catch {
+      // Last resort — tables may already exist
+    }
   }
 
   await prisma.$connect()

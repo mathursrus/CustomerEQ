@@ -26,6 +26,14 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         .send({ error: 'Authorization header is required' })
     }
 
+    // Test mode bypass — allows integration tests to set brand/user via headers
+    const testBrandId = request.headers['x-test-brand-id'] as string | undefined
+    if (process.env.NODE_ENV === 'test' && testBrandId) {
+      request.brandId = testBrandId
+      request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_123'
+      return
+    }
+
     const token = authHeader.replace(/^Bearer\s+/i, '')
 
     let payload: Awaited<ReturnType<typeof verifyToken>>

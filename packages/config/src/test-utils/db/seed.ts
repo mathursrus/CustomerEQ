@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { getTestPrisma } from './setup.js'
 
 export interface SeedResult {
   brand: { id: string; clerkOrgId: string; name: string }
@@ -10,7 +11,8 @@ export interface SeedResult {
  * Seeds the test database with 1 brand, 1 active program, and 1 earning rule.
  * Call in beforeEach() to get a clean state for each test.
  */
-export async function seedTestDb(prisma: PrismaClient): Promise<SeedResult> {
+export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
+  prisma = prisma ?? getTestPrisma()
   // Clean all tenant data in order (foreign key safe)
   await prisma.auditEvent.deleteMany()
   await prisma.campaignEvent.deleteMany()

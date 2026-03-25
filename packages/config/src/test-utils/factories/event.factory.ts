@@ -1,26 +1,24 @@
-import type { PrismaClient } from '@prisma/client'
+import { getTestPrisma } from '../db/setup.js'
 
-export async function createLoyaltyEvent(
-  prisma: PrismaClient,
-  brandId: string,
-  memberId: string,
-  overrides: Partial<{
-    eventType: string
-    pointsEarned: number
-    campaignId: string
-    idempotencyKey: string
-    rulesApplied: string[]
-  }> = {}
-) {
+export async function createLoyaltyEvent(opts: {
+  brandId: string
+  memberId: string
+  eventType?: string
+  pointsEarned?: number
+  campaignId?: string
+  idempotencyKey?: string
+  rulesApplied?: string[]
+}) {
+  const prisma = getTestPrisma()
   return prisma.loyaltyEvent.create({
     data: {
-      brandId,
-      memberId,
-      eventType: overrides.eventType ?? 'purchase',
-      pointsEarned: overrides.pointsEarned ?? 100,
-      campaignId: overrides.campaignId ?? null,
-      idempotencyKey: overrides.idempotencyKey ?? null,
-      rulesApplied: overrides.rulesApplied ?? [],
+      brandId: opts.brandId,
+      memberId: opts.memberId,
+      eventType: opts.eventType ?? 'purchase',
+      pointsEarned: opts.pointsEarned ?? 100,
+      campaignId: opts.campaignId ?? null,
+      idempotencyKey: opts.idempotencyKey ?? null,
+      rulesApplied: opts.rulesApplied ?? [],
     },
   })
 }

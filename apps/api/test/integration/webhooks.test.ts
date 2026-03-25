@@ -1,9 +1,7 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import crypto from 'node:crypto'
 import {
-  setupTestDb,
-  teardownTestDb,
   seedTestDb,
   createBrand,
   createProgram,
@@ -27,14 +25,6 @@ function signHubSpotPayload(payload: string, secret: string): string {
 describe('Webhooks API — /v1/integrations/webhooks', () => {
   const SALESFORCE_WEBHOOK_SECRET = 'test-salesforce-secret'
   const HUBSPOT_WEBHOOK_SECRET = 'test-hubspot-secret'
-
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await teardownTestDb()
-  })
 
   beforeEach(async () => {
     await seedTestDb()

@@ -20,5 +20,5 @@ export { salesforceNpsPayload, hubspotTicketPayload, invalidSignatureHeaders } f
 export { mockEmailSend, assertEmailSent, clearEmailMock, getSentEmails } from './mocks/email.mock.js'
 
 // Helpers
-export { authenticatedRequest, unauthenticatedRequest } from './helpers/api.helper.js'
+export { authenticatedRequest, unauthenticatedRequest, setTestApp, getTestApp } from './helpers/api.helper.js'
 export { toHavePointsBalance, toHaveRedemption, toHaveLoyaltyEventCount } from './helpers/assert.helper.js'

@@ -1,8 +1,6 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  setupTestDb,
-  teardownTestDb,
   seedTestDb,
   createBrand,
   authenticatedRequest,
@@ -19,14 +17,6 @@ function publicRequest(): supertest.SuperTest<supertest.Test> {
 }
 
 describe('Demo Requests API', () => {
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await teardownTestDb()
-  })
-
   beforeEach(async () => {
     await seedTestDb()
   })

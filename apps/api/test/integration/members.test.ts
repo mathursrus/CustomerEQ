@@ -1,8 +1,6 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  setupTestDb,
-  teardownTestDb,
   seedTestDb,
   createBrand,
   createProgram,
@@ -11,14 +9,6 @@ import {
 } from '@customerEQ/config/test-utils'
 
 describe('Members API — /v1/members', () => {
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await teardownTestDb()
-  })
-
   beforeEach(async () => {
     await seedTestDb()
   })

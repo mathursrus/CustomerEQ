@@ -1,40 +1,40 @@
-import type { PrismaClient } from '@prisma/client'
+import { getTestPrisma } from '../db/setup.js'
 
 let counter = 0
 
-export async function createProgram(
-  prisma: PrismaClient,
-  brandId: string,
-  overrides: Partial<{
-    name: string
-    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
-    pointCurrencyName: string
-    pointToCurrencyRatio: number
-  }> = {}
-) {
+export async function createProgram(opts: {
+  brandId: string
+  name?: string
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
+  pointCurrencyName?: string
+  pointToCurrencyRatio?: number
+}) {
+  const prisma = getTestPrisma()
   counter++
   return prisma.program.create({
     data: {
-      brandId,
-      name: overrides.name ?? `Test Program ${counter}`,
-      pointCurrencyName: overrides.pointCurrencyName ?? 'Points',
-      pointToCurrencyRatio: overrides.pointToCurrencyRatio ?? 0.01,
-      status: overrides.status ?? 'ACTIVE',
+      brandId: opts.brandId,
+      name: opts.name ?? `Test Program ${counter}`,
+      pointCurrencyName: opts.pointCurrencyName ?? 'Points',
+      pointToCurrencyRatio: opts.pointToCurrencyRatio ?? 0.01,
+      status: opts.status ?? 'ACTIVE',
     },
   })
 }
 
-export async function createProgramWithRules(
-  prisma: PrismaClient,
-  brandId: string,
+export async function createProgramWithRules(opts: {
+  brandId: string
   rules: Array<{ triggerEvent: string; pointsAwarded: number; multiplier?: number }>
-) {
-  const program = await createProgram(prisma, brandId, { status: 'ACTIVE' })
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
+  name?: string
+}) {
+  const prisma = getTestPrisma()
+  const program = await createProgram({ brandId: opts.brandId, status: opts.status ?? 'ACTIVE', name: opts.name })
   const earningRules = await Promise.all(
-    rules.map((rule) =>
+    opts.rules.map((rule) =>
       prisma.earningRule.create({
         data: {
-          brandId,
+          brandId: opts.brandId,
           programId: program.id,
           name: `Rule for ${rule.triggerEvent}`,
           triggerEvent: rule.triggerEvent,

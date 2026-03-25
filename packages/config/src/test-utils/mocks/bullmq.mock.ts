@@ -1,41 +1,63 @@
 import { vi } from 'vitest'
 
-type JobProcessor = (data: unknown) => Promise<unknown>
+type JobProcessor = (job: { id: string; data: unknown; name: string }) => Promise<unknown>
+
+interface QueuedJob {
+  name: string
+  data: unknown
+  id: string
+  processed?: boolean
+  result?: unknown
+}
 
 /**
  * InMemoryQueue — processes BullMQ jobs synchronously in tests.
- * Replace the BullMQ Queue/Worker with this in integration tests to
- * ensure jobs complete before assertions.
+ * All methods are static so tests can call InMemoryQueue.clear(), .drain(), etc.
  */
 export class InMemoryQueue {
-  private processors = new Map<string, JobProcessor>()
-  private jobs: Array<{ name: string; data: unknown; id: string }> = []
+  private static processors = new Map<string, JobProcessor>()
+  private static jobs: QueuedJob[] = []
 
-  async add(name: string, data: unknown): Promise<{ id: string }> {
+  static async add(name: string, data: unknown): Promise<{ id: string }> {
     const id = `job_${Date.now()}_${Math.random().toString(36).slice(2)}`
-    this.jobs.push({ name, data, id })
+    InMemoryQueue.jobs.push({ name, data, id })
     return { id }
   }
 
-  register(name: string, processor: JobProcessor): void {
-    this.processors.set(name, processor)
+  static register(name: string, processor: JobProcessor): void {
+    InMemoryQueue.processors.set(name, processor)
   }
 
   /**
-   * Process all pending jobs synchronously. Call after enqueuing events in tests.
+   * Process all pending jobs for the given queue name synchronously.
    */
-  async drain(): Promise<void> {
-    while (this.jobs.length > 0) {
-      const job = this.jobs.shift()!
-      const processor = this.processors.get(job.name)
+  static async drain(queueName?: string): Promise<void> {
+    const pending = InMemoryQueue.jobs.filter(
+      (j) => !j.processed && (queueName ? j.name === queueName : true),
+    )
+    for (const job of pending) {
+      const processor = InMemoryQueue.processors.get(job.name)
       if (processor) {
-        await processor(job.data)
+        job.result = await processor({ id: job.id, data: job.data, name: job.name })
       }
+      job.processed = true
     }
   }
 
-  clear(): void {
-    this.jobs = []
+  /** Return all jobs (pending + processed) for a given queue name. */
+  static getJobs(queueName?: string): QueuedJob[] {
+    return queueName
+      ? InMemoryQueue.jobs.filter((j) => j.name === queueName)
+      : [...InMemoryQueue.jobs]
+  }
+
+  /** Return only processed jobs for a given queue name. */
+  static getProcessedJobs(queueName?: string): QueuedJob[] {
+    return InMemoryQueue.getJobs(queueName).filter((j) => j.processed)
+  }
+
+  static clear(): void {
+    InMemoryQueue.jobs = []
   }
 }
 

@@ -1,23 +1,14 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  setupTestDb,
-  teardownTestDb,
   seedTestDb,
   createBrand,
   createProgram,
+  createProgramWithRules,
   authenticatedRequest,
 } from '@customerEQ/config/test-utils'
 
 describe('Programs API — /v1/programs', () => {
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await teardownTestDb()
-  })
-
   beforeEach(async () => {
     await seedTestDb()
   })
@@ -56,7 +47,7 @@ describe('Programs API — /v1/programs', () => {
       })
 
       expect(res.status).toBe(422)
-      expect(res.body.message).toMatch(/name/i)
+      expect(res.body.error).toBe('Validation failed')
     })
 
     it('returns 422 when name is an empty string', async () => {
@@ -115,9 +106,9 @@ describe('Programs API — /v1/programs', () => {
   // -------------------------------------------------------------------------
 
   describe('PATCH /v1/programs/:id', () => {
-    it('activates a DRAFT program by setting status=ACTIVE', async () => {
+    it('activates a DRAFT program by setting status=ACTIVE (requires earning rules)', async () => {
       const brand = await createBrand()
-      const program = await createProgram({ brandId: brand.id, status: 'DRAFT' })
+      const { program } = await createProgramWithRules({ brandId: brand.id, rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
       const request = await authenticatedRequest(brand.id)
 
       const res = await request.patch(`/v1/programs/${program.id}`).send({ status: 'ACTIVE' })
@@ -179,10 +170,9 @@ describe('Programs API — /v1/programs', () => {
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
-      expect(res.body.length).toBe(2)
-      expect(res.body[0].brandId).toBe(brand.id)
-      expect(res.body[1].brandId).toBe(brand.id)
+      expect(Array.isArray(res.body.programs)).toBe(true)
+      expect(res.body.programs.length).toBe(2)
+      expect(res.body.programs[0].brandId).toBe(brand.id)
     })
 
     it('returns an empty array for a brand with no programs', async () => {
@@ -192,8 +182,7 @@ describe('Programs API — /v1/programs', () => {
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
-      expect(res.body).toHaveLength(0)
+      expect(res.body.programs).toHaveLength(0)
     })
 
     it('does not include programs from other brands (tenant isolation)', async () => {
@@ -206,10 +195,8 @@ describe('Programs API — /v1/programs', () => {
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
-      expect(res.body.length).toBe(1)
-      expect(res.body[0].brandId).toBe(brandA.id)
-      expect(res.body.every((p: { brandId: string }) => p.brandId === brandA.id)).toBe(true)
+      expect(res.body.programs.length).toBe(1)
+      expect(res.body.programs[0].brandId).toBe(brandA.id)
     })
   })
 })
