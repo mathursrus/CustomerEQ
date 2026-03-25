@@ -56,13 +56,61 @@
   .sidebar-item.active { background: #eef2ff; color: #6366f1; font-weight: 500; }
   .sidebar-icon { font-size: 14px; }
 
-  .main { flex: 1; padding: 32px; max-width: 900px; }
+  .main { flex: 1; padding: 32px; max-width: 960px; }
 
   /* ── Page header ── */
   .page-header { margin-bottom: 28px; }
   .breadcrumb { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
   .page-title { font-size: 22px; font-weight: 700; }
   .page-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .page-header-row { display: flex; align-items: flex-start; justify-content: space-between; }
+
+  /* ── Programs landing ── */
+  .programs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+  }
+  .programs-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .programs-table td {
+    padding: 14px;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  .programs-table tr:last-child td { border-bottom: none; }
+  .programs-table tr:hover td { background: #fafbff; }
+  .prog-name { font-weight: 600; color: #0f172a; }
+  .prog-meta { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .prog-actions { display: flex; gap: 8px; }
+
+  /* ── Context bar ── */
+  .context-bar {
+    display: none;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: #4338ca;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .context-bar.show { display: flex; }
+  .context-bar strong { font-weight: 600; }
+  .context-bar .ctx-sep { color: #c7d2fe; }
 
   /* ── Stepper ── */
   .stepper {
@@ -289,6 +337,7 @@
   .btn-primary:hover { background: #4f46e5; }
   .btn-success { background: #16a34a; color: #fff; border-color: #16a34a; }
   .btn-success:hover { background: #15803d; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
 
   /* ── Tab nav ── */
   .tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin-bottom: 24px; }
@@ -352,6 +401,10 @@
   }
   .banner.show { display: flex; }
   .banner-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+  /* ── Views ── */
+  .view { display: none; }
+  .view.active { display: block; }
 </style>
 </head>
 <body>
@@ -369,8 +422,8 @@
 
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="sidebar-item"><span class="sidebar-icon">🏠</span> Dashboard</div>
-    <div class="sidebar-item active"><span class="sidebar-icon">🎁</span> Programs</div>
+    <div class="sidebar-item" onclick="showView('dashboard')"><span class="sidebar-icon">🏠</span> Dashboard</div>
+    <div class="sidebar-item active" id="nav-programs" onclick="showPrograms()"><span class="sidebar-icon">🎁</span> Programs</div>
     <div class="sidebar-item"><span class="sidebar-icon">👥</span> Members</div>
     <div class="sidebar-item"><span class="sidebar-icon">📣</span> Campaigns</div>
     <div class="sidebar-item"><span class="sidebar-icon">📊</span> Analytics</div>
@@ -378,17 +431,118 @@
     <div class="sidebar-item"><span class="sidebar-icon">⚙️</span> Settings</div>
   </aside>
 
-  <!-- Main content -->
-  <main class="main">
+  <!-- ══ VIEW: Programs Landing ══ -->
+  <main class="main view active" id="view-programs-list">
     <div class="page-header">
-      <div class="breadcrumb">Programs › Create New Program</div>
-      <div class="page-title">Configure Loyalty Program</div>
+      <div class="breadcrumb">Programs</div>
+      <div class="page-header-row">
+        <div>
+          <div class="page-title">Loyalty Programs</div>
+          <div class="page-subtitle">Manage your active, draft, and paused programs.</div>
+        </div>
+        <button class="btn btn-primary" onclick="showWizard('new')" style="margin-top:4px">+ Create New Program</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="programs-table">
+        <thead>
+          <tr>
+            <th>Program</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Dates</th>
+            <th>Members</th>
+            <th>Budget Used</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="prog-name">Summer Rewards 2026</div>
+              <div class="prog-meta">Created Mar 20, 2026</div>
+            </td>
+            <td><span style="font-size:12px">⭐ Points</span></td>
+            <td><span class="badge badge-active">● Active</span></td>
+            <td style="font-size:12px;color:#64748b">Apr 1, 2026 – Ongoing</td>
+            <td style="font-size:13px;font-weight:600">1,247</td>
+            <td>
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px">$6,120 / $50,000</div>
+              <div style="height:4px;background:#e2e8f0;border-radius:99px;width:120px">
+                <div style="height:100%;width:12%;background:#22c55e;border-radius:99px"></div>
+              </div>
+            </td>
+            <td>
+              <div class="prog-actions">
+                <button class="btn btn-outline btn-sm" onclick="showWizard('edit', 'Summer Rewards 2026', 'Points', 'Apr 1, 2026', 'Ongoing')">Edit</button>
+                <button class="btn btn-ghost btn-sm">Pause</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="prog-name">Holiday Cashback 2025</div>
+              <div class="prog-meta">Created Oct 15, 2025</div>
+            </td>
+            <td><span style="font-size:12px">💵 Cashback</span></td>
+            <td><span class="badge badge-paused">● Paused</span></td>
+            <td style="font-size:12px;color:#64748b">Nov 1 – Dec 31, 2025</td>
+            <td style="font-size:13px;font-weight:600">3,891</td>
+            <td>
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px">$28,400 / $30,000</div>
+              <div style="height:4px;background:#e2e8f0;border-radius:99px;width:120px">
+                <div style="height:100%;width:95%;background:#f59e0b;border-radius:99px"></div>
+              </div>
+            </td>
+            <td>
+              <div class="prog-actions">
+                <button class="btn btn-outline btn-sm" onclick="showWizard('edit', 'Holiday Cashback 2025', 'Cashback', 'Nov 1, 2025', 'Dec 31, 2025')">Edit</button>
+                <button class="btn btn-ghost btn-sm">Reactivate</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="prog-name">VIP Elite Club</div>
+              <div class="prog-meta">Created Mar 24, 2026</div>
+            </td>
+            <td><span style="font-size:12px">🏆 Tiered</span></td>
+            <td><span class="badge badge-draft">● Draft</span></td>
+            <td style="font-size:12px;color:#94a3b8">Start date not set</td>
+            <td style="font-size:13px;color:#94a3b8">—</td>
+            <td style="font-size:11px;color:#94a3b8">Not activated</td>
+            <td>
+              <div class="prog-actions">
+                <button class="btn btn-primary btn-sm" onclick="showWizard('edit', 'VIP Elite Club', 'Tiered', '—', '—')">Continue Setup</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- ══ VIEW: Wizard ══ -->
+  <main class="main view" id="view-wizard">
+    <div class="page-header">
+      <div class="breadcrumb" id="wizardBreadcrumb">Programs › Create New Program</div>
+      <div class="page-title" id="wizardTitle">Configure Loyalty Program</div>
       <div class="page-subtitle">Complete each step to set up your program. Progress is auto-saved.</div>
     </div>
 
     <!-- Save banner -->
     <div id="saveBanner" class="banner banner-success">
       ✅ Draft saved automatically.
+    </div>
+
+    <!-- Context bar (shown on steps 3–7) -->
+    <div class="context-bar" id="contextBar">
+      <span>📋 <strong id="ctxName">—</strong></span>
+      <span class="ctx-sep">|</span>
+      <span>📅 <span id="ctxDates">—</span></span>
+      <span class="ctx-sep">|</span>
+      <span style="color:#6366f1;cursor:pointer;text-decoration:underline;font-size:11px" onclick="goToStep(2)">Edit</span>
     </div>
 
     <!-- Stepper -->
@@ -427,6 +581,7 @@
         </div>
       </div>
       <div class="btn-row">
+        <button class="btn btn-ghost" onclick="showPrograms()">← Back to Programs</button>
         <button class="btn btn-primary" onclick="goToStep(2)">Next: Basic Info →</button>
       </div>
     </div>
@@ -438,7 +593,7 @@
         <div class="card-desc">Name your program and set the active period.</div>
         <div class="form-group">
           <label>Program Name *</label>
-          <input type="text" value="Summer Rewards 2026" placeholder="e.g. Summer Rewards 2026" />
+          <input type="text" id="progName" value="Summer Rewards 2026" placeholder="e.g. Summer Rewards 2026" oninput="updateContextBar()" />
           <div class="hint">Shown to members on their loyalty portal.</div>
         </div>
         <div class="form-group">
@@ -448,17 +603,28 @@
         <div class="form-row">
           <div class="form-group">
             <label>Start Date *</label>
-            <input type="date" value="2026-04-01" />
+            <input type="date" id="progStart" value="2026-04-01" oninput="updateContextBar()" />
           </div>
           <div class="form-group">
             <label>End Date</label>
-            <input type="date" value="" placeholder="Leave blank for ongoing" />
+            <input type="date" id="progEnd" value="" oninput="updateContextBar()" />
             <div class="hint">Leave blank for ongoing program.</div>
           </div>
         </div>
         <div class="form-group">
           <label>Currency Symbol (what to call points)</label>
-          <input type="text" value="Stars" placeholder="Stars, Coins, Points, Sparks…" />
+          <select id="currencySelect" onchange="toggleCustomCurrency(this)">
+            <option value="Stars" selected>Stars</option>
+            <option value="Points">Points</option>
+            <option value="Coins">Coins</option>
+            <option value="Miles">Miles</option>
+            <option value="Credits">Credits</option>
+            <option value="Sparks">Sparks</option>
+            <option value="Cash Back">Cash Back</option>
+            <option value="custom">Other (custom)…</option>
+          </select>
+          <input type="text" id="currencyCustom" placeholder="e.g. Gems, Tokens, Petals…" style="display:none;margin-top:6px" />
+          <div class="hint">Shown to members as their balance unit (e.g. "You have 840 Stars").</div>
         </div>
       </div>
       <div class="btn-row">
@@ -895,6 +1061,34 @@
 
   let currentStep = 1;
 
+  // ── View switching ──────────────────────────────────────
+
+  function showPrograms() {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-programs-list').classList.add('active');
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('nav-programs').classList.add('active');
+  }
+
+  function showWizard(mode, name, type, startDate, endDate) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-wizard').classList.add('active');
+
+    if (mode === 'edit' && name) {
+      document.getElementById('wizardBreadcrumb').textContent = 'Programs › ' + name;
+      document.getElementById('wizardTitle').textContent = 'Edit: ' + name;
+      document.getElementById('progName').value = name;
+    } else {
+      document.getElementById('wizardBreadcrumb').textContent = 'Programs › Create New Program';
+      document.getElementById('wizardTitle').textContent = 'Configure Loyalty Program';
+    }
+
+    goToStep(1);
+    updateContextBar();
+  }
+
+  // ── Stepper ─────────────────────────────────────────────
+
   function renderStepper() {
     const el = document.getElementById('stepper');
     el.innerHTML = steps.map((s, i) => {
@@ -915,13 +1109,52 @@
     document.getElementById('panel-' + n).classList.add('active');
     currentStep = n;
     renderStepper();
+
+    // Show context bar on steps 3–7
+    const bar = document.getElementById('contextBar');
+    if (n >= 3) {
+      updateContextBar();
+      bar.classList.add('show');
+    } else {
+      bar.classList.remove('show');
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // ── Context bar ─────────────────────────────────────────
+
+  function updateContextBar() {
+    const name = document.getElementById('progName').value.trim() || '—';
+    const start = document.getElementById('progStart').value;
+    const end = document.getElementById('progEnd').value;
+
+    document.getElementById('ctxName').textContent = name;
+
+    let dateStr = '—';
+    if (start) {
+      const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      dateStr = fmt(start) + ' – ' + (end ? fmt(end) : 'Ongoing');
+    }
+    document.getElementById('ctxDates').textContent = dateStr;
+  }
+
+  // ── Currency custom field ────────────────────────────────
+
+  function toggleCustomCurrency(sel) {
+    const custom = document.getElementById('currencyCustom');
+    custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+    if (sel.value === 'custom') custom.focus();
+  }
+
+  // ── Program type ─────────────────────────────────────────
 
   function selectType(el, type) {
     document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
   }
+
+  // ── Draft save ───────────────────────────────────────────
 
   function saveDraft() {
     const b = document.getElementById('saveBanner');
@@ -929,9 +1162,13 @@
     setTimeout(() => b.classList.remove('show'), 2500);
   }
 
+  // ── Simulation ───────────────────────────────────────────
+
   function runSimulation() {
     document.getElementById('simResult').style.display = 'block';
   }
+
+  // ── Activate modal ───────────────────────────────────────
 
   function showActivateModal() {
     document.getElementById('activateModal').classList.add('show');
@@ -951,7 +1188,8 @@
     }
   }
 
-  // logic btn toggle
+  // ── AND/OR logic toggle ──────────────────────────────────
+
   document.addEventListener('click', function(e) {
     if (e.target.classList.contains('logic-btn')) {
       const group = e.target.closest('.condition-logic');
@@ -960,6 +1198,7 @@
     }
   });
 
+  // Init
   renderStepper();
 </script>
 </body>

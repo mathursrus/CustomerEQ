@@ -39,7 +39,13 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 
 ### Workflow
 
-**Entry point**: Admin Dashboard → "Programs" → "Create New Program"
+**Entry point**: Admin Dashboard → "Programs" landing page → "Create New Program"
+
+**Programs Landing Page** *(new — shown when admin clicks "Programs" in the sidebar)*
+- Lists all existing programs in a table: name, type, status badge (Active / Paused / Draft), date range, member count, budget consumption bar
+- Primary CTA: **"+ Create New Program"** (top-right) — launches the wizard
+- Per-row actions: **"Edit"** (re-opens wizard pre-populated), **"Pause"** / **"Reactivate"** / **"Continue Setup"** depending on status
+- Provides the overview context admins need before creating or editing a program
 
 **Step 1 — Program Type**
 - Admin selects one of four program types: **Points**, **Tiered**, **Cashback**, **Hybrid**
@@ -50,7 +56,12 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Program name (e.g., "Summer Rewards 2026")
 - Description (visible to members)
 - Start date / End date (or "Ongoing")
-- Currency symbol for points (e.g., "Stars", "Coins", "Points")
+- **Currency symbol** — dropdown with preset options: Stars, Points, Coins, Miles, Credits, Sparks, Cash Back, plus "Other (custom)…" which reveals a free-text field for any custom name
+
+**Steps 3–7 — Program Context Bar** *(persistent reference strip shown on all steps after Basic Info)*
+- A slim bar at the top of each step (3 through 7) displays the program name and date range entered in Step 2
+- Updates live as the admin edits Step 2 fields; includes an inline "Edit" link to jump back to Step 2
+- Particularly useful during editing: admin always knows which program they are configuring without navigating away
 
 **Step 3 — Earning Rules**
 - Admin adds one or more earning rules
