@@ -28,6 +28,12 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
+# Playwright MCP
+.playwright-mcp/
+
+# Test evidence (screenshots, reports)
+docs/evidence/
+
 # Logs
 *.log
 npm-debug.log*

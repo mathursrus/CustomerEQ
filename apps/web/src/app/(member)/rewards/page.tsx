@@ -30,7 +30,7 @@ export default function RewardsPage() {
       const token = await getToken()
       const [rewardsRes, balanceRes] = await Promise.all([
         fetch(`${API_URL}/v1/rewards`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/v1/members/${user!.id}/balance`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/v1/members/me/balance`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
       if (rewardsRes.ok) {
         const d = await rewardsRes.json()

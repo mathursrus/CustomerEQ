@@ -3,6 +3,15 @@ import type { Prisma } from '@prisma/client'
 import { CreateCampaignSchema, UpdateCampaignStatusSchema } from '@customerEQ/shared'
 
 const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
+  // GET /v1/campaigns
+  fastify.get('/campaigns', async (request, reply) => {
+    const campaigns = await fastify.prisma.campaign.findMany({
+      where: { brandId: request.brandId },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.status(200).send({ campaigns })
+  })
+
   // POST /v1/campaigns
   fastify.post('/campaigns', async (request, reply) => {
     const parse = CreateCampaignSchema.safeParse(request.body)

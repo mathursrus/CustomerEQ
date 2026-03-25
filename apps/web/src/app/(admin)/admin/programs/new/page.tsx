@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -60,6 +61,7 @@ function StepIndicator({ current, steps }: { current: number; steps: string[] })
 
 export default function NewProgramPage() {
   const router = useRouter()
+  const { getToken } = useAuth()
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormData>({
     name: '',
@@ -113,6 +115,8 @@ export default function NewProgramPage() {
     setServerError(null)
     setSubmitting(true)
     try {
+      const token = await getToken()
+      const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const payload = {
         name: form.name,
         description: form.description,
@@ -122,7 +126,7 @@ export default function NewProgramPage() {
       }
       const res = await fetch(`${API_URL}/v1/programs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
@@ -135,7 +139,7 @@ export default function NewProgramPage() {
       if (form.activateImmediately && programId) {
         await fetch(`${API_URL}/v1/programs/${programId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify({ status: 'ACTIVE' }),
         })
       }

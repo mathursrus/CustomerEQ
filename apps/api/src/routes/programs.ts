@@ -15,6 +15,15 @@ const CreateEarningRuleSchema = z.object({
 })
 
 const programsRoutes: FastifyPluginAsync = async (fastify) => {
+  // GET /v1/programs
+  fastify.get('/programs', async (request, reply) => {
+    const programs = await fastify.prisma.program.findMany({
+      where: { brandId: request.brandId },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.status(200).send({ programs })
+  })
+
   // POST /v1/programs
   fastify.post('/programs', async (request, reply) => {
     const parse = CreateProgramSchema.safeParse(request.body)

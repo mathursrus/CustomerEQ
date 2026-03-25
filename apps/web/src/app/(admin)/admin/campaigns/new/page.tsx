@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -26,6 +27,7 @@ interface FormData {
 
 export default function NewCampaignPage() {
   const router = useRouter()
+  const { getToken } = useAuth()
   const [programs, setPrograms] = useState<Program[]>([])
   const [form, setForm] = useState<FormData>({
     name: '',
@@ -45,11 +47,14 @@ export default function NewCampaignPage() {
   const [serverError, setServerError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/v1/programs`)
-      .then((r) => r.json())
-      .then((d) => setPrograms(d.programs ?? d ?? []))
-      .catch(() => {})
-  }, [])
+    getToken().then((token) => {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      fetch(`${API_URL}/v1/programs`, { headers })
+        .then((r) => r.json())
+        .then((d) => setPrograms(d.programs ?? d ?? []))
+        .catch(() => {})
+    })
+  }, [getToken])
 
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {}
@@ -76,24 +81,26 @@ export default function NewCampaignPage() {
     setSubmitting(true)
 
     try {
+      const token = await getToken()
+      const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const payload = {
         name: form.name,
         programId: form.programId,
         triggerType: form.triggerType,
         triggerCondition: form.conditionField
-          ? { field: form.conditionField, operator: form.conditionOperator, value: form.conditionValue }
+          ? { field: form.conditionField, op: form.conditionOperator, value: form.conditionValue }
           : undefined,
         actionType: form.actionType,
         actionConfig: form.actionType === 'award_points'
           ? { points: Number(form.actionPoints) }
           : { message: form.actionMessage },
         budgetCap: form.budgetCap ? Number(form.budgetCap) : undefined,
-        startDate: form.startDate,
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : form.startDate,
       }
 
       const res = await fetch(`${API_URL}/v1/campaigns`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {

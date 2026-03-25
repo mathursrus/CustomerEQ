@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { auth } from '@clerk/nextjs/server'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -15,7 +16,12 @@ interface Campaign {
 
 async function getCampaigns(): Promise<Campaign[]> {
   try {
-    const res = await fetch(`${API_URL}/v1/campaigns`, { cache: 'no-store' })
+    const { getToken } = await auth()
+    const token = await getToken()
+    const res = await fetch(`${API_URL}/v1/campaigns`, {
+      cache: 'no-store',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
     if (!res.ok) return []
     const data = await res.json()
     return data.campaigns ?? data ?? []

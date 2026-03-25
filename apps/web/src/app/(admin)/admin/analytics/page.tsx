@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@clerk/nextjs'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -41,6 +42,7 @@ function Spinner() {
 }
 
 export default function AnalyticsPage() {
+  const { getToken } = useAuth()
   const today = new Date().toISOString().split('T')[0]
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -53,10 +55,17 @@ export default function AnalyticsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ startDate, endDate })
+      const token = await getToken()
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {}
+      const params = new URLSearchParams({
+        startDate: `${startDate}T00:00:00.000Z`,
+        endDate: `${endDate}T23:59:59.999Z`,
+      })
       const [ovRes, campRes] = await Promise.all([
-        fetch(`${API_URL}/v1/analytics/overview?${params}`),
-        fetch(`${API_URL}/v1/analytics/campaigns?${params}`),
+        fetch(`${API_URL}/v1/analytics/overview?${params}`, { headers }),
+        fetch(`${API_URL}/v1/analytics/campaigns?${params}`, { headers }),
       ])
       if (ovRes.ok) {
         const d = await ovRes.json()
@@ -71,7 +80,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, getToken])
 
   useEffect(() => {
     fetchData()

@@ -101,6 +101,7 @@ model Member {
   brandId        String
   brand          Brand          @relation(fields: [brandId], references: [id])
   email          String
+  clerkUserId    String?
   firstName      String?
   lastName       String?
   phone          String?
@@ -118,6 +119,7 @@ model Member {
 
   @@unique([brandId, email])
   @@index([brandId])
+  @@index([clerkUserId, brandId])
   @@map("members")
 }
 

@@ -1,24 +1,34 @@
 'use client'
 
-import { UserButton, useUser } from '@clerk/nextjs'
+import { UserButton, useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
 function MemberHeader() {
+  const { getToken } = useAuth()
   const { user } = useUser()
   const [balance, setBalance] = useState<number | null>(null)
 
   useEffect(() => {
     if (!user?.id) return
-    fetch(`${API_URL}/v1/members/${user.id}/balance`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => {
-        if (d) setBalance(d.pointsBalance ?? d.balance ?? 0)
-      })
-      .catch(() => {})
-  }, [user?.id])
+    async function fetchBalance() {
+      try {
+        const token = await getToken()
+        const r = await fetch(`${API_URL}/v1/members/me/balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (r.ok) {
+          const d = await r.json()
+          setBalance(d.pointsBalance ?? d.balance ?? 0)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fetchBalance()
+  }, [getToken, user?.id])
 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">

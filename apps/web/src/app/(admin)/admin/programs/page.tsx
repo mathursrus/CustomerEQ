@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { auth } from '@clerk/nextjs/server'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
@@ -7,13 +8,18 @@ interface Program {
   name: string
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
   pointCurrencyName: string
-  pointsPerDollar: number
+  pointToCurrencyRatio: number
   createdAt: string
 }
 
 async function getPrograms(): Promise<Program[]> {
   try {
-    const res = await fetch(`${API_URL}/v1/programs`, { cache: 'no-store' })
+    const { getToken } = await auth()
+    const token = await getToken()
+    const res = await fetch(`${API_URL}/v1/programs`, {
+      cache: 'no-store',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
     if (!res.ok) return []
     const data = await res.json()
     return data.programs ?? data ?? []
@@ -83,7 +89,7 @@ export default async function ProgramsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">{program.pointCurrencyName}</td>
-                  <td className="px-6 py-4 text-gray-700">{program.pointsPerDollar}x per $</td>
+                  <td className="px-6 py-4 text-gray-700">{program.pointToCurrencyRatio ? `1 pt = $${program.pointToCurrencyRatio}` : '—'}</td>
                   <td className="px-6 py-4 text-gray-500">
                     {new Date(program.createdAt).toLocaleDateString()}
                   </td>

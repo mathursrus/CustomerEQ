@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import cors from '@fastify/cors'
 import sensible from '@fastify/sensible'
 import prismaPlugin from './plugins/prisma.js'
 import redisPlugin from './plugins/redis.js'
@@ -25,6 +26,11 @@ export async function buildApp() {
   })
 
   // Register plugins in dependency order
+  await fastify.register(cors, {
+    origin: /localhost/,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
   await fastify.register(sensible)
   await fastify.register(prismaPlugin)
   await fastify.register(redisPlugin)

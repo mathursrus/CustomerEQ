@@ -11,6 +11,9 @@ declare module 'fastify' {
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', async (request, reply) => {
+    // Skip CORS preflight requests — they never carry Authorization
+    if (request.method === 'OPTIONS') return
+
     const authHeader = request.headers.authorization
 
     // Skip auth for public routes that have no Authorization header
@@ -36,7 +39,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         .send({ error: 'Invalid or expired token' })
     }
 
-    const orgId = (payload as unknown as Record<string, string>).org_id
+    const raw = payload as unknown as Record<string, unknown>
+    // Clerk JWT v2 nests org under `o.id`; v1 uses top-level `org_id`
+    const orgId =
+      (raw.org_id as string | undefined) ??
+      ((raw.o as Record<string, string> | undefined)?.id)
     if (!orgId) {
       return reply
         .status(401)

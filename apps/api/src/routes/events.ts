@@ -3,38 +3,43 @@ import { IngestEventSchema } from '@customerEQ/shared'
 import { enqueueEvent, enqueueCampaignTrigger } from '../queues/bullmq.js'
 import type { TriggerCondition } from '@customerEQ/shared'
 
-function evaluateTriggerCondition(
+export function evaluateTriggerCondition(
   condition: TriggerCondition,
   payload: Record<string, unknown>,
 ): boolean {
   const fieldValue = payload[condition.field]
 
+  // Coerce numeric strings so comparisons like lte("6") vs 4 work
+  const condValue = typeof condition.value === 'string' && !isNaN(Number(condition.value))
+    ? Number(condition.value)
+    : condition.value
+
   switch (condition.op) {
     case 'eq':
-      return fieldValue === condition.value
+      return fieldValue === condValue
     case 'ne':
-      return fieldValue !== condition.value
+      return fieldValue !== condValue
     case 'lt':
-      return typeof fieldValue === 'number' && typeof condition.value === 'number'
-        ? fieldValue < condition.value
+      return typeof fieldValue === 'number' && typeof condValue === 'number'
+        ? fieldValue < condValue
         : false
     case 'lte':
-      return typeof fieldValue === 'number' && typeof condition.value === 'number'
-        ? fieldValue <= condition.value
+      return typeof fieldValue === 'number' && typeof condValue === 'number'
+        ? fieldValue <= condValue
         : false
     case 'gt':
-      return typeof fieldValue === 'number' && typeof condition.value === 'number'
-        ? fieldValue > condition.value
+      return typeof fieldValue === 'number' && typeof condValue === 'number'
+        ? fieldValue > condValue
         : false
     case 'gte':
-      return typeof fieldValue === 'number' && typeof condition.value === 'number'
-        ? fieldValue >= condition.value
+      return typeof fieldValue === 'number' && typeof condValue === 'number'
+        ? fieldValue >= condValue
         : false
     case 'in':
-      return Array.isArray(condition.value) && condition.value.includes(fieldValue)
+      return Array.isArray(condition.value) && (condition.value as unknown[]).includes(fieldValue)
     case 'contains':
-      return typeof fieldValue === 'string' && typeof condition.value === 'string'
-        ? fieldValue.includes(condition.value)
+      return typeof fieldValue === 'string' && typeof condValue === 'string'
+        ? fieldValue.includes(condValue)
         : false
     default:
       return false

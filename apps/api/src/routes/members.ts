@@ -41,6 +41,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         brandId: request.brandId,
         email: data.email,
+        clerkUserId: request.clerkUserId,
         firstName: data.firstName ?? undefined,
         lastName: data.lastName ?? undefined,
         phone: data.phone ?? undefined,
@@ -52,6 +53,33 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     return reply.status(201).send(member)
+  })
+
+  // GET /v1/members/me/balance
+  fastify.get('/members/me/balance', async (request, reply) => {
+    const member = await fastify.prisma.member.findFirst({
+      where: {
+        clerkUserId: request.clerkUserId,
+        brandId: request.brandId,
+        deletedAt: null,
+      },
+      select: { id: true, pointsBalance: true },
+    })
+
+    if (!member) {
+      return reply.status(404).send({ error: 'Member not found' })
+    }
+
+    const recentEvents = await fastify.prisma.loyaltyEvent.findMany({
+      where: { memberId: member.id, brandId: request.brandId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    })
+
+    return reply.status(200).send({
+      pointsBalance: member.pointsBalance,
+      recentEvents,
+    })
   })
 
   // GET /v1/members/:id

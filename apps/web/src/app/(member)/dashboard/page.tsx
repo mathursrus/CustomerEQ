@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useUser } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
@@ -30,18 +30,31 @@ function Spinner() {
 }
 
 export default function MemberDashboardPage() {
+  const { getToken } = useAuth()
   const { user } = useUser()
   const [data, setData] = useState<BalanceData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user?.id) return
-    fetch(`${API_URL}/v1/members/${user.id}/balance`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setData(d) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [user?.id])
+    async function fetchBalance() {
+      try {
+        const token = await getToken()
+        const r = await fetch(`${API_URL}/v1/members/me/balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (r.ok) {
+          const d = await r.json()
+          setData(d)
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchBalance()
+  }, [getToken, user?.id])
 
   if (loading) return <Spinner />
 
