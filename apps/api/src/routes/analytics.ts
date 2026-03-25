@@ -76,14 +76,14 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         : 0
 
     // Resolve reward names for top rewards
-    const topRewardIds = topRewardsResult.map((r) => r.rewardId)
+    const topRewardIds = topRewardsResult.map((r: { rewardId: string; _count: { rewardId: number } }) => r.rewardId)
     const rewardDetails = await fastify.prisma.reward.findMany({
       where: { id: { in: topRewardIds }, brandId },
       select: { id: true, name: true },
     })
-    const rewardMap = new Map(rewardDetails.map((r) => [r.id, r.name]))
+    const rewardMap = new Map(rewardDetails.map((r: { id: string; name: string }) => [r.id, r.name]))
 
-    const topRewards = topRewardsResult.map((r) => ({
+    const topRewards = topRewardsResult.map((r: { rewardId: string; _count: { rewardId: number } }) => ({
       rewardId: r.rewardId,
       rewardName: rewardMap.get(r.rewardId) ?? r.rewardId,
       redemptionCount: r._count.rewardId,
@@ -121,7 +121,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     const result = await Promise.all(
-      campaigns.map(async (campaign) => {
+      campaigns.map(async (campaign: typeof campaigns[number]) => {
         // Sum points awarded from loyalty events linked to this campaign
         const pointsResult = await fastify.prisma.loyaltyEvent.aggregate({
           where: {
@@ -134,15 +134,15 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
         const eventsTriggered = campaign.campaignEvents.length
         const actionsExecuted = campaign.campaignEvents.filter(
-          (e) => e.executedAt !== null,
+          (e: { executedAt: Date | null }) => e.executedAt !== null,
         ).length
         const pointsAwarded = pointsResult._sum.pointsEarned ?? 0
 
         const avgLatencyMs =
           eventsTriggered > 0
             ? campaign.campaignEvents
-                .map((e) => e.latencyMs ?? 0)
-                .reduce((sum, ms) => sum + ms, 0) / eventsTriggered
+                .map((e: { latencyMs: number | null }) => e.latencyMs ?? 0)
+                .reduce((sum: number, ms: number) => sum + ms, 0) / eventsTriggered
             : null
 
         return {

@@ -27,7 +27,7 @@ export async function buildApp() {
 
   // Register plugins in dependency order
   await fastify.register(cors, {
-    origin: /localhost/,
+    origin: [/localhost/, /\.azurecontainerapps\.io$/],
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
