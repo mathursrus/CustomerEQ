@@ -17,11 +17,25 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const authHeader = request.headers.authorization
 
     // Test mode bypass — allows integration tests to set brand/user via headers
-    // Must be checked before the auth header check so tests can send X-Test-Brand-Id without a JWT
     const testBrandId = request.headers['x-test-brand-id'] as string | undefined
     if (process.env.NODE_ENV === 'test' && testBrandId) {
       request.brandId = testBrandId
       request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_123'
+      return
+    }
+
+    // API key auth — for MCP server and service-to-service calls
+    // Set MCP_API_KEY env var to enable. Header: X-Api-Key
+    const apiKey = request.headers['x-api-key'] as string | undefined
+    const mcpApiKey = process.env.MCP_API_KEY
+    if (apiKey && mcpApiKey && apiKey === mcpApiKey) {
+      // API key maps to a specific brand via MCP_BRAND_ID env var
+      const mcpBrandId = process.env.MCP_BRAND_ID
+      if (!mcpBrandId) {
+        return reply.status(500).send({ error: 'MCP_BRAND_ID not configured' })
+      }
+      request.brandId = mcpBrandId
+      request.clerkUserId = 'mcp-server'
       return
     }
 
