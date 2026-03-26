@@ -1,0 +1,40 @@
+{
+  "name": "customerEQ",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "pnpm --filter @customerEQ/web test:e2e",
+    "test:all": "turbo run test test:integration",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:studio": "pnpm --filter @customerEQ/database studio",
+    "db:push": "pnpm --filter @customerEQ/database exec prisma db push",
+    "db:migrate": "pnpm --filter @customerEQ/database exec prisma migrate deploy",
+    "db:migrate:new": "pnpm --filter @customerEQ/database exec prisma migrate dev",
+    "db:generate": "pnpm --filter @customerEQ/database exec prisma generate",
+    "db:reset": "pnpm --filter @customerEQ/database exec prisma migrate reset",
+    "healthz": "curl -s http://localhost:4000/healthz | python -m json.tool",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "onboard-org": "node scripts/onboard-org.mjs"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "ioredis": "5.10.1"
+    }
+  }
+}

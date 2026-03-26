@@ -25,6 +25,11 @@
     "dataModelsDoc": "docs/replicate/analysis/data-models.md",
     "useCasesDoc": "docs/replicate/analysis/use-cases.md",
     "implementationRoadmap": "docs/replicate/IMPLEMENTATION_ROADMAP.md",
+    "localDev": {
+      "setupCommand": "docker compose up -d && pnpm install && pnpm db:migrate && pnpm db:seed",
+      "devCommand": "pnpm dev",
+      "notes": "Requires Docker (PostgreSQL + Redis), Node.js 22, pnpm 9"
+    },
     "validation": {
       "build": "pnpm build",
       "test": "pnpm test",

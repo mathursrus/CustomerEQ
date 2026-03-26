@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Campaign Builder (Hero Feature)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f7; color: #111827; font-size: 14px; display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: #1e1b4b; color: #c7d2fe; display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-logo { padding: 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #312e81; }
+    .sidebar-logo-mark { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+    .sidebar-logo-text { font-weight: 700; font-size: 16px; color: #e0e7ff; }
+    .nav-section { padding: 16px 0; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6366f1; padding: 0 16px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; color: #a5b4fc; transition: background 0.15s; }
+    .nav-item:hover { background: #312e81; color: #e0e7ff; }
+    .nav-item.active { background: #312e81; color: #ffffff; font-weight: 600; }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: white; border-bottom: 1px solid #e5e7eb; padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-title { font-weight: 600; font-size: 15px; color: #111827; }
+    .breadcrumb { font-size: 12px; color: #6b7280; }
+    .breadcrumb span { color: #6366f1; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px; cursor: pointer; }
+
+    .content { flex: 1; padding: 32px; overflow-y: auto; display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+
+    /* Builder form */
+    .builder { display: flex; flex-direction: column; gap: 20px; }
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 24px; }
+    .card-title { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    .card-subtitle { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    label { font-size: 12px; font-weight: 600; color: #374151; }
+    input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #111827; width: 100%; outline: none; background: white; transition: border-color 0.15s; }
+    input:focus, select:focus, textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px #ede9fe; }
+    .hint { font-size: 11px; color: #9ca3af; }
+
+    /* Trigger builder */
+    .trigger-box { background: #faf5ff; border: 2px solid #e9d5ff; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .trigger-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .trigger-tag { background: #7c3aed; color: white; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: 0.04em; }
+    .trigger-title { font-size: 14px; font-weight: 700; color: #4c1d95; }
+    .condition-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .condition-row select { flex: 1; }
+    .condition-row input { flex: 1; max-width: 100px; }
+    .condition-operator { font-size: 12px; font-weight: 600; color: #7c3aed; background: #ede9fe; padding: 4px 10px; border-radius: 6px; white-space: nowrap; }
+    .logic-badge { font-size: 10px; font-weight: 700; background: #ede9fe; color: #7c3aed; padding: 2px 8px; border-radius: 4px; align-self: center; }
+
+    /* Action builder */
+    .action-box { background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 10px; padding: 20px; }
+    .action-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .action-tag { background: #059669; color: white; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+    .action-title { font-size: 14px; font-weight: 700; color: #065f46; }
+
+    .arrow-connector { display: flex; align-items: center; justify-content: center; padding: 6px 0; font-size: 22px; color: #6b7280; }
+
+    /* SLA indicator */
+    .sla-badge { display: flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px 14px; margin-top: 16px; }
+    .sla-dot { width: 8px; height: 8px; background: #f97316; border-radius: 50%; animation: pulse 1.5s infinite; flex-shrink: 0; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .sla-text { font-size: 12px; color: #9a3412; font-weight: 500; }
+    .sla-value { font-weight: 700; color: #c2410c; }
+
+    /* Budget */
+    .budget-row { display: flex; gap: 12px; }
+    .budget-input-wrap { position: relative; flex: 1; }
+    .budget-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; }
+    .budget-input-wrap input { padding-left: 24px; }
+
+    /* Preview panel */
+    .preview-panel { position: sticky; top: 24px; }
+    .preview-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+    .preview-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 18px 20px; color: white; }
+    .preview-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .preview-subtitle { font-size: 12px; opacity: 0.8; }
+    .preview-body { padding: 20px; }
+    .preview-row { display: flex; flex-direction: column; gap: 12px; }
+    .preview-item { display: flex; flex-direction: column; gap: 3px; }
+    .preview-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; }
+    .preview-value { font-size: 13px; font-weight: 600; color: #111827; }
+    .preview-value.trigger { color: #7c3aed; }
+    .preview-value.action { color: #059669; }
+
+    .flow-diagram { padding: 20px; border-top: 1px solid #f3f4f6; }
+    .flow-step { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; font-size: 12px; }
+    .flow-step.source { background: #ede9fe; color: #5b21b6; font-weight: 600; }
+    .flow-step.process { background: #f3f4f6; color: #374151; }
+    .flow-step.action { background: #d1fae5; color: #065f46; font-weight: 600; }
+    .flow-icon { font-size: 16px; flex-shrink: 0; }
+    .flow-arrow { text-align: center; font-size: 14px; color: #9ca3af; padding: 4px 0; }
+    .sla-timer { text-align: center; font-size: 11px; font-weight: 700; color: #f97316; margin: -2px 0 2px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-secondary { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-full { width: 100%; justify-content: center; }
+    .action-row { display: flex; gap: 10px; padding-top: 4px; }
+  </style>
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">C</div>
+      <span class="sidebar-logo-text">CustomerEQ</span>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Programs</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        Programs
+      </div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/></svg>
+        Members
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Automation</div>
+      <div class="nav-item active">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Campaigns
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"/></svg>
+        Analytics
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">New Campaign</div>
+        <div class="breadcrumb">Campaigns / <span>Create CX-to-Loyalty Campaign</span></div>
+      </div>
+      <div class="avatar">SM</div>
+    </div>
+
+    <div class="content">
+      <div class="builder">
+
+        <!-- Campaign Info -->
+        <div class="card">
+          <div class="card-title">Campaign Details</div>
+          <div class="card-subtitle">Name and schedule for this campaign.</div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Campaign Name</label>
+              <input type="text" value="Detractor Recovery — Q2 2026" />
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Program</label>
+              <select><option selected>Acme Rewards</option></select>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:14px;">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Start Date</label>
+              <input type="date" value="2026-04-01" />
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>End Date</label>
+              <input type="date" value="2026-06-30" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Trigger -->
+        <div class="card">
+          <div class="card-title">CX Trigger Condition</div>
+          <div class="card-subtitle">Define which CX events will fire this campaign. Sourced via Salesforce or HubSpot webhooks.</div>
+
+          <div class="trigger-box">
+            <div class="trigger-header">
+              <span class="trigger-tag">WHEN</span>
+              <span class="trigger-title">CX Event Received</span>
+            </div>
+            <div class="condition-row">
+              <select>
+                <option selected>cx.nps_submitted</option>
+                <option>cx.ticket_resolved</option>
+                <option>cx.csat_submitted</option>
+              </select>
+              <span class="condition-operator">AND</span>
+              <select>
+                <option selected>nps_score</option>
+                <option>ticket_priority</option>
+              </select>
+              <select style="max-width:80px;">
+                <option selected>is less than</option>
+                <option>equals</option>
+                <option>greater than</option>
+              </select>
+              <input type="number" value="7" style="max-width:80px;" />
+            </div>
+            <div class="hint">This campaign fires when a member submits an NPS score below 7 (detractor range: 0–6).</div>
+          </div>
+
+          <div style="font-size:12px; font-weight:600; color:#374151; margin-bottom:8px;">Deduplication</div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Trigger Limit Per Member</label>
+              <select><option selected>Once per campaign</option><option>Once per 30 days</option><option>Unlimited</option></select>
+              <span class="hint">Prevents the same member from triggering this campaign twice.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div class="arrow-connector">↓</div>
+
+        <!-- Action -->
+        <div class="card">
+          <div class="card-title">Loyalty Action</div>
+          <div class="card-subtitle">What happens when the trigger fires. This is processed by the BullMQ worker.</div>
+
+          <div class="action-box">
+            <div class="action-header">
+              <span class="action-tag">THEN</span>
+              <span class="action-title">Execute Loyalty Action</span>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:12px;">
+                <label>Action Type</label>
+                <select><option selected>Award Bonus Points</option><option>Send Message</option><option>Award Reward</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label>Bonus Points</label>
+                <input type="number" value="500" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Member Message (optional)</label>
+              <textarea rows="2" style="resize:none;">We noticed your recent experience wasn't perfect. Here are 500 bonus Stars as a thank-you for your feedback.</textarea>
+            </div>
+          </div>
+
+          <div class="sla-badge">
+            <div class="sla-dot"></div>
+            <div class="sla-text">Target execution time: <span class="sla-value">&lt; 15 minutes</span> from CX event ingestion. Measured in integration tests.</div>
+          </div>
+        </div>
+
+        <!-- Budget -->
+        <div class="card">
+          <div class="card-title">Spend Controls</div>
+          <div class="card-subtitle">Automatically pause this campaign when budget is reached.</div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Total Budget Cap (USD value)</label>
+              <div class="budget-input-wrap">
+                <span class="budget-prefix">$</span>
+                <input type="number" value="5000" />
+              </div>
+              <span class="hint">Campaign pauses when cumulative reward value reaches this limit.</span>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Points-to-Dollar Ratio</label>
+              <input type="number" value="0.01" step="0.001" />
+              <span class="hint">Used to calculate USD value of awarded points.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary">Save & Activate Campaign</button>
+          <button class="btn btn-secondary">Save as Draft</button>
+        </div>
+      </div>
+
+      <!-- Preview Panel -->
+      <div class="preview-panel">
+        <div class="preview-card">
+          <div class="preview-header">
+            <div class="preview-title">⚡ Campaign Preview</div>
+            <div class="preview-subtitle">Live preview of your configuration</div>
+          </div>
+          <div class="preview-body">
+            <div class="preview-row">
+              <div class="preview-item">
+                <div class="preview-label">Campaign</div>
+                <div class="preview-value">Detractor Recovery — Q2 2026</div>
+              </div>
+              <div class="preview-item">
+                <div class="preview-label">Trigger</div>
+                <div class="preview-value trigger">NPS score &lt; 7 (Detractor)</div>
+              </div>
+              <div class="preview-item">
+                <div class="preview-label">Action</div>
+                <div class="preview-value action">+500 bonus Stars + message</div>
+              </div>
+              <div class="preview-item">
+                <div class="preview-label">Budget Cap</div>
+                <div class="preview-value">$5,000 total</div>
+              </div>
+              <div class="preview-item">
+                <div class="preview-label">Duration</div>
+                <div class="preview-value">Apr 1 – Jun 30, 2026</div>
+              </div>
+              <div class="preview-item">
+                <div class="preview-label">Deduplication</div>
+                <div class="preview-value">Once per member</div>
+              </div>
+            </div>
+          </div>
+          <div class="flow-diagram">
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af; margin-bottom:12px;">Event Flow</div>
+            <div class="flow-step source"><span class="flow-icon">🔗</span>Salesforce / HubSpot Webhook</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step process"><span class="flow-icon">🔍</span>POST /v1/events — Ingest &amp; Match</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step process"><span class="flow-icon">📥</span>BullMQ — Campaign Queue (high priority)</div>
+            <div class="sla-timer">⏱ &lt; 15 min SLA</div>
+            <div class="flow-step action"><span class="flow-icon">🎁</span>Worker — Award 500 Stars + Message</div>
+          </div>
+          <div style="padding: 0 20px 20px;">
+            <button class="btn btn-primary btn-full" style="font-size:12px;">
+              Activate Campaign →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

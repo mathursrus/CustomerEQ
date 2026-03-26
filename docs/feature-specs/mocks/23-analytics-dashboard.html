@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Analytics Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f7; color: #111827; font-size: 14px; display: flex; min-height: 100vh; }
+
+    .sidebar { width: 220px; background: #1e1b4b; color: #c7d2fe; display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-logo { padding: 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #312e81; }
+    .sidebar-logo-mark { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; }
+    .sidebar-logo-text { font-weight: 700; font-size: 16px; color: #e0e7ff; }
+    .nav-section { padding: 16px 0; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6366f1; padding: 0 16px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; color: #a5b4fc; transition: background 0.15s; }
+    .nav-item:hover { background: #312e81; color: #e0e7ff; }
+    .nav-item.active { background: #312e81; color: #ffffff; font-weight: 600; }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: white; border-bottom: 1px solid #e5e7eb; padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-title { font-weight: 600; font-size: 15px; color: #111827; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .date-picker { display: flex; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; font-size: 12px; }
+    .date-option { padding: 6px 12px; cursor: pointer; color: #6b7280; background: white; border: none; font-size: 12px; }
+    .date-option.active { background: #6366f1; color: white; font-weight: 600; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px; }
+
+    .content { flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+    /* KPI row */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px; }
+    .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; margin-bottom: 8px; }
+    .kpi-value { font-size: 28px; font-weight: 800; color: #111827; line-height: 1; margin-bottom: 6px; }
+    .kpi-change { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .kpi-change.up { color: #059669; }
+    .kpi-change.down { color: #dc2626; }
+    .kpi-change.neutral { color: #6b7280; }
+
+    /* ROI Hero */
+    .roi-banner { background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%); border-radius: 12px; padding: 24px 28px; color: white; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+    .roi-left {}
+    .roi-label { font-size: 12px; font-weight: 600; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .roi-value { font-size: 42px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+    .roi-sub { font-size: 13px; opacity: 0.85; }
+    .roi-right { text-align: right; }
+    .roi-formula { background: rgba(255,255,255,0.15); border-radius: 8px; padding: 12px 16px; font-size: 12px; border: 1px solid rgba(255,255,255,0.25); }
+    .roi-formula-label { opacity: 0.75; margin-bottom: 4px; }
+    .roi-formula-text { font-weight: 600; }
+
+    /* Charts area */
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px; }
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .card-title { font-size: 14px; font-weight: 700; color: #111827; }
+    .card-action { font-size: 12px; color: #6366f1; cursor: pointer; }
+
+    /* Bar chart mock */
+    .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; padding-bottom: 24px; position: relative; }
+    .bar-chart::after { content: ''; position: absolute; bottom: 24px; left: 0; right: 0; height: 1px; background: #f3f4f6; }
+    .bar-group { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .bar { width: 100%; border-radius: 6px 6px 0 0; min-height: 4px; }
+    .bar-earn { background: #6366f1; }
+    .bar-redeem { background: #a5b4fc; }
+    .bar-label { font-size: 10px; color: #9ca3af; white-space: nowrap; }
+    .chart-legend { display: flex; gap: 16px; margin-bottom: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #6b7280; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    /* Donut chart mock */
+    .donut-wrap { display: flex; align-items: center; gap: 20px; }
+    .donut-svg-wrap { position: relative; flex-shrink: 0; }
+    .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+    .donut-center-value { font-size: 22px; font-weight: 800; color: #111827; }
+    .donut-center-label { font-size: 10px; color: #9ca3af; font-weight: 500; }
+    .donut-legend { display: flex; flex-direction: column; gap: 10px; }
+    .donut-legend-item { display: flex; align-items: center; gap: 8px; }
+    .donut-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .donut-legend-label { font-size: 11px; color: #6b7280; }
+    .donut-legend-value { font-size: 12px; font-weight: 700; color: #111827; margin-left: auto; }
+
+    /* Campaigns table */
+    .table-wrap { overflow-x: auto; }
+    .campaigns-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    .campaigns-table th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; text-align: left; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; white-space: nowrap; }
+    .campaigns-table td { padding: 12px; border-bottom: 1px solid #f9fafb; font-size: 13px; vertical-align: middle; }
+    .campaigns-table tr:last-child td { border-bottom: none; }
+    .campaigns-table tr:hover td { background: #fafafa; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .progress-mini { background: #e5e7eb; border-radius: 999px; height: 6px; width: 80px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 8px; }
+    .progress-mini-fill { background: #6366f1; height: 100%; border-radius: 999px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d1d5db; background: white; color: #374151; }
+    .btn:hover { background: #f9fafb; }
+    .btn-primary { background: #6366f1; color: white; border-color: #6366f1; }
+  </style>
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">C</div>
+      <span class="sidebar-logo-text">CustomerEQ</span>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Programs</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        Programs
+      </div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/></svg>
+        Members
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Automation</div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Campaigns
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item active">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Analytics
+      </div>
+      <div class="nav-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        Reports
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">Analytics Overview</div>
+      <div class="topbar-right">
+        <div class="date-picker">
+          <button class="date-option">7d</button>
+          <button class="date-option active">30d</button>
+          <button class="date-option">90d</button>
+          <button class="date-option">Custom</button>
+        </div>
+        <button class="btn">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export CSV
+        </button>
+        <div class="avatar">SM</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- KPI Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Members</div>
+          <div class="kpi-value">12,847</div>
+          <div class="kpi-change up">↑ 18% <span style="font-weight:400;color:#9ca3af;">vs last period</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Points Issued</div>
+          <div class="kpi-value">4.2M</div>
+          <div class="kpi-change up">↑ 24% <span style="font-weight:400;color:#9ca3af;">Stars this period</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Points Redeemed</div>
+          <div class="kpi-value">1.8M</div>
+          <div class="kpi-change neutral">43% <span style="font-weight:400;color:#9ca3af;">redemption rate</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg. Response Time</div>
+          <div class="kpi-value" style="font-size:22px; color:#059669;">8.3 min</div>
+          <div class="kpi-change up">↓ vs 82hr industry avg</div>
+        </div>
+      </div>
+
+      <!-- ROI Banner -->
+      <div class="roi-banner">
+        <div class="roi-left">
+          <div class="roi-label">Program ROI</div>
+          <div class="roi-value">347%</div>
+          <div class="roi-sub">$18,400 in loyalty-attributed revenue this period<br>on $5,300 in points issuance cost</div>
+        </div>
+        <div class="roi-right">
+          <div class="roi-formula">
+            <div class="roi-formula-label">Calculation</div>
+            <div class="roi-formula-text">(Points Redeemed × $0.01) / Issuance Cost</div>
+            <div style="margin-top:8px; font-size:13px; opacity:0.85;">(1,840,000 × $0.01) / $5,300 = <strong>347%</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="charts-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Points Activity — Last 30 Days</div>
+            <span class="card-action">View breakdown</span>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#6366f1;"></div>Points Issued</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#a5b4fc;"></div>Points Redeemed</div>
+          </div>
+          <div class="bar-chart">
+            <div class="bar-group"><div class="bar bar-earn" style="height:60%"></div><div class="bar bar-redeem" style="height:25%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">Mar 1</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:75%"></div><div class="bar bar-redeem" style="height:30%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">5</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:55%"></div><div class="bar bar-redeem" style="height:40%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">9</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:90%"></div><div class="bar bar-redeem" style="height:50%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">13</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:70%"></div><div class="bar bar-redeem" style="height:35%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">17</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:100%"></div><div class="bar bar-redeem" style="height:55%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">21</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:80%"></div><div class="bar bar-redeem" style="height:45%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">25</div></div>
+            <div class="bar-group"><div class="bar bar-earn" style="height:65%"></div><div class="bar bar-redeem" style="height:30%; margin-top:-4px; opacity:0.7"></div><div class="bar-label">Mar 30</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Top Rewards</div>
+          </div>
+          <div class="donut-wrap">
+            <div class="donut-svg-wrap">
+              <svg width="110" height="110" viewBox="0 0 110 110">
+                <circle cx="55" cy="55" r="42" fill="none" stroke="#f3f4f6" stroke-width="14"/>
+                <circle cx="55" cy="55" r="42" fill="none" stroke="#6366f1" stroke-width="14" stroke-dasharray="116 148" stroke-dashoffset="-10" stroke-linecap="round"/>
+                <circle cx="55" cy="55" r="42" fill="none" stroke="#a5b4fc" stroke-width="14" stroke-dasharray="74 190" stroke-dashoffset="-128" stroke-linecap="round"/>
+                <circle cx="55" cy="55" r="42" fill="none" stroke="#c7d2fe" stroke-width="14" stroke-dasharray="46 218" stroke-dashoffset="-204" stroke-linecap="round"/>
+                <circle cx="55" cy="55" r="42" fill="none" stroke="#e0e7ff" stroke-width="14" stroke-dasharray="28 236" stroke-dashoffset="-252" stroke-linecap="round"/>
+              </svg>
+              <div class="donut-center">
+                <div class="donut-center-value">847</div>
+                <div class="donut-center-label">Total</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="donut-legend-item">
+                <div class="donut-swatch" style="background:#6366f1;"></div>
+                <span class="donut-legend-label">$10 Amazon GC</span>
+                <span class="donut-legend-value">312</span>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-swatch" style="background:#a5b4fc;"></div>
+                <span class="donut-legend-label">$5 Coffee GC</span>
+                <span class="donut-legend-value">198</span>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-swatch" style="background:#c7d2fe;"></div>
+                <span class="donut-legend-label">Free Shipping</span>
+                <span class="donut-legend-value">124</span>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-swatch" style="background:#e0e7ff;"></div>
+                <span class="donut-legend-label">Other</span>
+                <span class="donut-legend-value">213</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campaigns Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Campaign Performance</div>
+          <span class="card-action">View all campaigns →</span>
+        </div>
+        <div class="table-wrap"><table class="campaigns-table">
+          <thead>
+            <tr>
+              <th>Campaign</th>
+              <th>Status</th>
+              <th>Events Triggered</th>
+              <th>Actions Executed</th>
+              <th>Points Awarded</th>
+              <th>Budget Used</th>
+              <th>Avg. Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Detractor Recovery — Q2</strong></td>
+              <td><span class="badge badge-green">Active</span></td>
+              <td>342</td>
+              <td>339</td>
+              <td>169,500</td>
+              <td>
+                $1,695 / $5,000
+                <div class="progress-mini"><div class="progress-mini-fill" style="width:34%"></div></div>
+              </td>
+              <td style="font-weight:600; color:#059669;">7.2 min</td>
+            </tr>
+            <tr>
+              <td><strong>Ticket Resolved Bonus</strong></td>
+              <td><span class="badge badge-green">Active</span></td>
+              <td>891</td>
+              <td>887</td>
+              <td>88,700</td>
+              <td>
+                $887 / $3,000
+                <div class="progress-mini"><div class="progress-mini-fill" style="width:30%"></div></div>
+              </td>
+              <td style="font-weight:600; color:#059669;">11.4 min</td>
+            </tr>
+            <tr>
+              <td><strong>Welcome Bonus Campaign</strong></td>
+              <td><span class="badge badge-gray">Paused</span></td>
+              <td>1,204</td>
+              <td>1,204</td>
+              <td>120,400</td>
+              <td>
+                $1,204 / $1,200 <span style="color:#dc2626; font-size:11px;">Cap reached</span>
+                <div class="progress-mini"><div class="progress-mini-fill" style="width:100%; background:#dc2626;"></div></div>
+              </td>
+              <td style="color:#9ca3af;">—</td>
+            </tr>
+            <tr>
+              <td><strong>Double Points Weekend</strong></td>
+              <td><span class="badge badge-amber">Scheduled</span></td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>— / $2,000</td>
+              <td style="color:#9ca3af;">—</td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
