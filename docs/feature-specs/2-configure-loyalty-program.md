@@ -130,6 +130,16 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 
 Mocks use the **generic UI baseline**: Tailwind-equivalent utility classes, shadcn/ui component patterns (cards, buttons, badges, form inputs, steppers), neutral color palette. Consistent with `packages/ui` conventions established in `docs/architecture/architecture.md`.
 
+### Mobile Responsiveness
+
+The admin wizard is **desktop-first by design for MVP**. The 7-step configuration flow — with AND/OR condition builders, tier ladders, reward modals, and budget controls — is a deliberate, 30-minute task that is not suited to mobile interaction.
+
+**Technical evaluation requirement**: The implementation must use a responsive layout foundation (Tailwind breakpoints) from day one so that:
+- Read-only program views (double-click view-only mode) are usable on mobile without a redesign
+- Single-action flows (Pause, Reactivate, status check from the Programs landing page) are accessible on mobile screens
+
+**Out of scope for MVP**: A mobile-optimized admin wizard experience is a Phase 2 item. Member-facing mobile experience is covered by Issue #3 (Member Portal).
+
 ---
 
 ## Scope Boundaries
