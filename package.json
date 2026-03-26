@@ -18,7 +18,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
-    "db:studio": "pnpm --filter @customerEQ/database studio"
+    "db:studio": "pnpm --filter @customerEQ/database studio",
+    "onboard-org": "node scripts/onboard-org.mjs"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
