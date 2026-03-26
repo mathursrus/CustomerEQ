@@ -3,8 +3,7 @@
 import { UserButton, useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
 
 function MemberHeader() {
   const { getToken } = useAuth()

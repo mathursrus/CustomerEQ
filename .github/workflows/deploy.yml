@@ -1,0 +1,91 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: customereqcr.azurecr.io
+  RESOURCE_GROUP: customereq-prod
+  ENVIRONMENT: customereq-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name customereqcr
+
+      - name: Build and push API image
+        run: |
+          az acr build --registry customereqcr \
+            --image customereq-api:${{ github.sha }} \
+            --image customereq-api:latest \
+            --file Dockerfile.api .
+
+      - name: Build and push Worker image
+        run: |
+          az acr build --registry customereqcr \
+            --image customereq-worker:${{ github.sha }} \
+            --image customereq-worker:latest \
+            --file Dockerfile.worker .
+
+      - name: Build and push Web image
+        run: |
+          API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          az acr build --registry customereqcr \
+            --image customereq-web:${{ github.sha }} \
+            --image customereq-web:latest \
+            --file Dockerfile.web \
+            --build-arg NEXT_PUBLIC_API_URL="https://$API_FQDN" \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
+            .
+
+      - name: Deploy API
+        run: |
+          az containerapp update \
+            --name customereq-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-api:${{ github.sha }}
+
+      - name: Deploy Worker
+        run: |
+          az containerapp update \
+            --name customereq-worker \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-worker:${{ github.sha }}
+
+      - name: Deploy Web
+        run: |
+          az containerapp update \
+            --name customereq-web \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-web:${{ github.sha }}
+
+      - name: Verify API health
+        run: |
+          API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$API_FQDN/healthz" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "API health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "API health check failed"
+          exit 1

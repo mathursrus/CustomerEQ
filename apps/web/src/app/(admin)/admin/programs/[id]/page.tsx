@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
 
 interface EarningRule {
   id: string

@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
 
 interface Activity {
   id: string
