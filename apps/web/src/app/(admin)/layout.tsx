@@ -4,7 +4,6 @@ import { UserButton } from '@clerk/nextjs'
 const navLinks = [
   { href: '/admin/programs', label: 'Programs' },
   { href: '/admin/campaigns', label: 'Campaigns' },
-  { href: '/admin/surveys', label: 'Surveys' },
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/integrations', label: 'Integrations' },
 ]
