@@ -47,7 +47,7 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Per-row actions: **"Edit"** (re-opens wizard pre-populated), **"Pause"** / **"Reactivate"** / **"Continue Setup"** depending on status
 - **Double-clicking a row** opens the program in **view-only mode** — all fields are read-only with a yellow "View-only" banner; an "✏️ Edit Program" button in the header switches to edit mode
 - **Filter bar**: search by program name; filter dropdowns for Status (All / Active / Paused / Draft) and Type (All / Points / Tiered / Cashback / Hybrid)
-- **Pagination**: table shows 25 programs per page with page controls (Next / Prev / page number); sorted by last-modified descending by default. No infinite scroll — explicit pagination prevents accidental mis-clicks on large datasets.
+- **Pagination**: table paginates with a configurable page size (default 25; options: 10 / 25 / 50 / 100) and explicit Next / Prev / page-number controls; sorted by last-modified descending by default. No infinite scroll — explicit pagination prevents accidental mis-clicks on large datasets.
 - Draft programs (never activated) show a **trash icon** for deletion; a confirmation prompt is required before permanent removal. Active and paused programs cannot be deleted, only archived.
 
 **Step 1 — Program Type**
@@ -71,7 +71,7 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Admin adds one or more earning rules
 - Each rule has:
   - **Trigger**: purchase, review, referral, social share, survey completion, enrollment
-  - **Condition(s)**: AND/OR logic builder — e.g., `product_category = "Electronics" AND channel = "web"`. A single condition group uses **one operator only** (AND or OR) — you cannot mix both within one group. For complex expressions like `A AND (B OR C)`, configure two separate rules with appropriate priorities and budget caps to approximate the desired logic.
+  - **Condition(s)**: AND/OR logic builder — e.g., `product_category = "Electronics" AND channel = "web"`. A single condition group uses **one operator only** (AND or OR) — you cannot mix both within one group. For complex expressions like `A AND (B OR C)`, configure two separate rules with appropriate priorities and budget caps to approximate the desired logic. *(Nested condition groups are deferred to a future release — tracked in [Issue #32](https://github.com/mathursrus/CustomerEQ/issues/32) for customer voting and prioritisation.)*
   - **Action**: award X points, or X× multiplier on base points
   - **Time window**: always active, or specific date range
   - **Budget cap**: max points this rule can award (optional)
@@ -87,9 +87,10 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
   - **Entry criteria**: minimum points balance, or minimum spend, or both
   - **Benefits**: list of freeform benefit descriptions (e.g., "Free shipping", "10% discount")
   - **Points multiplier**: e.g., Gold tier earns 1.5× points on all purchases
-- Tiers displayed in a visual ladder showing progression
+- Tiers displayed in a visual ladder showing progression from lowest (entry) to highest tier, with upward arrows (↑) between each level indicating progression direction
 - **Adding a tier**: admin fills an inline modal — tier name, icon (selected from a preset catalog of ~12 emoji icons: 🥉🥈🥇💎⭐🏅🎖️ and others), entry criteria (min points, min spend, or both), freeform benefits list, and points multiplier
-- **Editing a tier**: clicking any tier row opens the same modal pre-populated
+- **Editing a tier**: each tier row has an Edit button that opens the same modal pre-populated
+- **Reordering tiers**: drag-and-drop handles (or ▲▼ arrow buttons) on each row allow admins to reorder tiers; entry criteria thresholds must be manually adjusted to maintain a valid ascending progression
 - **Removing a tier**: trash icon on each row; removal is blocked with an explanation if any members currently hold that tier — admin must wait for the tier to become empty or migrate members via a bulk action (Phase 2)
 
 **Step 5 — Rewards Catalog**
@@ -103,7 +104,10 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
   - **Eligible tiers**: all members, or Gold+ only, etc.
 - **Adding a reward**: admin fills an inline modal — name, description, type, points cost, stock (unlimited or capped quantity), availability (always active or a specific date range), eligible tiers
 - **Editing a reward**: clicking any reward row opens the same modal pre-populated
-- **Removing a reward**: soft-delete (archived); members with in-progress redemptions are honored through to completion
+- **Retiring a reward**: each reward row has an archive icon (🗂️). Admin chooses between:
+  - **Expire now** — reward immediately unavailable; members mid-redemption are honored
+  - **Expire on date** — reward stays active until the chosen date, then archives automatically
+- Retired rewards are soft-deleted; members with in-progress redemptions are honored through to completion
 
 **Step 6 — Budget & Spend Controls**
 - **Total program budget** (USD): hard cap on total points value issued
@@ -114,10 +118,10 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 
 **Step 7 — Preview & Activate**
 - Admin sees a **simulated member view**: what a member would see after enrolling, their point balance, available rewards, and tier status
-- Admin can click "Simulate Action" — enter a hypothetical purchase amount + category to see which rules fire and how many points are awarded. After simulation runs, **the member experience phone preview updates live**: the point balance increments by the simulated award, the tier progress bar advances, and any newly unlockable rewards highlight.
+- Admin can click "Simulate Action" — enter a hypothetical purchase amount + category to see which rules fire and how many points are awarded. After simulation runs, **the member experience phone preview updates live**: the point balance increments by the simulated award, the tier progress bar advances, and any newly unlockable rewards highlight. **Re-running the simulation with new inputs accumulates on top of the previous result** — the preview reflects the total earned across all simulations in the session, helping admins model a realistic earning journey.
 - Admin sees a summary checklist confirming all required fields are filled
-- **Auto-save**: the wizard auto-saves the current step silently on every step navigation. Progress is never lost from a page refresh or accidental close. No toast is shown unless there is a save error.
-- **"Save as Draft"** button is present on every step as an explicit save-and-exit confirmation point.
+- **Auto-save**: the wizard auto-saves the current step silently on every step navigation. Progress is never lost from a page refresh or accidental close. No toast is shown unless there is a save error. Auto-saves do **not** create version snapshots.
+- **"Save as Draft"** button is present on every step as an explicit save-and-exit confirmation point. Each explicit save **creates a version snapshot** (actor, timestamp, diff) to support audit trail requirements (see Compliance R4).
 - **Deletion**: Draft programs (never activated) may be deleted from the Programs landing page (trash icon on Draft rows, confirmation required). Active and paused programs cannot be deleted — only archived.
 - Two final CTAs: **"Save as Draft"** and **"Activate Program"**
 - Activation requires confirmation modal (program name re-entry for safety)
