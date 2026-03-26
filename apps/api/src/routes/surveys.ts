@@ -214,35 +214,39 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
     const ingestedAt = new Date().toISOString()
 
-    const job = await enqueueEvent({
-      brandId,
-      memberId,
-      eventType,
-      payload: eventPayload,
-      idempotencyKey: `survey:${surveyId}:${memberId}`,
-      ingestedAt,
-    })
+    // Enqueue events (non-blocking — response is already saved to DB)
+    let jobId: string | null = null
+    try {
+      const job = await enqueueEvent({
+        brandId,
+        memberId,
+        eventType,
+        payload: eventPayload,
+        idempotencyKey: `survey:${surveyId}:${memberId}`,
+        ingestedAt,
+      })
+      jobId = job.id
+    } catch (err: unknown) {
+      fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue CX event (response saved)')
+    }
 
     // ── Integration Point 2: Survey incentive points ──
-    // If survey has incentivePoints, enqueue a separate earn event
     if (survey.incentivePoints && survey.incentivePoints > 0) {
-      await enqueueEvent({
+      enqueueEvent({
         brandId,
         memberId,
         eventType: 'cx.survey_completed',
-        payload: {
-          surveyId,
-          surveyName: survey.name,
-          incentive: true,
-        },
+        payload: { surveyId, surveyName: survey.name, incentive: true },
         idempotencyKey: `survey-incentive:${surveyId}:${memberId}`,
         ingestedAt,
+      }).catch((err: unknown) => {
+        fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue survey incentive event')
       })
     }
 
     // ── Integration Point 3: Sentiment analysis for open-ended text ──
     if (openEndedText) {
-      await enqueueSentimentAnalysis({
+      enqueueSentimentAnalysis({
         surveyResponseId: response.id,
         brandId,
         memberId,
@@ -250,11 +254,12 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         text: openEndedText,
         eventType,
         score: score ?? undefined,
+      }).catch((err: unknown) => {
+        fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue sentiment analysis')
       })
     }
 
     // ── Integration Point 4: Promoter identification ──
-    // NPS >= 9 auto-enqueues a promoter event for advocacy campaigns
     if (survey.type === 'NPS' && score !== undefined && score >= 9) {
       enqueueEvent({
         brandId,
@@ -270,7 +275,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.status(201).send({
       responseId: response.id,
-      jobId: job.id,
+      jobId,
       message: 'Survey response recorded and events enqueued',
     })
   })

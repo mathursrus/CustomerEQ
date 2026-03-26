@@ -202,15 +202,21 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         eventPayload.score = score
       }
 
-      // Enqueue CX event into the loyalty pipeline
-      const job = await enqueueEvent({
-        brandId,
-        memberId: member.id,
-        eventType,
-        payload: eventPayload,
-        idempotencyKey: `survey:${surveyId}:${member.id}`,
-        ingestedAt,
-      })
+      // Enqueue CX event into the loyalty pipeline (non-blocking — response is already saved)
+      let jobId: string | null = null
+      try {
+        const job = await enqueueEvent({
+          brandId,
+          memberId: member.id,
+          eventType,
+          payload: eventPayload,
+          idempotencyKey: `survey:${surveyId}:${member.id}`,
+          ingestedAt,
+        })
+        jobId = job.id
+      } catch (err: unknown) {
+        fastify.log.error({ err, surveyId, memberId: member.id }, 'Failed to enqueue CX event (response saved)')
+      }
 
       // Survey incentive points
       if (survey.incentivePoints && survey.incentivePoints > 0) {
@@ -257,7 +263,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.status(201).send({
         responseId: response.id,
-        jobId: job.id,
+        jobId,
         message: 'Thank you for your feedback!',
         incentivePoints: survey.incentivePoints ?? 0,
       })
