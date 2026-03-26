@@ -17,10 +17,10 @@ interface TrendPoint {
 interface ClusterDetail {
   id: string
   label: string
-  description: string
+  description: string | null
   keywords: string[]
-  responseCount: number
-  avgSentiment: number
+  responseCount: number | null
+  avgSentiment: number | null
   trend: TrendPoint[]
 }
 
@@ -119,8 +119,8 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
 
 /* ── Helpers ── */
 
-function sentimentBadge(val: number | null) {
-  if (val === null) return <span className="text-gray-400">--</span>
+function sentimentBadge(val: number | null | undefined) {
+  if (val == null) return <span className="text-gray-400">--</span>
   const label = val > 0.3 ? 'positive' : val < -0.3 ? 'negative' : 'neutral'
   const color =
     val > 0.3
@@ -164,19 +164,32 @@ export default function ClusterDetailPage() {
         ? { Authorization: `Bearer ${token}` }
         : {}
 
-      const [trendRes, respRes] = await Promise.all([
-        fetch(`${API_URL}/v1/analytics/cx/clusters/${clusterId}/trend`, { headers }),
-        fetch(`${API_URL}/v1/analytics/cx/clusters?clusterId=${clusterId}`, { headers }),
-      ])
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 30)
+      const dateParams = new URLSearchParams({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      })
+
+      const trendRes = await fetch(
+        `${API_URL}/v1/analytics/cx/clusters/${clusterId}/trend?${dateParams}`,
+        { headers },
+      )
 
       if (!trendRes.ok) throw new Error('Failed to load cluster details')
       const trendData = await trendRes.json()
-      setCluster(trendData.cluster ?? trendData)
-
-      if (respRes.ok) {
-        const respData = await respRes.json()
-        setResponses(respData.responses ?? respData ?? [])
-      }
+      setCluster({
+        id: trendData.clusterId,
+        label: trendData.label,
+        description: trendData.description,
+        keywords: trendData.keywords ?? [],
+        responseCount: trendData.responseCount,
+        avgSentiment: trendData.avgSentiment,
+        trend: trendData.trend ?? [],
+      })
+      // Responses list — would need a dedicated API endpoint to filter by cluster
+      setResponses([])
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load cluster')
     } finally {
@@ -249,21 +262,21 @@ export default function ClusterDetailPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-6">
           <p className="text-sm font-medium text-gray-500">Responses</p>
           <p className="mt-2 text-3xl font-bold text-gray-900">
-            {cluster.responseCount.toLocaleString()}
+            {(cluster.responseCount ?? 0).toLocaleString()}
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-6">
           <p className="text-sm font-medium text-gray-500">Avg Sentiment</p>
           <p
             className={`mt-2 text-3xl font-bold ${
-              cluster.avgSentiment > 0.3
+              (cluster.avgSentiment ?? 0) > 0.3
                 ? 'text-green-700'
-                : cluster.avgSentiment < -0.3
+                : (cluster.avgSentiment ?? 0) < -0.3
                   ? 'text-red-700'
                   : 'text-yellow-700'
             }`}
           >
-            {cluster.avgSentiment.toFixed(2)}
+            {(cluster.avgSentiment ?? 0).toFixed(2)}
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-6">

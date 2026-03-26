@@ -454,6 +454,10 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(200).send({
       clusterId: cluster.id,
       label: cluster.label,
+      description: cluster.description,
+      keywords: cluster.keywords,
+      responseCount: cluster.responseCount,
+      avgSentiment: cluster.avgSentiment,
       trend: snapshots.map((s) => ({
         date: s.bucketDate.toISOString(),
         volume: s.volume,
