@@ -14,6 +14,12 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
+              href="/sign-in"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
               href="/request-demo"
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
             >
