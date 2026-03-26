@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { computeTrend } from '@customerEQ/ai'
+import { SENTIMENT, NPS } from '@customerEQ/shared'
 import { enqueueFeedbackClustering } from '../queues/bullmq.js'
 
 interface AnalyticsTotals {
@@ -200,8 +201,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     // Calculate NPS score: % promoters (9-10) - % detractors (0-6)
     const npsScore = npsResponses.length > 0
       ? (() => {
-          const promoters = npsResponses.filter((r) => r.score! >= 9).length
-          const detractors = npsResponses.filter((r) => r.score! <= 6).length
+          const promoters = npsResponses.filter((r) => NPS.isPromoter(r.score!)).length
+          const detractors = npsResponses.filter((r) => NPS.isDetractor(r.score!)).length
           return Math.round(((promoters - detractors) / npsResponses.length) * 100)
         })()
       : null
@@ -223,9 +224,9 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     // Sentiment distribution
     const withSentiment = responses.filter((r) => r.sentiment !== null)
     const sentimentDistribution = {
-      positive: withSentiment.filter((r) => r.sentiment! > 0.3).length,
-      neutral: withSentiment.filter((r) => r.sentiment! >= -0.3 && r.sentiment! <= 0.3).length,
-      negative: withSentiment.filter((r) => r.sentiment! < -0.3).length,
+      positive: withSentiment.filter((r) => r.sentiment! > SENTIMENT.POSITIVE_THRESHOLD).length,
+      neutral: withSentiment.filter((r) => r.sentiment! >= SENTIMENT.NEGATIVE_THRESHOLD && r.sentiment! <= SENTIMENT.POSITIVE_THRESHOLD).length,
+      negative: withSentiment.filter((r) => r.sentiment! < SENTIMENT.NEGATIVE_THRESHOLD).length,
     }
 
     // Average sentiment
@@ -321,9 +322,9 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       nps: {
         score: npsScore,
         responses: npsResponses.length,
-        promoters: npsResponses.filter((r) => r.score! >= 9).length,
-        passives: npsResponses.filter((r) => r.score! >= 7 && r.score! <= 8).length,
-        detractors: npsResponses.filter((r) => r.score! <= 6).length,
+        promoters: npsResponses.filter((r) => NPS.isPromoter(r.score!)).length,
+        passives: npsResponses.filter((r) => !NPS.isPromoter(r.score!) && !NPS.isDetractor(r.score!)).length,
+        detractors: npsResponses.filter((r) => NPS.isDetractor(r.score!)).length,
       },
       csat: {
         average: csatAverage,
@@ -593,8 +594,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     const npsResponses = responses.filter((r) => r.survey.type === 'NPS' && r.score !== null)
     const npsScore = npsResponses.length > 0
       ? (() => {
-          const promoters = npsResponses.filter((r) => r.score! >= 9).length
-          const detractors = npsResponses.filter((r) => r.score! <= 6).length
+          const promoters = npsResponses.filter((r) => NPS.isPromoter(r.score!)).length
+          const detractors = npsResponses.filter((r) => NPS.isDetractor(r.score!)).length
           return Math.round(((promoters - detractors) / npsResponses.length) * 100)
         })()
       : null
@@ -635,7 +636,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       // The key metric: what % of negative CX feedback was acted on
       feedbackToAction: {
         negativeFeedbackCount: responses.filter(
-          (r) => r.sentiment !== null && r.sentiment < -0.3,
+          (r) => r.sentiment !== null && r.sentiment < SENTIMENT.NEGATIVE_THRESHOLD,
         ).length,
         campaignsTriggered: campaignPerformance._count,
       },

@@ -4,6 +4,7 @@ import {
   CreateSurveySchema,
   UpdateSurveyStatusSchema,
   SubmitSurveyResponseSchema,
+  NPS,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueSentimentAnalysis } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
@@ -54,7 +55,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       include: { _count: { select: { responses: true } } },
     })
 
-    return reply.status(200).send(surveys)
+    return reply.status(200).send({ surveys })
   })
 
   // GET /v1/surveys/:id — get survey with response stats
@@ -260,7 +261,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // ── Integration Point 4: Promoter identification ──
-    if (survey.type === 'NPS' && score !== undefined && score >= 9) {
+    if (survey.type === 'NPS' && score !== undefined && NPS.isPromoter(score)) {
       enqueueEvent({
         brandId,
         memberId,

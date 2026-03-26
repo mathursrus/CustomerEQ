@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
+import { SENTIMENT } from '@customerEQ/shared'
 const FRONTEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
 interface SurveyResponse {
@@ -123,8 +123,8 @@ export default function SurveyDetailPage() {
       })
       if (!res.ok) throw new Error('Failed to update status')
       await fetchSurvey()
-    } catch {
-      // silently handle
+    } catch (err) {
+      console.error('Failed to update survey status:', err)
     } finally {
       setUpdating(false)
     }
@@ -154,9 +154,7 @@ export default function SurveyDetailPage() {
   // Sentiment distribution (sentiment is a float from -1 to 1)
   function sentimentLabel(s: number | null): string {
     if (s === null) return 'unknown'
-    if (s > 0.3) return 'positive'
-    if (s < -0.3) return 'negative'
-    return 'neutral'
+    return SENTIMENT.classify(s)
   }
   const sentimentCounts: Record<string, number> = {}
   responses.forEach((r) => {
@@ -305,8 +303,8 @@ export default function SurveyDetailPage() {
                     <td className="px-6 py-4">
                       {r.sentiment !== null ? (
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-                          r.sentiment > 0.3 ? 'bg-green-100 text-green-700'
-                            : r.sentiment < -0.3 ? 'bg-red-100 text-red-700'
+                          r.sentiment > SENTIMENT.POSITIVE_THRESHOLD ? 'bg-green-100 text-green-700'
+                            : r.sentiment < SENTIMENT.NEGATIVE_THRESHOLD ? 'bg-red-100 text-red-700'
                             : 'bg-yellow-100 text-yellow-700'
                         }`}>
                           {sentimentLabel(r.sentiment)} ({r.sentiment.toFixed(2)})

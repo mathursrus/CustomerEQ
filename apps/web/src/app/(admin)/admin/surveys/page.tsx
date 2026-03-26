@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
 
 interface Survey {
   id: string

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
+import { SENTIMENT } from '@customerEQ/shared'
 
 /* ── Types ── */
 
@@ -37,14 +38,14 @@ interface CXOverview {
 /* ── Helpers ── */
 
 function sentimentColor(val: number): string {
-  if (val > 0.3) return 'text-green-700'
-  if (val < -0.3) return 'text-red-700'
+  if (val > SENTIMENT.POSITIVE_THRESHOLD) return 'text-green-700'
+  if (val < SENTIMENT.NEGATIVE_THRESHOLD) return 'text-red-700'
   return 'text-yellow-700'
 }
 
 function sentimentBgColor(val: number): string {
-  if (val > 0.3) return 'bg-green-100 text-green-700'
-  if (val < -0.3) return 'bg-red-100 text-red-700'
+  if (val > SENTIMENT.POSITIVE_THRESHOLD) return 'bg-green-100 text-green-700'
+  if (val < SENTIMENT.NEGATIVE_THRESHOLD) return 'bg-red-100 text-red-700'
   return 'bg-yellow-100 text-yellow-700'
 }
 

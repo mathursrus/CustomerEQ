@@ -62,9 +62,10 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
     const res = await request.get('/v1/surveys')
 
     expect(res.status).toBe(200)
-    expect(Array.isArray(res.body)).toBe(true)
-    expect(res.body.length).toBeGreaterThanOrEqual(2)
-    const names = res.body.map((s: { name: string }) => s.name)
+    const surveys = res.body.surveys ?? res.body
+    expect(Array.isArray(surveys)).toBe(true)
+    expect(surveys.length).toBeGreaterThanOrEqual(2)
+    const names = surveys.map((s: { name: string }) => s.name)
     expect(names).toContain('Survey A')
     expect(names).toContain('Survey B')
   })

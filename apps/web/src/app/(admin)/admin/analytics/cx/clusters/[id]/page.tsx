@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
+import { SENTIMENT } from '@customerEQ/shared'
 
 /* ── Types ── */
 
@@ -121,11 +122,11 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
 
 function sentimentBadge(val: number | null | undefined) {
   if (val == null) return <span className="text-gray-400">--</span>
-  const label = val > 0.3 ? 'positive' : val < -0.3 ? 'negative' : 'neutral'
+  const label = SENTIMENT.classify(val)
   const color =
-    val > 0.3
+    val > SENTIMENT.POSITIVE_THRESHOLD
       ? 'bg-green-100 text-green-700'
-      : val < -0.3
+      : val < SENTIMENT.NEGATIVE_THRESHOLD
         ? 'bg-red-100 text-red-700'
         : 'bg-yellow-100 text-yellow-700'
   return (
@@ -269,9 +270,9 @@ export default function ClusterDetailPage() {
           <p className="text-sm font-medium text-gray-500">Avg Sentiment</p>
           <p
             className={`mt-2 text-3xl font-bold ${
-              (cluster.avgSentiment ?? 0) > 0.3
+              (cluster.avgSentiment ?? 0) > SENTIMENT.POSITIVE_THRESHOLD
                 ? 'text-green-700'
-                : (cluster.avgSentiment ?? 0) < -0.3
+                : (cluster.avgSentiment ?? 0) < SENTIMENT.NEGATIVE_THRESHOLD
                   ? 'text-red-700'
                   : 'text-yellow-700'
             }`}

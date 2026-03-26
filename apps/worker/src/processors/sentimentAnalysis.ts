@@ -3,6 +3,7 @@ import type { ConnectionOptions } from 'bullmq'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import type { SentimentAnalysisPayload } from '@customerEQ/shared'
+import { SENTIMENT } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
 import type { FeedbackAnalysisResult } from '@customerEQ/ai'
 import { enqueueEvent } from '../queues/producers.js'
@@ -188,7 +189,7 @@ export function createSentimentProcessor(connection: ConnectionOptions) {
     // 5. If sentiment is strongly negative, enqueue a cx.sentiment_negative event
     // This feeds into the campaign trigger engine for automated retention actions
     let eventEnqueued = false
-    if (result.sentiment <= -0.3) {
+    if (result.sentiment <= SENTIMENT.NEGATIVE_THRESHOLD) {
       await enqueueEvent(connection, {
         brandId,
         memberId,
