@@ -46,7 +46,9 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Primary CTA: **"+ Create New Program"** (top-right) — launches the wizard
 - Per-row actions: **"Edit"** (re-opens wizard pre-populated), **"Pause"** / **"Reactivate"** / **"Continue Setup"** depending on status
 - **Double-clicking a row** opens the program in **view-only mode** — all fields are read-only with a yellow "View-only" banner; an "✏️ Edit Program" button in the header switches to edit mode
-- Provides the overview context admins need before creating or editing a program
+- **Filter bar**: search by program name; filter dropdowns for Status (All / Active / Paused / Draft) and Type (All / Points / Tiered / Cashback / Hybrid)
+- **Pagination**: table shows 25 programs per page with page controls (Next / Prev / page number); sorted by last-modified descending by default. No infinite scroll — explicit pagination prevents accidental mis-clicks on large datasets.
+- Draft programs (never activated) show a **trash icon** for deletion; a confirmation prompt is required before permanent removal. Active and paused programs cannot be deleted, only archived.
 
 **Step 1 — Program Type**
 - Admin selects one of four program types: **Points**, **Tiered**, **Cashback**, **Hybrid**
@@ -69,12 +71,13 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
 - Admin adds one or more earning rules
 - Each rule has:
   - **Trigger**: purchase, review, referral, social share, survey completion, enrollment
-  - **Condition(s)**: AND/OR logic builder — e.g., `product_category = "Electronics" AND channel = "web"`
+  - **Condition(s)**: AND/OR logic builder — e.g., `product_category = "Electronics" AND channel = "web"`. A single condition group uses **one operator only** (AND or OR) — you cannot mix both within one group. For complex expressions like `A AND (B OR C)`, configure two separate rules with appropriate priorities and budget caps to approximate the desired logic.
   - **Action**: award X points, or X× multiplier on base points
   - **Time window**: always active, or specific date range
   - **Budget cap**: max points this rule can award (optional)
   - **Priority**: integer (lower = evaluated first when rules conflict)
 - Admin can add multiple rules; they are evaluated in priority order
+- **When multiple rules match the same event**: by default, **first-match-wins** — evaluation stops at the first matching rule (lowest priority number). Each rule can optionally be toggled **"Stackable"** — when enabled, all matching stackable rules fire and their awards accumulate (e.g., a base "1 point per $1" rule + a "2× Electronics" promotional rule both apply, yielding 2 points per $1 on Electronics purchases).
 - Simple "earn 1 point per $1 spent" default pre-filled for first-time admins
 
 **Step 4 — Tier Configuration** *(shown for Tiered and Hybrid programs only)*
@@ -85,6 +88,9 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
   - **Benefits**: list of freeform benefit descriptions (e.g., "Free shipping", "10% discount")
   - **Points multiplier**: e.g., Gold tier earns 1.5× points on all purchases
 - Tiers displayed in a visual ladder showing progression
+- **Adding a tier**: admin fills an inline modal — tier name, icon (selected from a preset catalog of ~12 emoji icons: 🥉🥈🥇💎⭐🏅🎖️ and others), entry criteria (min points, min spend, or both), freeform benefits list, and points multiplier
+- **Editing a tier**: clicking any tier row opens the same modal pre-populated
+- **Removing a tier**: trash icon on each row; removal is blocked with an explanation if any members currently hold that tier — admin must wait for the tier to become empty or migrate members via a bulk action (Phase 2)
 
 **Step 5 — Rewards Catalog**
 - Admin adds redeemable rewards to the catalog
@@ -95,18 +101,25 @@ The admin completes a **7-step guided configuration wizard** from the CustomerEQ
   - **Stock**: unlimited or limited quantity
   - **Availability**: always, or specific date range
   - **Eligible tiers**: all members, or Gold+ only, etc.
+- **Adding a reward**: admin fills an inline modal — name, description, type, points cost, stock (unlimited or capped quantity), availability (always active or a specific date range), eligible tiers
+- **Editing a reward**: clicking any reward row opens the same modal pre-populated
+- **Removing a reward**: soft-delete (archived); members with in-progress redemptions are honored through to completion
 
 **Step 6 — Budget & Spend Controls**
 - **Total program budget** (USD): hard cap on total points value issued
 - **Monthly budget limit**: optional rolling cap
 - **Alert threshold**: notify admin at 80% of budget consumed
 - **Halt behavior on cap**: pause program or pause only new rule evaluations
+- **Alert notification** is admin-facing only: an in-app notification and email are sent to the program owner when the threshold is crossed. Members are not notified and the program continues running until the hard cap. The notification delivery workflow (channels, templates, retry logic) is owned by **Issue #7 (Admin Notifications)**; this spec covers threshold configuration only.
 
 **Step 7 — Preview & Activate**
 - Admin sees a **simulated member view**: what a member would see after enrolling, their point balance, available rewards, and tier status
-- Admin can click "Simulate Action" — enter a hypothetical purchase amount + category to see which rules fire and how many points are awarded
+- Admin can click "Simulate Action" — enter a hypothetical purchase amount + category to see which rules fire and how many points are awarded. After simulation runs, **the member experience phone preview updates live**: the point balance increments by the simulated award, the tier progress bar advances, and any newly unlockable rewards highlight.
 - Admin sees a summary checklist confirming all required fields are filled
-- Two CTAs: **"Save as Draft"** and **"Activate Program"**
+- **Auto-save**: the wizard auto-saves the current step silently on every step navigation. Progress is never lost from a page refresh or accidental close. No toast is shown unless there is a save error.
+- **"Save as Draft"** button is present on every step as an explicit save-and-exit confirmation point.
+- **Deletion**: Draft programs (never activated) may be deleted from the Programs landing page (trash icon on Draft rows, confirmation required). Active and paused programs cannot be deleted — only archived.
+- Two final CTAs: **"Save as Draft"** and **"Activate Program"**
 - Activation requires confirmation modal (program name re-entry for safety)
 
 ### UI Mocks

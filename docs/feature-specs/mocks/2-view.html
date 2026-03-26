@@ -403,6 +403,23 @@
   /* ── Views ── */
   .view { display: none; }
   .view.active { display: block; }
+
+  /* ── Filter bar ── */
+  .filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-bar input[type="text"] { width: 220px; flex-shrink: 0; }
+  .filter-bar select { width: 150px; flex-shrink: 0; }
+
+  /* ── Icon picker ── */
+  .icon-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .icon-option { width: 36px; height: 36px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .icon-option:hover { border-color: #a5b4fc; }
+  .icon-option.selected { border-color: #6366f1; background: #eef2ff; }
+
+  /* ── Pagination ── */
+  .pagination { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+  .page-btn { padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
+  .page-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .page-btn:hover:not(.active) { background: #f1f5f9; }
 </style>
 </head>
 <body>
@@ -440,6 +457,23 @@
         </div>
         <button class="btn btn-primary" onclick="showWizard('new')" style="margin-top:4px">+ Create New Program</button>
       </div>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" placeholder="🔍  Search programs…" style="width:220px" />
+      <select style="width:160px">
+        <option>All Statuses</option>
+        <option>Active</option>
+        <option>Paused</option>
+        <option>Draft</option>
+      </select>
+      <select style="width:160px">
+        <option>All Types</option>
+        <option>Points</option>
+        <option>Tiered</option>
+        <option>Cashback</option>
+        <option>Hybrid</option>
+      </select>
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
@@ -513,11 +547,20 @@
             <td>
               <div class="prog-actions">
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();showWizard('edit', 'VIP Elite Club', 'Tiered', '—', '—')">Continue Setup</button>
+                <button class="btn btn-ghost btn-sm" style="color:#ef4444;border-color:#fca5a5" onclick="event.stopPropagation();if(confirm('Delete \'VIP Elite Club\'? This cannot be undone.'))alert('Draft deleted.')">🗑</button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
+      <div class="pagination">
+        <span>Showing 1–3 of 3 programs</span>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <button class="page-btn" disabled>← Prev</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn" disabled>Next →</button>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -796,7 +839,7 @@
           </div>
         </div>
 
-        <button class="add-btn" style="margin-top:16px" onclick="alert('Add tier dialog (demo)')">+ Add tier</button>
+        <button class="add-btn" style="margin-top:16px" onclick="openTierModal('add')">+ Add tier</button>
       </div>
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="goToStep(3)">← Back</button>
@@ -835,6 +878,13 @@
                 <label>Eligible Tiers</label>
                 <select><option>All Tiers</option></select>
               </div>
+              <div class="form-group">
+                <label>Availability</label>
+                <select><option>Always active</option><option>Specific date range</option></select>
+              </div>
+            </div>
+            <div style="text-align:right;margin-top:4px">
+              <button class="btn btn-ghost btn-sm" onclick="openRewardModal('edit')">Edit</button>
             </div>
           </div>
 
@@ -861,11 +911,18 @@
                 <label>Eligible Tiers</label>
                 <select><option>Silver, Gold, Platinum</option></select>
               </div>
+              <div class="form-group">
+                <label>Availability</label>
+                <select><option>Always active</option><option>Specific date range</option></select>
+              </div>
+            </div>
+            <div style="text-align:right;margin-top:4px">
+              <button class="btn btn-ghost btn-sm" onclick="openRewardModal('edit')">Edit</button>
             </div>
           </div>
         </div>
 
-        <button class="add-btn" style="margin-top:16px" onclick="alert('Add reward dialog (demo)')">+ Add reward</button>
+        <button class="add-btn" style="margin-top:16px" onclick="openRewardModal('add')">+ Add reward</button>
       </div>
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="goToStep(4)">← Back</button>
@@ -1034,6 +1091,134 @@
   </main>
 </div>
 
+<!-- Tier Add/Edit Modal -->
+<div class="modal-overlay" id="tierModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-title" id="tierModalTitle">Add Tier</div>
+    <div class="form-group">
+      <label>Tier Name *</label>
+      <input type="text" id="tierName" placeholder="e.g. Gold, Platinum, Diamond" />
+    </div>
+    <div class="form-group">
+      <label>Icon</label>
+      <div class="icon-picker" id="iconPicker">
+        <div class="icon-option selected" onclick="selectIcon(this)">🥉</div>
+        <div class="icon-option" onclick="selectIcon(this)">🥈</div>
+        <div class="icon-option" onclick="selectIcon(this)">🥇</div>
+        <div class="icon-option" onclick="selectIcon(this)">💎</div>
+        <div class="icon-option" onclick="selectIcon(this)">⭐</div>
+        <div class="icon-option" onclick="selectIcon(this)">🏅</div>
+        <div class="icon-option" onclick="selectIcon(this)">🎖️</div>
+        <div class="icon-option" onclick="selectIcon(this)">🔥</div>
+        <div class="icon-option" onclick="selectIcon(this)">👑</div>
+        <div class="icon-option" onclick="selectIcon(this)">🚀</div>
+        <div class="icon-option" onclick="selectIcon(this)">🌟</div>
+        <div class="icon-option" onclick="selectIcon(this)">💠</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Entry Criteria — Min Points</label>
+        <input type="text" placeholder="e.g. 1000" />
+      </div>
+      <div class="form-group">
+        <label>Entry Criteria — Min Spend (USD)</label>
+        <input type="text" placeholder="e.g. 500 (optional)" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Points Multiplier</label>
+      <select>
+        <option>1.0× (no bonus)</option>
+        <option>1.25×</option>
+        <option>1.5×</option>
+        <option>2.0×</option>
+        <option>3.0×</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Benefits (one per line)</label>
+      <textarea placeholder="Free shipping&#10;10% discount&#10;Priority support"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeTierModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeTierModal();alert('Tier saved (demo)')">Save Tier</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reward Add/Edit Modal -->
+<div class="modal-overlay" id="rewardModal">
+  <div class="modal" style="width:520px">
+    <div class="modal-title" id="rewardModalTitle">Add Reward</div>
+    <div class="form-group">
+      <label>Reward Name *</label>
+      <input type="text" placeholder="e.g. 10% Discount Code" />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea placeholder="Shown to members on their rewards portal…" style="min-height:52px"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type *</label>
+        <select>
+          <option>Discount Code</option>
+          <option>Free Product</option>
+          <option>Cashback</option>
+          <option>Gift Card</option>
+          <option>Experience</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Points Cost *</label>
+        <input type="text" placeholder="e.g. 200" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Stock</label>
+        <select>
+          <option>Unlimited</option>
+          <option>Limited quantity</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Eligible Tiers</label>
+        <select>
+          <option>All Tiers</option>
+          <option>Silver and above</option>
+          <option>Gold and above</option>
+          <option>Platinum only</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Availability</label>
+      <select id="rewardAvailSelect" onchange="toggleRewardDates(this)">
+        <option value="always">Always active</option>
+        <option value="dates">Specific date range</option>
+      </select>
+    </div>
+    <div id="rewardDateRange" style="display:none">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Available From</label>
+          <input type="date" />
+        </div>
+        <div class="form-group">
+          <label>Available Until</label>
+          <input type="date" />
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeRewardModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeRewardModal();alert('Reward saved (demo)')">Save Reward</button>
+    </div>
+  </div>
+</div>
+
 <!-- Activate Confirmation Modal -->
 <div class="modal-overlay" id="activateModal">
   <div class="modal">
@@ -1196,6 +1381,20 @@
 
   function runSimulation() {
     document.getElementById('simResult').style.display = 'block';
+    // Update phone preview to reflect simulated award (840 + 240 = 1,080 Stars)
+    const numEl = document.querySelector('.points-num');
+    if (numEl) {
+      numEl.textContent = '1,080';
+      numEl.style.transition = 'color 0.4s';
+      numEl.style.color = '#16a34a';
+      setTimeout(() => { numEl.style.color = '#6366f1'; }, 1200);
+    }
+    const fill = document.querySelector('.progress-fill');
+    if (fill) fill.style.width = '54%';
+    const hint = document.querySelector('.points-label + div, .progress-bar + div');
+    document.querySelectorAll('.phone-screen div').forEach(el => {
+      if (el.textContent.includes('Stars to Gold')) el.textContent = '920 Stars to Gold tier';
+    });
   }
 
   // ── Activate modal ───────────────────────────────────────
@@ -1227,6 +1426,37 @@
       e.target.classList.add('active');
     }
   });
+
+  // ── Tier modal ───────────────────────────────────────────
+
+  function openTierModal(mode) {
+    document.getElementById('tierModalTitle').textContent = mode === 'edit' ? 'Edit Tier' : 'Add Tier';
+    document.getElementById('tierModal').classList.add('show');
+  }
+
+  function closeTierModal() {
+    document.getElementById('tierModal').classList.remove('show');
+  }
+
+  function selectIcon(el) {
+    document.querySelectorAll('.icon-option').forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  // ── Reward modal ─────────────────────────────────────────
+
+  function openRewardModal(mode) {
+    document.getElementById('rewardModalTitle').textContent = mode === 'edit' ? 'Edit Reward' : 'Add Reward';
+    document.getElementById('rewardModal').classList.add('show');
+  }
+
+  function closeRewardModal() {
+    document.getElementById('rewardModal').classList.remove('show');
+  }
+
+  function toggleRewardDates(sel) {
+    document.getElementById('rewardDateRange').style.display = sel.value === 'dates' ? 'block' : 'none';
+  }
 
   // Init
   renderStepper();
