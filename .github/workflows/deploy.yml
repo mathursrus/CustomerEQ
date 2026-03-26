@@ -45,10 +45,14 @@ jobs:
 
       - name: Build and push Web image
         run: |
+          API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
           az acr build --registry customereqcr \
             --image customereq-web:${{ github.sha }} \
             --image customereq-web:latest \
-            --file Dockerfile.web .
+            --file Dockerfile.web \
+            --build-arg NEXT_PUBLIC_API_URL="https://$API_FQDN" \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
+            .
 
       - name: Deploy API
         run: |
