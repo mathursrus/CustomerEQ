@@ -37,3 +37,4 @@ docs/evidence/
 # Logs
 *.log
 npm-debug.log*
+coverage/
