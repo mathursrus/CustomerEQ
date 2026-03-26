@@ -4,11 +4,13 @@ import {
   type LoyaltyEventPayload,
   type CampaignTriggerPayload,
   type NotificationPayload,
+  type SentimentAnalysisPayload,
 } from '@customerEQ/shared'
 
 let _loyaltyEventsQueue: Queue | null = null
 let _campaignTriggersQueue: Queue | null = null
 let _notificationsQueue: Queue | null = null
+let _sentimentAnalysisQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   const connection = redis
@@ -16,6 +18,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _loyaltyEventsQueue = new Queue(QUEUES.LOYALTY_EVENTS, { connection })
   _campaignTriggersQueue = new Queue(QUEUES.CAMPAIGN_TRIGGERS, { connection })
   _notificationsQueue = new Queue(QUEUES.NOTIFICATIONS, { connection })
+  _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
 }
 
 function getLoyaltyEventsQueue(): Queue {
@@ -55,4 +58,17 @@ export async function enqueueNotification(
   payload: NotificationPayload,
 ): Promise<Job> {
   return getNotificationsQueue().add('send', payload)
+}
+
+function getSentimentAnalysisQueue(): Queue {
+  if (!_sentimentAnalysisQueue) {
+    throw new Error('Queues have not been initialized. Call initQueues(redis) first.')
+  }
+  return _sentimentAnalysisQueue
+}
+
+export async function enqueueSentimentAnalysis(
+  payload: SentimentAnalysisPayload,
+): Promise<Job> {
+  return getSentimentAnalysisQueue().add('analyze', payload)
 }

@@ -16,6 +16,15 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     const authHeader = request.headers.authorization
 
+    // Test mode bypass — allows integration tests to set brand/user via headers
+    // Must be checked before the auth header check so tests can send X-Test-Brand-Id without a JWT
+    const testBrandId = request.headers['x-test-brand-id'] as string | undefined
+    if (process.env.NODE_ENV === 'test' && testBrandId) {
+      request.brandId = testBrandId
+      request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_123'
+      return
+    }
+
     // Skip auth for public routes that have no Authorization header
     if (!authHeader) {
       if ((request.routeOptions?.config as unknown as Record<string, unknown>)?.public === true) {
@@ -24,14 +33,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return reply
         .status(401)
         .send({ error: 'Authorization header is required' })
-    }
-
-    // Test mode bypass — allows integration tests to set brand/user via headers
-    const testBrandId = request.headers['x-test-brand-id'] as string | undefined
-    if (process.env.NODE_ENV === 'test' && testBrandId) {
-      request.brandId = testBrandId
-      request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_123'
-      return
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '')

@@ -44,6 +44,20 @@ enum RedemptionStatus {
   CANCELLED
 }
 
+enum SurveyType {
+  NPS
+  CSAT
+  CES
+  CUSTOM
+}
+
+enum SurveyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
@@ -52,6 +66,7 @@ model Brand {
   name       String
   programs   Program[]
   members    Member[]
+  surveys    Survey[]
   createdAt  DateTime  @default(now())
 
   @@map("brands")
@@ -112,10 +127,11 @@ model Member {
   consentVersion String?
   deletedAt      DateTime? // soft delete (C-02)
   erased         Boolean        @default(false) // GDPR erasure flag (C-03)
-  loyaltyEvents  LoyaltyEvent[]
-  redemptions    Redemption[]
-  campaignEvents CampaignEvent[]
-  createdAt      DateTime       @default(now())
+  loyaltyEvents   LoyaltyEvent[]
+  redemptions     Redemption[]
+  campaignEvents  CampaignEvent[]
+  surveyResponses SurveyResponse[]
+  createdAt       DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
   @@unique([brandId, email])
@@ -215,6 +231,47 @@ model CampaignEvent {
   @@unique([campaignId, memberId]) // dedup: one trigger per member per campaign (R6.4)
   @@index([brandId, campaignId])
   @@map("campaign_events")
+}
+
+model Survey {
+  id              String           @id @default(cuid())
+  brandId         String
+  brand           Brand            @relation(fields: [brandId], references: [id])
+  programId       String
+  name            String
+  type            SurveyType       @default(NPS)
+  questions       Json             // Question definitions (array of question objects)
+  settings        Json?            // Distribution settings, branding, etc.
+  status          SurveyStatus     @default(DRAFT)
+  responsesCount  Int              @default(0)
+  incentivePoints Int?             // Points awarded for completing the survey
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  responses       SurveyResponse[]
+
+  @@index([brandId, status])
+  @@map("surveys")
+}
+
+model SurveyResponse {
+  id          String   @id @default(cuid())
+  surveyId    String
+  survey      Survey   @relation(fields: [surveyId], references: [id])
+  memberId    String
+  member      Member   @relation(fields: [memberId], references: [id])
+  brandId     String
+  answers     Json     // { questionId: answer }
+  score       Float?   // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
+  sentiment   Float?   // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  topics      String[] // AI-extracted topics from open-ended responses
+  channel     String   @default("link") // email, in_app, link, sms
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([surveyId, memberId]) // One response per member per survey
+  @@index([brandId, completedAt])
+  @@map("survey_responses")
 }
 
 model DemoRequest {

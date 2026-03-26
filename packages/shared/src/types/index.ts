@@ -29,3 +29,13 @@ export interface NotificationPayload {
   channel: 'email' | 'sms'
   metadata?: Record<string, unknown>
 }
+
+export interface SentimentAnalysisPayload {
+  surveyResponseId: string
+  brandId: string
+  memberId: string
+  surveyId: string
+  text: string // The open-ended response text to analyze
+  eventType: string // e.g. "cx.nps_response" — used to enqueue follow-up events
+  score?: number // Original numeric score (NPS/CSAT/CES)
+}

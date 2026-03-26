@@ -11,6 +11,7 @@ export { createLoyaltyEvent, createCxEvent } from './factories/event.factory.js'
 export { createReward } from './factories/reward.factory.js'
 export { createCampaign, createNpsCampaign } from './factories/campaign.factory.js'
 export { createRedemption } from './factories/redemption.factory.js'
+export { createSurvey, createNpsSurvey, createSurveyResponse } from './factories/survey.factory.js'
 
 // Mocks
 export { mockClerkAuth, mockClerkVerifyToken } from './mocks/clerk.mock.js'
@@ -18,6 +19,7 @@ export { InMemoryQueue, createMockQueue } from './mocks/bullmq.mock.js'
 export { createMockRedis } from './mocks/redis.mock.js'
 export { salesforceNpsPayload, hubspotTicketPayload, invalidSignatureHeaders } from './mocks/integrations.mock.js'
 export { mockEmailSend, assertEmailSent, clearEmailMock, getSentEmails } from './mocks/email.mock.js'
+export { mockSentimentAnalyze, mockNegativeSentiment, mockPositiveSentiment, clearSentimentMock } from './mocks/sentiment.mock.js'
 
 // Helpers
 export { authenticatedRequest, unauthenticatedRequest, setTestApp, getTestApp } from './helpers/api.helper.js'
