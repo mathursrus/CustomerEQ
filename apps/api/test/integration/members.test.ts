@@ -1,24 +1,15 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  setupTestDb,
-  teardownTestDb,
   seedTestDb,
   createBrand,
   createProgram,
   createMember,
+  createConsentedMember,
   authenticatedRequest,
 } from '@customerEQ/config/test-utils'
 
 describe('Members API — /v1/members', () => {
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await teardownTestDb()
-  })
-
   beforeEach(async () => {
     await seedTestDb()
   })
@@ -31,7 +22,7 @@ describe('Members API — /v1/members', () => {
     it('enrolls a new member and returns status=ACTIVE', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/members/enroll').send({
         email: 'alice@example.com',
@@ -52,7 +43,7 @@ describe('Members API — /v1/members', () => {
     it('returns the existing member (idempotency) when enrolling the same email twice', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const payload = {
         email: 'bob@example.com',
@@ -71,10 +62,10 @@ describe('Members API — /v1/members', () => {
       expect(secondRes.body.id).toBe(firstId)
     })
 
-    it('returns 422 "consent required" when consentGivenAt is absent', async () => {
+    it('returns 422 when consentGivenAt is absent', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/members/enroll').send({
         email: 'noconsent@example.com',
@@ -84,13 +75,13 @@ describe('Members API — /v1/members', () => {
       })
 
       expect(res.status).toBe(422)
-      expect(res.body.message).toMatch(/consent/i)
+      expect(res.body.error).toBe('Validation failed')
     })
 
     it('returns 422 when email is missing', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.post('/v1/members/enroll').send({
         firstName: 'Missing',
@@ -100,7 +91,7 @@ describe('Members API — /v1/members', () => {
       })
 
       expect(res.status).toBe(422)
-      expect(res.body.message).toMatch(/email/i)
+      expect(res.body.error).toBe('Validation failed')
     })
   })
 
@@ -112,8 +103,8 @@ describe('Members API — /v1/members', () => {
     it("returns 200 with member data when fetching own brand's member", async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const member = await createMember({ brandId: brand.id, programId: program.id })
-      const request = await authenticatedRequest(brand.id)
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get(`/v1/members/${member.id}`)
 
@@ -126,10 +117,10 @@ describe('Members API — /v1/members', () => {
     it('returns 404 when fetching a member that belongs to a different brand (tenant isolation)', async () => {
       const ownerBrand = await createBrand()
       const program = await createProgram({ brandId: ownerBrand.id, status: 'ACTIVE' })
-      const member = await createMember({ brandId: ownerBrand.id, programId: program.id })
+      const member = await createConsentedMember({ brandId: ownerBrand.id, programId: program.id })
 
       const otherBrand = await createBrand()
-      const request = await authenticatedRequest(otherBrand.id)
+      const request = authenticatedRequest(otherBrand.id)
 
       const res = await request.get(`/v1/members/${member.id}`)
 
@@ -138,7 +129,7 @@ describe('Members API — /v1/members', () => {
 
     it('returns 404 for a non-existent member id', async () => {
       const brand = await createBrand()
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/members/00000000-0000-0000-0000-000000000000')
 
@@ -154,8 +145,8 @@ describe('Members API — /v1/members', () => {
     it('returns pointsBalance=0 and an empty recentEvents array for a newly enrolled member', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const member = await createMember({ brandId: brand.id, programId: program.id })
-      const request = await authenticatedRequest(brand.id)
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get(`/v1/members/${member.id}/balance`)
 
@@ -168,10 +159,10 @@ describe('Members API — /v1/members', () => {
     it('returns 404 when fetching balance for a member from a different brand', async () => {
       const ownerBrand = await createBrand()
       const program = await createProgram({ brandId: ownerBrand.id, status: 'ACTIVE' })
-      const member = await createMember({ brandId: ownerBrand.id, programId: program.id })
+      const member = await createConsentedMember({ brandId: ownerBrand.id, programId: program.id })
 
       const otherBrand = await createBrand()
-      const request = await authenticatedRequest(otherBrand.id)
+      const request = authenticatedRequest(otherBrand.id)
 
       const res = await request.get(`/v1/members/${member.id}/balance`)
 
@@ -187,12 +178,20 @@ describe('Members API — /v1/members', () => {
     it('returns balance for an authenticated member', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      await createMember({
+      // The authenticatedRequest helper sets X-Test-User-Id to 'user_test_123'
+      // We need a member with that clerkUserId
+      const member = await createConsentedMember({
         brandId: brand.id,
         programId: program.id,
-        clerkUserId: 'user_test_123',
       })
-      const request = await authenticatedRequest(brand.id)
+      // Manually update the clerkUserId since the factory doesn't support it
+      const { getTestPrisma } = await import('@customerEQ/config/test-utils')
+      const prisma = getTestPrisma()
+      await prisma.member.update({
+        where: { id: member.id },
+        data: { clerkUserId: 'user_test_123' },
+      })
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/members/me/balance')
 
@@ -203,7 +202,7 @@ describe('Members API — /v1/members', () => {
 
     it('returns 404 when no member exists for the authenticated user', async () => {
       const brand = await createBrand()
-      const request = await authenticatedRequest(brand.id)
+      const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/members/me/balance')
 

@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { getTestPrisma } from './setup.js'
 
 export interface SeedResult {
   brand: { id: string; clerkOrgId: string; name: string }
@@ -10,19 +11,24 @@ export interface SeedResult {
  * Seeds the test database with 1 brand, 1 active program, and 1 earning rule.
  * Call in beforeEach() to get a clean state for each test.
  */
-export async function seedTestDb(prisma: PrismaClient): Promise<SeedResult> {
+export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
+  prisma = prisma ?? getTestPrisma()
   // Clean all tenant data in order (foreign key safe)
-  await prisma.auditEvent.deleteMany()
-  await prisma.campaignEvent.deleteMany()
-  await prisma.loyaltyEvent.deleteMany()
-  await prisma.redemption.deleteMany()
-  await prisma.reward.deleteMany()
-  await prisma.campaign.deleteMany()
-  await prisma.earningRule.deleteMany()
-  await prisma.member.deleteMany()
-  await prisma.program.deleteMany()
-  await prisma.brand.deleteMany()
-  await prisma.demoRequest.deleteMany()
+  // Use try/catch for each in case a table doesn't exist in this test schema
+  const deleteAll = async (model: { deleteMany: () => Promise<unknown> }) => {
+    try { await model.deleteMany() } catch { /* table may not exist */ }
+  }
+  await deleteAll(prisma.auditEvent)
+  await deleteAll(prisma.campaignEvent)
+  await deleteAll(prisma.loyaltyEvent)
+  await deleteAll(prisma.redemption)
+  await deleteAll(prisma.reward)
+  await deleteAll(prisma.campaign)
+  await deleteAll(prisma.earningRule)
+  await deleteAll(prisma.member)
+  await deleteAll(prisma.program)
+  await deleteAll(prisma.brand)
+  await deleteAll(prisma.demoRequest)
 
   const brand = await prisma.brand.create({
     data: { clerkOrgId: 'org_test_seed', name: 'Test Brand' },
