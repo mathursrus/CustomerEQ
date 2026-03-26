@@ -109,10 +109,33 @@ export default function CXInsightsPage() {
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
         : {}
-      const res = await fetch(`${API_URL}/v1/analytics/cx`, { headers })
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 30)
+      const params = new URLSearchParams({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      })
+      const res = await fetch(`${API_URL}/v1/analytics/cx?${params}`, { headers })
       if (!res.ok) throw new Error('Failed to load CX analytics')
       const json = await res.json()
-      setData(json)
+      // Map API shape to UI shape
+      setData({
+        totalResponses: json.totalResponses ?? 0,
+        avgSentiment: json.sentiment?.average ?? 0,
+        npsScore: json.nps?.score ?? null,
+        activeAnomalies: json.anomalies?.length ?? 0,
+        clusters: (json.clusters ?? []).map((c: Record<string, unknown>) => ({
+          id: c.id,
+          label: c.label,
+          responseCount: c.responseCount ?? 0,
+          avgSentiment: c.avgSentiment ?? 0,
+          trend: c.trending ?? 'stable',
+          changePercent: c.changePercent ?? 0,
+        })),
+        anomalies: json.anomalies ?? [],
+        sentimentDistribution: json.sentiment?.distribution ?? { positive: 0, neutral: 0, negative: 0 },
+      })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load CX analytics')
     } finally {
