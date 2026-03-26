@@ -7,12 +7,18 @@ import {
   type SentimentAnalysisPayload,
 } from '@customerEQ/shared'
 
+// QUEUE_MODE=inline  → skip Redis, log and return a stub (zero Redis usage)
+// QUEUE_MODE=redis   → use BullMQ queues (default)
+const QUEUE_MODE = process.env.QUEUE_MODE ?? 'redis'
+
 let _loyaltyEventsQueue: Queue | null = null
 let _campaignTriggersQueue: Queue | null = null
 let _notificationsQueue: Queue | null = null
 let _sentimentAnalysisQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
+  if (QUEUE_MODE === 'inline') return // no Redis needed
+
   const connection = redis
 
   _loyaltyEventsQueue = new Queue(QUEUES.LOYALTY_EVENTS, { connection })
@@ -20,6 +26,9 @@ export function initQueues(redis: ConnectionOptions): void {
   _notificationsQueue = new Queue(QUEUES.NOTIFICATIONS, { connection })
   _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
 }
+
+// Stub job returned in inline mode
+const INLINE_STUB = { id: 'inline' } as unknown as Job
 
 function getLoyaltyEventsQueue(): Queue {
   if (!_loyaltyEventsQueue) {
@@ -42,24 +51,6 @@ function getNotificationsQueue(): Queue {
   return _notificationsQueue
 }
 
-export async function enqueueEvent(
-  payload: LoyaltyEventPayload,
-): Promise<Job> {
-  return getLoyaltyEventsQueue().add('process', payload)
-}
-
-export async function enqueueCampaignTrigger(
-  payload: CampaignTriggerPayload,
-): Promise<Job> {
-  return getCampaignTriggersQueue().add('trigger', payload, { priority: 10 })
-}
-
-export async function enqueueNotification(
-  payload: NotificationPayload,
-): Promise<Job> {
-  return getNotificationsQueue().add('send', payload)
-}
-
 function getSentimentAnalysisQueue(): Queue {
   if (!_sentimentAnalysisQueue) {
     throw new Error('Queues have not been initialized. Call initQueues(redis) first.')
@@ -67,8 +58,30 @@ function getSentimentAnalysisQueue(): Queue {
   return _sentimentAnalysisQueue
 }
 
+export async function enqueueEvent(
+  payload: LoyaltyEventPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  return getLoyaltyEventsQueue().add('process', payload)
+}
+
+export async function enqueueCampaignTrigger(
+  payload: CampaignTriggerPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  return getCampaignTriggersQueue().add('trigger', payload, { priority: 10 })
+}
+
+export async function enqueueNotification(
+  payload: NotificationPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  return getNotificationsQueue().add('send', payload)
+}
+
 export async function enqueueSentimentAnalysis(
   payload: SentimentAnalysisPayload,
 ): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
   return getSentimentAnalysisQueue().add('analyze', payload)
 }

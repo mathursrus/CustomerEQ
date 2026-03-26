@@ -16,28 +16,32 @@ const logger = pino({ name: 'worker' })
 
 const connection = createConnection()
 
+// drainDelay: seconds to wait between polls when queue is empty (default 5)
+// At low traffic, 60s keeps Redis usage under free tier (~8K cmds/hr vs ~120K)
+const IDLE_POLL_SECONDS = 60
+
 const loyaltyEventsWorker = new Worker(
   QUEUES.LOYALTY_EVENTS,
   processLoyaltyEvent,
-  { connection, concurrency: 5 },
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
 const campaignTriggersWorker = new Worker(
   QUEUES.CAMPAIGN_TRIGGERS,
   createCampaignTriggerProcessor(connection),
-  { connection, concurrency: 10 },
+  { connection, concurrency: 10, drainDelay: IDLE_POLL_SECONDS },
 )
 
 const notificationsWorker = new Worker(
   QUEUES.NOTIFICATIONS,
   processNotification,
-  { connection, concurrency: 5 },
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
 const sentimentWorker = new Worker(
   QUEUES.SENTIMENT_ANALYSIS,
   createSentimentProcessor(connection),
-  { connection, concurrency: 5 },
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
 // ---------------------------------------------------------------------------
