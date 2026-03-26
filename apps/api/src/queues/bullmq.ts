@@ -5,6 +5,7 @@ import {
   type CampaignTriggerPayload,
   type NotificationPayload,
   type SentimentAnalysisPayload,
+  type FeedbackClusteringPayload,
 } from '@customerEQ/shared'
 
 // QUEUE_MODE=inline  → skip Redis, log and return a stub (zero Redis usage)
@@ -15,6 +16,7 @@ let _loyaltyEventsQueue: Queue | null = null
 let _campaignTriggersQueue: Queue | null = null
 let _notificationsQueue: Queue | null = null
 let _sentimentAnalysisQueue: Queue | null = null
+let _feedbackClusteringQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return // no Redis needed
@@ -25,6 +27,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _campaignTriggersQueue = new Queue(QUEUES.CAMPAIGN_TRIGGERS, { connection })
   _notificationsQueue = new Queue(QUEUES.NOTIFICATIONS, { connection })
   _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
+  _feedbackClusteringQueue = new Queue(QUEUES.FEEDBACK_CLUSTERING, { connection })
 }
 
 // Stub job returned in inline mode
@@ -84,4 +87,18 @@ export async function enqueueSentimentAnalysis(
 ): Promise<Job> {
   if (QUEUE_MODE === 'inline') return INLINE_STUB
   return getSentimentAnalysisQueue().add('analyze', payload)
+}
+
+function getFeedbackClusteringQueue(): Queue {
+  if (!_feedbackClusteringQueue) {
+    throw new Error('Queues have not been initialized. Call initQueues(redis) first.')
+  }
+  return _feedbackClusteringQueue
+}
+
+export async function enqueueFeedbackClustering(
+  payload: FeedbackClusteringPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  return getFeedbackClusteringQueue().add('cluster', payload)
 }

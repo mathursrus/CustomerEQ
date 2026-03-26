@@ -15,6 +15,8 @@ interface SurveyResponse {
   topics: string[]
   channel: string | null
   completedAt: string
+  clusterId: string | null
+  cluster: { label: string } | null
 }
 
 interface Survey {
@@ -283,6 +285,7 @@ export default function SurveyDetailPage() {
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Score</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Sentiment</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Topics</th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Cluster</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Channel</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
               </tr>
@@ -290,7 +293,7 @@ export default function SurveyDetailPage() {
             <tbody className="divide-y divide-gray-100">
               {responses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                  <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
                     No responses yet.
                   </td>
                 </tr>
@@ -317,6 +320,13 @@ export default function SurveyDetailPage() {
                             <span key={i} className="inline-flex rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{t}</span>
                           ))}
                         </div>
+                      ) : '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {r.cluster ? (
+                        <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200">
+                          {r.cluster.label}
+                        </span>
                       ) : '—'}
                     </td>
                     <td className="px-6 py-4 text-gray-700">{r.channel ?? '—'}</td>

@@ -136,6 +136,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@customerEQ/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@customerEQ/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -167,6 +170,22 @@ importers:
       tsx:
         specifier: ^4.9.0
         version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.37)(lightningcss@1.32.0)
+
+  packages/ai:
+    dependencies:
+      '@customerEQ/database':
+        specifier: workspace:*
+        version: link:../database
+      '@customerEQ/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

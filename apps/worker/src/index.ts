@@ -7,6 +7,7 @@ import { processLoyaltyEvent } from './processors/loyaltyEvents.js'
 import { createCampaignTriggerProcessor } from './processors/campaignTriggers.js'
 import { processNotification } from './processors/notifications.js'
 import { createSentimentProcessor } from './processors/sentimentAnalysis.js'
+import { processFeedbackClustering } from './processors/feedbackClustering.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -44,11 +45,17 @@ const sentimentWorker = new Worker(
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const feedbackClusteringWorker = new Worker(
+  QUEUES.FEEDBACK_CLUSTERING,
+  processFeedbackClustering,
+  { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -63,7 +70,7 @@ for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notifications
 
 logger.info(
   {
-    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS],
+    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING],
   },
   'Workers started',
 )
@@ -79,6 +86,7 @@ async function shutdown(signal: string): Promise<void> {
     campaignTriggersWorker.close(),
     notificationsWorker.close(),
     sentimentWorker.close(),
+    feedbackClusteringWorker.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

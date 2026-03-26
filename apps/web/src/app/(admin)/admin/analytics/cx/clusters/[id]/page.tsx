@@ -1,0 +1,337 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
+import { API_URL } from '@/lib/config'
+
+/* ── Types ── */
+
+interface TrendPoint {
+  date: string
+  volume: number
+  isAnomaly?: boolean
+}
+
+interface ClusterDetail {
+  id: string
+  label: string
+  description: string
+  keywords: string[]
+  responseCount: number
+  avgSentiment: number
+  trend: TrendPoint[]
+}
+
+interface ClusterResponse {
+  id: string
+  memberId: string
+  score: number | null
+  sentiment: number | null
+  completedAt: string
+}
+
+/* ── SVG Trend Chart ── */
+
+function TrendChart({ data }: { data: TrendPoint[] }) {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 text-sm text-gray-400">
+        No trend data available
+      </div>
+    )
+  }
+
+  const chartW = 700
+  const chartH = 200
+  const padX = 50
+  const padY = 30
+  const innerW = chartW - padX * 2
+  const innerH = chartH - padY * 2
+
+  const maxVol = Math.max(...data.map((d) => d.volume), 1)
+
+  const points = data.map((d, i) => ({
+    x: padX + (i / Math.max(data.length - 1, 1)) * innerW,
+    y: padY + innerH - (d.volume / maxVol) * innerH,
+    ...d,
+  }))
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+
+  // Show a subset of date labels
+  const labelStep = Math.max(1, Math.floor(data.length / 6))
+
+  return (
+    <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+      {/* Grid lines */}
+      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+        const y = padY + innerH - frac * innerH
+        return (
+          <g key={frac}>
+            <line x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="#e5e7eb" strokeWidth={1} />
+            <text x={padX - 8} y={y + 4} textAnchor="end" className="text-[10px] fill-gray-400">
+              {Math.round(frac * maxVol)}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* Line */}
+      <path d={linePath} fill="none" stroke="#6366f1" strokeWidth={2.5} strokeLinejoin="round" />
+
+      {/* Points */}
+      {points.map((p, i) => (
+        <circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r={p.isAnomaly ? 5 : 3}
+          fill={p.isAnomaly ? '#ef4444' : '#6366f1'}
+          stroke={p.isAnomaly ? '#ef4444' : '#fff'}
+          strokeWidth={p.isAnomaly ? 2 : 1.5}
+        >
+          <title>
+            {p.date}: {p.volume} responses{p.isAnomaly ? ' (anomaly)' : ''}
+          </title>
+        </circle>
+      ))}
+
+      {/* X-axis date labels */}
+      {points.map(
+        (p, i) =>
+          i % labelStep === 0 && (
+            <text
+              key={i}
+              x={p.x}
+              y={chartH - 4}
+              textAnchor="middle"
+              className="text-[9px] fill-gray-400"
+            >
+              {new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </text>
+          )
+      )}
+    </svg>
+  )
+}
+
+/* ── Helpers ── */
+
+function sentimentBadge(val: number | null) {
+  if (val === null) return <span className="text-gray-400">--</span>
+  const label = val > 0.3 ? 'positive' : val < -0.3 ? 'negative' : 'neutral'
+  const color =
+    val > 0.3
+      ? 'bg-green-100 text-green-700'
+      : val < -0.3
+        ? 'bg-red-100 text-red-700'
+        : 'bg-yellow-100 text-yellow-700'
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${color}`}>
+      {label} ({val.toFixed(2)})
+    </span>
+  )
+}
+
+function Spinner() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <div className="h-8 w-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
+    </div>
+  )
+}
+
+/* ── Page ── */
+
+export default function ClusterDetailPage() {
+  const params = useParams()
+  const clusterId = params.id as string
+  const { getToken } = useAuth()
+
+  const [cluster, setCluster] = useState<ClusterDetail | null>(null)
+  const [responses, setResponses] = useState<ClusterResponse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const token = await getToken()
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {}
+
+      const [trendRes, respRes] = await Promise.all([
+        fetch(`${API_URL}/v1/analytics/cx/clusters/${clusterId}/trend`, { headers }),
+        fetch(`${API_URL}/v1/analytics/cx/clusters?clusterId=${clusterId}`, { headers }),
+      ])
+
+      if (!trendRes.ok) throw new Error('Failed to load cluster details')
+      const trendData = await trendRes.json()
+      setCluster(trendData.cluster ?? trendData)
+
+      if (respRes.ok) {
+        const respData = await respRes.json()
+        setResponses(respData.responses ?? respData ?? [])
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load cluster')
+    } finally {
+      setLoading(false)
+    }
+  }, [clusterId, getToken])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  if (loading) return <Spinner />
+
+  if (error || !cluster) {
+    return (
+      <div>
+        <Link
+          href="/admin/analytics/cx"
+          className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-4"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Back to CX Insights
+        </Link>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
+          {error ?? 'Cluster not found'}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Back Link */}
+      <Link
+        href="/admin/analytics/cx"
+        className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-4"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Back to CX Insights
+      </Link>
+
+      {/* Heading */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">{cluster.label}</h1>
+        {cluster.description && (
+          <p className="mt-1 text-sm text-gray-500">{cluster.description}</p>
+        )}
+      </div>
+
+      {/* Keywords */}
+      {cluster.keywords && cluster.keywords.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {cluster.keywords.map((kw, i) => (
+            <span
+              key={i}
+              className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 border border-indigo-200"
+            >
+              {kw}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 mb-8">
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <p className="text-sm font-medium text-gray-500">Responses</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">
+            {cluster.responseCount.toLocaleString()}
+          </p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <p className="text-sm font-medium text-gray-500">Avg Sentiment</p>
+          <p
+            className={`mt-2 text-3xl font-bold ${
+              cluster.avgSentiment > 0.3
+                ? 'text-green-700'
+                : cluster.avgSentiment < -0.3
+                  ? 'text-red-700'
+                  : 'text-yellow-700'
+            }`}
+          >
+            {cluster.avgSentiment.toFixed(2)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <p className="text-sm font-medium text-gray-500">Keywords</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">{cluster.keywords?.length ?? 0}</p>
+        </div>
+      </div>
+
+      {/* Trend Chart */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-8">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">Daily Volume Trend</h2>
+        <TrendChart data={cluster.trend ?? []} />
+        <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
+          <span className="flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> Normal
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Anomaly
+          </span>
+        </div>
+      </div>
+
+      {/* Responses Table */}
+      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-900">Responses in Cluster</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table data-testid="cluster-responses-table" className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Member ID
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Score
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Sentiment
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Date
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {responses.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-gray-400">
+                    No responses in this cluster.
+                  </td>
+                </tr>
+              ) : (
+                responses.map((r) => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-mono text-xs text-gray-700">{r.memberId}</td>
+                    <td className="px-6 py-4 text-gray-700">{r.score ?? '--'}</td>
+                    <td className="px-6 py-4">{sentimentBadge(r.sentiment)}</td>
+                    <td className="px-6 py-4 text-gray-500">
+                      {new Date(r.completedAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}

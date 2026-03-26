@@ -20,6 +20,7 @@ export { createMockRedis } from './mocks/redis.mock.js'
 export { salesforceNpsPayload, hubspotTicketPayload, invalidSignatureHeaders } from './mocks/integrations.mock.js'
 export { mockEmailSend, assertEmailSent, clearEmailMock, getSentEmails } from './mocks/email.mock.js'
 export { mockSentimentAnalyze, mockNegativeSentiment, mockPositiveSentiment, clearSentimentMock } from './mocks/sentiment.mock.js'
+export { mockAnalyzeResponse, mockDiscoverClusters, mockDetectAnomalies, mockNegativeAnalysis, mockNewClusterAnalysis, clearAiMock } from './mocks/ai.mock.js'
 
 // Helpers
 export { authenticatedRequest, unauthenticatedRequest, setTestApp, getTestApp } from './helpers/api.helper.js'

@@ -3,6 +3,7 @@ export const QUEUES = {
   CAMPAIGN_TRIGGERS: 'campaign-triggers',
   NOTIFICATIONS: 'notifications',
   SENTIMENT_ANALYSIS: 'sentiment-analysis',
+  FEEDBACK_CLUSTERING: 'feedback-clustering',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

@@ -1,0 +1,22 @@
+{
+  "name": "@customerEQ/ai",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --reporter=verbose",
+    "generate": "cd ../../ && npx @boundaryml/baml generate"
+  },
+  "dependencies": {
+    "@customerEQ/database": "workspace:*",
+    "@customerEQ/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
+import { computeTrend } from '@customerEQ/ai'
+import { enqueueFeedbackClustering } from '../queues/bullmq.js'
 
 interface AnalyticsTotals {
   totalMembers: number
@@ -251,6 +253,69 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       select: { id: true, name: true, type: true, responsesCount: true },
     })
 
+    // Fetch active clusters with trend data
+    const activeClusters = await fastify.prisma.feedbackCluster.findMany({
+      where: { brandId, isActive: true },
+    })
+
+    const midpoint = new Date((startDate.getTime() + endDate.getTime()) / 2)
+
+    const clusters = await Promise.all(
+      activeClusters.map(async (cluster) => {
+        const [previousSnapshots, recentSnapshots] = await Promise.all([
+          fastify.prisma.clusterSnapshot.findMany({
+            where: {
+              clusterId: cluster.id,
+              brandId,
+              bucketDate: { gte: startDate, lt: midpoint },
+            },
+          }),
+          fastify.prisma.clusterSnapshot.findMany({
+            where: {
+              clusterId: cluster.id,
+              brandId,
+              bucketDate: { gte: midpoint, lte: endDate },
+            },
+          }),
+        ])
+
+        const trend = computeTrend(
+          recentSnapshots.map((s) => s.volume),
+          previousSnapshots.map((s) => s.volume),
+        )
+
+        return {
+          id: cluster.id,
+          label: cluster.label,
+          description: cluster.description,
+          responseCount: cluster.responseCount,
+          avgSentiment: cluster.avgSentiment,
+          trending: trend.direction,
+          changePercent: trend.changePercent,
+        }
+      }),
+    )
+
+    // Fetch anomalies in date range
+    const anomalies = await fastify.prisma.feedbackAnomaly.findMany({
+      where: {
+        brandId,
+        detectedAt: { gte: startDate, lte: endDate },
+      },
+      orderBy: { detectedAt: 'desc' },
+    })
+
+    const anomalyClusterIds = anomalies
+      .filter((a) => a.clusterId !== null)
+      .map((a) => a.clusterId as string)
+    const anomalyClusters = anomalyClusterIds.length > 0
+      ? await fastify.prisma.feedbackCluster.findMany({
+          where: { id: { in: anomalyClusterIds } },
+          select: { id: true, label: true },
+        })
+      : []
+    const anomalyClusterMap = new Map(anomalyClusters.map((c) => [c.id, c.label]))
+
     return reply.status(200).send({
       totalResponses: responses.length,
       nps: {
@@ -275,7 +340,191 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       },
       topTopics,
       surveys,
+      clusters,
+      anomalies: anomalies.map((a) => ({
+        id: a.id,
+        type: a.type,
+        severity: a.severity,
+        summary: a.summary,
+        clusterLabel: a.clusterId ? anomalyClusterMap.get(a.clusterId) ?? null : null,
+        detectedAt: a.detectedAt.toISOString(),
+      })),
       dateRange: { startDate: startDateStr, endDate: endDateStr },
+    })
+  })
+
+  // GET /v1/analytics/cx/clusters?startDate=...&endDate=... — all active clusters with trend data
+  fastify.get('/analytics/cx/clusters', async (request, reply) => {
+    const brandId = request.brandId
+    const query = request.query as Record<string, string | undefined>
+
+    const now = new Date()
+    const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const startDate = query.startDate ? new Date(query.startDate) : defaultStart
+    const endDate = query.endDate ? new Date(query.endDate) : now
+
+    const clusters = await fastify.prisma.feedbackCluster.findMany({
+      where: { brandId, isActive: true },
+    })
+
+    const midpoint = new Date((startDate.getTime() + endDate.getTime()) / 2)
+
+    const result = await Promise.all(
+      clusters.map(async (cluster) => {
+        const [previousSnapshots, recentSnapshots, allSnapshots] = await Promise.all([
+          fastify.prisma.clusterSnapshot.findMany({
+            where: {
+              clusterId: cluster.id,
+              brandId,
+              bucketDate: { gte: startDate, lt: midpoint },
+            },
+          }),
+          fastify.prisma.clusterSnapshot.findMany({
+            where: {
+              clusterId: cluster.id,
+              brandId,
+              bucketDate: { gte: midpoint, lte: endDate },
+            },
+          }),
+          fastify.prisma.clusterSnapshot.findMany({
+            where: {
+              clusterId: cluster.id,
+              brandId,
+              bucketDate: { gte: startDate, lte: endDate },
+            },
+            orderBy: { bucketDate: 'asc' },
+          }),
+        ])
+
+        const trend = computeTrend(
+          recentSnapshots.map((s) => s.volume),
+          previousSnapshots.map((s) => s.volume),
+        )
+
+        return {
+          id: cluster.id,
+          label: cluster.label,
+          description: cluster.description,
+          keywords: cluster.keywords,
+          responseCount: cluster.responseCount,
+          avgSentiment: cluster.avgSentiment,
+          trending: trend.direction,
+          changePercent: trend.changePercent,
+          snapshots: allSnapshots.map((s) => ({
+            date: s.bucketDate.toISOString(),
+            volume: s.volume,
+            avgSentiment: s.avgSentiment,
+            isAnomaly: s.isAnomaly,
+          })),
+        }
+      }),
+    )
+
+    return reply.status(200).send(result)
+  })
+
+  // GET /v1/analytics/cx/clusters/:id/trend — time-series data for a specific cluster
+  fastify.get('/analytics/cx/clusters/:id/trend', async (request, reply) => {
+    const brandId = request.brandId
+    const { id: clusterId } = request.params as { id: string }
+    const query = request.query as Record<string, string | undefined>
+
+    const now = new Date()
+    const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const startDate = query.startDate ? new Date(query.startDate) : defaultStart
+    const endDate = query.endDate ? new Date(query.endDate) : now
+
+    const cluster = await fastify.prisma.feedbackCluster.findFirst({
+      where: { id: clusterId, brandId },
+    })
+
+    if (!cluster) {
+      return reply.status(404).send({ error: 'Cluster not found' })
+    }
+
+    const snapshots = await fastify.prisma.clusterSnapshot.findMany({
+      where: {
+        clusterId,
+        brandId,
+        bucketDate: { gte: startDate, lte: endDate },
+      },
+      orderBy: { bucketDate: 'asc' },
+    })
+
+    return reply.status(200).send({
+      clusterId: cluster.id,
+      label: cluster.label,
+      trend: snapshots.map((s) => ({
+        date: s.bucketDate.toISOString(),
+        volume: s.volume,
+        avgSentiment: s.avgSentiment,
+        isAnomaly: s.isAnomaly,
+      })),
+    })
+  })
+
+  // GET /v1/analytics/cx/anomalies?startDate=...&endDate=...&severity=... — active anomalies
+  fastify.get('/analytics/cx/anomalies', async (request, reply) => {
+    const brandId = request.brandId
+    const query = request.query as Record<string, string | undefined>
+
+    const now = new Date()
+    const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const startDate = query.startDate ? new Date(query.startDate) : defaultStart
+    const endDate = query.endDate ? new Date(query.endDate) : now
+    const severity = query.severity
+
+    const where: Record<string, unknown> = {
+      brandId,
+      detectedAt: { gte: startDate, lte: endDate },
+    }
+    if (severity) {
+      where.severity = severity
+    }
+
+    const anomalies = await fastify.prisma.feedbackAnomaly.findMany({
+      where,
+      orderBy: { detectedAt: 'desc' },
+    })
+
+    // Resolve cluster labels
+    const clusterIds = anomalies
+      .filter((a) => a.clusterId !== null)
+      .map((a) => a.clusterId as string)
+    const clusters = clusterIds.length > 0
+      ? await fastify.prisma.feedbackCluster.findMany({
+          where: { id: { in: clusterIds } },
+          select: { id: true, label: true },
+        })
+      : []
+    const clusterMap = new Map(clusters.map((c) => [c.id, c.label]))
+
+    return reply.status(200).send(
+      anomalies.map((a) => ({
+        id: a.id,
+        type: a.type,
+        severity: a.severity,
+        summary: a.summary,
+        clusterLabel: a.clusterId ? clusterMap.get(a.clusterId) ?? null : null,
+        detectedAt: a.detectedAt.toISOString(),
+        resolvedAt: a.resolvedAt?.toISOString() ?? null,
+        metadata: a.metadata,
+      })),
+    )
+  })
+
+  // POST /v1/analytics/cx/clustering/trigger — enqueue a feedback clustering job
+  fastify.post('/analytics/cx/clustering/trigger', async (request, reply) => {
+    const brandId = request.brandId
+
+    const job = await enqueueFeedbackClustering({
+      brandId,
+      triggeredBy: (request as unknown as { userId?: string }).userId ?? 'system',
+    })
+
+    return reply.status(202).send({
+      message: 'Clustering job queued',
+      jobId: job.id,
     })
   })
 
