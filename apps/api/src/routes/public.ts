@@ -93,6 +93,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           questions: true,
           incentivePoints: true,
           brand: { select: { name: true } },
+          theme: true,
         },
       })
 

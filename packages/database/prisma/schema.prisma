@@ -61,13 +61,15 @@ enum SurveyStatus {
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
-  id         String    @id @default(cuid())
-  clerkOrgId String    @unique // Clerk organization ID → brandId mapping
-  name       String
-  programs   Program[]
-  members    Member[]
-  surveys    Survey[]
-  createdAt  DateTime  @default(now())
+  id                String              @id @default(cuid())
+  clerkOrgId        String              @unique // Clerk organization ID → brandId mapping
+  name              String
+  programs          Program[]
+  members           Member[]
+  surveys           Survey[]
+  surveyThemes      SurveyTheme[]
+  questionTemplates QuestionTemplate[]
+  createdAt         DateTime            @default(now())
 
   @@map("brands")
 }
@@ -245,6 +247,8 @@ model Survey {
   status          SurveyStatus     @default(DRAFT)
   responsesCount  Int              @default(0)
   incentivePoints Int?             // Points awarded for completing the survey
+  themeId         String?
+  theme           SurveyTheme?     @relation(fields: [themeId], references: [id])
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -252,6 +256,60 @@ model Survey {
 
   @@index([brandId, status])
   @@map("surveys")
+}
+
+model SurveyTheme {
+  id                  String   @id @default(cuid())
+  brandId             String
+  brand               Brand    @relation(fields: [brandId], references: [id])
+  name                String
+  isDefault           Boolean  @default(false)
+
+  logoUrl             String?
+  brandName           String?
+
+  primaryColor        String   @default("#6366f1")
+  secondaryColor      String   @default("#818cf8")
+  backgroundColor     String   @default("#ffffff")
+  textColor           String   @default("#111827")
+  buttonColor         String   @default("#6366f1")
+  buttonTextColor     String   @default("#ffffff")
+  accentColor         String   @default("#6366f1")
+
+  fontFamily          String   @default("system-ui")
+  headingSize         String   @default("md")
+  bodySize            String   @default("md")
+
+  backgroundImageUrl  String?
+  cardStyle           String   @default("shadow")
+  borderRadius        String   @default("md")
+  maxWidth            String   @default("md")
+
+  thankYouMessage     String   @default("Thank you for your feedback!")
+  thankYouRedirectUrl String?
+  showIncentivePoints Boolean  @default(true)
+
+  surveys             Survey[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([brandId])
+  @@map("survey_themes")
+}
+
+model QuestionTemplate {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  name      String
+  question  Json     // Full SurveyQuestion object
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brandId])
+  @@map("question_templates")
 }
 
 model SurveyResponse {
