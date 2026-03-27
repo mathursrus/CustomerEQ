@@ -115,6 +115,9 @@ importers:
       '@clerk/nextjs':
         specifier: ^5.1.0
         version: 5.7.5(next@15.5.14(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@customerEQ/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@customerEQ/ui':
         specifier: workspace:*
         version: link:../../packages/ui

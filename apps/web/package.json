@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^5.1.0",
+    "@customerEQ/shared": "workspace:*",
     "@customerEQ/ui": "workspace:*",
     "next": "^15.0.0",
     "react": "^18.3.0",
