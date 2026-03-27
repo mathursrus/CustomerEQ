@@ -5,7 +5,8 @@
  * They require OPENAI_API_KEY to be set (GPT-4o-mini is the default client).
  *
  * Run with: pnpm test:baml (from root or packages/ai)
- * Excluded from: pnpm test, pnpm test:smoke (no API keys needed for those)
+ * Excluded from: pnpm test, pnpm test:smoke
+ * NEVER SKIP: Fails hard if OPENAI_API_KEY or ANTHROPIC_API_KEY is missing.
  *
  * Following the Ashley-Calendar-AI pattern:
  *   import { b } from '../generated/baml_client'
@@ -17,9 +18,11 @@
 import { describe, it, expect } from 'vitest'
 import { b } from '../generated/baml_client/index.js'
 
-const hasApiKey = !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)
+if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  throw new Error('BAML eval tests require OPENAI_API_KEY or ANTHROPIC_API_KEY to be set. These tests call real LLMs — never skip, always fail if misconfigured.')
+}
 
-describe.skipIf(!hasApiKey)('[baml] AnalyzeFeedback — real LLM', () => {
+describe('[baml] AnalyzeFeedback — real LLM', () => {
   it('returns positive sentiment for enthusiastic NPS feedback', async () => {
     const result = await b.AnalyzeFeedback(
       'Absolutely love the product! The shipping was fast and the customer support team was incredibly helpful when I had a question.',
@@ -87,7 +90,7 @@ describe.skipIf(!hasApiKey)('[baml] AnalyzeFeedback — real LLM', () => {
   }, 30_000)
 })
 
-describe.skipIf(!hasApiKey)('[baml] DiscoverClusters — real LLM', () => {
+describe('[baml] DiscoverClusters — real LLM', () => {
   it('discovers themes from unassigned feedback', async () => {
     const result = await b.DiscoverClusters(
       [
@@ -109,7 +112,7 @@ describe.skipIf(!hasApiKey)('[baml] DiscoverClusters — real LLM', () => {
   }, 60_000)
 })
 
-describe.skipIf(!hasApiKey)('[baml] DetectAnomalies — real LLM', () => {
+describe('[baml] DetectAnomalies — real LLM', () => {
   it('detects volume spike in trend data', async () => {
     const result = await b.DetectAnomalies(
       [
