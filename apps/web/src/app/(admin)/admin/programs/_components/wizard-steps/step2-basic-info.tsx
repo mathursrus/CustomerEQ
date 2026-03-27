@@ -167,7 +167,7 @@ export function Step2BasicInfo({
       </div>
 
       {/* Bottom nav */}
-      <div className="mt-6 flex items-center justify-between">
+      <div className="sticky bottom-0 bg-gray-50 mt-6 pt-4 pb-2 border-t border-slate-200 flex items-center justify-between">
         <button
           type="button"
           onClick={onBack}

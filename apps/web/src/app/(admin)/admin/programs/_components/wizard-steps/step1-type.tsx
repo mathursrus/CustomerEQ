@@ -81,7 +81,7 @@ export function Step1Type({ state, dispatch, onNext, isViewOnly }: StepProps) {
       </div>
 
       {/* Bottom nav */}
-      <div className="mt-6 flex items-center justify-between">
+      <div className="sticky bottom-0 bg-gray-50 mt-6 pt-4 pb-2 border-t border-slate-200 flex items-center justify-between">
         <Link
           href="/admin/programs"
           className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-slate-50 transition-colors"
