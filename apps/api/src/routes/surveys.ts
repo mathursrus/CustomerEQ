@@ -7,7 +7,7 @@ import {
   SubmitSurveyResponseSchema,
   NPS,
 } from '@customerEQ/shared'
-import { enqueueEvent, enqueueSentimentAnalysis } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
 const surveysRoutes: FastifyPluginAsync = async (fastify) => {
@@ -321,6 +321,20 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.log.error({ err, surveyId, memberId, score }, 'Failed to enqueue promoter event')
       })
     }
+
+    // ── Integration Point 5: Alert evaluation for closed-loop ──
+    enqueueAlertEvaluation({
+      surveyResponseId: response.id,
+      brandId,
+      memberId,
+      surveyId,
+      surveyType: survey.type,
+      score: score ?? null,
+      sentiment: null, // sentiment not yet available; will be re-evaluated after analysis
+      topics: [],
+    }).catch((err: unknown) => {
+      fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue alert evaluation')
+    })
 
     return reply.status(201).send({
       responseId: response.id,

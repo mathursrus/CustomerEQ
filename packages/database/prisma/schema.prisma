@@ -88,6 +88,8 @@ model Brand {
   surveys           Survey[]
   surveyThemes      SurveyTheme[]
   questionTemplates QuestionTemplate[]
+  alertRules        AlertRule[]
+  caseFollowUps     CaseFollowUp[]
   createdAt         DateTime            @default(now())
 
   @@map("brands")
@@ -464,6 +466,76 @@ model FeedbackAnomaly {
 
   @@index([brandId, detectedAt])
   @@map("feedback_anomalies")
+}
+
+model AlertRule {
+  id                 String   @id @default(cuid())
+  brandId            String
+  brand              Brand    @relation(fields: [brandId], references: [id])
+  name               String
+  status             String   @default("ACTIVE") // ACTIVE, PAUSED
+
+  // Trigger conditions
+  surveyTypes        String[] // ['NPS', 'CSAT'] or empty = all
+  scoreMin           Float?
+  scoreMax           Float?
+  sentimentThreshold Float?   // alert if sentiment below this
+  topicFilters       String[] // ['shipping', 'billing'] or empty = all
+
+  // Alert channels
+  slackWebhookUrl    String?
+  slackChannelName   String?
+  emailRecipients    String[]
+  teamsWebhookUrl    String?
+
+  // Assignment
+  defaultAssignee    String
+  assignmentRules    Json     @default("[]") // [{ topic, assignee }]
+
+  // SLA
+  slaHours           Float?
+
+  cases              CaseFollowUp[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([brandId, status])
+  @@map("alert_rules")
+}
+
+model CaseFollowUp {
+  id               String    @id @default(cuid())
+  brandId          String
+  brand            Brand     @relation(fields: [brandId], references: [id])
+  alertRuleId      String
+  alertRule        AlertRule @relation(fields: [alertRuleId], references: [id])
+  surveyResponseId String
+  memberId         String
+
+  status           String    @default("OPEN") // OPEN, CONTACTED, RESOLVED, CLOSED
+  assignee         String
+  priority         String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+
+  // SLA
+  slaDeadline      DateTime?
+  slaBreachedAt    DateTime?
+
+  // External references
+  slackMessageTs   String?
+
+  // Notes / timeline
+  notes            Json      @default("[]") // [{ text, author, timestamp, statusChange? }]
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  contactedAt      DateTime?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+
+  @@index([brandId, status])
+  @@index([alertRuleId])
+  @@map("case_follow_ups")
 }
 
 model DemoRequest {
