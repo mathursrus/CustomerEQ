@@ -16,24 +16,24 @@ class FeedbackAnalysis {
 }
 
 function AnalyzeFeedback(
-  feedback_text string,
-  survey_type string @description("One of: NPS, CSAT, CES, CUSTOM"),
-  numeric_score int? @description("The numeric score given (e.g. NPS 0-10, CSAT 1-5)"),
-  existing_clusters ExistingCluster[] @description("Currently known feedback clusters for this brand")
+  feedback_text: string,
+  survey_type: string @description("One of: NPS, CSAT, CES, CUSTOM"),
+  numeric_score: int? @description("The numeric score given (e.g. NPS 0-10, CSAT 1-5)"),
+  existing_clusters: ExistingCluster[] @description("Currently known feedback clusters for this brand")
 ) -> FeedbackAnalysis {
   client GPT4oMini
   prompt #"
     You are a customer experience analyst. Analyze this survey response and extract structured insights.
 
     Survey type: {{ survey_type }}
-    {{ if numeric_score }}Numeric score: {{ numeric_score }}{{ endif }}
+    {% if numeric_score %}Numeric score: {{ numeric_score }}{% endif %}
 
     Customer feedback:
     ---
     {{ feedback_text }}
     ---
 
-    {{ if existing_clusters }}
+    {% if existing_clusters %}
     Known feedback clusters for this brand:
     {{ ctx.output_format }}
 
@@ -45,7 +45,7 @@ function AnalyzeFeedback(
     If it doesn't fit any existing cluster well, set assigned_cluster_label to null and suggest a new cluster label.
     {{ else }}
     There are no existing clusters yet. Suggest a cluster label for this feedback.
-    {{ endif }}
+    {% endif %}
 
     Be nuanced about sentiment - understand sarcasm, backhanded compliments, and context.
     Extract specific topics mentioned, not generic categories.
@@ -54,54 +54,4 @@ function AnalyzeFeedback(
   "#
 }
 
-// ─── BAML Tests (input-only, run via `npx baml-cli test`) ────────────────────
-// Assertions are in packages/ai/src/evals/analyze-feedback.eval.ts
-
-test AnalyzePositiveNPS {
-  functions [AnalyzeFeedback]
-  args {
-    feedback_text "Absolutely love the product! The shipping was fast and the customer support team was incredibly helpful when I had a question."
-    survey_type "NPS"
-    numeric_score 9
-    existing_clusters [
-      { label "Shipping Experience" description "Feedback about delivery speed and packaging" }
-      { label "Customer Support" description "Feedback about support team interactions" }
-    ]
-  }
-}
-
-test AnalyzeNegativeCSAT {
-  functions [AnalyzeFeedback]
-  args {
-    feedback_text "Waited 3 weeks for my order and when it arrived the box was damaged. Called support twice and got disconnected both times. Terrible experience."
-    survey_type "CSAT"
-    numeric_score 1
-    existing_clusters [
-      { label "Shipping Delays" description "Complaints about long delivery times" }
-      { label "Customer Support" description "Feedback about support team interactions" }
-    ]
-  }
-}
-
-test AnalyzeSarcasticFeedback {
-  functions [AnalyzeFeedback]
-  args {
-    feedback_text "Oh sure, I just love waiting 45 minutes on hold. Really makes my day. At least the hold music was nice, I guess."
-    survey_type "CES"
-    numeric_score 2
-    existing_clusters []
-  }
-}
-
-test AnalyzeNeutralWithNewTheme {
-  functions [AnalyzeFeedback]
-  args {
-    feedback_text "The checkout process could use some work. Had to re-enter my address twice because the form cleared when I switched tabs."
-    survey_type "NPS"
-    numeric_score 6
-    existing_clusters [
-      { label "Shipping Delays" description "Complaints about long delivery times" }
-      { label "Product Quality" description "Feedback about product defects or quality" }
-    ]
-  }
-}
+// Tests: see packages/ai/src/evals/analyze-feedback.eval.ts
