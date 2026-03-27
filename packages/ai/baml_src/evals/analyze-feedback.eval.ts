@@ -16,7 +16,7 @@
 
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { b } from '../generated/baml_client/index.js'
+import { b } from '../../src/generated/baml_client/index.js'
 
 if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
   throw new Error('BAML eval tests require OPENAI_API_KEY or ANTHROPIC_API_KEY to be set. These tests call real LLMs — never skip, always fail if misconfigured.')
