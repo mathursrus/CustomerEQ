@@ -4,14 +4,125 @@ import type { Prisma } from '@prisma/client'
 import type { LoyaltyEventPayload } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
-// Pure helper — exported for unit testing
+// Types
 // ---------------------------------------------------------------------------
+
+export type ConditionGroup = {
+  operator: 'AND' | 'OR'
+  conditions: Array<{ field: string; op: string; value: unknown }>
+}
+
+// ---------------------------------------------------------------------------
+// Pure helpers — exported for unit testing
+// ---------------------------------------------------------------------------
+
+/**
+ * Evaluates a condition group (AND/OR logic) against a payload.
+ * Returns true when conditions is null or empty (no restrictions).
+ */
+export function evaluateConditions(
+  conditions: ConditionGroup | null,
+  payload: Record<string, unknown>,
+): boolean {
+  if (conditions === null) return true
+  if (conditions.conditions.length === 0) return true
+
+  const results = conditions.conditions.map((cond) => {
+    const actual = payload[cond.field]
+    if (actual === undefined) return false
+
+    switch (cond.op) {
+      case 'eq':  return actual === cond.value
+      case 'ne':  return actual !== cond.value
+      case 'gt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual > cond.value
+      case 'gte': return typeof actual === 'number' && typeof cond.value === 'number' && actual >= cond.value
+      case 'lt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual < cond.value
+      case 'lte': return typeof actual === 'number' && typeof cond.value === 'number' && actual <= cond.value
+      default:    return false
+    }
+  })
+
+  return conditions.operator === 'AND' ? results.every(Boolean) : results.some(Boolean)
+}
 
 /**
  * Evaluates all earning rules against a given event and member usage state.
  *
  * Returns an array of { ruleId, points } for each rule that fires so callers
  * can record `rulesApplied` and compute the total in one pass.
+ *
+ * Rules are evaluated in priority order (ascending). Non-stackable rules block
+ * subsequent non-stackable rules once the first match is found. Stackable rules
+ * always apply regardless of other matches.
+ */
+export function evaluateRulesWithIds(
+  eventType: string,
+  payload: Record<string, unknown>,
+  rules: Array<{
+    id: string
+    triggerEvent: string
+    pointsAwarded: number
+    multiplier: number
+    maxUsesPerMember: number | null
+    status: 'ACTIVE' | 'INACTIVE'
+    priority: number
+    stackable: boolean
+    conditions: ConditionGroup | null
+    budgetCapPoints: number | null
+    budgetUsedPoints: number
+  }>,
+  memberRuleUsage: Record<string, number>,
+  programBudget: {
+    budgetUsdCents: number
+    budgetSpentCents: number
+    pointToCurrencyRatio: number
+  } | null,
+): { ruleId: string; points: number }[] {
+  // Check program-level budget cap before evaluating any rules
+  if (programBudget !== null) {
+    if (programBudget.budgetSpentCents >= programBudget.budgetUsdCents) {
+      return []
+    }
+  }
+
+  // Sort rules by priority ascending (lower number = evaluated first)
+  const sorted = [...rules].sort((a, b) => a.priority - b.priority)
+
+  const results: { ruleId: string; points: number }[] = []
+  let firstMatchSeen = false
+
+  for (const rule of sorted) {
+    if (rule.status !== 'ACTIVE') continue
+    if (rule.triggerEvent !== eventType) continue
+
+    // Skip rules beyond the first non-stackable match
+    if (firstMatchSeen && !rule.stackable) continue
+
+    // Per-rule budget cap check
+    if (rule.budgetCapPoints !== null && rule.budgetUsedPoints >= rule.budgetCapPoints) continue
+
+    // maxUsesPerMember check
+    const usageCount = memberRuleUsage[rule.id] ?? 0
+    if (rule.maxUsesPerMember !== null && usageCount >= rule.maxUsesPerMember) continue
+
+    // Condition evaluation
+    if (!evaluateConditions(rule.conditions as ConditionGroup | null, payload)) continue
+
+    const points = Math.round(rule.pointsAwarded * rule.multiplier)
+    results.push({ ruleId: rule.id, points })
+
+    if (!rule.stackable) {
+      firstMatchSeen = true
+    }
+  }
+
+  return results
+}
+
+/**
+ * Legacy all-fire rule evaluator. All matching ACTIVE rules fire and points are
+ * summed. Kept for backward compatibility with existing tests and callers.
+ * New code should use evaluateRulesWithIds for priority + stackable semantics.
  */
 export function evaluateRules(
   eventType: string,
@@ -24,7 +135,7 @@ export function evaluateRules(
     maxUsesPerMember: number | null
     status: 'ACTIVE' | 'INACTIVE'
   }>,
-  memberRuleUsage: Record<string, number>, // ruleId → times used
+  memberRuleUsage: Record<string, number>,
 ): number {
   let total = 0
 
@@ -39,38 +150,6 @@ export function evaluateRules(
   }
 
   return total
-}
-
-// ---------------------------------------------------------------------------
-// Internal variant that also returns per-rule ids for rulesApplied tracking
-// ---------------------------------------------------------------------------
-
-function evaluateRulesWithIds(
-  eventType: string,
-  payload: Record<string, unknown>,
-  rules: Array<{
-    id: string
-    triggerEvent: string
-    pointsAwarded: number
-    multiplier: number
-    maxUsesPerMember: number | null
-    status: 'ACTIVE' | 'INACTIVE'
-  }>,
-  memberRuleUsage: Record<string, number>,
-): { ruleId: string; points: number }[] {
-  const results: { ruleId: string; points: number }[] = []
-
-  for (const rule of rules) {
-    if (rule.status !== 'ACTIVE') continue
-    if (rule.triggerEvent !== eventType) continue
-
-    const usageCount = memberRuleUsage[rule.id] ?? 0
-    if (rule.maxUsesPerMember !== null && usageCount >= rule.maxUsesPerMember) continue
-
-    results.push({ ruleId: rule.id, points: Math.round(rule.pointsAwarded * rule.multiplier) })
-  }
-
-  return results
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +189,19 @@ export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promis
       multiplier: true,
       maxUsesPerMember: true,
       status: true,
+      priority: true,
+      stackable: true,
+      conditions: true,
+      budgetCapPoints: true,
+      budgetUsedPoints: true,
+      program: {
+        select: {
+          id: true,
+          budgetUsdCents: true,
+          budgetSpentCents: true,
+          pointToCurrencyRatio: true,
+        },
+      },
     },
   })
 
@@ -130,7 +222,18 @@ export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promis
     }
   }
 
-  const firedRules = evaluateRulesWithIds(eventType, payload, earningRules, memberRuleUsage)
+  // Program-level budget cap enforced per-program in Issue #4; using null here
+  // to process across all active programs. Per-rule budgetCapPoints IS enforced.
+  const firedRules = evaluateRulesWithIds(
+    eventType,
+    payload,
+    earningRules.map((r) => ({
+      ...r,
+      conditions: r.conditions as ConditionGroup | null,
+    })),
+    memberRuleUsage,
+    null,
+  )
   const totalPoints = firedRules.reduce((sum, r) => sum + r.points, 0)
   const rulesApplied = firedRules.map((r) => r.ruleId)
 

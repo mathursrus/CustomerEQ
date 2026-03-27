@@ -5,11 +5,21 @@ import { CreateCampaignSchema, UpdateCampaignStatusSchema } from '@customerEQ/sh
 const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /v1/campaigns
   fastify.get('/campaigns', async (request, reply) => {
-    const campaigns = await fastify.prisma.campaign.findMany({
-      where: { brandId: request.brandId },
-      orderBy: { createdAt: 'desc' },
-    })
-    return reply.status(200).send({ campaigns })
+    const page = 1
+    const pageSize = 25
+    const where = { brandId: request.brandId }
+
+    const [total, data] = await Promise.all([
+      fastify.prisma.campaign.count({ where }),
+      fastify.prisma.campaign.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ])
+
+    return reply.status(200).send({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   })
 
   // POST /v1/campaigns

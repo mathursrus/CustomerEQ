@@ -48,13 +48,22 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /v1/surveys — list surveys for the brand
   fastify.get('/surveys', async (request, reply) => {
-    const surveys = await fastify.prisma.survey.findMany({
-      where: { brandId: request.brandId },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { responses: true } } },
-    })
+    const page = 1
+    const pageSize = 25
+    const where = { brandId: request.brandId }
 
-    return reply.status(200).send(surveys)
+    const [total, data] = await Promise.all([
+      fastify.prisma.survey.count({ where }),
+      fastify.prisma.survey.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { _count: { select: { responses: true } } },
+      }),
+    ])
+
+    return reply.status(200).send({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   })
 
   // GET /v1/surveys/:id — get survey with response stats
@@ -225,7 +234,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         idempotencyKey: `survey:${surveyId}:${memberId}`,
         ingestedAt,
       })
-      jobId = job.id
+      jobId = job.id ?? null
     } catch (err: unknown) {
       fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue CX event (response saved)')
     }

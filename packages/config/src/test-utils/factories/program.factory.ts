@@ -6,6 +6,7 @@ export async function createProgram(opts: {
   brandId: string
   name?: string
   status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
+  type?: 'POINTS' | 'TIERED' | 'CASHBACK' | 'HYBRID'
   pointCurrencyName?: string
   pointToCurrencyRatio?: number
 }) {
@@ -15,6 +16,7 @@ export async function createProgram(opts: {
     data: {
       brandId: opts.brandId,
       name: opts.name ?? `Test Program ${counter}`,
+      type: opts.type ?? 'POINTS',
       pointCurrencyName: opts.pointCurrencyName ?? 'Points',
       pointToCurrencyRatio: opts.pointToCurrencyRatio ?? 0.01,
       status: opts.status ?? 'ACTIVE',
@@ -46,4 +48,32 @@ export async function createProgramWithRules(opts: {
     )
   )
   return { program, earningRules }
+}
+
+export async function createTier(opts: {
+  brandId: string
+  programId: string
+  name?: string
+  rank?: number
+  icon?: string
+  minPoints?: number
+  minSpendCents?: number
+  benefits?: string[]
+  multiplier?: number
+}) {
+  const prisma = getTestPrisma()
+  counter++
+  return prisma.tier.create({
+    data: {
+      brandId: opts.brandId,
+      programId: opts.programId,
+      name: opts.name ?? `Tier ${counter}`,
+      rank: opts.rank ?? counter,
+      icon: opts.icon ?? undefined,
+      minPoints: opts.minPoints ?? undefined,
+      minSpendCents: opts.minSpendCents ?? undefined,
+      benefits: opts.benefits ?? [],
+      multiplier: opts.multiplier ?? 1.0,
+    },
+  })
 }
