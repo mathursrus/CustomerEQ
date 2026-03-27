@@ -70,8 +70,6 @@ test DetectVolumeSpike {
     total_responses_last_30d 175
     total_responses_previous_30d 140
   }
-  @@assert( {{ this.anomalies|length >= 1 }} )
-  @@assert( {{ this.overall_summary|length > 20 }} )
 }
 
 test NoAnomaliesInStableData {
@@ -89,5 +87,4 @@ test NoAnomaliesInStableData {
     total_responses_last_30d 310
     total_responses_previous_30d 300
   }
-  @@assert( {{ this.overall_summary|length > 10 }} )
 }

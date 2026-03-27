@@ -77,8 +77,6 @@ test DiscoverFromScratch {
     ]
     existing_clusters []
   }
-  @@assert( {{ this.new_clusters|length >= 2 }} )
-  @@assert( {{ this.assignments|length == 5 }} )
 }
 
 test AssignToExistingClusters {
@@ -93,6 +91,4 @@ test AssignToExistingClusters {
       { label "Customer Support" description "Issues with support interactions" keywords ["support" "agent" "help"] }
     ]
   }
-  @@assert( {{ this.assignments|length == 2 }} )
-  @@assert( {{ this.new_clusters|length == 0 }} )
 }

@@ -54,7 +54,8 @@ function AnalyzeFeedback(
   "#
 }
 
-// ─── BAML Tests with Assertions ─────────────────────────────────────────────
+// ─── BAML Tests (input-only, run via `npx baml-cli test`) ────────────────────
+// Assertions are in packages/ai/src/evals/analyze-feedback.eval.ts
 
 test AnalyzePositiveNPS {
   functions [AnalyzeFeedback]
@@ -67,10 +68,6 @@ test AnalyzePositiveNPS {
       { label "Customer Support" description "Feedback about support team interactions" }
     ]
   }
-  @@assert( {{ this.sentiment > 0.3 }} )
-  @@assert( {{ this.confidence > 0.5 }} )
-  @@assert( {{ this.topics|length > 0 }} )
-  @@assert( {{ this.summary|length > 10 }} )
 }
 
 test AnalyzeNegativeCSAT {
@@ -84,10 +81,6 @@ test AnalyzeNegativeCSAT {
       { label "Customer Support" description "Feedback about support team interactions" }
     ]
   }
-  @@assert( {{ this.sentiment < -0.3 }} )
-  @@assert( {{ this.confidence > 0.5 }} )
-  @@assert( {{ this.topics|length > 0 }} )
-  @@assert( {{ this.assigned_cluster_label is not none }} )
 }
 
 test AnalyzeSarcasticFeedback {
@@ -98,8 +91,6 @@ test AnalyzeSarcasticFeedback {
     numeric_score 2
     existing_clusters []
   }
-  @@assert( {{ this.sentiment < 0 }} )
-  @@assert( {{ this.suggested_new_cluster_label is not none }} )
 }
 
 test AnalyzeNeutralWithNewTheme {
@@ -113,6 +104,4 @@ test AnalyzeNeutralWithNewTheme {
       { label "Product Quality" description "Feedback about product defects or quality" }
     ]
   }
-  @@assert( {{ this.sentiment >= -0.5 and this.sentiment <= 0.3 }} )
-  @@assert( {{ this.suggested_new_cluster_label is not none or this.assigned_cluster_label is not none }} )
 }
