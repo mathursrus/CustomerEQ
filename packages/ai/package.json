@@ -14,8 +14,10 @@
     "generate": "npx @boundaryml/baml@0.211.0 generate"
   },
   "dependencies": {
+    "@boundaryml/baml": "0.211.0",
     "@customerEQ/database": "workspace:*",
-    "@customerEQ/shared": "workspace:*"
+    "@customerEQ/shared": "workspace:*",
+    "dotenv": "^17.3.1"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

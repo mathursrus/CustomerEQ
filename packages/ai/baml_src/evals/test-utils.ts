@@ -14,7 +14,7 @@
  *   - Tag-based test filtering via TAGS/EXCLUDE_TAGS env vars
  */
 
-import dotenv from 'dotenv'
+import * as dotenv from 'dotenv'
 dotenv.config({ override: true })
 
 import { setLogLevel } from '../../src/generated/baml_client/config.js'
