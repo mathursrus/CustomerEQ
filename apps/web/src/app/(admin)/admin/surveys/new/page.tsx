@@ -111,7 +111,8 @@ export default function NewSurveyPage() {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.message ?? `Failed with status ${res.status}`)
       }
-      router.push('/admin/surveys')
+      const created = await res.json()
+      router.push(`/admin/surveys/${created.id}`)
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
