@@ -149,7 +149,10 @@ graph TD
 | `/v1/redemptions` | Atomic point redemption (transactional debit + stock decrement) |
 | `/v1/analytics` | Overview KPIs (ROI, redemption rate) + per-campaign performance |
 | `/v1/integrations/webhooks/*` | Salesforce + HubSpot webhook receivers (HMAC-SHA256 verified) |
-| `/v1/public/*` | Demo request form (no auth) |
+| `/v1/surveys` | Survey CRUD + status management + question builder updates |
+| `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
+| `/v1/question-templates` | Question template library CRUD (save/reuse questions across surveys) |
+| `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth) |
 | `/v1/admin/*` | Demo request list, integration webhook URLs |
 
 ### 4.2 Fastify Plugins
@@ -183,6 +186,11 @@ graph TD
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
 | **Campaign** | Rule-based automation. `triggerType` + `triggerCondition` (JSON) -> `actionType` + `actionConfig` (JSON). Budget cap tracking. |
 | **CampaignEvent** | Campaign trigger execution record. Unique per `campaignId + memberId`. Tracks `latencyMs`. |
+| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. |
+| **SurveyResponse** | Individual feedback with AI-analyzed sentiment, topics, confidence, cluster assignment. |
+| **SurveyTheme** | Brand-level white-labeling: colors, typography, layout, logo, thank-you page config. One default per brand. Applied via CSS custom properties on public survey page. |
+| **QuestionTemplate** | Reusable question library. Stores full question definition (JSON) with tags for discovery. Brand-scoped. |
+| **FeedbackCluster** | AI-discovered feedback theme groupings with trend tracking. |
 | **DemoRequest** | Public demo signup captures (no auth). |
 | **AuditEvent** | System audit trail for admin mutations. |
 
