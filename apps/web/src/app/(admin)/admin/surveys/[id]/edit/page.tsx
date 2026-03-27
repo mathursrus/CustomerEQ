@@ -9,7 +9,7 @@ export default function EditSurveyPage() {
   const surveyId = params.id as string
 
   useEffect(() => {
-    router.replace(`/admin/surveys/builder?surveyId=${surveyId}`)
+    router.replace(`/admin/survey-builder?surveyId=${surveyId}`)
   }, [router, surveyId])
 
   return (
