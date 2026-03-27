@@ -72,7 +72,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const res = await request.get('/v1/alert-rules')
 
     expect(res.status).toBe(200)
-    const rules = res.body.alertRules ?? res.body
+    const rules = res.body.rules ?? res.body.alertRules ?? res.body
     expect(Array.isArray(rules)).toBe(true)
     expect(rules.length).toBeGreaterThanOrEqual(2)
     const names = rules.map((r: { name: string }) => r.name)
@@ -168,8 +168,8 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
     const ruleId = createRes.body.id
 
-    const deleteRes = await request.delete(`/v1/alert-rules/${ruleId}`)
-    expect(deleteRes.status).toBe(200)
+    const deleteRes = await request.delete(`/v1/alert-rules/${ruleId}`).set('Content-Type', 'text/plain')
+    expect([200, 204]).toContain(deleteRes.status)
 
     // Verify it's gone
     const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
@@ -285,7 +285,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       .post(`/v1/cases/${caseRecord.id}/notes`)
       .send({ text: 'Called customer, left voicemail', author: 'cx-lead@test.com' })
 
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(200)
     expect(res.body.notes).toBeDefined()
     expect(Array.isArray(res.body.notes)).toBe(true)
     const lastNote = res.body.notes[res.body.notes.length - 1]

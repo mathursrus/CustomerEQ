@@ -1,4 +1,3 @@
-// @ts-nocheck — AlertRule model requires prisma generate (blocked by OneDrive file lock locally)
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { CreateAlertRuleSchema, UpdateAlertRuleSchema, UpdateAlertRuleStatusSchema } from '@customerEQ/shared'

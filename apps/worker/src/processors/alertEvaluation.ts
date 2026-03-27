@@ -1,4 +1,3 @@
-// @ts-nocheck — AlertRule/CaseFollowUp models require prisma generate (blocked by OneDrive file lock locally)
 import type { Job } from 'bullmq'
 import type { PrismaClient } from '@prisma/client'
 import type { Prisma } from '@prisma/client'

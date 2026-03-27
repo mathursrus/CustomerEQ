@@ -1,4 +1,3 @@
-// @ts-nocheck — CaseFollowUp model requires prisma generate (blocked by OneDrive file lock locally)
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { UpdateCaseStatusSchema, AddCaseNoteSchema } from '@customerEQ/shared'
