@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Closed-Loop Alerting — CustomerEQ Mock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; color: #111827; }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 200px; background: #fff; border-right: 1px solid #e5e7eb; padding: 20px 16px; flex-shrink: 0; }
+  .sidebar h2 { font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 16px; }
+  .sidebar a { display: block; padding: 8px 12px; border-radius: 8px; font-size: 13px; color: #6b7280; text-decoration: none; margin-bottom: 2px; }
+  .sidebar a:hover { background: #f3f4f6; color: #111827; }
+  .sidebar a.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+  .main { flex: 1; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid #e5e7eb; background: #fff; padding: 0 24px; }
+  .tab { padding: 14px 20px; font-size: 14px; font-weight: 500; color: #6b7280; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab:hover { color: #111827; }
+  .tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+
+  .content { padding: 24px; }
+
+  /* Header */
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-header h1 { font-size: 22px; font-weight: 700; }
+  .page-header p { font-size: 13px; color: #6b7280; margin-top: 2px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Stats cards */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; }
+  .stat-card .label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-card .value { font-size: 28px; font-weight: 700; color: #111827; margin-top: 4px; }
+  .stat-card .sub { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+  .stat-card .value.red { color: #dc2626; }
+  .stat-card .value.green { color: #16a34a; }
+  .stat-card .value.yellow { color: #d97706; }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters select, .filters input { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }
+  th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+  td { padding: 12px 16px; font-size: 13px; color: #374151; border-bottom: 1px solid #f3f4f6; }
+  tr:hover { background: #f9fafb; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Badges */
+  .badge { display: inline-flex; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+  .badge-open { background: #fef2f2; color: #dc2626; }
+  .badge-contacted { background: #fffbeb; color: #d97706; }
+  .badge-resolved { background: #f0fdf4; color: #16a34a; }
+  .badge-closed { background: #f3f4f6; color: #6b7280; }
+  .badge-overdue { background: #fef2f2; color: #dc2626; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .badge-active { background: #f0fdf4; color: #16a34a; }
+  .badge-paused { background: #fffbeb; color: #d97706; }
+
+  .score-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+  .score-low { background: #fef2f2; color: #dc2626; }
+  .score-mid { background: #fffbeb; color: #d97706; }
+  .score-high { background: #f0fdf4; color: #16a34a; }
+
+  .sla-ok { color: #16a34a; font-weight: 500; }
+  .sla-warn { color: #d97706; font-weight: 500; }
+  .sla-breach { color: #dc2626; font-weight: 600; }
+
+  /* Channel icons */
+  .channels { display: flex; gap: 4px; }
+  .channel-icon { width: 22px; height: 22px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .channel-slack { background: #4a154b; color: #fff; }
+  .channel-email { background: #1a56db; color: #fff; }
+  .channel-teams { background: #5b5fc7; color: #fff; }
+
+  /* Case detail panel */
+  .case-detail { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  .detail-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+  .detail-card h3 { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 12px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: #6b7280; }
+  .detail-value { color: #111827; font-weight: 500; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 4px; bottom: 4px; width: 2px; background: #e5e7eb; }
+  .timeline-item { position: relative; padding-bottom: 16px; }
+  .timeline-item::before { content: ''; position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #d1d5db; border: 2px solid #fff; }
+  .timeline-item.active::before { background: #6366f1; }
+  .timeline-item .time { font-size: 11px; color: #9ca3af; }
+  .timeline-item .event { font-size: 13px; color: #374151; margin-top: 2px; }
+
+  .feedback-text { background: #f9fafb; border-radius: 8px; padding: 12px; font-size: 13px; color: #374151; line-height: 1.5; border-left: 3px solid #dc2626; margin: 8px 0; }
+  .action-buttons { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-contacted { background: #f59e0b; color: #fff; }
+  .btn-resolved { background: #16a34a; color: #fff; }
+  .btn-close { background: #6b7280; color: #fff; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>CustomerEQ</h2>
+    <a href="#">Programs</a>
+    <a href="#">Campaigns</a>
+    <a href="#">Surveys</a>
+    <a href="#">Analytics</a>
+    <a class="active" href="#">Alerts</a>
+    <a href="#">Settings</a>
+  </div>
+
+  <div class="main">
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab">Alert Rules</div>
+      <div class="tab active">Cases</div>
+      <div class="tab">Case Detail</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============================================ -->
+      <!-- TAB 1: Cases Dashboard (shown)               -->
+      <!-- ============================================ -->
+
+      <div class="page-header">
+        <div>
+          <h1>Case Management</h1>
+          <p>Track and resolve customer follow-ups from survey feedback</p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-card">
+          <div class="label">Open Cases</div>
+          <div class="value red">12</div>
+          <div class="sub">3 new today</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Contacted</div>
+          <div class="value yellow">8</div>
+          <div class="sub">Awaiting resolution</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Resolved (30d)</div>
+          <div class="value green">47</div>
+          <div class="sub">Avg 3.2h response time</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">SLA Compliance</div>
+          <div class="value">89%</div>
+          <div class="sub">Target: 95%</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <select>
+          <option>All Statuses</option>
+          <option>Open</option>
+          <option>Contacted</option>
+          <option>Resolved</option>
+          <option>Closed</option>
+          <option>Overdue</option>
+        </select>
+        <select>
+          <option>All Assignees</option>
+          <option>Sarah K.</option>
+          <option>Mike R.</option>
+          <option>CX Team</option>
+        </select>
+        <select>
+          <option>All Surveys</option>
+          <option>Post-Purchase NPS</option>
+          <option>Support CSAT</option>
+        </select>
+        <select>
+          <option>SLA: All</option>
+          <option>On Track</option>
+          <option>Overdue</option>
+        </select>
+        <input type="date" value="2026-03-01">
+        <input type="date" value="2026-03-27">
+      </div>
+
+      <!-- Cases Table -->
+      <table>
+        <thead>
+          <tr>
+            <th>Case</th>
+            <th>Score</th>
+            <th>Survey</th>
+            <th>Feedback</th>
+            <th>Status</th>
+            <th>Assignee</th>
+            <th>SLA</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>#1042</strong></td>
+            <td><span class="score-badge score-low">2</span></td>
+            <td>Post-Purchase NPS</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Shipping took 3 weeks and the product arrived damaged...</td>
+            <td><span class="badge badge-overdue">OVERDUE</span></td>
+            <td>Sarah K.</td>
+            <td><span class="sla-breach">6h overdue</span></td>
+            <td>Mar 27, 10:14am</td>
+          </tr>
+          <tr>
+            <td><strong>#1041</strong></td>
+            <td><span class="score-badge score-low">3</span></td>
+            <td>Support CSAT</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Agent was unhelpful and kept transferring me...</td>
+            <td><span class="badge badge-open">OPEN</span></td>
+            <td>Mike R.</td>
+            <td><span class="sla-warn">2h remaining</span></td>
+            <td>Mar 27, 9:30am</td>
+          </tr>
+          <tr>
+            <td><strong>#1040</strong></td>
+            <td><span class="score-badge score-low">1</span></td>
+            <td>Post-Purchase NPS</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Terrible experience. Will never buy again...</td>
+            <td><span class="badge badge-contacted">CONTACTED</span></td>
+            <td>Sarah K.</td>
+            <td><span class="sla-ok">On track</span></td>
+            <td>Mar 27, 8:45am</td>
+          </tr>
+          <tr>
+            <td><strong>#1039</strong></td>
+            <td><span class="score-badge score-mid">5</span></td>
+            <td>Post-Purchase NPS</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Okay product but pricing seems too high...</td>
+            <td><span class="badge badge-resolved">RESOLVED</span></td>
+            <td>CX Team</td>
+            <td><span class="sla-ok">Met (2.1h)</span></td>
+            <td>Mar 26, 3:22pm</td>
+          </tr>
+          <tr>
+            <td><strong>#1038</strong></td>
+            <td><span class="score-badge score-low">2</span></td>
+            <td>Support CSAT</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Waited 45 minutes on hold before giving up...</td>
+            <td><span class="badge badge-closed">CLOSED</span></td>
+            <td>Mike R.</td>
+            <td><span class="sla-ok">Met (1.5h)</span></td>
+            <td>Mar 26, 11:05am</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================ -->
+      <!-- Case Detail (below table for demo)           -->
+      <!-- ============================================ -->
+      <div style="margin-top:32px;">
+        <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">Case #1042 — Detail View</h2>
+        <div class="case-detail">
+          <!-- Left: Details -->
+          <div>
+            <div class="detail-card">
+              <h3>Respondent Feedback</h3>
+              <div class="detail-row">
+                <span class="detail-label">Member</span>
+                <span class="detail-value">jane.doe@example.com</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Survey</span>
+                <span class="detail-value">Post-Purchase NPS</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Score</span>
+                <span class="detail-value"><span class="score-badge score-low">2</span> / 10</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Sentiment</span>
+                <span class="detail-value" style="color:#dc2626;">-0.82 (Negative)</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Topics</span>
+                <span class="detail-value">
+                  <span style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:11px;margin-right:4px;">shipping</span>
+                  <span style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:11px;">product</span>
+                </span>
+              </div>
+              <div class="feedback-text">
+                "Shipping took 3 weeks and the product arrived damaged. The box was completely crushed. I expected much better for the price I paid. Very disappointed."
+              </div>
+
+              <div class="action-buttons">
+                <button class="btn btn-contacted">Mark Contacted</button>
+                <button class="btn btn-resolved">Mark Resolved</button>
+                <button class="btn btn-close">Close Case</button>
+                <button class="btn" style="background:#fff;border:1px solid #d1d5db;color:#374151;">Add Note</button>
+              </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="detail-card" style="margin-top:16px;">
+              <h3>Timeline</h3>
+              <div class="timeline">
+                <div class="timeline-item active">
+                  <div class="time">Mar 27, 10:14am</div>
+                  <div class="event"><strong>Case opened</strong> — Alert triggered by rule "NPS Detractor Alert"</div>
+                </div>
+                <div class="timeline-item active">
+                  <div class="time">Mar 27, 10:14am</div>
+                  <div class="event">Slack alert sent to <strong>#cx-alerts</strong></div>
+                </div>
+                <div class="timeline-item active">
+                  <div class="time">Mar 27, 10:15am</div>
+                  <div class="event">Assigned to <strong>Sarah K.</strong> (topic: shipping)</div>
+                </div>
+                <div class="timeline-item">
+                  <div class="time">Mar 27, 2:14pm</div>
+                  <div class="event" style="color:#dc2626;"><strong>SLA breached</strong> — 4h target exceeded</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Metadata -->
+          <div>
+            <div class="detail-card">
+              <h3>Case Info</h3>
+              <div class="detail-row">
+                <span class="detail-label">Status</span>
+                <span class="detail-value"><span class="badge badge-overdue">OVERDUE</span></span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Assignee</span>
+                <span class="detail-value">Sarah K.</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Priority</span>
+                <span class="detail-value" style="color:#dc2626;font-weight:600;">HIGH</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">SLA Target</span>
+                <span class="detail-value">4 hours</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">SLA Status</span>
+                <span class="detail-value sla-breach">6h overdue</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Alert Rule</span>
+                <span class="detail-value">NPS Detractor Alert</span>
+              </div>
+            </div>
+
+            <div class="detail-card" style="margin-top:16px;">
+              <h3>Channels Notified</h3>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  <span class="channel-icon channel-slack">S</span>
+                  <span>#cx-alerts — Delivered</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  <span class="channel-icon channel-email">E</span>
+                  <span>cx-team@acme.com — Delivered</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-card" style="margin-top:16px;">
+              <h3>External Tickets</h3>
+              <div style="font-size:13px;color:#6b7280;padding:8px 0;">No ticket integrations configured</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>
