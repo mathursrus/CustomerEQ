@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import {
   CreateSurveySchema,
+  UpdateSurveySchema,
   UpdateSurveyStatusSchema,
   SubmitSurveyResponseSchema,
   NPS,
@@ -66,6 +67,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id, brandId: request.brandId },
       include: {
         _count: { select: { responses: true } },
+        theme: true,
         responses: {
           orderBy: { completedAt: 'desc' },
           take: 20,
@@ -118,6 +120,43 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     const updated = await fastify.prisma.survey.update({
       where: { id },
       data: { status: parse.data.status },
+    })
+
+    return reply.status(200).send(updated)
+  })
+
+  // PATCH /v1/surveys/:id — update survey details (name, questions, theme, etc.)
+  fastify.patch('/surveys/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const parse = UpdateSurveySchema.safeParse(request.body)
+    if (!parse.success) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: parse.error.errors.map((e) => e.message).join(', '),
+        details: parse.error.errors,
+      })
+    }
+
+    const survey = await fastify.prisma.survey.findFirst({
+      where: { id, brandId: request.brandId },
+    })
+    if (!survey) {
+      return reply.status(404).send({ error: 'Survey not found' })
+    }
+
+    // Verify theme belongs to brand if provided
+    if (parse.data.themeId) {
+      const theme = await fastify.prisma.surveyTheme.findFirst({
+        where: { id: parse.data.themeId, brandId: request.brandId },
+      })
+      if (!theme) {
+        return reply.status(404).send({ error: 'Theme not found' })
+      }
+    }
+
+    const updated = await fastify.prisma.survey.update({
+      where: { id },
+      data: parse.data as Prisma.SurveyUpdateInput,
     })
 
     return reply.status(200).send(updated)

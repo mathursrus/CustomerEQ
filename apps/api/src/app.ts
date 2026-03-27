@@ -18,6 +18,8 @@ import analyticsRoutes from './routes/analytics.js'
 import webhooksRoutes from './routes/webhooks.js'
 import publicRoutes from './routes/public.js'
 import surveysRoutes from './routes/surveys.js'
+import themesRoutes from './routes/themes.js'
+import templatesRoutes from './routes/templates.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -88,6 +90,8 @@ export async function buildApp() {
   await fastify.register(analyticsRoutes, { prefix: '/v1' })
   await fastify.register(webhooksRoutes, { prefix: '/v1' })
   await fastify.register(surveysRoutes, { prefix: '/v1' })
+  await fastify.register(themesRoutes, { prefix: '/v1' })
+  await fastify.register(templatesRoutes, { prefix: '/v1' })
   await fastify.register(publicRoutes, { prefix: '/v1' })
 
   return fastify

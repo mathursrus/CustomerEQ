@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Theme Editor — CustomerEQ Mock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; color: #111827; }
+
+  /* Top Bar */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; }
+  .top-bar-left { display: flex; align-items: center; gap: 16px; }
+  .top-bar-left a { font-size: 13px; color: #6366f1; text-decoration: none; }
+  .top-bar-left input { font-size: 18px; font-weight: 600; border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; width: 280px; }
+  .top-bar-left input:focus { border-color: #6366f1; outline: none; }
+  .top-bar-actions { display: flex; gap: 8px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn-secondary:hover { background: #f9fafb; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 360px 1fr; height: calc(100vh - 57px); }
+
+  /* Config Panel */
+  .config-panel { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; }
+
+  .tabs { display: flex; border-bottom: 1px solid #e5e7eb; }
+  .tab { flex: 1; padding: 12px; font-size: 13px; font-weight: 500; text-align: center; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: #374151; }
+  .tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+
+  .tab-content { padding: 20px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 12px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+  .field input[type="text"], .field input[type="url"], .field select, .field textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .field textarea { resize: vertical; height: 72px; }
+
+  /* Color picker row */
+  .color-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .color-row label { font-size: 13px; font-weight: 500; color: #374151; flex: 1; }
+  .color-swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid #e5e7eb; cursor: pointer; flex-shrink: 0; }
+  .color-hex { width: 80px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; font-family: monospace; }
+  .contrast-warn { font-size: 10px; color: #dc2626; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+  .contrast-ok { font-size: 10px; color: #16a34a; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+
+  /* Toggle */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
+  .toggle-row span { font-size: 13px; color: #374151; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: #d1d5db; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+  .toggle.on { background: #6366f1; }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* Chip selector */
+  .chip-group { display: flex; gap: 6px; }
+  .chip { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #d1d5db; color: #6b7280; cursor: pointer; transition: all 0.15s; }
+  .chip:hover { border-color: #a5b4fc; }
+  .chip.selected { border-color: #6366f1; background: #eef2ff; color: #4f46e5; }
+
+  /* Preview */
+  .preview-panel { padding: 32px; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; background: #e5e7eb; }
+  .preview-frame { width: 100%; max-width: 640px; }
+  .preview-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 12px; text-align: center; }
+
+  /* Themed survey preview */
+  .survey-preview {
+    background: var(--bg, #ffffff);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    overflow: hidden;
+    font-family: var(--font, 'Inter', system-ui, sans-serif);
+  }
+  .survey-header {
+    padding: 24px 32px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .survey-logo { width: 40px; height: 40px; border-radius: 8px; object-fit: contain; }
+  .survey-logo-placeholder { width: 40px; height: 40px; border-radius: 8px; background: var(--primary, #6366f1); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; }
+  .survey-brand-name { font-size: 16px; font-weight: 600; color: var(--text, #111827); }
+
+  .survey-body { padding: 32px; }
+  .survey-title { font-size: 22px; font-weight: 700; color: var(--text, #111827); margin-bottom: 8px; }
+  .survey-subtitle { font-size: 14px; color: var(--text, #111827); opacity: 0.6; margin-bottom: 24px; }
+
+  .survey-question { margin-bottom: 24px; }
+  .survey-question-text { font-size: 15px; font-weight: 500; color: var(--text, #111827); margin-bottom: 12px; }
+  .survey-question-text .required { color: #dc2626; }
+
+  /* Rating in preview */
+  .preview-rating { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preview-rating-btn {
+    width: 40px; height: 40px; border-radius: 10px;
+    border: 2px solid rgba(0,0,0,0.1);
+    background: transparent; font-size: 14px; font-weight: 600;
+    color: var(--text, #111827); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .preview-rating-btn.selected {
+    background: var(--primary, #6366f1);
+    color: var(--btn-text, #ffffff);
+    border-color: var(--primary, #6366f1);
+  }
+  .preview-rating-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text, #111827); opacity: 0.5; }
+
+  /* Text in preview */
+  .preview-textarea {
+    width: 100%; border: 2px solid rgba(0,0,0,0.1); border-radius: 10px;
+    padding: 10px 14px; font-size: 14px; resize: none; height: 80px;
+    color: var(--text, #111827); background: transparent;
+    font-family: var(--font, 'Inter', system-ui, sans-serif);
+  }
+  .preview-textarea:focus { border-color: var(--primary, #6366f1); outline: none; }
+
+  /* Submit button in preview */
+  .preview-submit {
+    width: 100%; padding: 14px;
+    background: var(--btn, #6366f1);
+    color: var(--btn-text, #ffffff);
+    border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+    font-family: var(--font, 'Inter', system-ui, sans-serif);
+  }
+  .preview-submit:hover { opacity: 0.9; }
+
+  /* Progress bar */
+  .preview-progress { height: 4px; background: rgba(0,0,0,0.06); border-radius: 2px; margin-bottom: 24px; }
+  .preview-progress-fill { height: 100%; width: 33%; border-radius: 2px; background: var(--accent, #6366f1); }
+
+  /* Thank you preview */
+  .thankyou-preview { text-align: center; padding: 40px 32px; }
+  .thankyou-icon { font-size: 48px; margin-bottom: 16px; }
+  .thankyou-msg { font-size: 18px; font-weight: 600; color: var(--text, #111827); margin-bottom: 8px; }
+  .thankyou-points { font-size: 14px; color: var(--primary, #6366f1); font-weight: 600; }
+
+  /* Powered by */
+  .powered-by { text-align: center; padding: 12px; font-size: 11px; color: #9ca3af; border-top: 1px solid rgba(0,0,0,0.04); }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="top-bar-left">
+    <a href="#">&larr; Themes</a>
+    <input type="text" value="Corporate Blue" placeholder="Theme name...">
+    <span style="font-size:12px; padding:3px 8px; background:#eef2ff; color:#6366f1; border-radius:4px; font-weight:600;">Default</span>
+  </div>
+  <div class="top-bar-actions">
+    <button class="btn btn-danger btn-sm">Delete</button>
+    <button class="btn btn-secondary">Set as Default</button>
+    <button class="btn btn-primary">Save Theme</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Config Panel -->
+  <div class="config-panel">
+    <div class="tabs">
+      <div class="tab active">Brand</div>
+      <div class="tab">Colors</div>
+      <div class="tab">Type</div>
+      <div class="tab">Layout</div>
+      <div class="tab">Thank You</div>
+    </div>
+
+    <!-- Brand Tab (visible) -->
+    <div class="tab-content">
+      <div class="section">
+        <div class="section-title">Brand Identity</div>
+        <div class="field">
+          <label>Logo URL</label>
+          <input type="url" value="https://acme.com/logo.svg" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>Brand Name</label>
+          <input type="text" value="Acme Corp" placeholder="Your company name">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Colors</div>
+
+        <div class="color-row">
+          <label>Primary</label>
+          <div class="color-swatch" style="background:#1a56db;"></div>
+          <input class="color-hex" type="text" value="#1a56db">
+        </div>
+
+        <div class="color-row">
+          <label>Secondary</label>
+          <div class="color-swatch" style="background:#3b82f6;"></div>
+          <input class="color-hex" type="text" value="#3b82f6">
+        </div>
+
+        <div class="color-row">
+          <label>Background</label>
+          <div class="color-swatch" style="background:#f0f5ff; border-color:#d1d5db;"></div>
+          <input class="color-hex" type="text" value="#f0f5ff">
+        </div>
+
+        <div class="color-row">
+          <label>Text</label>
+          <div class="color-swatch" style="background:#1e293b;"></div>
+          <input class="color-hex" type="text" value="#1e293b">
+        </div>
+
+        <div class="color-row">
+          <label>Button</label>
+          <div class="color-swatch" style="background:#1a56db;"></div>
+          <input class="color-hex" type="text" value="#1a56db">
+          <span class="contrast-ok">AA &#10003;</span>
+        </div>
+
+        <div class="color-row">
+          <label>Button Text</label>
+          <div class="color-swatch" style="background:#ffffff; border-color:#d1d5db;"></div>
+          <input class="color-hex" type="text" value="#ffffff">
+        </div>
+
+        <div class="color-row">
+          <label>Accent</label>
+          <div class="color-swatch" style="background:#1a56db;"></div>
+          <input class="color-hex" type="text" value="#1a56db">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Typography</div>
+        <div class="field">
+          <label>Font Family</label>
+          <select>
+            <option>System Default</option>
+            <option selected>Inter</option>
+            <option>Roboto</option>
+            <option>Open Sans</option>
+            <option>Lato</option>
+            <option>Poppins</option>
+            <option>Nunito</option>
+            <option>Montserrat</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Heading Size</label>
+          <div class="chip-group">
+            <div class="chip">Small</div>
+            <div class="chip selected">Medium</div>
+            <div class="chip">Large</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Body Size</label>
+          <div class="chip-group">
+            <div class="chip">Small</div>
+            <div class="chip selected">Medium</div>
+            <div class="chip">Large</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Layout</div>
+        <div class="field">
+          <label>Card Style</label>
+          <div class="chip-group">
+            <div class="chip">Flat</div>
+            <div class="chip selected">Shadow</div>
+            <div class="chip">Border</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Corner Radius</label>
+          <div class="chip-group">
+            <div class="chip">None</div>
+            <div class="chip">Small</div>
+            <div class="chip selected">Medium</div>
+            <div class="chip">Large</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Max Width</label>
+          <div class="chip-group">
+            <div class="chip">Narrow</div>
+            <div class="chip selected">Medium</div>
+            <div class="chip">Wide</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Background Image URL</label>
+          <input type="url" placeholder="https://... (optional)">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Thank You Page</div>
+        <div class="field">
+          <label>Message</label>
+          <textarea>Thank you for your feedback, we truly appreciate it!</textarea>
+          <p style="font-size:11px;color:#9ca3af;margin-top:4px;">Use <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:10px;">{{points}}</code> to show earned incentive points.</p>
+        </div>
+        <div class="field">
+          <label>Redirect URL</label>
+          <input type="url" placeholder="https://acme.com/thank-you (optional)">
+        </div>
+        <div class="toggle-row">
+          <span>Show Incentive Points</span>
+          <div class="toggle on"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Panel -->
+  <div class="preview-panel" style="background: #e5e7eb;">
+    <div class="preview-frame">
+      <div class="preview-label">Live Preview</div>
+
+      <!-- Survey Preview -->
+      <div class="survey-preview" style="--primary:#1a56db; --secondary:#3b82f6; --bg:#f0f5ff; --text:#1e293b; --btn:#1a56db; --btn-text:#ffffff; --accent:#1a56db; --font:'Inter',system-ui,sans-serif;">
+
+        <!-- Header -->
+        <div class="survey-header" style="background: rgba(26,86,219,0.04);">
+          <div class="survey-logo-placeholder" style="background:#1a56db;">A</div>
+          <div class="survey-brand-name" style="color:#1e293b;">Acme Corp</div>
+        </div>
+
+        <!-- Body -->
+        <div class="survey-body" style="background:#f0f5ff;">
+          <!-- Progress -->
+          <div class="preview-progress">
+            <div class="preview-progress-fill" style="background:#1a56db;"></div>
+          </div>
+
+          <div class="survey-title" style="color:#1e293b;">Post-Purchase Experience</div>
+          <div class="survey-subtitle" style="color:#1e293b;">We'd love to hear about your recent purchase.</div>
+
+          <!-- Q1: Rating -->
+          <div class="survey-question">
+            <div class="survey-question-text" style="color:#1e293b;">
+              How likely are you to recommend us? <span class="required">*</span>
+            </div>
+            <div class="preview-rating">
+              <div class="preview-rating-btn" style="color:#1e293b;">0</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">1</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">2</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">3</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">4</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">5</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">6</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">7</div>
+              <div class="preview-rating-btn selected" style="background:#1a56db; color:#fff; border-color:#1a56db;">8</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">9</div>
+              <div class="preview-rating-btn" style="color:#1e293b;">10</div>
+            </div>
+            <div class="preview-rating-labels" style="color:#1e293b;">
+              <span>Not at all likely</span>
+              <span>Extremely likely</span>
+            </div>
+          </div>
+
+          <!-- Q2: Text -->
+          <div class="survey-question">
+            <div class="survey-question-text" style="color:#1e293b;">
+              What is the primary reason for your score?
+            </div>
+            <textarea class="preview-textarea" style="color:#1e293b;" placeholder="Share your thoughts..." readonly></textarea>
+          </div>
+
+          <button class="preview-submit" style="background:#1a56db; color:#ffffff;">
+            Submit Feedback
+          </button>
+        </div>
+
+        <div class="powered-by">Powered by CustomerEQ</div>
+      </div>
+
+      <!-- Thank You Preview -->
+      <div style="margin-top:24px;">
+        <div class="preview-label">Thank You Page Preview</div>
+        <div class="survey-preview" style="--primary:#1a56db; --bg:#f0f5ff; --text:#1e293b;">
+          <div class="survey-header" style="background: rgba(26,86,219,0.04);">
+            <div class="survey-logo-placeholder" style="background:#1a56db;">A</div>
+            <div class="survey-brand-name" style="color:#1e293b;">Acme Corp</div>
+          </div>
+          <div class="thankyou-preview" style="background:#f0f5ff;">
+            <div class="thankyou-icon">&#10003;</div>
+            <div class="thankyou-msg" style="color:#1e293b;">Thank you for your feedback, we truly appreciate it!</div>
+            <div class="thankyou-points" style="color:#1a56db;">You earned 50 loyalty points!</div>
+          </div>
+          <div class="powered-by">Powered by CustomerEQ</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

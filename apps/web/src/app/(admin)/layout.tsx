@@ -8,6 +8,7 @@ const navLinks = [
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/integrations', label: 'Integrations' },
+  { href: '/admin/settings/themes', label: 'Settings' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
