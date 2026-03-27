@@ -32,6 +32,20 @@ export async function buildApp() {
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
+
+  // Allow DELETE requests with Content-Type: application/json but no body (empty body → {})
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    if (!body || (body as string).trim() === '') {
+      done(null, {})
+      return
+    }
+    try {
+      done(null, JSON.parse(body as string))
+    } catch (err) {
+      done(err as Error)
+    }
+  })
+
   await fastify.register(sensible)
   await fastify.register(prismaPlugin)
   await fastify.register(redisPlugin)
