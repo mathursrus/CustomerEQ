@@ -95,7 +95,7 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
 // ─── DiscoverClusters ────────────────────────────────────────────────────────
 
 describe('[baml] DiscoverClusters — real LLM', () => {
-  it('discovers themes from unassigned feedback', async () => {
+  it('discovers themes from unassigned feedback with no existing clusters', async () => {
     const result = await b.DiscoverClusters(
       [
         { id: 'f1', text: 'Shipping took way too long, 3 weeks!', sentiment: -0.7 },
@@ -112,6 +112,33 @@ describe('[baml] DiscoverClusters — real LLM', () => {
     const assignedIds = result.assignments.map(a => a.feedback_id)
     expect(assignedIds).toContain('f1')
     expect(assignedIds).toContain('f5')
+    // Each new cluster should have a label and description
+    for (const cluster of result.new_clusters) {
+      expect(cluster.label.length).toBeGreaterThan(0)
+      expect(cluster.description.length).toBeGreaterThan(0)
+      expect(cluster.keywords.length).toBeGreaterThan(0)
+    }
+  }, BATCH_LLM_TIMEOUT)
+
+  it('assigns feedback to existing clusters when they fit', async () => {
+    const result = await b.DiscoverClusters(
+      [
+        { id: 'f1', text: 'My package was late again, this is the third time', sentiment: -0.6 },
+        { id: 'f2', text: 'Support agent was rude and unhelpful', sentiment: -0.9 },
+      ],
+      [
+        { label: 'Shipping Delays', description: 'Complaints about delivery times', keywords: ['shipping', 'delivery', 'late'] },
+        { label: 'Customer Support', description: 'Issues with support interactions', keywords: ['support', 'agent', 'help'] },
+      ],
+    )
+
+    expect(result.assignments.length).toBe(2)
+    // Should NOT create new clusters — both fit existing ones
+    expect(result.new_clusters.length).toBe(0)
+    // Verify assignments reference existing cluster labels
+    const labels = result.assignments.map(a => a.cluster_label)
+    expect(labels).toContain('Shipping Delays')
+    expect(labels).toContain('Customer Support')
   }, BATCH_LLM_TIMEOUT)
 })
 
@@ -134,6 +161,52 @@ describe('[baml] DetectAnomalies — real LLM', () => {
     )
 
     expect(result.anomalies.length).toBeGreaterThanOrEqual(1)
+    // Should identify it as a volume spike
+    const types = result.anomalies.map(a => a.type)
+    expect(types).toContain('volume_spike')
+    expect(result.overall_summary.length).toBeGreaterThan(20)
+  }, BATCH_LLM_TIMEOUT)
+
+  it('reports no major anomalies for stable, healthy data', async () => {
+    const result = await b.DetectAnomalies(
+      [
+        {
+          cluster_label: 'Product Quality',
+          cluster_description: 'Feedback about product quality',
+          daily_volumes: [10, 11, 9, 10, 12, 10, 11, 9, 10, 12, 10, 11, 9, 10, 12, 10, 11, 9, 10, 12, 10, 11, 9, 10, 12, 10, 11, 9, 10, 12],
+          daily_avg_sentiment: [0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2],
+          total_responses: 310,
+        },
+      ],
+      310,
+      300,
+    )
+
+    // Stable data — should have zero or only low-severity anomalies
+    const highSeverity = result.anomalies.filter(a => a.severity === 'high')
+    expect(highSeverity.length).toBe(0)
+    expect(result.overall_summary.length).toBeGreaterThan(10)
+  }, BATCH_LLM_TIMEOUT)
+
+  it('detects sentiment drop anomaly', async () => {
+    const result = await b.DetectAnomalies(
+      [
+        {
+          cluster_label: 'Customer Support',
+          cluster_description: 'Feedback about support interactions',
+          daily_volumes: [8, 9, 7, 8, 9, 8, 7, 9, 8, 8, 9, 7, 8, 9, 8, 7, 9, 8, 8, 9, 7, 8, 9, 8, 7, 9, 8, 8, 9, 8],
+          daily_avg_sentiment: [0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.4, 0.3, 0.2, 0.3, 0.2, 0.1, -0.1, -0.3, -0.5, -0.6, -0.7, -0.8, -0.9],
+          total_responses: 245,
+        },
+      ],
+      245,
+      240,
+    )
+
+    expect(result.anomalies.length).toBeGreaterThanOrEqual(1)
+    // Should detect the sentiment drop in the last week
+    const types = result.anomalies.map(a => a.type)
+    expect(types).toContain('sentiment_drop')
     expect(result.overall_summary.length).toBeGreaterThan(20)
   }, BATCH_LLM_TIMEOUT)
 })
