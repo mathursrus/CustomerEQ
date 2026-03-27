@@ -64,6 +64,9 @@ const eventsRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Step 1: Idempotency check
     if (idempotencyKey) {
+      if (!fastify.redis) {
+        return reply.status(503).send({ error: 'Redis not available' })
+      }
       const redisKey = `idempotency:${brandId}:${idempotencyKey}`
       const existing = await fastify.redis.get(redisKey)
       if (existing !== null) {
@@ -100,7 +103,7 @@ const eventsRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     // Store idempotency key in Redis (24hr TTL)
-    if (idempotencyKey) {
+    if (idempotencyKey && fastify.redis) {
       const redisKey = `idempotency:${brandId}:${idempotencyKey}`
       await fastify.redis.set(redisKey, job.id ?? 'queued', 'EX', 86400)
     }

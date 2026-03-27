@@ -226,7 +226,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         idempotencyKey: `survey:${surveyId}:${memberId}`,
         ingestedAt,
       })
-      jobId = job.id
+      jobId = job.id ?? null
     } catch (err: unknown) {
       fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue CX event (response saved)')
     }

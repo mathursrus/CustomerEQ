@@ -42,4 +42,5 @@ export interface SentimentAnalysisPayload {
 
 export interface FeedbackClusteringPayload {
   brandId: string
+  triggeredBy?: string
 }
