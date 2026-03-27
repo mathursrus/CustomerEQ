@@ -30,21 +30,21 @@ class ClusteringResult {
 }
 
 function DiscoverClusters(
-  unassigned_feedback FeedbackItem[] @description("Feedback items not yet assigned to a cluster"),
-  existing_clusters ClusterDefinition[] @description("Currently known clusters")
+  unassigned_feedback: FeedbackItem[] @description("Feedback items not yet assigned to a cluster"),
+  existing_clusters: ClusterDefinition[] @description("Currently known clusters")
 ) -> ClusteringResult {
-  client Claude
+  client GPT4o
   prompt #"
     You are a customer experience analyst performing thematic analysis on customer feedback.
 
-    {{ if existing_clusters }}
+    {% if existing_clusters %}
     Existing feedback clusters:
     {% for cluster in existing_clusters %}
     - {{ cluster.label }}: {{ cluster.description }} (keywords: {{ cluster.keywords }})
     {% endfor %}
     {{ else }}
     No existing clusters yet. Discover the natural themes in this feedback.
-    {{ endif }}
+    {% endif %}
 
     Unassigned feedback to analyze:
     {% for item in unassigned_feedback %}
@@ -62,3 +62,5 @@ function DiscoverClusters(
     {{ ctx.output_format }}
   "#
 }
+
+// Tests: see packages/ai/src/evals/analyze-feedback.eval.ts

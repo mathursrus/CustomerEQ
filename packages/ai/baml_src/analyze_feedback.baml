@@ -16,24 +16,24 @@ class FeedbackAnalysis {
 }
 
 function AnalyzeFeedback(
-  feedback_text string,
-  survey_type string @description("One of: NPS, CSAT, CES, CUSTOM"),
-  numeric_score int? @description("The numeric score given (e.g. NPS 0-10, CSAT 1-5)"),
-  existing_clusters ExistingCluster[] @description("Currently known feedback clusters for this brand")
+  feedback_text: string,
+  survey_type: string @description("One of: NPS, CSAT, CES, CUSTOM"),
+  numeric_score: int? @description("The numeric score given (e.g. NPS 0-10, CSAT 1-5)"),
+  existing_clusters: ExistingCluster[] @description("Currently known feedback clusters for this brand")
 ) -> FeedbackAnalysis {
-  client ClaudeFast
+  client GPT4oMini
   prompt #"
     You are a customer experience analyst. Analyze this survey response and extract structured insights.
 
     Survey type: {{ survey_type }}
-    {{ if numeric_score }}Numeric score: {{ numeric_score }}{{ endif }}
+    {% if numeric_score %}Numeric score: {{ numeric_score }}{% endif %}
 
     Customer feedback:
     ---
     {{ feedback_text }}
     ---
 
-    {{ if existing_clusters }}
+    {% if existing_clusters %}
     Known feedback clusters for this brand:
     {{ ctx.output_format }}
 
@@ -45,7 +45,7 @@ function AnalyzeFeedback(
     If it doesn't fit any existing cluster well, set assigned_cluster_label to null and suggest a new cluster label.
     {{ else }}
     There are no existing clusters yet. Suggest a cluster label for this feedback.
-    {{ endif }}
+    {% endif %}
 
     Be nuanced about sentiment - understand sarcasm, backhanded compliments, and context.
     Extract specific topics mentioned, not generic categories.
@@ -53,3 +53,5 @@ function AnalyzeFeedback(
     {{ ctx.output_format }}
   "#
 }
+
+// Tests: see packages/ai/src/evals/analyze-feedback.eval.ts

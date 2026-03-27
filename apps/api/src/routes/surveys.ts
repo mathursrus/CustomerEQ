@@ -23,7 +23,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const brandId = request.brandId
-    const { name, programId, type, questions, settings, incentivePoints } = parse.data
+    const { name, programId, type, questions, settings, incentivePoints, themeId } = parse.data
 
     // Verify program belongs to this brand
     const program = await fastify.prisma.program.findFirst({
@@ -42,6 +42,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         questions,
         settings: (settings ?? undefined) as Prisma.InputJsonValue | undefined,
         incentivePoints: incentivePoints ?? null,
+        themeId: themeId ?? null,
       },
     })
 

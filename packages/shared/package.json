@@ -14,7 +14,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:smoke": "vitest run"
   },
   "dependencies": {
     "zod": "^3.23.0"

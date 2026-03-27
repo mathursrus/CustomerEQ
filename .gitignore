@@ -40,3 +40,4 @@ docs/evidence/**/*.mp4
 *.log
 npm-debug.log*
 coverage/
+packages/ai/src/generated/

@@ -13,6 +13,10 @@
       "dependsOn": ["^build"],
       "env": ["DATABASE_URL", "REDIS_URL"]
     },
+    "test:smoke": {
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "REDIS_URL"]
+    },
     "test:integration": {
       "dependsOn": ["^build"],
       "env": ["DATABASE_URL", "REDIS_URL", "CLERK_SECRET_KEY"]

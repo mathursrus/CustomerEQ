@@ -21,11 +21,11 @@ class AnomalyReport {
 }
 
 function DetectAnomalies(
-  cluster_trends ClusterTrend[] @description("Trend data for all active clusters"),
-  total_responses_last_30d int,
-  total_responses_previous_30d int
+  cluster_trends: ClusterTrend[] @description("Trend data for all active clusters"),
+  total_responses_last_30d: int,
+  total_responses_previous_30d: int
 ) -> AnomalyReport {
-  client ClaudeFast
+  client GPT4oMini
   prompt #"
     You are a CX analytics expert reviewing feedback trends for anomalies.
 
@@ -52,3 +52,5 @@ function DetectAnomalies(
     {{ ctx.output_format }}
   "#
 }
+
+// Tests: see packages/ai/src/evals/analyze-feedback.eval.ts
