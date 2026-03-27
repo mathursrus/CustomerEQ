@@ -11,7 +11,7 @@
     "test": "vitest run --reporter=verbose",
     "test:smoke": "vitest run --reporter=verbose",
     "test:baml": "vitest run --config vitest.eval.config.ts --reporter=verbose",
-    "generate": "cd ../../ && npx @boundaryml/baml generate"
+    "generate": "npx @boundaryml/baml@0.211.0 generate"
   },
   "dependencies": {
     "@customerEQ/database": "workspace:*",
