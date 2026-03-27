@@ -84,30 +84,32 @@ New tests added (all passing):
 
 ## 4. Integration Tests
 
-Integration tests (`apps/api/test/integration/programs.test.ts`) require a running PostgreSQL instance.
+Integration tests run against a local PostgreSQL 16 instance installed via winget.
 
-**Status: ⚠️ PENDING** — Docker is not available in this shell environment.
+```
+DATABASE_URL="postgresql://customerEQ:customerEQ@127.0.0.1:5432/customerEQ" \
+  pnpm --filter @customerEQ/api test:integration
 
-To run integration tests once Docker/DB is available:
-```bash
-# 1. Start services
-docker compose up -d postgres
-
-# 2. Generate migration
-pnpm db:migrate:new --name m1-configure-loyalty-program
-
-# 3. Run integration tests
-pnpm --filter @customerEQ/api test:integration
+Test Files:  8 passed (8)
+     Tests: 96 passed (96)
+  Duration: 42.96s
 ```
 
-Tests written and ready (60+ test cases):
+**Result: ✅ PASS — 96/96 integration tests**
+
+Tests covering:
 - GET /v1/programs — pagination envelope, filters (status, type), tenant isolation
 - PUT /v1/programs/:id/status — transitions, activation guard (422 if no rules)
 - Tier CRUD — POST (201), GET sorted by rank, DELETE soft-delete, 409 blocked by members
-- Reward retire — immediate + scheduled (expireAt)
+- Reward retire — immediate (isAvailable=false) + scheduled (availableTo set)
 - POST /v1/programs/:id/simulate — rulesMatched, totalPoints, non-mutating verified
 - POST/GET /v1/programs/:id/versions — snapshot creation + list
 - Campaigns/surveys GET — updated to assert pagination envelope
+
+**3 test infrastructure fixes applied:**
+- `app.ts`: Added `addContentTypeParser` to accept empty JSON body on DELETE (Fastify v5)
+- `seed.ts`: Added `prisma.programVersion` + `prisma.tier` to cleanup order (M1 new models)
+- `setup.ts`: Resolved pnpm-hoisted prisma binary path for Windows compatibility
 
 ---
 
