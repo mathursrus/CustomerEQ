@@ -28,9 +28,10 @@
     "onboard-org": "node scripts/onboard-org.mjs"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.6.0",
     "turbo": "^2.0.0",
-    "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "typescript": "^5.4.0"
   },
   "pnpm": {
     "overrides": {

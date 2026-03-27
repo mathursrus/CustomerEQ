@@ -39,3 +39,8 @@ export interface SentimentAnalysisPayload {
   eventType: string // e.g. "cx.nps_response" — used to enqueue follow-up events
   score?: number // Original numeric score (NPS/CSAT/CES)
 }
+
+export interface FeedbackClusteringPayload {
+  brandId: string
+  triggeredBy?: string
+}

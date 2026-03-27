@@ -341,14 +341,71 @@ model SurveyResponse {
   answers     Json     // { questionId: answer }
   score       Float?   // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
   sentiment   Float?   // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  confidence  Float?   // AI confidence in sentiment score, 0.0 to 1.0
   topics      String[] // AI-extracted topics from open-ended responses
+  summary     String?  // AI-generated one-line summary
+  clusterId   String?  // FK to FeedbackCluster
+  cluster     FeedbackCluster? @relation(fields: [clusterId], references: [id])
   channel     String   @default("link") // email, in_app, link, sms
   completedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 
   @@unique([surveyId, memberId]) // One response per member per survey
   @@index([brandId, completedAt])
+  @@index([clusterId])
   @@map("survey_responses")
+}
+
+model FeedbackCluster {
+  id            String   @id @default(cuid())
+  brandId       String
+  label         String
+  description   String?
+  keywords      String[]
+  avgSentiment  Float?
+  responseCount Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  responses     SurveyResponse[]
+  snapshots     ClusterSnapshot[]
+
+  @@unique([brandId, label])
+  @@index([brandId, isActive])
+  @@map("feedback_clusters")
+}
+
+model ClusterSnapshot {
+  id           String   @id @default(cuid())
+  clusterId    String
+  cluster      FeedbackCluster @relation(fields: [clusterId], references: [id])
+  brandId      String
+  bucketDate   DateTime // Start of the day bucket
+  volume       Int      // Number of responses in this bucket
+  avgSentiment Float?
+  isAnomaly    Boolean  @default(false)
+  zScore       Float?
+  createdAt    DateTime @default(now())
+
+  @@unique([clusterId, bucketDate])
+  @@index([brandId, bucketDate])
+  @@map("cluster_snapshots")
+}
+
+model FeedbackAnomaly {
+  id         String    @id @default(cuid())
+  brandId    String
+  clusterId  String?
+  type       String    // volume_spike, sentiment_drop, new_theme, volume_decline
+  severity   String    // low, medium, high
+  summary    String
+  detectedAt DateTime  @default(now())
+  resolvedAt DateTime?
+  metadata   Json?
+
+  @@index([brandId, detectedAt])
+  @@map("feedback_anomalies")
 }
 
 model DemoRequest {

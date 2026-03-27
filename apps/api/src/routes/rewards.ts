@@ -58,7 +58,7 @@ const rewardsRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { createdAt: 'asc' },
     })
 
-    return reply.status(200).send(rewards)
+    return reply.status(200).send({ rewards })
   })
 }
 

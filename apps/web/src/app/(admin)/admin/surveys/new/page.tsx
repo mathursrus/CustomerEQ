@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '@/lib/config'
 
 interface Program {
   id: string
@@ -67,8 +66,8 @@ export default function NewSurveyPage() {
           const data = await res.json()
           setPrograms(data.programs ?? data ?? [])
         }
-      } catch {
-        // silently handle
+      } catch (err) {
+        console.error('Failed to fetch programs:', err)
       }
     }
     fetchPrograms()

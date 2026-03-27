@@ -6,11 +6,19 @@ type RedisInstance = IORedis
 
 declare module 'fastify' {
   interface FastifyInstance {
-    redis: RedisInstance
+    redis: RedisInstance | null
   }
 }
 
+const QUEUE_MODE = process.env.QUEUE_MODE ?? 'redis'
+
 const redisPlugin: FastifyPluginAsync = async (fastify) => {
+  if (QUEUE_MODE === 'inline') {
+    fastify.decorate('redis', null)
+    fastify.log.info('Redis skipped (QUEUE_MODE=inline)')
+    return
+  }
+
   const redis: RedisInstance = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
     maxRetriesPerRequest: null,
     lazyConnect: false,

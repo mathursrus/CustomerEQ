@@ -6,6 +6,7 @@ const navLinks = [
   { href: '/admin/campaigns', label: 'Campaigns' },
   { href: '/admin/surveys', label: 'Surveys' },
   { href: '/admin/analytics', label: 'Analytics' },
+  { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/integrations', label: 'Integrations' },
 ]
 

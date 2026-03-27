@@ -39,3 +39,4 @@ docs/evidence/**/*.mp4
 # Logs
 *.log
 npm-debug.log*
+coverage/

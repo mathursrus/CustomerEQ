@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { DemoRequestSchema } from '@customerEQ/shared'
+import { DemoRequestSchema, NPS } from '@customerEQ/shared'
 import { enqueueEvent, enqueueSentimentAnalysis } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
@@ -248,7 +248,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Promoter identification
-      if (survey.type === 'NPS' && score !== undefined && score >= 9) {
+      if (survey.type === 'NPS' && score !== undefined && NPS.isPromoter(score)) {
         enqueueEvent({
           brandId,
           memberId: member.id,

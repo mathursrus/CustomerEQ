@@ -66,10 +66,11 @@ describe('Rewards & Redemptions API', () => {
       const res = await request.get('/v1/rewards')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body)).toBe(true)
-      expect(res.body.length).toBeGreaterThanOrEqual(2)
+      const rewards = res.body.rewards ?? res.body
+      expect(Array.isArray(rewards)).toBe(true)
+      expect(rewards.length).toBeGreaterThanOrEqual(2)
 
-      const names = res.body.map((r: { name: string }) => r.name)
+      const names = rewards.map((r: { name: string }) => r.name)
       expect(names).toContain('Reward A')
       expect(names).toContain('Reward B')
     })
@@ -89,7 +90,8 @@ describe('Rewards & Redemptions API', () => {
       const res = await request.get('/v1/rewards')
 
       expect(res.status).toBe(200)
-      const names = res.body.map((r: { name: string }) => r.name)
+      const rewards = res.body.rewards ?? res.body
+      const names = rewards.map((r: { name: string }) => r.name)
       expect(names).not.toContain('Other Brand Reward')
     })
   })

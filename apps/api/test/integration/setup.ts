@@ -7,6 +7,8 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   enqueueEvent: vi.fn(async (payload: unknown) => InMemoryQueue.add('loyalty-events', payload)),
   enqueueCampaignTrigger: vi.fn(async (payload: unknown) => InMemoryQueue.add('campaign-triggers', payload)),
   enqueueNotification: vi.fn(async (payload: unknown) => InMemoryQueue.add('notifications', payload)),
+  enqueueSentimentAnalysis: vi.fn(async (payload: unknown) => InMemoryQueue.add('sentiment-analysis', payload)),
+  enqueueFeedbackClustering: vi.fn(async (payload: unknown) => InMemoryQueue.add('feedback-clustering', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection
