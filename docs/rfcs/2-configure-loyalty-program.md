@@ -2,7 +2,7 @@
 
 Issue: #2
 Owner: manohar.madhira@outlook.com
-Status: Draft
+Status: Approved
 Date: 2026-03-26
 
 ---
@@ -166,6 +166,8 @@ model EarningRule {
   pointsAwarded    Int
   multiplier       Float      @default(1.0)
   conditions       Json?      // JSONB: { op: "AND"|"OR", items: [{ field, operator, value }] }
+                             // MVP: single operator per group only — no nested groups.
+                             // Nested AND/OR condition groups deferred to Issue #32 (customer-voted future release).
   priority         Int        @default(10)                    // NEW — lower = evaluated first
   stackable        Boolean    @default(false)                 // NEW — fires even after first match
   budgetCapPoints  Int?                                       // NEW — max points this rule awards
@@ -192,7 +194,7 @@ model Tier {
   program       Program  @relation(fields: [programId], references: [id])
   rank          Int      // 1 = entry (Bronze), higher = more prestigious (Platinum)
   name          String
-  icon          String   @default("🥉")
+  icon          String   @default("🥉") // emoji from preset catalog (~12 options); no custom image upload for MVP
   minPoints     Int?     // entry criteria: min points balance
   minSpendCents Int?     // entry criteria: min cumulative spend in cents
   benefits      String[] // freeform benefit strings
@@ -352,12 +354,14 @@ Response: {
   rulesMatched: [{ ruleId, ruleName, pointsAwarded, stackable }],
   totalPoints: number,
   firstMatchOnly: boolean,   // true if first-match-wins stopped evaluation
-  simulatedBalance: number,  // member's current balance + totalPoints
+  simulatedBalance: number,  // member's current balance + totalPoints (server-computed, stateless per call)
   tierAfter: { name, icon } | null
 }
 ```
 
 The simulate endpoint runs the same `evaluateRulesWithIds` logic synchronously (no queue) against a hypothetical payload. It does NOT write any records.
+
+**Session accumulation (UI behavior, decided 2026-03-27):** The Step 7 phone preview accumulates across multiple simulations in a single session — each "Run Simulation" call adds its `totalPoints` to the running client-side preview balance, rather than resetting to the member's baseline. This helps admins model a realistic earning journey across several events. The API endpoint itself is stateless; accumulation is managed by the wizard's client state.
 
 #### 3g. New Program Version endpoint
 
