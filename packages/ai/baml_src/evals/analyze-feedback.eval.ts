@@ -1,26 +1,24 @@
 /**
  * BAML Eval Tests — Real LLM Assertions
  *
- * These call the REAL LLM via the generated BAML client (b.AnalyzeFeedback, etc.)
- * They require OPENAI_API_KEY to be set (GPT-4o-mini is the default client).
- *
- * Run with: pnpm test:baml (from root or packages/ai)
- * Excluded from: pnpm test, pnpm test:smoke
- * NEVER SKIP: Fails hard if OPENAI_API_KEY or ANTHROPIC_API_KEY is missing.
+ * Calls real GPT-4o/GPT-4o-mini via the generated BAML client.
+ * Run with: pnpm test:baml
+ * NEVER SKIP: Fails hard if API key is missing.
  *
  * Following the Ashley-Calendar-AI pattern:
- *   import { b } from '../generated/baml_client'
+ *   import { b } from './test-utils.js'
  *   const result = await b.AnalyzeFeedback(...)
  *   expect(result.sentiment).toBeGreaterThan(0.3)
  */
 
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { b } from '../../src/generated/baml_client/index.js'
+import { ensureApiKey, b, LLM_TIMEOUT, BATCH_LLM_TIMEOUT } from './test-utils.js'
 
-if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-  throw new Error('BAML eval tests require OPENAI_API_KEY or ANTHROPIC_API_KEY to be set. These tests call real LLMs — never skip, always fail if misconfigured.')
-}
+// Fail immediately if no API key — never skip
+ensureApiKey()
+
+// ─── AnalyzeFeedback ─────────────────────────────────────────────────────────
 
 describe('[baml] AnalyzeFeedback — real LLM', () => {
   it('returns positive sentiment for enthusiastic NPS feedback', async () => {
@@ -38,9 +36,8 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
     expect(result.confidence).toBeGreaterThan(0.4)
     expect(result.topics.length).toBeGreaterThan(0)
     expect(result.summary.length).toBeGreaterThan(10)
-    // Should assign to one of the existing clusters
     expect(result.assigned_cluster_label).toBeTruthy()
-  }, 30_000)
+  }, LLM_TIMEOUT)
 
   it('returns negative sentiment for angry CSAT feedback', async () => {
     const result = await b.AnalyzeFeedback(
@@ -57,7 +54,7 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
     expect(result.confidence).toBeGreaterThan(0.4)
     expect(result.topics.length).toBeGreaterThan(0)
     expect(result.assigned_cluster_label).toBeTruthy()
-  }, 30_000)
+  }, LLM_TIMEOUT)
 
   it('detects sarcasm as non-positive sentiment', async () => {
     const result = await b.AnalyzeFeedback(
@@ -67,10 +64,9 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
       [],
     )
 
-    // Sarcasm is tricky — LLM may interpret differently, but with score=2 it should lean negative
     expect(result.sentiment).toBeLessThan(0.3)
     expect(result.suggested_new_cluster_label).toBeTruthy()
-  }, 30_000)
+  }, LLM_TIMEOUT)
 
   it('suggests new cluster for unrecognized theme', async () => {
     const result = await b.AnalyzeFeedback(
@@ -83,12 +79,13 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
       ],
     )
 
-    // Checkout issues don't fit existing clusters
     const hasCluster = result.assigned_cluster_label || result.suggested_new_cluster_label
     expect(hasCluster).toBeTruthy()
     expect(result.topics.length).toBeGreaterThan(0)
-  }, 30_000)
+  }, LLM_TIMEOUT)
 })
+
+// ─── DiscoverClusters ────────────────────────────────────────────────────────
 
 describe('[baml] DiscoverClusters — real LLM', () => {
   it('discovers themes from unassigned feedback', async () => {
@@ -105,12 +102,13 @@ describe('[baml] DiscoverClusters — real LLM', () => {
 
     expect(result.new_clusters.length).toBeGreaterThanOrEqual(2)
     expect(result.assignments.length).toBe(5)
-    // Every feedback item should be assigned
     const assignedIds = result.assignments.map(a => a.feedback_id)
     expect(assignedIds).toContain('f1')
     expect(assignedIds).toContain('f5')
-  }, 60_000)
+  }, BATCH_LLM_TIMEOUT)
 })
+
+// ─── DetectAnomalies ─────────────────────────────────────────────────────────
 
 describe('[baml] DetectAnomalies — real LLM', () => {
   it('detects volume spike in trend data', async () => {
@@ -130,5 +128,5 @@ describe('[baml] DetectAnomalies — real LLM', () => {
 
     expect(result.anomalies.length).toBeGreaterThanOrEqual(1)
     expect(result.overall_summary.length).toBeGreaterThan(20)
-  }, 60_000)
+  }, BATCH_LLM_TIMEOUT)
 })
