@@ -31,8 +31,10 @@ Thumbs.db
 # Playwright MCP
 .playwright-mcp/
 
-# Test evidence (screenshots, reports)
-docs/evidence/
+# Test evidence (binary artifacts only — markdown evidence files are committed)
+docs/evidence/**/*.png
+docs/evidence/**/*.jpg
+docs/evidence/**/*.mp4
 
 # Logs
 *.log

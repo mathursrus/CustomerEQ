@@ -5,7 +5,10 @@ import {
   createBrand,
   createProgram,
   createProgramWithRules,
+  createReward,
+  createTier,
   authenticatedRequest,
+  getTestPrisma,
 } from '@customerEQ/config/test-utils'
 
 describe('Programs API — /v1/programs', () => {
@@ -99,6 +102,22 @@ describe('Programs API — /v1/programs', () => {
 
       expect(res.status).toBe(404)
     })
+
+    it('includes tiers and rewards in the response', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      await createTier({ brandId: brand.id, programId: program.id, name: 'Bronze', rank: 1 })
+      await createReward({ brandId: brand.id, programId: program.id, name: 'Free Coffee' })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}`)
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body.tiers)).toBe(true)
+      expect(res.body.tiers).toHaveLength(1)
+      expect(Array.isArray(res.body.rewards)).toBe(true)
+      expect(res.body.rewards).toHaveLength(1)
+    })
   })
 
   // -------------------------------------------------------------------------
@@ -157,11 +176,11 @@ describe('Programs API — /v1/programs', () => {
   })
 
   // -------------------------------------------------------------------------
-  // GET /v1/programs
+  // GET /v1/programs — pagination envelope
   // -------------------------------------------------------------------------
 
   describe('GET /v1/programs', () => {
-    it('returns a list of programs for the brand', async () => {
+    it('returns a pagination envelope with data, total, page, pageSize, totalPages', async () => {
       const brand = await createBrand()
       await createProgram({ brandId: brand.id })
       await createProgram({ brandId: brand.id })
@@ -170,19 +189,23 @@ describe('Programs API — /v1/programs', () => {
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body.programs)).toBe(true)
-      expect(res.body.programs.length).toBe(2)
-      expect(res.body.programs[0].brandId).toBe(brand.id)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data).toHaveLength(2)
+      expect(res.body.total).toBe(2)
+      expect(res.body.page).toBe(1)
+      expect(res.body.pageSize).toBe(25)
+      expect(res.body.totalPages).toBe(1)
     })
 
-    it('returns an empty array for a brand with no programs', async () => {
+    it('returns an empty data array for a brand with no programs', async () => {
       const brand = await createBrand()
       const request = await authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(res.body.programs).toHaveLength(0)
+      expect(res.body.data).toHaveLength(0)
+      expect(res.body.total).toBe(0)
     })
 
     it('does not include programs from other brands (tenant isolation)', async () => {
@@ -195,8 +218,420 @@ describe('Programs API — /v1/programs', () => {
       const res = await request.get('/v1/programs')
 
       expect(res.status).toBe(200)
-      expect(res.body.programs.length).toBe(1)
-      expect(res.body.programs[0].brandId).toBe(brandA.id)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].brandId).toBe(brandA.id)
+    })
+
+    it('respects the pageSize query parameter', async () => {
+      const brand = await createBrand()
+      await createProgram({ brandId: brand.id })
+      await createProgram({ brandId: brand.id })
+      await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs?pageSize=2')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(2)
+      expect(res.body.pageSize).toBe(2)
+      expect(res.body.totalPages).toBe(2)
+      expect(res.body.total).toBe(3)
+    })
+
+    it('respects the page query parameter for the second page', async () => {
+      const brand = await createBrand()
+      await createProgram({ brandId: brand.id })
+      await createProgram({ brandId: brand.id })
+      await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs?page=2&pageSize=2')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.page).toBe(2)
+    })
+
+    it('filters by status query parameter', async () => {
+      const brand = await createBrand()
+      await createProgram({ brandId: brand.id, status: 'DRAFT' })
+      await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs?status=DRAFT')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].status).toBe('DRAFT')
+    })
+
+    it('filters by type query parameter', async () => {
+      const brand = await createBrand()
+      await createProgram({ brandId: brand.id, type: 'POINTS' })
+      await createProgram({ brandId: brand.id, type: 'TIERED' })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/programs?type=TIERED')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].type).toBe('TIERED')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // PUT /v1/programs/:id/status
+  // -------------------------------------------------------------------------
+
+  describe('PUT /v1/programs/:id/status', () => {
+    it('transitions a DRAFT program to ACTIVE when it has at least one earning rule', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({ brandId: brand.id, status: 'DRAFT', rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.put(`/v1/programs/${program.id}/status`).send({ status: 'ACTIVE' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.status).toBe('ACTIVE')
+    })
+
+    it('returns 422 when attempting to activate a DRAFT program with no earning rules', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'DRAFT' })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.put(`/v1/programs/${program.id}/status`).send({ status: 'ACTIVE' })
+
+      expect(res.status).toBe(422)
+      expect(res.body.error).toMatch(/rule/i)
+    })
+
+    it('transitions an ACTIVE program to PAUSED', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({ brandId: brand.id, status: 'ACTIVE', rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.put(`/v1/programs/${program.id}/status`).send({ status: 'PAUSED' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.status).toBe('PAUSED')
+    })
+
+    it('transitions a PAUSED program back to ACTIVE', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({ brandId: brand.id, status: 'PAUSED', rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.put(`/v1/programs/${program.id}/status`).send({ status: 'ACTIVE' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.status).toBe('ACTIVE')
+    })
+
+    it('returns 404 when a different brand attempts the status transition', async () => {
+      const ownerBrand = await createBrand()
+      const { program } = await createProgramWithRules({ brandId: ownerBrand.id, rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
+
+      const attackerBrand = await createBrand()
+      const request = await authenticatedRequest(attackerBrand.id)
+
+      const res = await request.put(`/v1/programs/${program.id}/status`).send({ status: 'ACTIVE' })
+
+      expect(res.status).toBe(404)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Tier CRUD — /v1/programs/:id/tiers
+  // -------------------------------------------------------------------------
+
+  describe('Tier CRUD', () => {
+    describe('POST /v1/programs/:id/tiers', () => {
+      it('creates a tier and returns 201 with the tier data', async () => {
+        const brand = await createBrand()
+        const program = await createProgram({ brandId: brand.id })
+        const request = await authenticatedRequest(brand.id)
+
+        const res = await request.post(`/v1/programs/${program.id}/tiers`).send({
+          name: 'Bronze',
+          rank: 1,
+          minPoints: 0,
+          benefits: ['Early access'],
+        })
+
+        expect(res.status).toBe(201)
+        expect(res.body.id).toBeDefined()
+        expect(res.body.name).toBe('Bronze')
+        expect(res.body.rank).toBe(1)
+        expect(res.body.programId).toBe(program.id)
+      })
+
+      it('returns 422 when name is missing', async () => {
+        const brand = await createBrand()
+        const program = await createProgram({ brandId: brand.id })
+        const request = await authenticatedRequest(brand.id)
+
+        const res = await request.post(`/v1/programs/${program.id}/tiers`).send({ rank: 1 })
+
+        expect(res.status).toBe(422)
+      })
+
+      it('returns 404 when creating a tier for a different brand program', async () => {
+        const ownerBrand = await createBrand()
+        const program = await createProgram({ brandId: ownerBrand.id })
+
+        const attackerBrand = await createBrand()
+        const request = await authenticatedRequest(attackerBrand.id)
+
+        const res = await request.post(`/v1/programs/${program.id}/tiers`).send({ name: 'Bronze', rank: 1 })
+
+        expect(res.status).toBe(404)
+      })
+    })
+
+    describe('GET /v1/programs/:id (tiers sorted by rank)', () => {
+      it('returns tiers sorted ascending by rank', async () => {
+        const brand = await createBrand()
+        const program = await createProgram({ brandId: brand.id })
+        await createTier({ brandId: brand.id, programId: program.id, name: 'Platinum', rank: 3 })
+        await createTier({ brandId: brand.id, programId: program.id, name: 'Bronze', rank: 1 })
+        await createTier({ brandId: brand.id, programId: program.id, name: 'Gold', rank: 2 })
+        const request = await authenticatedRequest(brand.id)
+
+        const res = await request.get(`/v1/programs/${program.id}`)
+
+        expect(res.status).toBe(200)
+        const ranks = res.body.tiers.map((t: { rank: number }) => t.rank)
+        expect(ranks).toEqual([1, 2, 3])
+      })
+    })
+
+    describe('DELETE /v1/programs/:id/tiers/:tierId', () => {
+      it('soft-deletes a tier — 200 and tier excluded from subsequent GET', async () => {
+        const brand = await createBrand()
+        const program = await createProgram({ brandId: brand.id })
+        const tier = await createTier({ brandId: brand.id, programId: program.id, name: 'Bronze', rank: 1 })
+        const request = await authenticatedRequest(brand.id)
+
+        const deleteRes = await request.delete(`/v1/programs/${program.id}/tiers/${tier.id}`)
+        expect(deleteRes.status).toBe(200)
+
+        const getRes = await request.get(`/v1/programs/${program.id}`)
+        expect(getRes.body.tiers).toHaveLength(0)
+      })
+
+      it('returns 409 when members are currently assigned to the tier', async () => {
+        const brand = await createBrand()
+        const program = await createProgram({ brandId: brand.id })
+        const tier = await createTier({ brandId: brand.id, programId: program.id, name: 'Gold', rank: 1 })
+        const prisma = getTestPrisma()
+        await prisma.member.create({
+          data: {
+            brandId: brand.id,
+            email: `tier-member-${Date.now()}@test.com`,
+            currentTierId: tier.id,
+          },
+        })
+        const request = await authenticatedRequest(brand.id)
+
+        const res = await request.delete(`/v1/programs/${program.id}/tiers/${tier.id}`)
+
+        expect(res.status).toBe(409)
+        expect(res.body.error).toMatch(/member/i)
+      })
+
+      it('returns 404 when deleting a tier from a different brand program', async () => {
+        const ownerBrand = await createBrand()
+        const program = await createProgram({ brandId: ownerBrand.id })
+        const tier = await createTier({ brandId: ownerBrand.id, programId: program.id, name: 'Bronze', rank: 1 })
+
+        const attackerBrand = await createBrand()
+        const request = await authenticatedRequest(attackerBrand.id)
+
+        const res = await request.delete(`/v1/programs/${program.id}/tiers/${tier.id}`)
+
+        expect(res.status).toBe(404)
+      })
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Reward retire — DELETE /v1/programs/:id/rewards/:rwId
+  // -------------------------------------------------------------------------
+
+  describe('Reward retire', () => {
+    it('retires a reward immediately when no expireAt is provided', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      const reward = await createReward({ brandId: brand.id, programId: program.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.delete(`/v1/programs/${program.id}/rewards/${reward.id}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.isAvailable).toBe(false)
+    })
+
+    it('schedules a future retire when expireAt is provided', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      const reward = await createReward({ brandId: brand.id, programId: program.id })
+      const request = await authenticatedRequest(brand.id)
+      const futureDate = '2027-12-31T23:59:59.000Z'
+
+      const res = await request
+        .delete(`/v1/programs/${program.id}/rewards/${reward.id}`)
+        .send({ expireAt: futureDate })
+
+      expect(res.status).toBe(200)
+      expect(res.body.isAvailable).toBe(true)
+      expect(res.body.availableTo).toBe(futureDate)
+    })
+
+    it('returns 404 when retiring a reward from a different brand program', async () => {
+      const ownerBrand = await createBrand()
+      const program = await createProgram({ brandId: ownerBrand.id })
+      const reward = await createReward({ brandId: ownerBrand.id, programId: program.id })
+
+      const attackerBrand = await createBrand()
+      const request = await authenticatedRequest(attackerBrand.id)
+
+      const res = await request.delete(`/v1/programs/${program.id}/rewards/${reward.id}`)
+
+      expect(res.status).toBe(404)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // POST /v1/programs/:id/simulate
+  // -------------------------------------------------------------------------
+
+  describe('POST /v1/programs/:id/simulate', () => {
+    it('returns rulesMatched and totalPoints for a matching event', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        status: 'ACTIVE',
+        rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }],
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request
+        .post(`/v1/programs/${program.id}/simulate`)
+        .send({ eventType: 'purchase', payload: { amount: 150 } })
+
+      expect(res.status).toBe(200)
+      expect(res.body.totalPoints).toBe(100)
+      expect(Array.isArray(res.body.rulesMatched)).toBe(true)
+      expect(res.body.rulesMatched).toHaveLength(1)
+    })
+
+    it('returns totalPoints of 0 when no rules match', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        status: 'ACTIVE',
+        rules: [{ triggerEvent: 'login', pointsAwarded: 50 }],
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request
+        .post(`/v1/programs/${program.id}/simulate`)
+        .send({ eventType: 'purchase', payload: {} })
+
+      expect(res.status).toBe(200)
+      expect(res.body.totalPoints).toBe(0)
+      expect(res.body.rulesMatched).toHaveLength(0)
+    })
+
+    it('does not create a LoyaltyEvent record (non-mutating)', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        status: 'ACTIVE',
+        rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }],
+      })
+      const request = await authenticatedRequest(brand.id)
+      const prisma = getTestPrisma()
+      const beforeCount = await prisma.loyaltyEvent.count()
+
+      await request
+        .post(`/v1/programs/${program.id}/simulate`)
+        .send({ eventType: 'purchase', payload: {} })
+
+      const afterCount = await prisma.loyaltyEvent.count()
+      expect(afterCount).toBe(beforeCount)
+    })
+
+    it('returns 422 when eventType is missing', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request
+        .post(`/v1/programs/${program.id}/simulate`)
+        .send({ payload: {} })
+
+      expect(res.status).toBe(422)
+    })
+
+    it('returns 404 when simulating against a different brand program', async () => {
+      const ownerBrand = await createBrand()
+      const { program } = await createProgramWithRules({ brandId: ownerBrand.id, rules: [{ triggerEvent: 'purchase', pointsAwarded: 100 }] })
+
+      const attackerBrand = await createBrand()
+      const request = await authenticatedRequest(attackerBrand.id)
+
+      const res = await request
+        .post(`/v1/programs/${program.id}/simulate`)
+        .send({ eventType: 'purchase' })
+
+      expect(res.status).toBe(404)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // POST /v1/programs/:id/versions (explicit save)
+  // -------------------------------------------------------------------------
+
+  describe('POST /v1/programs/:id/versions', () => {
+    it('creates a version snapshot and returns 201 with a versionId', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.post(`/v1/programs/${program.id}/versions`)
+
+      expect(res.status).toBe(201)
+      expect(res.body.id).toBeDefined()
+      expect(res.body.programId).toBe(program.id)
+      expect(res.body.snapshot).toBeDefined()
+    })
+
+    it('returns a list of versions via GET /v1/programs/:id/versions', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id })
+      const request = await authenticatedRequest(brand.id)
+      await request.post(`/v1/programs/${program.id}/versions`)
+      await request.post(`/v1/programs/${program.id}/versions`)
+
+      const res = await request.get(`/v1/programs/${program.id}/versions`)
+
+      expect(res.status).toBe(200)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data).toHaveLength(2)
+    })
+
+    it('returns 404 when creating a version for a different brand program', async () => {
+      const ownerBrand = await createBrand()
+      const program = await createProgram({ brandId: ownerBrand.id })
+
+      const attackerBrand = await createBrand()
+      const request = await authenticatedRequest(attackerBrand.id)
+
+      const res = await request.post(`/v1/programs/${program.id}/versions`)
+
+      expect(res.status).toBe(404)
     })
   })
 })

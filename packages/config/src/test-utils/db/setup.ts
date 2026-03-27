@@ -21,20 +21,26 @@ export async function setupTestDb(): Promise<PrismaClient> {
   // Create schema and push tables
   await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`)
 
-  try {
-    execSync(`npx prisma db push --skip-generate --accept-data-loss --schema="${process.cwd()}/../../packages/database/prisma/schema.prisma"`, {
+  // Resolve prisma binary: try workspace node_modules first (pnpm hoist), then npx fallback
+  const path = require('path')
+  const repoRoot = path.resolve(process.cwd(), '../../')
+  const prismaBin =
+    path.join(repoRoot, 'node_modules/.pnpm/node_modules/.bin/prisma') + (process.platform === 'win32' ? '.cmd' : '')
+  const schemaPath = path.join(repoRoot, 'packages/database/prisma/schema.prisma')
+
+  const runPush = (bin: string) => {
+    execSync(`"${bin}" db push --skip-generate --accept-data-loss --schema="${schemaPath}"`, {
       env: { ...process.env, DATABASE_URL: testUrl },
       stdio: 'pipe',
-      cwd: process.cwd(),
+      cwd: repoRoot,
     })
-  } catch (err) {
-    // Try alternative path (running from repo root)
+  }
+
+  try {
+    runPush(prismaBin)
+  } catch {
     try {
-      execSync(`npx prisma db push --skip-generate --accept-data-loss --schema="./packages/database/prisma/schema.prisma"`, {
-        env: { ...process.env, DATABASE_URL: testUrl },
-        stdio: 'pipe',
-        cwd: process.cwd(),
-      })
+      runPush('npx prisma')
     } catch {
       // Last resort — tables may already exist
     }

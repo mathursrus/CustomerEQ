@@ -144,21 +144,26 @@ describe('Campaigns API — /v1/campaigns', () => {
       const res = await request.get('/v1/campaigns')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body.campaigns)).toBe(true)
-      expect(res.body.campaigns.length).toBe(2)
-      expect(res.body.campaigns[0].brandId).toBe(brand.id)
-      expect(res.body.campaigns[1].brandId).toBe(brand.id)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data.length).toBe(2)
+      expect(res.body.data[0].brandId).toBe(brand.id)
+      expect(res.body.data[1].brandId).toBe(brand.id)
+      expect(res.body.total).toBe(2)
+      expect(res.body.page).toBe(1)
+      expect(res.body.pageSize).toBe(25)
+      expect(res.body.totalPages).toBe(1)
     })
 
-    it('returns an empty array for a brand with no campaigns', async () => {
+    it('returns an empty data array for a brand with no campaigns', async () => {
       const brand = await createBrand()
       const request = authenticatedRequest(brand.id)
 
       const res = await request.get('/v1/campaigns')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body.campaigns)).toBe(true)
-      expect(res.body.campaigns).toHaveLength(0)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data).toHaveLength(0)
+      expect(res.body.total).toBe(0)
     })
 
     it('does not include campaigns from other brands (tenant isolation)', async () => {
@@ -181,10 +186,10 @@ describe('Campaigns API — /v1/campaigns', () => {
       const res = await request.get('/v1/campaigns')
 
       expect(res.status).toBe(200)
-      expect(Array.isArray(res.body.campaigns)).toBe(true)
-      expect(res.body.campaigns.length).toBe(1)
-      expect(res.body.campaigns[0].brandId).toBe(brandA.id)
-      expect(res.body.campaigns.every((c: { brandId: string }) => c.brandId === brandA.id)).toBe(true)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data.length).toBe(1)
+      expect(res.body.data[0].brandId).toBe(brandA.id)
+      expect(res.body.data.every((c: { brandId: string }) => c.brandId === brandA.id)).toBe(true)
     })
   })
 })

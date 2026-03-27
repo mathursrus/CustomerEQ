@@ -13,6 +13,25 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+enum ProgramType {
+  POINTS
+  TIERED
+  CASHBACK
+  HYBRID
+}
+
+enum HaltBehavior {
+  PAUSE_PROGRAM
+  PAUSE_RULES
+}
+
+enum RewardType {
+  DISCOUNT
+  FREE_ITEM
+  EXPERIENCE
+  VOUCHER
+}
+
 enum ProgramStatus {
   DRAFT
   ACTIVE
@@ -83,9 +102,20 @@ model Program {
   pointCurrencyName    String        @default("Points")
   pointToCurrencyRatio Float         @default(0.01) // $0.01 per point
   status               ProgramStatus @default(DRAFT)
+  type                 ProgramType   @default(POINTS)
+  startDate            DateTime?
+  endDate              DateTime?
+  budgetUsdCents       Int?
+  monthlyBudgetUsdCents Int?
+  budgetSpentCents     Int           @default(0)
+  alertThresholdPct    Float?
+  haltBehavior         HaltBehavior?
+  deletedAt            DateTime? // soft delete
   earningRules         EarningRule[]
   campaigns            Campaign[]
   rewards              Reward[]
+  tiers                Tier[]
+  versions             ProgramVersion[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -105,6 +135,10 @@ model EarningRule {
   conditions       Json? // JSONB: AND/OR condition logic
   maxUsesPerMember Int? // null = unlimited
   status           RuleStatus @default(ACTIVE)
+  priority         Int        @default(0)
+  stackable        Boolean    @default(false)
+  budgetCapPoints  Int?
+  budgetUsedPoints Int        @default(0)
   validFrom        DateTime   @default(now())
   validTo          DateTime?
   createdAt        DateTime   @default(now())
@@ -128,6 +162,8 @@ model Member {
   consentGivenAt DateTime?
   consentVersion String?
   deletedAt      DateTime? // soft delete (C-02)
+  currentTierId  String?
+  currentTier    Tier?          @relation(fields: [currentTierId], references: [id])
   erased         Boolean        @default(false) // GDPR erasure flag (C-03)
   loyaltyEvents   LoyaltyEvent[]
   redemptions     Redemption[]
@@ -171,13 +207,54 @@ model Reward {
   description String?
   pointsCost  Int
   stock       Int? // null = unlimited
-  isAvailable Boolean      @default(true)
-  redemptions Redemption[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  isAvailable     Boolean      @default(true)
+  type            RewardType?
+  availableFrom   DateTime?
+  availableTo     DateTime?
+  eligibleTierIds String[]
+  deletedAt       DateTime? // soft delete
+  redemptions     Redemption[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([brandId, isAvailable])
   @@map("rewards")
+}
+
+model Tier {
+  id            String    @id @default(cuid())
+  programId     String
+  program       Program   @relation(fields: [programId], references: [id])
+  brandId       String
+  name          String
+  rank          Int
+  icon          String?   // emoji preset
+  minPoints     Int?
+  minSpendCents Int?
+  benefits      String[]
+  multiplier    Float     @default(1.0)
+  deletedAt     DateTime? // soft delete
+  members       Member[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([programId, rank])
+  @@index([brandId])
+  @@map("tiers")
+}
+
+model ProgramVersion {
+  id        String   @id @default(cuid())
+  programId String
+  program   Program  @relation(fields: [programId], references: [id])
+  brandId   String
+  snapshot  Json     // full program snapshot including tiers, rules, rewards
+  source    String   @default("explicit_save") // "explicit_save" | "auto_save"
+  createdAt DateTime @default(now())
+
+  @@index([programId])
+  @@index([brandId])
+  @@map("program_versions")
 }
 
 model Redemption {
