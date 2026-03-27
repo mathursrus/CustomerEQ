@@ -720,7 +720,7 @@ The following patterns are introduced by this RFC but are not yet documented in 
 - **What**: RFC introduces `{ programs, total, page, pageSize, totalPages }` response shape on `GET /v1/programs`.
 - **Gap**: No pagination pattern exists anywhere in the API today. Existing list endpoints return flat `{ programs: [...] }`. This RFC's envelope will set the precedent for all future list endpoints (campaigns, members, surveys).
 - **Suggested resolution**: Adopt this as the standard paginated list envelope across all list endpoints. Add to architecture doc: "All list endpoints support `?page=1&pageSize=25&sortBy=updatedAt&sortOrder=desc` query params and return `{ data: [], total, page, pageSize, totalPages }`."
-- **⚠️ Decision needed**: Should existing list endpoints (campaigns, members) be updated to this envelope at the same time, or deferred to their own issues? Please comment on the PR.
+- **Decision (2026-03-27)**: Existing list endpoints (campaigns, members, surveys) will be updated to this pagination envelope as part of this issue's implementation, not deferred. This ensures a consistent API surface from the start.
 
 **4. Simulation / Dry-Run Endpoint Pattern**
 - **What**: RFC introduces `POST /v1/programs/:id/simulate` — a command-style RPC endpoint that runs business logic synchronously without side effects.
@@ -749,8 +749,7 @@ The following patterns are introduced by this RFC but are not yet documented in 
 **2. `packages/ui` vs `apps/web/src/components/ui/` split**
 - **What**: RFC places shared components in `apps/web/src/components/ui/` (app-local).
 - **Problem**: Architecture Section 3.6 shows `packages/ui` as the shared UI layer. Components placed in `apps/web` cannot be consumed by future `apps/mobile` or `apps/admin-v2` apps.
-- **Resolution (open for discussion)**: For MVP where there is only one web app, `apps/web/src/components/ui/` is pragmatic. The risk of premature extraction to `packages/ui` is over-engineering. Recommending: keep components in `apps/web/src/components/ui/` now, note in architecture that extraction to `packages/ui` is a Phase 2 task when a second consumer exists.
-- **⚠️ Decision needed**: Please confirm whether to keep in `apps/web` or move to `packages/ui` now.
+- **Decision (2026-03-27)**: Keep components in `apps/web/src/components/ui/` for MVP. A backlog issue will be filed to extract to `packages/ui` in Phase 2 when a second consumer (mobile app or admin-v2) exists. This avoids premature abstraction while the architecture matures.
 
 ---
 
@@ -760,6 +759,7 @@ The following patterns are introduced by this RFC but are not yet documented in 
 2. **Shared Zod schemas** — update `packages/shared/src/zod/program.schema.ts`; add tier, reward, simulate schemas
 3. **Shared UI components** — create `apps/web/src/components/ui/` library (WizardStepper, StatusBadge, PaginatedTable, FilterBar, Modal, FormGroup, ConditionBuilder, ViewOnlyBanner, BudgetBar, PhonePreview)
 4. **API — Programs routes** — filter/pagination on GET /programs; full response on GET/:id; new tier/reward/simulate/version endpoints; retire reward endpoint
+4a. **API — Backfill pagination** — update `GET /v1/campaigns`, `GET /v1/members`, `GET /v1/surveys` to use the standard `{ data, total, page, pageSize, totalPages }` envelope (decided 2026-03-27)
 5. **Worker — Rule evaluation engine** — `evaluateConditions()`, priority ordering, stackable, budget cap per rule + program
 6. **UI — Programs landing page** — filter bar, pagination, view-only mode, draft deletion
 7. **UI — 7-step wizard** — WizardFormState, auto-save, 7 step components, modals
