@@ -71,7 +71,7 @@ export function ConditionBuilder({
                 type="button"
                 disabled={disabled}
                 onClick={() => onOperatorChange(op)}
-                className={`px-3 py-1.5 font-medium transition-colors disabled:opacity-50 ${
+                className={`px-3 py-1.5 font-medium transition-colors disabled:opacity-60 ${
                   operator === op
                     ? 'bg-indigo-600 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -90,14 +90,14 @@ export function ConditionBuilder({
         const ops = field?.type === 'number' ? NUMBER_OPS : STRING_OPS
         return (
           <div key={idx} className="flex items-center gap-2 flex-wrap">
-            <span className="w-8 text-center text-xs text-gray-400">
+            <span className="w-8 text-center text-xs text-gray-500">
               {idx === 0 ? 'If' : <span className="font-medium text-indigo-600">{operator}</span>}
             </span>
             <select
               value={cond.field}
               disabled={disabled}
               onChange={(e) => updateCondition(idx, { field: e.target.value, op: 'eq', value: '' })}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none disabled:opacity-60"
             >
               {availableFields.map((f) => (
                 <option key={f.key} value={f.key}>
@@ -109,7 +109,7 @@ export function ConditionBuilder({
               value={cond.op}
               disabled={disabled}
               onChange={(e) => updateCondition(idx, { op: e.target.value })}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none disabled:opacity-60"
             >
               {ops.map((op) => (
                 <option key={op.value} value={op.value}>
@@ -123,7 +123,7 @@ export function ConditionBuilder({
               disabled={disabled}
               onChange={(e) => updateCondition(idx, { value: e.target.value })}
               placeholder="value"
-              className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+              className="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none disabled:opacity-60"
             />
             {!disabled && (
               <button

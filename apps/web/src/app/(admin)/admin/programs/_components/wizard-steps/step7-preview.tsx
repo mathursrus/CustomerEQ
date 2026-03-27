@@ -123,7 +123,7 @@ export function Step7Preview({
           </h2>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Purchase Amount
               </label>
               <input
@@ -131,18 +131,18 @@ export function Step7Preview({
                 value={simAmount}
                 onChange={e => setSimAmount(e.target.value)}
                 disabled={isViewOnly}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Product Category
               </label>
               <select
                 value={simCategory}
                 onChange={e => setSimCategory(e.target.value)}
                 disabled={isViewOnly}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               >
                 {CATEGORY_OPTIONS.map(c => (
                   <option key={c}>{c}</option>
@@ -150,14 +150,14 @@ export function Step7Preview({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Channel
               </label>
               <select
                 value={simChannel}
                 onChange={e => setSimChannel(e.target.value)}
                 disabled={isViewOnly}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               >
                 {CHANNEL_OPTIONS.map(c => (
                   <option key={c}>{c}</option>
@@ -298,7 +298,7 @@ export function Step7Preview({
 
             {state.rewards.length === 0 && (
               <div className="rounded-lg bg-slate-50 p-3 text-center">
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-slate-500">
                   No rewards added yet
                 </div>
               </div>

@@ -46,7 +46,7 @@ export function Step2BasicInfo({
             }
             disabled={isViewOnly}
             placeholder="e.g. Summer Rewards 2025"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
           />
         </div>
 
@@ -67,7 +67,7 @@ export function Step2BasicInfo({
             disabled={isViewOnly}
             placeholder="Describe the program to your members…"
             rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 resize-none"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60 resize-none"
           />
         </div>
 
@@ -88,7 +88,7 @@ export function Step2BasicInfo({
                 })
               }
               disabled={isViewOnly}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
             />
           </div>
           <div>
@@ -106,9 +106,9 @@ export function Step2BasicInfo({
                 })
               }
               disabled={isViewOnly}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
             />
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Leave blank for ongoing
             </p>
           </div>
@@ -129,7 +129,7 @@ export function Step2BasicInfo({
               })
             }
             disabled={isViewOnly}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
           >
             {CURRENCY_OPTIONS.map(opt => (
               <option key={opt} value={opt}>
@@ -137,7 +137,7 @@ export function Step2BasicInfo({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-500">
             Shown to members as their balance unit (e.g. &quot;You have 840 Stars&quot;).
           </p>
         </div>
@@ -160,7 +160,7 @@ export function Step2BasicInfo({
               }
               disabled={isViewOnly}
               placeholder="e.g. Gems, Tokens, Petals…"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
             />
           </div>
         )}

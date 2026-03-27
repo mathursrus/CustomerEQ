@@ -66,10 +66,10 @@ export function Step6Budget({
                 }
                 disabled={isViewOnly}
                 placeholder="10,000"
-                className="w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               />
             </div>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Hard cap on total points value issued.
             </p>
           </div>
@@ -95,10 +95,10 @@ export function Step6Budget({
                 }
                 disabled={isViewOnly}
                 placeholder="1,000"
-                className="w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               />
             </div>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Resets on the 1st of each month.
             </p>
           </div>
@@ -119,7 +119,7 @@ export function Step6Budget({
               })
             }
             disabled={isViewOnly}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
           >
             {ALERT_THRESHOLD_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>
@@ -144,7 +144,7 @@ export function Step6Budget({
               })
             }
             disabled={isViewOnly}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
           >
             {HALT_BEHAVIOR_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>
@@ -170,7 +170,7 @@ export function Step6Budget({
               style={{ width: '0%' }}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             Budget consumption will appear here once the program is activated.
           </p>
         </div>

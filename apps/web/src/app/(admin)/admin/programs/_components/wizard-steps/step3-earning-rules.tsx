@@ -122,7 +122,7 @@ export function Step3EarningRules({
                 value={rule.trigger}
                 onChange={e => updateRule({ ...rule, trigger: e.target.value })}
                 disabled={isViewOnly}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
               >
                 {TRIGGER_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>
@@ -191,7 +191,7 @@ export function Step3EarningRules({
                         updateCondition(rule, { ...cond, field: e.target.value })
                       }
                       disabled={isViewOnly}
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                     >
                       {FIELD_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>
@@ -205,7 +205,7 @@ export function Step3EarningRules({
                         updateCondition(rule, { ...cond, op: e.target.value })
                       }
                       disabled={isViewOnly}
-                      className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                      className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                     >
                       {OP_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>
@@ -221,7 +221,7 @@ export function Step3EarningRules({
                       }
                       disabled={isViewOnly}
                       placeholder="value"
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                     />
                     {!isViewOnly && rule.conditions.length > 1 && (
                       <button
@@ -251,7 +251,7 @@ export function Step3EarningRules({
             {/* Action row */}
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Action
                 </label>
                 <select
@@ -263,14 +263,14 @@ export function Step3EarningRules({
                     })
                   }
                   disabled={isViewOnly}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                 >
                   <option value="AWARD_POINTS">Award Points</option>
                   <option value="MULTIPLIER">Multiplier on base</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   {rule.action === 'MULTIPLIER' ? 'Multiplier (×)' : 'Points per $1'}
                 </label>
                 <input
@@ -281,11 +281,11 @@ export function Step3EarningRules({
                   }
                   disabled={isViewOnly}
                   placeholder={rule.action === 'MULTIPLIER' ? '2.0' : '1'}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Budget Cap (pts)
                 </label>
                 <input
@@ -296,7 +296,7 @@ export function Step3EarningRules({
                   }
                   disabled={isViewOnly}
                   placeholder="No cap"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 disabled:opacity-60"
                 />
               </div>
             </div>

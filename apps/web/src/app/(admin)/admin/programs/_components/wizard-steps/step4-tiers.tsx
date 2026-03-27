@@ -196,12 +196,12 @@ export function Step4Tiers({
                         {tier.name || 'Untitled Tier'}
                       </span>
                       {idx === 0 && (
-                        <span className="ml-1.5 text-xs text-slate-400">
+                        <span className="ml-1.5 text-xs text-slate-500">
                           · entry
                         </span>
                       )}
                       {idx === state.tiers.length - 1 && state.tiers.length > 1 && (
-                        <span className="ml-1.5 text-xs text-slate-400">
+                        <span className="ml-1.5 text-xs text-slate-500">
                           · highest
                         </span>
                       )}
