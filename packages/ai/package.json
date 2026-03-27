@@ -9,6 +9,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose",
+    "test:smoke": "vitest run --reporter=verbose",
+    "test:baml": "vitest run --config vitest.eval.config.ts --reporter=verbose",
     "generate": "cd ../../ && npx @boundaryml/baml generate"
   },
   "dependencies": {

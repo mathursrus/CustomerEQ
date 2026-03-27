@@ -19,7 +19,7 @@ import { getAiClient, resetAiClient } from '../client.js'
 // Skip entire suite if no API key is available
 const hasApiKey = !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)
 
-describe.skipIf(!hasApiKey)('BAML Eval: AnalyzeFeedback', () => {
+describe.skipIf(!hasApiKey)('[baml] AnalyzeFeedback', () => {
   let client: AiClient
 
   beforeAll(() => {
