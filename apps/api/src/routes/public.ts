@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { DemoRequestSchema, NPS } from '@customerEQ/shared'
-import { enqueueEvent, enqueueSentimentAnalysis } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
 const API_BASE_URL =
@@ -261,6 +261,20 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           fastify.log.error({ err }, 'Failed to enqueue promoter event')
         })
       }
+
+      // ── Alert evaluation for closed-loop ──
+      enqueueAlertEvaluation({
+        surveyResponseId: response.id,
+        brandId: survey.brandId,
+        memberId: member.id,
+        surveyId,
+        surveyType: survey.type,
+        score: score ?? null,
+        sentiment: null,
+        topics: [],
+      }).catch((err: unknown) => {
+        fastify.log.error({ err }, 'Failed to enqueue alert evaluation')
+      })
 
       return reply.status(201).send({
         responseId: response.id,

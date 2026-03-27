@@ -19,6 +19,10 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
     try { await model.deleteMany() } catch { /* table may not exist */ }
   }
   await deleteAll(prisma.auditEvent)
+  await deleteAll((prisma as any).caseFollowUp)
+  await deleteAll((prisma as any).alertRule)
+  await deleteAll((prisma as any).questionTemplate)
+  await deleteAll((prisma as any).surveyTheme)
   await deleteAll(prisma.campaignEvent)
   await deleteAll(prisma.loyaltyEvent)
   await deleteAll(prisma.redemption)

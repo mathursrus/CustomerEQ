@@ -17,6 +17,7 @@ let _campaignTriggersQueue: Queue | null = null
 let _notificationsQueue: Queue | null = null
 let _sentimentAnalysisQueue: Queue | null = null
 let _feedbackClusteringQueue: Queue | null = null
+let _alertEvaluationQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return // no Redis needed
@@ -28,6 +29,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _notificationsQueue = new Queue(QUEUES.NOTIFICATIONS, { connection })
   _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
   _feedbackClusteringQueue = new Queue(QUEUES.FEEDBACK_CLUSTERING, { connection })
+  _alertEvaluationQueue = new Queue(QUEUES.ALERT_EVALUATION, { connection })
 }
 
 // Stub job returned in inline mode
@@ -101,4 +103,29 @@ export async function enqueueFeedbackClustering(
 ): Promise<Job> {
   if (QUEUE_MODE === 'inline') return INLINE_STUB
   return getFeedbackClusteringQueue().add('cluster', payload)
+}
+
+export interface AlertEvaluationPayload {
+  surveyResponseId: string
+  brandId: string
+  memberId: string
+  surveyId: string
+  surveyType: string
+  score: number | null
+  sentiment: number | null
+  topics: string[]
+}
+
+function getAlertEvaluationQueue(): Queue {
+  if (!_alertEvaluationQueue) {
+    throw new Error('Queues have not been initialized. Call initQueues(redis) first.')
+  }
+  return _alertEvaluationQueue
+}
+
+export async function enqueueAlertEvaluation(
+  payload: AlertEvaluationPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  return getAlertEvaluationQueue().add('evaluate', payload, { priority: 10 })
 }
