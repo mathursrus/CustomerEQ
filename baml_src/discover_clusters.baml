@@ -33,7 +33,7 @@ function DiscoverClusters(
   unassigned_feedback FeedbackItem[] @description("Feedback items not yet assigned to a cluster"),
   existing_clusters ClusterDefinition[] @description("Currently known clusters")
 ) -> ClusteringResult {
-  client Claude
+  client GPT4o
   prompt #"
     You are a customer experience analyst performing thematic analysis on customer feedback.
 
@@ -61,4 +61,38 @@ function DiscoverClusters(
 
     {{ ctx.output_format }}
   "#
+}
+
+// ─── BAML Tests with Assertions ─────────────────────────────────────────────
+
+test DiscoverFromScratch {
+  functions [DiscoverClusters]
+  args {
+    unassigned_feedback [
+      { id "f1" text "Shipping took way too long, 3 weeks!" sentiment -0.7 }
+      { id "f2" text "Package arrived damaged, box was crushed" sentiment -0.8 }
+      { id "f3" text "Love the product quality, really premium feel" sentiment 0.9 }
+      { id "f4" text "Price is too high for what you get" sentiment -0.4 }
+      { id "f5" text "Delivery was super fast, impressed" sentiment 0.8 }
+    ]
+    existing_clusters []
+  }
+  @@assert( {{ this.new_clusters|length >= 2 }} )
+  @@assert( {{ this.assignments|length == 5 }} )
+}
+
+test AssignToExistingClusters {
+  functions [DiscoverClusters]
+  args {
+    unassigned_feedback [
+      { id "f1" text "My package was late again, this is the third time" sentiment -0.6 }
+      { id "f2" text "Support agent was rude and unhelpful" sentiment -0.9 }
+    ]
+    existing_clusters [
+      { label "Shipping Delays" description "Complaints about delivery times" keywords ["shipping" "delivery" "late"] }
+      { label "Customer Support" description "Issues with support interactions" keywords ["support" "agent" "help"] }
+    ]
+  }
+  @@assert( {{ this.assignments|length == 2 }} )
+  @@assert( {{ this.new_clusters|length == 0 }} )
 }

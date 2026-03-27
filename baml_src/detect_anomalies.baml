@@ -25,7 +25,7 @@ function DetectAnomalies(
   total_responses_last_30d int,
   total_responses_previous_30d int
 ) -> AnomalyReport {
-  client ClaudeFast
+  client GPT4oMini
   prompt #"
     You are a CX analytics expert reviewing feedback trends for anomalies.
 
@@ -51,4 +51,43 @@ function DetectAnomalies(
 
     {{ ctx.output_format }}
   "#
+}
+
+// ─── BAML Tests with Assertions ─────────────────────────────────────────────
+
+test DetectVolumeSpike {
+  functions [DetectAnomalies]
+  args {
+    cluster_trends [
+      {
+        cluster_label "Shipping Delays"
+        cluster_description "Complaints about delivery times"
+        daily_volumes [5 4 6 5 3 4 5 6 4 5 5 4 6 5 3 4 5 6 4 5 5 4 6 5 3 4 5 6 25 30]
+        daily_avg_sentiment [-0.5 -0.4 -0.6 -0.5 -0.4 -0.5 -0.4 -0.6 -0.5 -0.4 -0.5 -0.4 -0.6 -0.5 -0.4 -0.5 -0.4 -0.6 -0.5 -0.4 -0.5 -0.4 -0.6 -0.5 -0.4 -0.5 -0.4 -0.6 -0.7 -0.8]
+        total_responses 175
+      }
+    ]
+    total_responses_last_30d 175
+    total_responses_previous_30d 140
+  }
+  @@assert( {{ this.anomalies|length >= 1 }} )
+  @@assert( {{ this.overall_summary|length > 20 }} )
+}
+
+test NoAnomaliesInStableData {
+  functions [DetectAnomalies]
+  args {
+    cluster_trends [
+      {
+        cluster_label "Product Quality"
+        cluster_description "Feedback about product quality"
+        daily_volumes [10 11 9 10 12 10 11 9 10 12 10 11 9 10 12 10 11 9 10 12 10 11 9 10 12 10 11 9 10 12]
+        daily_avg_sentiment [0.3 0.2 0.4 0.3 0.2 0.3 0.2 0.4 0.3 0.2 0.3 0.2 0.4 0.3 0.2 0.3 0.2 0.4 0.3 0.2 0.3 0.2 0.4 0.3 0.2 0.3 0.2 0.4 0.3 0.2]
+        total_responses 310
+      }
+    ]
+    total_responses_last_30d 310
+    total_responses_previous_30d 300
+  }
+  @@assert( {{ this.overall_summary|length > 10 }} )
 }

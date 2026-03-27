@@ -21,7 +21,7 @@ function AnalyzeFeedback(
   numeric_score int? @description("The numeric score given (e.g. NPS 0-10, CSAT 1-5)"),
   existing_clusters ExistingCluster[] @description("Currently known feedback clusters for this brand")
 ) -> FeedbackAnalysis {
-  client ClaudeFast
+  client GPT4oMini
   prompt #"
     You are a customer experience analyst. Analyze this survey response and extract structured insights.
 
@@ -52,4 +52,67 @@ function AnalyzeFeedback(
 
     {{ ctx.output_format }}
   "#
+}
+
+// ─── BAML Tests with Assertions ─────────────────────────────────────────────
+
+test AnalyzePositiveNPS {
+  functions [AnalyzeFeedback]
+  args {
+    feedback_text "Absolutely love the product! The shipping was fast and the customer support team was incredibly helpful when I had a question."
+    survey_type "NPS"
+    numeric_score 9
+    existing_clusters [
+      { label "Shipping Experience" description "Feedback about delivery speed and packaging" }
+      { label "Customer Support" description "Feedback about support team interactions" }
+    ]
+  }
+  @@assert( {{ this.sentiment > 0.3 }} )
+  @@assert( {{ this.confidence > 0.5 }} )
+  @@assert( {{ this.topics|length > 0 }} )
+  @@assert( {{ this.summary|length > 10 }} )
+}
+
+test AnalyzeNegativeCSAT {
+  functions [AnalyzeFeedback]
+  args {
+    feedback_text "Waited 3 weeks for my order and when it arrived the box was damaged. Called support twice and got disconnected both times. Terrible experience."
+    survey_type "CSAT"
+    numeric_score 1
+    existing_clusters [
+      { label "Shipping Delays" description "Complaints about long delivery times" }
+      { label "Customer Support" description "Feedback about support team interactions" }
+    ]
+  }
+  @@assert( {{ this.sentiment < -0.3 }} )
+  @@assert( {{ this.confidence > 0.5 }} )
+  @@assert( {{ this.topics|length > 0 }} )
+  @@assert( {{ this.assigned_cluster_label is not none }} )
+}
+
+test AnalyzeSarcasticFeedback {
+  functions [AnalyzeFeedback]
+  args {
+    feedback_text "Oh sure, I just love waiting 45 minutes on hold. Really makes my day. At least the hold music was nice, I guess."
+    survey_type "CES"
+    numeric_score 2
+    existing_clusters []
+  }
+  @@assert( {{ this.sentiment < 0 }} )
+  @@assert( {{ this.suggested_new_cluster_label is not none }} )
+}
+
+test AnalyzeNeutralWithNewTheme {
+  functions [AnalyzeFeedback]
+  args {
+    feedback_text "The checkout process could use some work. Had to re-enter my address twice because the form cleared when I switched tabs."
+    survey_type "NPS"
+    numeric_score 6
+    existing_clusters [
+      { label "Shipping Delays" description "Complaints about long delivery times" }
+      { label "Product Quality" description "Feedback about product defects or quality" }
+    ]
+  }
+  @@assert( {{ this.sentiment >= -0.5 and this.sentiment <= 0.3 }} )
+  @@assert( {{ this.suggested_new_cluster_label is not none or this.assigned_cluster_label is not none }} )
 }
