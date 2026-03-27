@@ -26,8 +26,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     // API key auth — for MCP server and service-to-service calls
     // Set MCP_API_KEY env var to enable. Header: X-Api-Key
-    const apiKey = request.headers['x-api-key'] as string | undefined
-    const mcpApiKey = process.env.MCP_API_KEY
+    const apiKey = (request.headers['x-api-key'] as string | undefined)?.trim()
+    const mcpApiKey = process.env.MCP_API_KEY?.trim()
+    if (apiKey) {
+      fastify.log.info({ hasApiKey: !!apiKey, hasMcpKey: !!mcpApiKey, match: apiKey === mcpApiKey, apiKeyLen: apiKey?.length, mcpKeyLen: mcpApiKey?.length }, 'API key auth attempt')
+    }
     if (apiKey && mcpApiKey && apiKey === mcpApiKey) {
       // API key maps to a specific brand via MCP_BRAND_ID env var
       const mcpBrandId = process.env.MCP_BRAND_ID
