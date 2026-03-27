@@ -8,36 +8,10 @@ import {
   CreateTierSchema,
   CreateRewardSchema,
   RetireRewardSchema,
+  evaluateConditions,
 } from '@customerEQ/shared'
+import type { ConditionGroup } from '@customerEQ/shared'
 import { z } from 'zod'
-
-// ---------------------------------------------------------------------------
-// Local simulate helper (mirrors worker evaluateRulesWithIds logic)
-// ---------------------------------------------------------------------------
-
-function matchesConditions(
-  conditions: { operator: 'AND' | 'OR'; conditions: Array<{ field: string; op: string; value: unknown }> } | null,
-  payload: Record<string, unknown>,
-): boolean {
-  if (!conditions) return true
-  if (conditions.conditions.length === 0) return true
-
-  const results = conditions.conditions.map((cond) => {
-    const actual = payload[cond.field]
-    if (actual === undefined) return false
-    switch (cond.op) {
-      case 'eq':  return actual === cond.value
-      case 'ne':  return actual !== cond.value
-      case 'gt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual > cond.value
-      case 'gte': return typeof actual === 'number' && typeof cond.value === 'number' && actual >= cond.value
-      case 'lt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual < cond.value
-      case 'lte': return typeof actual === 'number' && typeof cond.value === 'number' && actual <= cond.value
-      default:    return false
-    }
-  })
-
-  return conditions.operator === 'AND' ? results.every(Boolean) : results.some(Boolean)
-}
 
 // ---------------------------------------------------------------------------
 // Local schemas (not in @customerEQ/shared)
@@ -501,12 +475,9 @@ const programsRoutes: FastifyPluginAsync = async (fastify) => {
         if (firstMatchSeen && !rule.stackable) continue
         if (rule.budgetCapPoints !== null && rule.budgetUsedPoints >= rule.budgetCapPoints) continue
 
-        const conditionGroup = rule.conditions as {
-          operator: 'AND' | 'OR'
-          conditions: Array<{ field: string; op: string; value: unknown }>
-        } | null
+        const conditionGroup = rule.conditions as ConditionGroup | null
 
-        if (!matchesConditions(conditionGroup, payload)) continue
+        if (!evaluateConditions(conditionGroup, payload)) continue
 
         const points = Math.round(rule.pointsAwarded * rule.multiplier)
         rulesMatched.push({ ruleId: rule.id, ruleName: rule.name, points })

@@ -2,48 +2,12 @@ import type { Job } from 'bullmq'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
 import type { LoyaltyEventPayload } from '@customerEQ/shared'
+import { evaluateConditions } from '@customerEQ/shared'
+import type { ConditionGroup } from '@customerEQ/shared'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type ConditionGroup = {
-  operator: 'AND' | 'OR'
-  conditions: Array<{ field: string; op: string; value: unknown }>
-}
-
-// ---------------------------------------------------------------------------
-// Pure helpers — exported for unit testing
-// ---------------------------------------------------------------------------
-
-/**
- * Evaluates a condition group (AND/OR logic) against a payload.
- * Returns true when conditions is null or empty (no restrictions).
- */
-export function evaluateConditions(
-  conditions: ConditionGroup | null,
-  payload: Record<string, unknown>,
-): boolean {
-  if (conditions === null) return true
-  if (conditions.conditions.length === 0) return true
-
-  const results = conditions.conditions.map((cond) => {
-    const actual = payload[cond.field]
-    if (actual === undefined) return false
-
-    switch (cond.op) {
-      case 'eq':  return actual === cond.value
-      case 'ne':  return actual !== cond.value
-      case 'gt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual > cond.value
-      case 'gte': return typeof actual === 'number' && typeof cond.value === 'number' && actual >= cond.value
-      case 'lt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual < cond.value
-      case 'lte': return typeof actual === 'number' && typeof cond.value === 'number' && actual <= cond.value
-      default:    return false
-    }
-  })
-
-  return conditions.operator === 'AND' ? results.every(Boolean) : results.some(Boolean)
-}
+// Re-export so existing test imports continue to work
+export { evaluateConditions }
+export type { ConditionGroup }
 
 /**
  * Evaluates all earning rules against a given event and member usage state.

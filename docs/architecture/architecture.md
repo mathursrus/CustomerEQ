@@ -67,8 +67,8 @@ The platform is a multi-tenant loyalty engine with:
 - **Key Modules**: `packages/database/prisma/schema.prisma` (11 models), `packages/database/src/` (client exports)
 
 ### 3.5. Shared Layer (packages/shared + packages/config)
-- **Responsibility**: Cross-app type contracts (Zod schemas, TypeScript interfaces, queue name constants), shared test infrastructure (factories, mocks, helpers).
-- **Key Modules**: `packages/shared/src/zod/` (request/response schemas), `packages/shared/src/types/` (internal payload interfaces), `packages/shared/src/queues.ts` (queue names), `packages/config/src/test-utils/` (factories, mocks, DB setup, helpers)
+- **Responsibility**: Cross-app type contracts (Zod schemas, TypeScript interfaces, queue name constants, pure evaluation helpers), shared test infrastructure (factories, mocks, helpers).
+- **Key Modules**: `packages/shared/src/zod/` (request/response schemas), `packages/shared/src/types/` (internal payload interfaces), `packages/shared/src/queues.ts` (queue names), `packages/shared/src/conditions.ts` (`ConditionGroup` type + `evaluateConditions()` — used by both API simulate endpoint and worker rule evaluator), `packages/config/src/test-utils/` (factories, mocks, DB setup, helpers)
 
 ### 3.6. UI Layer (packages/ui)
 - **Responsibility**: Shared Tailwind utility (`cn()` class merging). UI components are currently co-located in `apps/web/src/`.
@@ -138,10 +138,12 @@ graph TD
 
 ### 4.1 API Routes
 
+All list endpoints return a standard pagination envelope: `{ data, total, page, pageSize, totalPages }`.
+
 | Route Prefix | Responsibility |
 |---|---|
 | `GET /healthz` | Public health check (DB + Redis status) |
-| `/v1/programs` | CRUD for loyalty programs + earning rules |
+| `/v1/programs` | CRUD for loyalty programs + earning rules + tiers + rewards (retire) + simulate + versions; status transitions via `PUT /programs/:id/status` |
 | `/v1/members` | Member enrollment (idempotent), balance queries |
 | `/v1/events` | **Hero endpoint** — event ingestion with idempotency + sync campaign evaluation |
 | `/v1/campaigns` | Campaign CRUD + status management (DRAFT -> ACTIVE -> PAUSED -> COMPLETED) |
@@ -166,7 +168,7 @@ graph TD
 
 | Queue | Processor | Concurrency | Key Logic |
 |---|---|---|---|
-| `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> evaluate earning rules -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
+| `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
 
@@ -175,11 +177,13 @@ graph TD
 | Model | Purpose |
 |---|---|
 | **Brand** | Multi-tenant root entity. `clerkOrgId` (unique) maps Clerk organization to tenant. |
-| **Program** | Loyalty program per brand. Status: DRAFT/ACTIVE/PAUSED/ARCHIVED. Defines `pointCurrencyName`, `pointToCurrencyRatio`. |
-| **EarningRule** | Point-earning triggers. `triggerEvent` matches event types. Supports `multiplier`, `maxUsesPerMember`, validity windows, JSON `conditions`. |
-| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. |
+| **Program** | Loyalty program per brand. Status: DRAFT/ACTIVE/PAUSED/ARCHIVED. Type: POINTS/TIERED/CASHBACK/HYBRID. Budget: `budgetUsdCents`, `monthlyBudgetUsdCents`, `alertThresholdPct`, `haltBehavior`. Soft-deleted via `deletedAt`. |
+| **EarningRule** | Point-earning triggers. `triggerEvent` matches event types. Supports `multiplier`, `maxUsesPerMember`, validity windows, JSONB `conditions` (AND/OR groups). New: `priority` (lower = evaluated first), `stackable` (fires after first match), `budgetCapPoints` (per-rule point spend cap). |
+| **Tier** | *New (Issue #2).* Tier ladder entry within a program (Bronze/Silver/Gold/Platinum). Fields: `rank` (ordering), `minPoints`, `minSpendCents` (entry criteria), `benefits[]`, `multiplier`. Soft-deleted via `deletedAt`. Assignment of `Member.currentTierId` deferred to Issue #4. |
+| **ProgramVersion** | *New (Issue #2).* Immutable JSON snapshot of a program's full configuration at a point in time. `source`: `explicit_save` (user-triggered) or `auto_save` (step-change). Used for audit history and rollback. |
+| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. New: `currentTierId` FK (tier assignment populated by Issue #4 award flow). |
 | **LoyaltyEvent** | Append-only ledger. `pointsEarned` (positive = earn, negative = burn). Stores `rulesApplied`, `idempotencyKey`, `payload` (JSONB). |
-| **Reward** | Redeemable catalog item. `pointsCost`, optional `stock` (null = unlimited), `isAvailable` flag. |
+| **Reward** | Redeemable catalog item. `pointsCost`, optional `stock` (null = unlimited), `isAvailable` flag. New: `type` (DISCOUNT/FREE_ITEM/EXPERIENCE/VOUCHER), `availableFrom`, `availableTo`, `eligibleTierIds[]`, `deletedAt` (soft-delete via retire endpoint). |
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
 | **Campaign** | Rule-based automation. `triggerType` + `triggerCondition` (JSON) -> `actionType` + `actionConfig` (JSON). Budget cap tracking. |
 | **CampaignEvent** | Campaign trigger execution record. Unique per `campaignId + memberId`. Tracks `latencyMs`. |
