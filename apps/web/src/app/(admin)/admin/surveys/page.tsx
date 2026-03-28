@@ -21,7 +21,7 @@ async function getSurveys(token: string | null): Promise<Survey[]> {
     const res = await fetch(`${API_URL}/v1/surveys`, { cache: 'no-store', headers })
     if (!res.ok) return []
     const data = await res.json()
-    return data.surveys ?? data ?? []
+    return data.data ?? data.surveys ?? (Array.isArray(data) ? data : [])
   } catch {
     return []
   }

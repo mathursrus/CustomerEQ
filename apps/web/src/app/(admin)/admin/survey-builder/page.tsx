@@ -135,7 +135,7 @@ export default function SurveyBuilderPage() {
         const res = await fetch(`${API_URL}/v1/programs`, { headers })
         if (res.ok) {
           const data = await res.json()
-          setPrograms(data.programs ?? data ?? [])
+          setPrograms(data.data ?? data.programs ?? (Array.isArray(data) ? data : []))
         }
       } catch {
         /* ignore */

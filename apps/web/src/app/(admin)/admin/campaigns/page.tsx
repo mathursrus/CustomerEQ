@@ -23,7 +23,7 @@ async function getCampaigns(): Promise<Campaign[]> {
     })
     if (!res.ok) return []
     const data = await res.json()
-    return data.campaigns ?? data ?? []
+    return data.data ?? data.campaigns ?? (Array.isArray(data) ? data : [])
   } catch {
     return []
   }

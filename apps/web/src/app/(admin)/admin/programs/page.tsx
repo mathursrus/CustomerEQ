@@ -21,7 +21,7 @@ async function getPrograms(): Promise<Program[]> {
     })
     if (!res.ok) return []
     const data = await res.json()
-    return data.programs ?? data ?? []
+    return data.data ?? data.programs ?? (Array.isArray(data) ? data : [])
   } catch {
     return []
   }
