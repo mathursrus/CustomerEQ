@@ -11,6 +11,11 @@ const isPublicRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, request) => {
+  // Allow Playwright E2E tests to bypass Clerk auth
+  if (process.env.PLAYWRIGHT_TEST === 'true') {
+    return NextResponse.next()
+  }
+
   const session = await auth()
   if (isAdminRoute(request)) {
     if (!session.userId) {
