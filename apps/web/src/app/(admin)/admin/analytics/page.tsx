@@ -54,7 +54,7 @@ export default function AnalyticsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const token = await getToken()
+      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
         : {}

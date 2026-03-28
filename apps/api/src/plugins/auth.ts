@@ -67,14 +67,18 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const orgId =
       (raw.org_id as string | undefined) ??
       ((raw.o as Record<string, string> | undefined)?.id)
-    if (!orgId) {
+
+    // In development, fall back to user sub when Clerk Organizations are not
+    // enabled (avoids the Clerk dashboard prerequisite for local testing)
+    const tenantKey = orgId ?? (process.env.NODE_ENV !== 'production' ? payload.sub : null)
+    if (!tenantKey) {
       return reply
         .status(401)
         .send({ error: 'Token does not contain an organization ID' })
     }
 
     const brand = await fastify.prisma.brand.findUnique({
-      where: { clerkOrgId: orgId },
+      where: { clerkOrgId: tenantKey },
       select: { id: true },
     })
 

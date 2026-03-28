@@ -105,13 +105,13 @@ test.describe('Survey Creation Redirect', () => {
     await page.getByTestId('survey-submit-btn').click()
 
     // Should redirect to the survey detail page, NOT the list page
-    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`)
+    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`, { waitUntil: 'commit' })
     await expect(page).toHaveURL(`/admin/surveys/${MOCK_SURVEY_ID}`)
 
     // Verify the detail page renders the survey info
     await expect(page.getByRole('heading', { name: 'Post-Purchase NPS' })).toBeVisible()
-    await expect(page.getByText('NPS')).toBeVisible()
-    await expect(page.getByText('DRAFT')).toBeVisible()
+    await expect(page.getByText('NPS', { exact: true })).toBeVisible()
+    await expect(page.getByText('DRAFT', { exact: true })).toBeVisible()
 
     // Verify the responses table is present (empty state)
     await expect(page.getByTestId('survey-responses-table')).toBeVisible()
@@ -127,7 +127,7 @@ test.describe('Survey Creation Redirect', () => {
     await page.getByTestId('survey-submit-btn').click()
 
     // Wait for redirect to detail
-    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`)
+    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`, { waitUntil: 'commit' })
 
     // DRAFT survey should show Activate and Close buttons (no Pause)
     await expect(page.getByRole('button', { name: 'Activate' })).toBeVisible()
@@ -144,7 +144,7 @@ test.describe('Survey Creation Redirect', () => {
     await page.getByTestId('survey-submit-btn').click()
 
     // Wait for redirect to detail
-    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`)
+    await page.waitForURL(`/admin/surveys/${MOCK_SURVEY_ID}`, { waitUntil: 'commit' })
 
     // Verify Share Link section is visible and contains the survey ID
     await expect(page.getByText('Share Link')).toBeVisible()

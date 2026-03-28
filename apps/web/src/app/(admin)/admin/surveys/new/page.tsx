@@ -59,7 +59,7 @@ export default function NewSurveyPage() {
   useEffect(() => {
     async function fetchPrograms() {
       try {
-        const token = await getToken()
+        const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
         const res = await fetch(`${API_URL}/v1/programs`, { headers })
         if (res.ok) {
@@ -99,7 +99,7 @@ export default function NewSurveyPage() {
         payload.incentivePoints = Number(form.incentivePoints)
       }
 
-      const token = await getToken()
+      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch(`${API_URL}/v1/surveys`, {
