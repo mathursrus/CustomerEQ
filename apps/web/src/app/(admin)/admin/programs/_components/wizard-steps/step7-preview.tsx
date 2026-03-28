@@ -50,12 +50,65 @@ export function Step7Preview({
   function runSimulation() {
     const amountStr = simAmount.replace(/[^0-9.]/g, '')
     const amount = parseFloat(amountStr) || 0
-    const isDouble = simCategory === 'Electronics' && simChannel === 'web'
-    const earned = isDouble ? amount * 2 : amount
+
+    // Evaluate each configured earning rule against the sim inputs
+    function conditionMatches(field: string, op: string, value: string): boolean {
+      const numVal = parseFloat(value.replace(/[^0-9.]/g, ''))
+      if (field === 'product_category') {
+        if (op === '=') return simCategory.toLowerCase() === value.toLowerCase()
+        if (op === '≠') return simCategory.toLowerCase() !== value.toLowerCase()
+        return true
+      }
+      if (field === 'channel') {
+        if (op === '=') return simChannel.toLowerCase() === value.toLowerCase()
+        if (op === '≠') return simChannel.toLowerCase() !== value.toLowerCase()
+        return true
+      }
+      if (field === 'spend_amount') {
+        if (op === '≥') return amount >= numVal
+        if (op === '≤') return amount <= numVal
+        if (op === '=') return amount === numVal
+        if (op === '≠') return amount !== numVal
+      }
+      return true
+    }
+
+    const firedLines: string[] = []
+    let basePoints = 0
+    let multiplier = 1
+
+    // Sort by priority ascending so lower-priority (higher number) rules are non-stackable stoppers
+    const sorted = [...state.earningRules].sort((a, b) => a.priority - b.priority)
+
+    for (const rule of sorted) {
+      const condsMet =
+        rule.conditions.length === 0 ||
+        (rule.conditionLogic === 'AND'
+          ? rule.conditions.every(c => conditionMatches(c.field, c.op, c.value))
+          : rule.conditions.some(c => conditionMatches(c.field, c.op, c.value)))
+
+      if (!condsMet) continue
+
+      const val = parseFloat(rule.actionValue) || 0
+      if (rule.action === 'AWARD_POINTS') {
+        basePoints += amount * val
+        firedLines.push(`Rule ${rule.priority} fired → +${amount * val} ${currencyLabel} (${amount} × ${val})`)
+      } else if (rule.action === 'MULTIPLIER') {
+        multiplier *= val
+        firedLines.push(`Rule ${rule.priority} fired → ${val}× multiplier`)
+      }
+
+      if (!rule.stackable) break
+    }
+
+    const earned = Math.round(basePoints * multiplier)
     const newBalance = state.simBalance + earned
-    const resultText = isDouble
-      ? `Rule fired: Rule 1 (Electronics + web → 2× multiplier)\nMember earns: ${earned} ${currencyLabel} (${amount} base × 2× multiplier)\nNew balance: ${newBalance} ${currencyLabel}`
-      : `Rule fired: Rule 1 (Base award → 1 pt per $1)\nMember earns: ${earned} ${currencyLabel}\nNew balance: ${newBalance} ${currencyLabel}`
+
+    const resultText =
+      firedLines.length === 0
+        ? `No rules fired for this transaction.\nMember earns: 0 ${currencyLabel}\nNew balance: ${state.simBalance} ${currencyLabel}`
+        : `${firedLines.join('\n')}\nMember earns: ${earned} ${currencyLabel}\nNew balance: ${newBalance} ${currencyLabel}`
+
     dispatch({ type: 'SET_SIM', balance: newBalance, result: resultText })
   }
 

@@ -267,6 +267,9 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
   }
 
   async function handleActivate() {
+    setSaving(true)
+    setSaveError(null)
+    try {
     const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
     const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
 
@@ -375,6 +378,12 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
     if (!res.ok) await apiError(res, 'Failed to activate program')
 
     router.push('/admin/programs')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Activation failed — please try again')
+    } finally {
+      setSaving(false)
+      setActivateOpen(false)
+    }
   }
 
   // Date range display for header
