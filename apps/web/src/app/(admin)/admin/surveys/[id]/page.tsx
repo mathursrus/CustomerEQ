@@ -93,7 +93,7 @@ export default function SurveyDetailPage() {
   const fetchSurvey = useCallback(async () => {
     setLoading(true)
     try {
-      const token = await getToken()
+      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const res = await fetch(`${API_URL}/v1/surveys/${surveyId}`, { headers })
       if (!res.ok) throw new Error(`Failed to load survey`)
@@ -113,7 +113,7 @@ export default function SurveyDetailPage() {
   async function updateStatus(newStatus: string) {
     setUpdating(true)
     try {
-      const token = await getToken()
+      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/status`, {

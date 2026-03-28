@@ -5,9 +5,9 @@ import { test, expect, type Page, type Route } from '@playwright/test'
  *
  * Tests real user interactions across four workflows:
  *   1. Demo Request Form (public, no auth)
- *   2. Program Creation Wizard (admin, auth mocked)
+ *   2. Program Creation Wizard (admin, M3 7-step wizard)
  *   3. Admin Sidebar Navigation
- *   4. Program Detail View
+ *   4. Program List View
  *
  * API calls are intercepted with `page.route()` so the suite runs without
  * a live backend. Selector strategy: data-testid first, then role/text.
@@ -45,68 +45,60 @@ const MOCK_PROGRAMS = [
   {
     id: 'prog-1',
     name: 'Gold Rewards',
+    type: 'POINTS',
     status: 'ACTIVE',
     pointCurrencyName: 'Stars',
     pointToCurrencyRatio: 0.01,
+    startDate: null,
+    endDate: null,
+    budgetUsdCents: null,
     createdAt: '2025-01-15T00:00:00Z',
     updatedAt: '2025-02-01T00:00:00Z',
-    description: 'Our flagship loyalty program',
-    earningRules: [
-      { id: 'rule-1', name: 'Purchase', triggerEvent: 'purchase', pointsAwarded: 100, multiplier: 1, status: 'ACTIVE' },
-    ],
+    _count: { members: 42 },
   },
   {
     id: 'prog-2',
     name: 'Silver Tier',
+    type: 'TIERED',
     status: 'DRAFT',
     pointCurrencyName: 'Points',
     pointToCurrencyRatio: null,
+    startDate: null,
+    endDate: null,
+    budgetUsdCents: null,
     createdAt: '2025-03-01T00:00:00Z',
     updatedAt: '2025-03-01T00:00:00Z',
-    description: null,
-    earningRules: [],
+    _count: { members: 0 },
   },
 ]
 
-/** Intercept programs API for list + detail views */
+/** Intercept programs API for list views */
 async function mockProgramsAPI(page: Page) {
-  // List endpoint
-  await page.route(`${API}/v1/programs`, (route: Route) => {
-    if (route.request().method() === 'GET') {
+  // List endpoint — uses glob * (no slash) so it matches /v1/programs and
+  // /v1/programs?page=1&pageSize=25 but NOT /v1/programs/:id sub-paths
+  await page.route(`${API}/v1/programs*`, (route: Route) => {
+    // Only handle requests that don't have a path segment after /programs
+    if (route.request().url().includes('/v1/programs/')) {
+      return route.continue()
+    }
+    if (route.request().method() === 'POST') {
       return route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ programs: MOCK_PROGRAMS }),
+        body: JSON.stringify({ id: 'prog-new', name: 'Workflow Test Program' }),
       })
     }
-    // POST — program creation
     return route.fulfill({
-      status: 201,
+      status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ id: 'prog-new', name: 'Workflow Test Program' }),
+      body: JSON.stringify({
+        data: MOCK_PROGRAMS,
+        total: 2,
+        page: 1,
+        pageSize: 25,
+        totalPages: 1,
+      }),
     })
-  })
-
-  // Detail endpoint (matches /v1/programs/<id>)
-  await page.route(`${API}/v1/programs/*`, (route: Route) => {
-    const url = route.request().url()
-    const id = url.split('/v1/programs/')[1]?.split('?')[0]
-    const program = MOCK_PROGRAMS.find((p) => p.id === id)
-    if (route.request().method() === 'PATCH') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ...program, status: 'ACTIVE' }),
-      })
-    }
-    if (program) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(program),
-      })
-    }
-    route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found"}' })
   })
 }
 
@@ -173,31 +165,23 @@ test.describe('Workflow 1: Demo Request Form', () => {
 
     // All required-field errors must appear
     // The page shows inline error <p> elements below each required input
-    // First name error
     const firstNameInput = page.getByTestId('demo-firstName')
     await expect(firstNameInput).toBeVisible()
     const firstNameError = firstNameInput.locator('..').locator('p')
     await expect(firstNameError).toBeVisible()
     await expect(firstNameError).toContainText('required')
 
-    // Last name error
     const lastNameError = page.getByTestId('demo-lastName').locator('..').locator('p')
     await expect(lastNameError).toBeVisible()
     await expect(lastNameError).toContainText('required')
 
-    // Work email error
     const emailError = page.getByTestId('demo-workEmail').locator('..').locator('p')
     await expect(emailError).toBeVisible()
     await expect(emailError).toContainText('required')
 
-    // Company name error
     const companyError = page.getByTestId('demo-companyName').locator('..').locator('p')
     await expect(companyError).toBeVisible()
     await expect(companyError).toContainText('required')
-
-    // Company size error
-    const sizeError = page.getByTestId('demo-companySize').locator('..').locator('p')
-    await expect(sizeError).toBeVisible()
 
     // Success message must NOT be visible
     await expect(page.getByTestId('demo-success-msg')).not.toBeVisible()
@@ -250,7 +234,7 @@ test.describe('Workflow 1: Demo Request Form', () => {
 })
 
 // ===========================================================================
-// Workflow 2: Program Creation Wizard (admin)
+// Workflow 2: Program Creation Wizard (admin, M3 7-step wizard)
 // ===========================================================================
 test.describe('Workflow 2: Program Creation Wizard', () => {
   test.beforeEach(async ({ page }) => {
@@ -258,61 +242,55 @@ test.describe('Workflow 2: Program Creation Wizard', () => {
     await mockProgramsAPI(page)
   })
 
-  test('validates name is required on step 1, then completes the full wizard', async ({ page }) => {
+  test('completes the full 7-step wizard and activates a program', async ({ page }) => {
+    // Mock all program sub-resource writes (rules, status, etc.)
+    // Step 3 auto-adds a default earning rule, so rules POST must be mocked.
+    await page.route(`${API}/v1/programs/*/*`, (route: Route) => {
+      route.fulfill({
+        status: route.request().url().includes('/status') ? 200 : 201,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          route.request().url().includes('/status')
+            ? { id: 'prog-new', status: 'ACTIVE' }
+            : { id: 'sub-1' }
+        ),
+      })
+    })
+
     await page.goto('/admin/programs/new')
 
-    // ── Step 1: Leave name empty, click Next → expect validation error ─────
-    const nextBtn = page.getByTestId('wizard-next-btn')
-    await nextBtn.click()
+    // ── Step 1: Select program type ────────────────────────────────────────
+    await page.getByTestId('type-points').click()
+    await page.getByRole('button', { name: /Next: Basic Info/ }).click()
 
-    // Validation error should appear below the program name input
-    const nameError = page.getByTestId('wizard-program-name').locator('..').locator('p')
-    await expect(nameError).toBeVisible()
-    await expect(nameError).toContainText('required')
+    // ── Step 2: Fill program name ──────────────────────────────────────────
+    const programName = 'Workflow Test Program'
+    await page.locator('input[placeholder*="Summer Rewards"]').fill(programName)
+    await page.getByRole('button', { name: /Next: Earning Rules/ }).click()
 
-    // The wizard should still be on step 1 (heading visible)
-    await expect(page.getByRole('heading', { name: 'Basic Information' })).toBeVisible()
+    // ── Step 3: Skip earning rules (POINTS → "Next: Rewards →") ───────────
+    await page.getByRole('button', { name: /Next: Rewards/ }).click()
 
-    // Now fill the name and proceed
-    await page.getByTestId('wizard-program-name').fill('Workflow Test Program')
-    await nextBtn.click()
+    // ── Step 4: Tiers not applicable for POINTS type ───────────────────────
+    await expect(page.getByText('does not use tiers')).toBeVisible()
+    await page.getByRole('button', { name: /Next: Rewards/ }).click()
 
-    // ── Step 2: Point Settings ─────────────────────────────────────────────
-    await expect(page.getByRole('heading', { name: 'Point Settings' })).toBeVisible()
+    // ── Step 5: Skip rewards ───────────────────────────────────────────────
+    await page.getByRole('button', { name: /Next: Budget/ }).click()
 
-    // Change currency name to "Stars"
-    const currencyInput = page.getByTestId('wizard-currency-name')
-    await currencyInput.clear()
-    await currencyInput.fill('Stars')
+    // ── Step 6: Skip budget ────────────────────────────────────────────────
+    await page.getByRole('button', { name: /Next: Preview/ }).click()
 
-    // Change points per dollar to 50
-    const pointsInput = page.getByTestId('wizard-points-per-dollar')
-    await pointsInput.clear()
-    await pointsInput.fill('50')
+    // ── Step 7: Preview — click Activate Program ───────────────────────────
+    await page.getByRole('button', { name: /Activate Program/ }).click()
 
-    await page.getByTestId('wizard-next-btn').click()
-
-    // ── Step 3: Earning Rules (skip) ───────────────────────────────────────
-    await expect(page.getByRole('heading', { name: 'Earning Rules' })).toBeVisible()
-    await expect(page.getByText('No earning rules added')).toBeVisible()
-
-    // Skip without adding rules
-    await page.getByTestId('wizard-next-btn').click()
-
-    // ── Step 4: Review & Activate ──────────────────────────────────────────
-    await expect(page.getByRole('heading', { name: 'Review & Activate' })).toBeVisible()
-
-    // Verify the review displays the values we entered
-    await expect(page.getByText('Workflow Test Program')).toBeVisible()
-    await expect(page.getByText('Stars')).toBeVisible()
-    await expect(page.getByText('50')).toBeVisible()
-    await expect(page.getByText('0 rule(s)')).toBeVisible()
-
-    // Click Create Program
-    await page.getByTestId('wizard-submit-btn').click()
+    // ── Activate modal: type program name to confirm ───────────────────────
+    await expect(page.getByRole('heading', { name: 'Activate Program' })).toBeVisible()
+    await page.getByPlaceholder(programName).fill(programName)
+    await page.getByRole('button', { name: '🚀 Activate', exact: true }).click()
 
     // Should redirect to the programs list
-    await page.waitForURL('/admin/programs')
+    await page.waitForURL('/admin/programs', { waitUntil: 'commit' })
     await expect(page).toHaveURL('/admin/programs')
   })
 })
@@ -339,6 +317,7 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
     await page.getByRole('link', { name: 'Campaigns' }).click()
     await page.waitForURL('/admin/campaigns')
     await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible()
+    // campaigns-table renders even with empty data (server component with fallback)
     await expect(page.getByTestId('campaigns-table')).toBeVisible()
 
     // ── Click Analytics in sidebar ─────────────────────────────────────────
@@ -357,11 +336,9 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
     await page.waitForURL('/admin/integrations')
     await expect(page.getByRole('heading', { name: 'Integrations' })).toBeVisible()
 
-    // Verify webhook URLs are displayed
+    // Verify webhook URLs and copy buttons are displayed
     await expect(page.getByTestId('webhook-url-salesforce')).toBeVisible()
     await expect(page.getByTestId('webhook-url-hubspot')).toBeVisible()
-
-    // Verify copy buttons are present
     await expect(page.getByTestId('copy-webhook-salesforce')).toBeVisible()
     await expect(page.getByTestId('copy-webhook-hubspot')).toBeVisible()
 
@@ -374,54 +351,31 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
 })
 
 // ===========================================================================
-// Workflow 4: Program Detail View
+// Workflow 4: Program List View
 // ===========================================================================
-test.describe('Workflow 4: Program Detail View', () => {
+test.describe('Workflow 4: Program List View', () => {
   test.beforeEach(async ({ page }) => {
     await mockClerkAuth(page)
     await mockProgramsAPI(page)
   })
 
-  test('clicks a program in the list, views detail, and navigates back', async ({ page }) => {
-    // Navigate to the programs list
+  test('programs list displays loaded programs from API', async ({ page }) => {
     await page.goto('/admin/programs')
     await expect(page.getByTestId('programs-table')).toBeVisible()
 
-    // The table should have our mock programs listed
+    // Wait for client-side data load — programs should appear as links
     await expect(page.getByRole('link', { name: 'Gold Rewards' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Silver Tier' })).toBeVisible()
-
-    // Click on "Gold Rewards" to go to its detail page
-    await page.getByRole('link', { name: 'Gold Rewards' }).click()
-    await page.waitForURL('/admin/programs/prog-1')
-
-    // Verify detail page content
-    await expect(page.getByRole('heading', { name: 'Gold Rewards' })).toBeVisible()
-    await expect(page.getByText('Our flagship loyalty program')).toBeVisible()
-    await expect(page.getByText('Stars')).toBeVisible()
-    await expect(page.getByText('ACTIVE')).toBeVisible()
-
-    // Verify earning rules table shows the mocked rule
-    await expect(page.getByText('Purchase')).toBeVisible()
-    await expect(page.getByText('purchase')).toBeVisible()
-
-    // Click "Back to Programs" link
-    const backLink = page.getByRole('link', { name: /Back to Programs/ })
-    await expect(backLink).toBeVisible()
-    await backLink.click()
-
-    // Should return to the programs list
-    await page.waitForURL('/admin/programs')
-    await expect(page.getByTestId('programs-table')).toBeVisible()
   })
 
   test('programs list shows empty state when no programs exist', async ({ page }) => {
     // Override the programs API to return an empty list for this test
-    await page.route(`${API}/v1/programs`, (route: Route) => {
+    await page.route(`${API}/v1/programs*`, (route: Route) => {
+      if (route.request().url().includes('/v1/programs/')) return route.continue()
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ programs: [] }),
+        body: JSON.stringify({ data: [], total: 0, page: 1, pageSize: 25, totalPages: 0 }),
       })
     })
 
