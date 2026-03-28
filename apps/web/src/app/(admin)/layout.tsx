@@ -14,7 +14,7 @@ const navLinks = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div data-testid="admin-layout" className="min-h-screen bg-gray-50 flex">
+    <div data-testid="admin-layout" className="h-screen overflow-hidden bg-gray-50 flex">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="px-6 py-5 border-b border-gray-200">
@@ -42,14 +42,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-end">
+        <header className="shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-end">
           <UserButton afterSignOutUrl="/" />
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   )

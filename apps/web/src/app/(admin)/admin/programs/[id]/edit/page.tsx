@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import { API_URL } from '@/lib/config'
-import { ProgramWizardLoader } from '../_components/program-wizard-loader'
+import { ProgramWizardLoader } from '../../_components/program-wizard-loader'
 
 async function getProgram(id: string) {
   try {
@@ -18,7 +18,7 @@ async function getProgram(id: string) {
   }
 }
 
-export default async function ProgramViewPage({
+export default async function ProgramEditPage({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -27,5 +27,5 @@ export default async function ProgramViewPage({
   const program = await getProgram(id)
   if (!program) notFound()
 
-  return <ProgramWizardLoader mode="view" programId={id} program={program} />
+  return <ProgramWizardLoader mode="edit" programId={id} program={program} />
 }
