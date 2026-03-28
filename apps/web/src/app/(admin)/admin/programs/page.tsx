@@ -143,6 +143,9 @@ export default function ProgramsPage() {
       const json: ProgramsResponse = await res.json()
       setPrograms(json.data ?? [])
       setTotal(json.total ?? 0)
+    } catch {
+      // Backend unavailable — show empty list without crashing
+      setPrograms([])
     } finally {
       setLoading(false)
     }
