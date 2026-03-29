@@ -879,6 +879,79 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       remaining,
     })
   })
+
+  // POST /v1/analytics/cx/backfill-snapshots — generate historical daily cluster snapshots for demo
+  // Distributes existing responses across the past N days to create realistic trend data
+  fastify.post('/analytics/cx/backfill-snapshots', async (request, reply) => {
+    const brandId = request.brandId
+    const query = request.query as Record<string, string | undefined>
+    const days = Math.min(Number(query.days) || 30, 60)
+
+    const clusters = await fastify.prisma.feedbackCluster.findMany({
+      where: { brandId, isActive: true },
+      select: { id: true, label: true },
+    })
+
+    if (clusters.length === 0) {
+      return reply.status(200).send({ message: 'No clusters found', snapshotsCreated: 0 })
+    }
+
+    // For each cluster, get all responses and distribute them across days
+    let snapshotsCreated = 0
+    for (const cluster of clusters) {
+      const responses = await fastify.prisma.surveyResponse.findMany({
+        where: { brandId, clusterId: cluster.id },
+        select: { sentiment: true },
+        orderBy: { completedAt: 'asc' },
+      })
+
+      if (responses.length === 0) continue
+
+      // Distribute responses across days with slight randomness
+      const responsesPerDay = Math.max(1, Math.floor(responses.length / days))
+      let idx = 0
+
+      for (let d = days - 1; d >= 0; d--) {
+        const bucketDate = new Date()
+        bucketDate.setDate(bucketDate.getDate() - d)
+        bucketDate.setHours(0, 0, 0, 0)
+
+        // Take a slice of responses for this day (with some variance)
+        const variance = Math.floor(Math.random() * responsesPerDay * 0.4) - Math.floor(responsesPerDay * 0.2)
+        const count = Math.max(1, Math.min(responsesPerDay + variance, responses.length - idx))
+        const dayResponses = responses.slice(idx, idx + count)
+        idx = Math.min(idx + count, responses.length)
+
+        const sentiments = dayResponses.filter((r) => r.sentiment !== null).map((r) => r.sentiment!)
+        const avgSentiment = sentiments.length > 0
+          ? Math.round((sentiments.reduce((s, v) => s + v, 0) / sentiments.length) * 100) / 100
+          : null
+
+        await fastify.prisma.clusterSnapshot.upsert({
+          where: { clusterId_bucketDate: { clusterId: cluster.id, bucketDate } },
+          create: {
+            clusterId: cluster.id,
+            brandId,
+            bucketDate,
+            volume: dayResponses.length,
+            avgSentiment,
+          },
+          update: {
+            volume: dayResponses.length,
+            avgSentiment,
+          },
+        })
+        snapshotsCreated++
+      }
+    }
+
+    return reply.status(200).send({
+      message: `Created ${snapshotsCreated} snapshots across ${days} days for ${clusters.length} clusters`,
+      snapshotsCreated,
+      clusters: clusters.length,
+      days,
+    })
+  })
 }
 
 export default analyticsRoutes
