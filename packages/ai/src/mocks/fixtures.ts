@@ -68,26 +68,42 @@ function assignClusterFromText(text: string): string | null {
   return bestCount > 0 ? bestMatch : null
 }
 
-// Simple sentiment heuristic for mock (mirrors the existing heuristic but returns richer output)
-const POSITIVE = ['great', 'excellent', 'amazing', 'love', 'fantastic', 'wonderful', 'happy', 'fast', 'easy', 'helpful', 'recommend', 'best', 'perfect', 'awesome', 'satisfied', 'resolved']
-const NEGATIVE = ['terrible', 'awful', 'horrible', 'hate', 'worst', 'slow', 'broken', 'frustrating', 'disappointed', 'poor', 'bad', 'difficult', 'confusing', 'annoying', 'never', 'crashed']
+// Sentiment heuristic for mock — uses both text keywords AND numeric score
+const POSITIVE = ['great', 'excellent', 'amazing', 'love', 'fantastic', 'wonderful', 'happy', 'fast', 'easy', 'helpful', 'recommend', 'best', 'perfect', 'awesome', 'satisfied', 'resolved', 'outstanding', 'quick', 'impressed', 'premium', 'clean', 'modern', 'intuitive', 'straightforward', 'smooth', 'knowledgeable', 'incredible', 'exceeded', 'ahead']
+const NEGATIVE = ['terrible', 'awful', 'horrible', 'hate', 'worst', 'slow', 'broken', 'frustrating', 'disappointed', 'poor', 'bad', 'difficult', 'confusing', 'annoying', 'never', 'crashed', 'rude', 'useless', 'unacceptable', 'damaged', 'defective', 'cheap', 'overpriced', 'disconnected', 'late', 'wrong', 'waited', 'crushed', 'soaked', 'transferred']
 
 export function mockAnalyzeFeedback(
   feedbackText: string,
   _surveyType: string,
-  _numericScore: number | undefined,
+  numericScore: number | undefined,
   existingClusters: { label: string; description: string }[],
 ): FeedbackAnalysisResult {
   const lower = feedbackText.toLowerCase()
 
-  let score = 0
+  // Text-based scoring
+  let textScore = 0
   for (const word of POSITIVE) {
-    if (lower.includes(word)) score += 0.2
+    if (lower.includes(word)) textScore += 0.15
   }
   for (const word of NEGATIVE) {
-    if (lower.includes(word)) score -= 0.2
+    if (lower.includes(word)) textScore -= 0.15
   }
-  const sentiment = Math.max(-1, Math.min(1, Math.round(score * 100) / 100))
+  textScore = Math.max(-1, Math.min(1, textScore))
+
+  // Numeric score signal (NPS: 0-10, CSAT: 1-5, CES: 1-7)
+  let scoreSignal = 0
+  if (numericScore !== undefined) {
+    // Normalize to -1..1 range based on likely scale
+    if (numericScore <= 10) {
+      scoreSignal = (numericScore - 5) / 5 // NPS: 0→-1, 5→0, 10→+1
+    }
+  }
+
+  // Blend text + score (score is a strong signal — weight it 60/40)
+  const blended = textScore !== 0
+    ? textScore * 0.4 + scoreSignal * 0.6
+    : scoreSignal * 0.8
+  const sentiment = Math.max(-1, Math.min(1, Math.round(blended * 100) / 100))
 
   // Extract topics (free-form, not hardcoded categories)
   const topicCandidates = [
