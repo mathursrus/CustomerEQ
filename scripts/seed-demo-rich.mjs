@@ -2,11 +2,24 @@
 /**
  * Rich Demo Data Seed — 5 survey types, 100+ responses each
  * Creates realistic trends, clusters, and anomalies
+ *
+ * Usage:
+ *   node scripts/seed-demo-rich.mjs          # seeds localhost:4000 (test headers)
+ *   node scripts/seed-demo-rich.mjs --prod   # seeds production (API key auth)
  */
 
-const API = 'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
-const API_KEY = 'ceq_c3697a733b642e66a36a0230a91392c0b87417a2362fd924e6fece60ad8b71ec'
-const headers = { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY }
+const isProd = process.argv.includes('--prod')
+
+const PROD_API = 'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+const LOCAL_API = 'http://localhost:4000'
+const API = isProd ? PROD_API : LOCAL_API
+
+const API_KEY = process.env.MCP_API_KEY || 'ceq_c3697a733b642e66a36a0230a91392c0b87417a2362fd924e6fece60ad8b71ec'
+
+// Prod: API key auth. Local: test header auth (NODE_ENV=test in .env)
+const headers = isProd
+  ? { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY }
+  : { 'Content-Type': 'application/json', 'x-test-brand-id': 'test-brand', 'x-test-user-id': 'user_test_123' }
 
 async function api(method, path, body) {
   const res = await fetch(`${API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
@@ -250,10 +263,31 @@ function genEmail(i) {
 // ─── Main ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🚀 Seeding RICH demo data — 5 surveys, 100+ responses each\n')
+  console.log(`🚀 Seeding RICH demo data — 5 surveys, 100+ responses each`)
+  console.log(`   Target: ${isProd ? 'PRODUCTION' : 'LOCALHOST'} (${API})\n`)
 
-  const programId = await getActiveProgram()
-  if (!programId) { console.error('❌ No active program found'); return }
+  // For local mode, ensure the program exists (may need to create one)
+  let programId = await getActiveProgram()
+  if (!programId) {
+    console.log('  No active program found — creating one...')
+    const program = await api('POST', '/v1/programs', {
+      name: 'Diamond Loyalty Club',
+      description: 'Premium loyalty program with points for every interaction',
+      pointCurrencyName: 'Diamonds',
+      pointToCurrencyRatio: 0.01,
+    })
+    programId = program?.id
+    if (programId) {
+      await api('POST', `/v1/programs/${programId}/rules`, {
+        name: 'Survey Completion Bonus',
+        triggerEvent: 'cx.survey_completed',
+        pointsAwarded: 50,
+        multiplier: 1.0,
+      })
+      await api('PATCH', `/v1/programs/${programId}`, { status: 'ACTIVE' })
+    }
+    if (!programId) { console.error('❌ Could not create program'); return }
+  }
   console.log(`  Program: ${programId}`)
 
   const themeId = await getThemeId()
@@ -358,12 +392,16 @@ async function main() {
   console.log('   Click any cluster → 30-day trend chart + individual responses')
   console.log('   Best demo: "Customer Support" cluster — shows mix of CSAT and')
   console.log('   Onboarding responses, with negative CSAT pulling sentiment down')
+  const authHeader = isProd
+    ? `-H "X-Api-Key: ${API_KEY}"`
+    : `-H "x-test-brand-id: test-brand"`
   console.log('')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('After seeding, run these to populate analytics:')
-  console.log('  curl -X POST .../v1/analytics/cx/backfill-sentiment?limit=500&force=true')
-  console.log('  curl -X POST .../v1/analytics/cx/clustering/trigger')
-  console.log('  curl -X POST .../v1/analytics/cx/backfill-snapshots?days=30')
+  console.log(`  curl -X POST ${authHeader} "${API}/v1/analytics/cx/backfill-sentiment?limit=500&force=true"`)
+  console.log(`  curl -X POST ${authHeader} "${API}/v1/analytics/cx/backfill-sentiment?limit=500&force=true"`)
+  console.log(`  curl -X POST ${authHeader} "${API}/v1/analytics/cx/clustering/trigger"`)
+  console.log(`  curl -X POST ${authHeader} "${API}/v1/analytics/cx/backfill-snapshots?days=30"`)
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 }
 
