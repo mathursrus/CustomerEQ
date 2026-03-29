@@ -16,6 +16,87 @@ const DateRangeSchema = z.object({
   endDate: z.string().datetime({ message: 'endDate must be a valid ISO datetime' }),
 })
 
+const CxQuerySchema = z.object({
+  startDate: z.string().datetime({ message: 'startDate must be a valid ISO datetime' }),
+  endDate: z.string().datetime({ message: 'endDate must be a valid ISO datetime' }),
+  surveyId: z.string().optional(),
+})
+
+/* ── Shared helper: compute CX stats from a set of responses ── */
+
+interface ResponseRow {
+  id: string
+  score: number | null
+  sentiment: number | null
+  topics: string[]
+  survey: { type: string; name: string }
+  surveyId: string
+  clusterId: string | null
+}
+
+function computeCxStats(responses: ResponseRow[]) {
+  const npsResponses = responses.filter((r) => r.survey.type === 'NPS' && r.score !== null)
+  const csatResponses = responses.filter((r) => r.survey.type === 'CSAT' && r.score !== null)
+  const cesResponses = responses.filter((r) => r.survey.type === 'CES' && r.score !== null)
+
+  const npsScore = npsResponses.length > 0
+    ? (() => {
+        const promoters = npsResponses.filter((r) => NPS.isPromoter(r.score!)).length
+        const detractors = npsResponses.filter((r) => NPS.isDetractor(r.score!)).length
+        return Math.round(((promoters - detractors) / npsResponses.length) * 100)
+      })()
+    : null
+
+  const csatAverage = csatResponses.length > 0
+    ? Math.round((csatResponses.reduce((sum, r) => sum + r.score!, 0) / csatResponses.length) * 100) / 100
+    : null
+
+  const cesAverage = cesResponses.length > 0
+    ? Math.round((cesResponses.reduce((sum, r) => sum + r.score!, 0) / cesResponses.length) * 100) / 100
+    : null
+
+  const withSentiment = responses.filter((r) => r.sentiment !== null)
+  const sentimentDistribution = {
+    positive: withSentiment.filter((r) => r.sentiment! > SENTIMENT.POSITIVE_THRESHOLD).length,
+    neutral: withSentiment.filter((r) => r.sentiment! >= SENTIMENT.NEGATIVE_THRESHOLD && r.sentiment! <= SENTIMENT.POSITIVE_THRESHOLD).length,
+    negative: withSentiment.filter((r) => r.sentiment! < SENTIMENT.NEGATIVE_THRESHOLD).length,
+  }
+
+  const avgSentiment = withSentiment.length > 0
+    ? Math.round((withSentiment.reduce((sum, r) => sum + r.sentiment!, 0) / withSentiment.length) * 100) / 100
+    : null
+
+  const topicCounts = new Map<string, number>()
+  for (const r of responses) {
+    for (const topic of r.topics) {
+      topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1)
+    }
+  }
+  const topTopics = [...topicCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([topic, count]) => ({ topic, count }))
+
+  return {
+    totalResponses: responses.length,
+    nps: {
+      score: npsScore,
+      responses: npsResponses.length,
+      promoters: npsResponses.filter((r) => NPS.isPromoter(r.score!)).length,
+      passives: npsResponses.filter((r) => !NPS.isPromoter(r.score!) && !NPS.isDetractor(r.score!)).length,
+      detractors: npsResponses.filter((r) => NPS.isDetractor(r.score!)).length,
+    },
+    csat: { average: csatAverage, responses: csatResponses.length },
+    ces: { average: cesAverage, responses: cesResponses.length },
+    sentiment: {
+      average: avgSentiment,
+      distribution: sentimentDistribution,
+      totalAnalyzed: withSentiment.length,
+    },
+    topTopics,
+  }
+}
+
 const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /v1/analytics/overview?startDate=...&endDate=...
   fastify.get('/analytics/overview', async (request, reply) => {
@@ -168,9 +249,9 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.status(200).send(result)
   })
-  // GET /v1/analytics/cx?startDate=...&endDate=... — CX metrics (NPS/CSAT/CES trends, sentiment)
+  // GET /v1/analytics/cx?startDate=...&endDate=...&surveyId=... — CX metrics with optional per-survey filter
   fastify.get('/analytics/cx', async (request, reply) => {
-    const parse = DateRangeSchema.safeParse(request.query)
+    const parse = CxQuerySchema.safeParse(request.query)
     if (!parse.success) {
       return reply.status(422).send({
         error: 'Validation failed',
@@ -178,81 +259,78 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       })
     }
 
-    const { startDate: startDateStr, endDate: endDateStr } = parse.data
+    const { startDate: startDateStr, endDate: endDateStr, surveyId: filterSurveyId } = parse.data
     const brandId = request.brandId
     const startDate = new Date(startDateStr)
     const endDate = new Date(endDateStr)
 
+    // Build where clause — optionally scoped to a single survey
+    const responseWhere: Record<string, unknown> = {
+      brandId,
+      completedAt: { gte: startDate, lte: endDate },
+    }
+    if (filterSurveyId) responseWhere.surveyId = filterSurveyId
+
     // Get all survey responses in the date range
     const responses = await fastify.prisma.surveyResponse.findMany({
-      where: {
-        brandId,
-        completedAt: { gte: startDate, lte: endDate },
-      },
+      where: responseWhere,
       include: {
         survey: { select: { type: true, name: true } },
       },
     })
 
-    // Aggregate by survey type
-    const npsResponses = responses.filter((r) => r.survey.type === 'NPS' && r.score !== null)
-    const csatResponses = responses.filter((r) => r.survey.type === 'CSAT' && r.score !== null)
-    const cesResponses = responses.filter((r) => r.survey.type === 'CES' && r.score !== null)
+    // Aggregate stats (respects surveyId filter if present)
+    const aggregate = computeCxStats(responses)
 
-    // Calculate NPS score: % promoters (9-10) - % detractors (0-6)
-    const npsScore = npsResponses.length > 0
-      ? (() => {
-          const promoters = npsResponses.filter((r) => NPS.isPromoter(r.score!)).length
-          const detractors = npsResponses.filter((r) => NPS.isDetractor(r.score!)).length
-          return Math.round(((promoters - detractors) / npsResponses.length) * 100)
-        })()
-      : null
-
-    // Calculate CSAT average (1-5 scale)
-    const csatAverage = csatResponses.length > 0
-      ? Math.round(
-          (csatResponses.reduce((sum, r) => sum + r.score!, 0) / csatResponses.length) * 100,
-        ) / 100
-      : null
-
-    // Calculate CES average (1-7 scale)
-    const cesAverage = cesResponses.length > 0
-      ? Math.round(
-          (cesResponses.reduce((sum, r) => sum + r.score!, 0) / cesResponses.length) * 100,
-        ) / 100
-      : null
-
-    // Sentiment distribution
-    const withSentiment = responses.filter((r) => r.sentiment !== null)
-    const sentimentDistribution = {
-      positive: withSentiment.filter((r) => r.sentiment! > SENTIMENT.POSITIVE_THRESHOLD).length,
-      neutral: withSentiment.filter((r) => r.sentiment! >= SENTIMENT.NEGATIVE_THRESHOLD && r.sentiment! <= SENTIMENT.POSITIVE_THRESHOLD).length,
-      negative: withSentiment.filter((r) => r.sentiment! < SENTIMENT.NEGATIVE_THRESHOLD).length,
-    }
-
-    // Average sentiment
-    const avgSentiment = withSentiment.length > 0
-      ? Math.round(
-          (withSentiment.reduce((sum, r) => sum + r.sentiment!, 0) / withSentiment.length) * 100,
-        ) / 100
-      : null
-
-    // Top topics across all responses
-    const topicCounts = new Map<string, number>()
-    for (const r of responses) {
-      for (const topic of r.topics) {
-        topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1)
-      }
-    }
-    const topTopics = [...topicCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([topic, count]) => ({ topic, count }))
-
-    // Response rate per survey
-    const surveys = await fastify.prisma.survey.findMany({
+    // Per-survey breakdown — always return all surveys with stats
+    const allSurveys = await fastify.prisma.survey.findMany({
       where: { brandId, status: { in: ['ACTIVE', 'CLOSED'] } },
       select: { id: true, name: true, type: true, responsesCount: true },
+    })
+
+    // Group responses by surveyId for per-survey stats
+    const bySurvey = new Map<string, ResponseRow[]>()
+    for (const r of responses) {
+      const arr = bySurvey.get(r.surveyId) ?? []
+      arr.push(r)
+      bySurvey.set(r.surveyId, arr)
+    }
+
+    // Collect cluster IDs referenced by responses (for per-survey cluster breakdown)
+    const responseClusterIds = new Set<string>()
+    for (const r of responses) {
+      if (r.clusterId) responseClusterIds.add(r.clusterId)
+    }
+    const clusterLabelMap = new Map<string, string>()
+    if (responseClusterIds.size > 0) {
+      const cls = await fastify.prisma.feedbackCluster.findMany({
+        where: { id: { in: [...responseClusterIds] } },
+        select: { id: true, label: true },
+      })
+      for (const c of cls) clusterLabelMap.set(c.id, c.label)
+    }
+
+    const surveys = allSurveys.map((s) => {
+      const surveyResponses = bySurvey.get(s.id) ?? []
+      const stats = computeCxStats(surveyResponses)
+      // Cluster breakdown for this survey
+      const clusterCounts = new Map<string, number>()
+      for (const r of surveyResponses) {
+        if (r.clusterId) {
+          const label = clusterLabelMap.get(r.clusterId) ?? r.clusterId
+          clusterCounts.set(label, (clusterCounts.get(label) ?? 0) + 1)
+        }
+      }
+      return {
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        responsesCount: s.responsesCount,
+        ...stats,
+        clusters: [...clusterCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([label, count]) => ({ label, count })),
+      }
     })
 
     // Fetch active clusters with trend data
@@ -319,28 +397,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     const anomalyClusterMap = new Map(anomalyClusters.map((c) => [c.id, c.label]))
 
     return reply.status(200).send({
-      totalResponses: responses.length,
-      nps: {
-        score: npsScore,
-        responses: npsResponses.length,
-        promoters: npsResponses.filter((r) => NPS.isPromoter(r.score!)).length,
-        passives: npsResponses.filter((r) => !NPS.isPromoter(r.score!) && !NPS.isDetractor(r.score!)).length,
-        detractors: npsResponses.filter((r) => NPS.isDetractor(r.score!)).length,
-      },
-      csat: {
-        average: csatAverage,
-        responses: csatResponses.length,
-      },
-      ces: {
-        average: cesAverage,
-        responses: cesResponses.length,
-      },
-      sentiment: {
-        average: avgSentiment,
-        distribution: sentimentDistribution,
-        totalAnalyzed: withSentiment.length,
-      },
-      topTopics,
+      ...aggregate,
       surveys,
       clusters,
       anomalies: anomalies.map((a) => ({
@@ -352,6 +409,81 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         detectedAt: a.detectedAt.toISOString(),
       })),
       dateRange: { startDate: startDateStr, endDate: endDateStr },
+    })
+  })
+
+  // GET /v1/analytics/cx/responses?startDate=...&endDate=...&surveyId=...&page=1&pageSize=25
+  fastify.get('/analytics/cx/responses', async (request, reply) => {
+    const query = request.query as Record<string, string | undefined>
+    const brandId = request.brandId
+
+    const now = new Date()
+    const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const startDate = query.startDate ? new Date(query.startDate) : defaultStart
+    const endDate = query.endDate ? new Date(query.endDate) : now
+    const surveyId = query.surveyId
+    const page = Math.max(1, Number(query.page) || 1)
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 25))
+
+    const where: Record<string, unknown> = {
+      brandId,
+      completedAt: { gte: startDate, lte: endDate },
+    }
+    if (surveyId) where.surveyId = surveyId
+
+    const [responses, total] = await Promise.all([
+      fastify.prisma.surveyResponse.findMany({
+        where,
+        select: {
+          id: true,
+          surveyId: true,
+          memberId: true,
+          answers: true,
+          score: true,
+          sentiment: true,
+          confidence: true,
+          topics: true,
+          summary: true,
+          clusterId: true,
+          cluster: { select: { label: true } },
+          channel: true,
+          completedAt: true,
+          survey: { select: { name: true, type: true } },
+          member: { select: { firstName: true, lastName: true, email: true } },
+        },
+        orderBy: { completedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      fastify.prisma.surveyResponse.count({ where }),
+    ])
+
+    return reply.status(200).send({
+      data: responses.map((r) => {
+        const answers = r.answers as Record<string, unknown> | null
+        const text = answers ? extractOpenEndedText(answers) : null
+        return {
+          id: r.id,
+          surveyId: r.surveyId,
+          surveyName: r.survey.name,
+          surveyType: r.survey.type,
+          memberName: [r.member.firstName, r.member.lastName].filter(Boolean).join(' ') || null,
+          memberEmail: r.member.email,
+          score: r.score,
+          sentiment: r.sentiment,
+          confidence: r.confidence,
+          text,
+          topics: r.topics,
+          summary: r.summary,
+          clusterLabel: r.cluster?.label ?? null,
+          channel: r.channel,
+          completedAt: r.completedAt.toISOString(),
+        }
+      }),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     })
   })
 
