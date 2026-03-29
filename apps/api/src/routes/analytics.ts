@@ -333,15 +333,31 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     })
 
-    // Fetch active clusters with trend data
+    // Fetch active clusters with trend data — compute live stats from responses
     const activeClusters = await fastify.prisma.feedbackCluster.findMany({
       where: { brandId, isActive: true },
     })
+
+    // Build live cluster stats from responses (not stale denormalized fields)
+    const clusterResponseMap = new Map<string, ResponseRow[]>()
+    for (const r of responses) {
+      if (r.clusterId) {
+        const arr = clusterResponseMap.get(r.clusterId) ?? []
+        arr.push(r)
+        clusterResponseMap.set(r.clusterId, arr)
+      }
+    }
 
     const midpoint = new Date((startDate.getTime() + endDate.getTime()) / 2)
 
     const clusters = await Promise.all(
       activeClusters.map(async (cluster) => {
+        const clusterResponses = clusterResponseMap.get(cluster.id) ?? []
+        const withSent = clusterResponses.filter((r) => r.sentiment !== null)
+        const liveAvgSentiment = withSent.length > 0
+          ? Math.round((withSent.reduce((sum, r) => sum + r.sentiment!, 0) / withSent.length) * 100) / 100
+          : null
+
         const [previousSnapshots, recentSnapshots] = await Promise.all([
           fastify.prisma.clusterSnapshot.findMany({
             where: {
@@ -368,8 +384,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           id: cluster.id,
           label: cluster.label,
           description: cluster.description,
-          responseCount: cluster.responseCount,
-          avgSentiment: cluster.avgSentiment,
+          responseCount: clusterResponses.length,
+          avgSentiment: liveAvgSentiment,
           trending: trend.direction,
           changePercent: trend.changePercent,
         }
@@ -505,6 +521,13 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const result = await Promise.all(
       clusters.map(async (cluster) => {
+        // Live stats from actual responses
+        const liveStats = await fastify.prisma.surveyResponse.aggregate({
+          where: { brandId, clusterId: cluster.id, completedAt: { gte: startDate, lte: endDate } },
+          _count: true,
+          _avg: { sentiment: true },
+        })
+
         const [previousSnapshots, recentSnapshots, allSnapshots] = await Promise.all([
           fastify.prisma.clusterSnapshot.findMany({
             where: {
@@ -540,8 +563,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           label: cluster.label,
           description: cluster.description,
           keywords: cluster.keywords,
-          responseCount: cluster.responseCount,
-          avgSentiment: cluster.avgSentiment,
+          responseCount: liveStats._count,
+          avgSentiment: liveStats._avg.sentiment != null ? Math.round(liveStats._avg.sentiment * 100) / 100 : null,
           trending: trend.direction,
           changePercent: trend.changePercent,
           snapshots: allSnapshots.map((s) => ({
@@ -585,13 +608,20 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { bucketDate: 'asc' },
     })
 
+    // Live stats from actual responses
+    const liveStats = await fastify.prisma.surveyResponse.aggregate({
+      where: { brandId, clusterId, completedAt: { gte: startDate, lte: endDate } },
+      _count: true,
+      _avg: { sentiment: true },
+    })
+
     return reply.status(200).send({
       clusterId: cluster.id,
       label: cluster.label,
       description: cluster.description,
       keywords: cluster.keywords,
-      responseCount: cluster.responseCount,
-      avgSentiment: cluster.avgSentiment,
+      responseCount: liveStats._count,
+      avgSentiment: liveStats._avg.sentiment != null ? Math.round(liveStats._avg.sentiment * 100) / 100 : null,
       trend: snapshots.map((s) => ({
         date: s.bucketDate.toISOString(),
         volume: s.volume,
