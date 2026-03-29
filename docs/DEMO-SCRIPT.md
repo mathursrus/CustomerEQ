@@ -1,187 +1,243 @@
 # CustomerEQ Demo Script
 
-**Duration:** 12-15 minutes
-**Prerequisites:** Dev servers running (`pnpm dev`), demo data seeded (`node scripts/seed-demo.mjs`)
+**Duration:** 15-20 minutes
+**Last Updated:** 2026-03-29
+
+---
+
+## Login
+
+**URL:** https://customereq.wellnessatwork.me
+**Sign in:** Click "Sign In" → use your Clerk credentials (the account tied to the `CustomerEQ Demo` org)
+
+---
+
+## Demo Data Summary
+
+| Survey | Type | Responses | Pattern |
+|--------|------|-----------|---------|
+| Post-Purchase Experience | NPS | 110 | Shipping anomaly spike in last 20 responses |
+| Customer Support Satisfaction | CSAT | 110 | Sentiment declining over time |
+| Website Usability | CES | 110 | Sudden improvement after "redesign" at response 75 |
+| Product Quality Feedback | CUSTOM | 110 | Bimodal — people love it or hate it |
+| Onboarding Experience | NPS | 110 | Steadily improving scores |
+| **Total** | | **563** | 150 demo members enrolled |
+
+**Program:** Diamond Loyalty Club (ACTIVE, "Diamonds" currency)
+**Theme:** Diamond Brand Theme (blue/gold, Inter font)
+**Alert Rule:** NPS Detractor Alert (score 0-6, 4h SLA)
+**Campaign:** Detractor Recovery — 200 bonus Diamonds for NPS ≤ 6
 
 ---
 
 ## Opening (30 seconds)
 
-> "CustomerEQ is an AI-native CX-to-loyalty platform. Unlike pure survey tools like Qualtrics or SurveyMonkey, CustomerEQ doesn't just collect feedback — it automatically turns insights into loyalty actions. Let me show you the full journey."
+> "CustomerEQ is an AI-native CX-to-loyalty platform. Unlike Qualtrics or SurveyMonkey which just collect feedback, CustomerEQ automatically turns every customer signal into the right loyalty action. Let me show you the full journey — from survey creation to closed-loop follow-up."
 
 ---
 
-## Act 1: Survey Creation (2 min)
+## Act 1: Survey Creation & Theming (3 min)
 
-### Show the Survey Builder
+### The Survey Builder
 
-1. Navigate to **http://localhost:3003/admin/survey-builder**
+1. Navigate to **https://customereq.wellnessatwork.me/admin/survey-builder**
 2. Walk through the 3-panel layout:
-   - **Left:** "We support 11 question types — from basic rating and text to matrix, ranking, slider, Likert scale, even image choice and file upload."
-   - **Center:** Click **Rating** to add a question. Click **Text** to add another. Show the question cards with drag handles and type badges.
-   - **Right:** Click a question to show the config panel. Show skip logic: "+ Add Rule" → "Show this question IF Q1 is less than 7" → "This means detractors get a follow-up question, promoters don't."
+   - **Left panel:** "We support 11 question types — rating, text, multiple choice, matrix, ranking, slider, Likert, and more."
+   - Click **Rating** → a question appears on the canvas
+   - Click **Multiple Choice** → add another
+   - **Right panel:** Click a question → show config: skip logic rules, type-specific settings
 
-> "Every survey can have conditional logic — no more one-size-fits-all surveys."
+> "Every survey supports conditional branching — detractors get follow-up questions, promoters don't."
 
-### Show Theming
+### Branded Theming
 
-3. Navigate to **http://localhost:3003/admin/settings/themes**
-4. Click on "Diamond Brand Theme" (or create new):
-   - Show the live preview updating as you change colors
-   - Point out: logo, brand name, custom fonts, thank-you message with `{{points}}` piping
+3. Navigate to **https://customereq.wellnessatwork.me/admin/settings/themes**
+4. Click **Diamond Brand Theme**:
+   - Show color pickers, font selector, layout options
+   - Point out the **live preview** updating in real time
+   - Show the custom thank-you message
 
-> "Every survey matches your brand. The live preview shows exactly what customers will see."
+> "Every survey matches your brand identity. The live preview shows exactly what customers will see."
 
 ---
 
 ## Act 2: The Customer Experience (2 min)
 
-### Show the Public Survey
+### Live Survey Submission
 
-5. Open **http://localhost:3003/survey/{NPS_SURVEY_ID}** (use the ID from seed output)
+5. Open the public survey link (share on screen or open in a new tab):
+   **https://customereq.wellnessatwork.me/survey/cmnbazt3900cj6oe0amcjddda**
+
 6. Walk through:
-   - "Notice the Diamond branding — logo, colors, fonts all from the theme"
-   - Answer the NPS question (give it a 3 — to trigger the detractor flow)
-   - Answer the follow-up text question: "Shipping was really slow, took 3 weeks"
-   - Answer the multiple choice: select "Shipping Speed"
-   - Submit → show the branded thank-you page: "You earned 50 Diamonds!"
+   - "Notice the Diamond branding — blue/gold theme, Inter font, brand name"
+   - "Earn 50 points for completing this survey!" banner
+   - NPS rating buttons 0-10, text feedback, multiple choice
+   - Enter an email of an enrolled member (e.g. `emma.smith.0@demo.customereq.com`)
+   - Give score of 3, type "Shipping was terrible, waited 3 weeks"
+   - Submit → **"Thank You! You earned 50 points!"**
 
-> "The customer just earned loyalty points for completing the survey. That's the first connection between feedback and loyalty."
+> "The customer just earned loyalty Diamonds for giving feedback. That's the first connection between CX and loyalty."
 
-### Show the Widget Embed
+### Other Survey Types
 
-7. Go back to the admin: **Surveys** → click on "Post-Purchase NPS Survey"
-8. Show the Share Link and Embed Widget sections
+7. Briefly show the other public survey links:
+   - **CSAT:** https://customereq.wellnessatwork.me/survey/cmnbb0hky00lt6oe0mzw4253p
+   - **CES:** https://customereq.wellnessatwork.me/survey/cmnbb15ry00v36oe0qp4awa05
 
-> "Embed this with one line of JavaScript on your website, or share the link via email."
+> "We support NPS, CSAT, CES, and fully custom survey types."
 
 ---
 
-## Act 3: Analytics & AI Insights (3 min)
+## Act 3: Analytics & AI Insights (4 min)
 
-### Survey Analytics
+### Survey Dashboard
 
-9. Navigate to **http://localhost:3003/admin/surveys/{NPS_SURVEY_ID}**
-10. Show:
-    - Response count (8 responses)
-    - Average score
-    - NPS score calculation (promoters minus detractors)
-    - Response table with scores
+8. Navigate to **https://customereq.wellnessatwork.me/admin/surveys**
+9. Show the table: 5 active surveys with 110 responses each
+10. Click **"Post-Purchase Experience (NPS)"**:
+    - Response count: 110
+    - NPS score calculation
+    - Response table with individual scores
 
-> "Real-time analytics as responses come in."
+> "Real-time analytics as responses come in. 563 responses across 5 surveys."
 
-### CX Analytics Dashboard
+### CX Analytics
 
-11. Navigate to **http://localhost:3003/admin/analytics/cx**
-12. Show:
-    - NPS score, CSAT average, CES average
-    - Sentiment distribution (positive/neutral/negative)
-    - Top topics extracted by AI
-    - Feedback clusters — "The AI automatically groups feedback into themes like 'Shipping Delays' and 'Customer Support Issues'"
+11. Navigate to **https://customereq.wellnessatwork.me/admin/analytics/cx**
+12. Highlight:
+    - **NPS score** across all surveys
+    - **CSAT average**
+    - **Sentiment distribution** — positive / neutral / negative
+    - **Top topics** extracted by AI
 
-> "Every response is automatically analyzed by AI — sentiment scored, topics extracted, and clustered into themes. No manual tagging needed."
+> "Every response is automatically analyzed — sentiment scored, topics extracted, and clustered into themes. No manual tagging."
 
-### Anomaly Detection
+### Key Talking Points by Survey
 
-13. Point to the anomalies section (if any exist):
-
-> "The system continuously monitors for anomalies — volume spikes, sentiment drops, new emerging themes. If shipping complaints suddenly triple, you'll know immediately."
+| Survey | What to Highlight |
+|--------|-------------------|
+| Post-Purchase NPS | "Notice the shipping complaints spike in recent responses — that's an anomaly the system detected" |
+| Support CSAT | "Sentiment is declining over time — support quality needs attention" |
+| Website CES | "Scores suddenly improved after response 75 — that's when the redesign launched" |
+| Product Quality | "Bimodal distribution — customers either love or hate the product. Quality consistency issue." |
+| Onboarding NPS | "Steadily improving — the onboarding team is getting better over time" |
 
 ---
 
 ## Act 4: Closed-Loop Alerting (3 min)
 
-### Show Alert Rules
+### Alert Rules
 
-14. Navigate to **http://localhost:3003/admin/alerts/rules**
-15. Show the "NPS Detractor Alert" rule:
-    - "When any NPS response scores 0-6..."
-    - "Alert goes to cx-team@customereq.demo via email"
-    - "Cases assigned to Sarah K. (CX Lead) by default, or to Ops Team for shipping topics"
-    - "4-hour SLA — if not contacted within 4 hours, it's flagged as overdue"
+13. Navigate to **https://customereq.wellnessatwork.me/admin/alerts/rules**
+14. Show the **"NPS Detractor Alert"** rule:
+    - Triggers on NPS score 0-6
+    - Sends email to cx-team@customereq.demo
+    - Default assignee: Sarah K. (CX Lead)
+    - Topic-based routing: shipping → Ops Team, support → Support Manager
+    - 4-hour SLA target
 
-> "This is where CustomerEQ is fundamentally different from Qualtrics. When a detractor submits feedback, something actually happens."
+> "When a detractor submits feedback, something actually happens. An alert fires, a case is created, and someone is accountable."
 
-### Show Case Management
+### Case Management
 
-16. Navigate to **http://localhost:3003/admin/alerts/cases**
-17. Walk through:
-    - Stats cards: Open cases, Contacted, Resolved, SLA compliance
-    - Case table: click on a case
-    - Case detail: respondent info, score badge, feedback text, sentiment, topics
-    - Timeline: "Case opened → Slack alert sent → Assigned to Sarah K."
-    - Action buttons: "Mark Contacted", "Mark Resolved", "Add Note"
+15. Navigate to **https://customereq.wellnessatwork.me/admin/alerts/cases**
+16. Walk through:
+    - Stats cards: Open, Contacted, Resolved, SLA compliance
+    - Case table with status badges, assignees, SLA indicators
+    - Click a case → timeline, respondent info, action buttons
 
-> "Every detractor becomes a case. No one falls through the cracks. You can track from alert to resolution with SLA enforcement."
+> "Every detractor becomes a tracked case. Mark Contacted, add notes, Mark Resolved. SLA enforcement ensures no one falls through the cracks."
 
 ---
 
 ## Act 5: The Loyalty Loop (2 min)
 
-### Show the Campaign
+### Campaign Engine
 
-18. Navigate to **http://localhost:3003/admin/campaigns**
-19. Show "Detractor Recovery — 2x Points" campaign:
+17. Navigate to **https://customereq.wellnessatwork.me/admin/campaigns**
+18. Show **"Detractor Recovery — 2x Points"**:
     - Trigger: NPS ≤ 6
     - Action: Award 200 bonus Diamonds
-    - Budget tracking
+    - Budget: $10,000 cap with tracking
 
-> "Here's the magic. When a detractor responds, they don't just trigger an alert — they also automatically receive 200 bonus loyalty points. The feedback-to-loyalty loop closes itself."
+> "Here's the magic. When a detractor responds, they don't just trigger an alert — they automatically receive 200 bonus loyalty Diamonds. The feedback-to-loyalty loop closes itself."
 
-### Show Member Points
+### Program Overview
 
-20. Navigate to **http://localhost:3003/admin/analytics**
-21. Show:
-    - Total members enrolled
-    - Points issued / redeemed
-    - "Notice — Emma Wilson gave an NPS of 3 about shipping. She triggered the detractor alert AND received 200 recovery points. The CX team follows up, she feels heard, and the loyalty points give her a reason to come back."
+19. Navigate to **https://customereq.wellnessatwork.me/admin/programs**
+20. Show **Diamond Loyalty Club**:
+    - "Diamonds" currency
+    - Earning rules
+    - Active status
+
+> "Points, earning rules, campaigns — all natively connected to the CX data."
 
 ---
 
 ## Act 6: The AI-Agent Angle (1 min)
 
-> "One more thing. CustomerEQ is the first CX platform with a native MCP server. That means AI agents can create surveys, analyze feedback, and manage loyalty programs programmatically."
+> "One more thing. CustomerEQ has a native MCP server — meaning AI agents can manage your entire CX program programmatically."
 
-22. Show the MCP tools list (from earlier in this conversation):
-    - `create_survey`, `get_cx_analytics`, `enroll_member`, `ingest_event`...
+21. Demonstrate by saying:
+    - "I can ask my AI: 'What's our NPS this month?' and it queries the API directly"
+    - "Or: 'Create a follow-up survey for detractors' — and it does"
+    - Show the MCP tools: `create_survey`, `get_cx_analytics`, `enroll_member`, `ingest_event`
 
-> "Your AI assistant can ask: 'What's our NPS this month?' or 'Create a follow-up survey for detractors' — and it just works."
+> "No other CX platform is AI-agent-native. Your AI assistant is a first-class operator."
 
 ---
 
 ## Closing (30 seconds)
 
-> "To summarize what you just saw:
-> 1. **Create** — Visual survey builder with 11 question types, skip logic, and branded theming
-> 2. **Collect** — Customers complete surveys and earn loyalty points
-> 3. **Analyze** — AI automatically scores sentiment, extracts topics, and clusters feedback
-> 4. **Act** — Detractors trigger real-time alerts, cases are tracked to resolution
-> 5. **Retain** — Loyalty campaigns award recovery points, closing the loop
+> "What you just saw:
+> 1. **Create** — Visual survey builder with 11 question types, skip logic, branded theming
+> 2. **Collect** — 563 responses across 5 survey types, customers earn loyalty points
+> 3. **Analyze** — AI scores sentiment, extracts topics, clusters feedback, detects anomalies
+> 4. **Act** — Detractors trigger real-time alerts, cases tracked to resolution with SLA
+> 5. **Retain** — Loyalty campaigns automatically award recovery points
 >
-> No other platform connects all five steps. That's CustomerEQ."
+> Five steps, one platform, zero duct tape. That's CustomerEQ."
 
 ---
 
-## Demo Data Reference
+## Quick Reference
 
-| Asset | Value |
-|-------|-------|
-| NPS Survey ID | `cmn9jqepr000ctieexypio6be` |
-| CSAT Survey ID | `cmn9jqepw000ftiee7910u3sd` |
-| Program | Diamond Loyalty Club |
-| Theme | Diamond Brand Theme |
-| Members | 8 (sarah.johnson, mike.chen, emma.wilson, james.rodriguez, lisa.park, david.kim, anna.martinez, tom.brown @example.com) |
-| NPS Responses | 8 (scores: 9, 10, 3, 2, 8, 1, 7, 6) |
-| CSAT Responses | 4 (scores: 1, 2, 5, 4) |
-| Alert Rule | NPS Detractor Alert (score 0-6, 4h SLA) |
-| Campaign | Detractor Recovery — 2x Points (200 Diamonds for NPS ≤ 6) |
+### URLs
 
-### Key Demo Moments
+| Page | URL |
+|------|-----|
+| Homepage | https://customereq.wellnessatwork.me |
+| Admin Dashboard | https://customereq.wellnessatwork.me/admin/surveys |
+| Survey Builder | https://customereq.wellnessatwork.me/admin/survey-builder |
+| Themes | https://customereq.wellnessatwork.me/admin/settings/themes |
+| CX Analytics | https://customereq.wellnessatwork.me/admin/analytics/cx |
+| Alert Rules | https://customereq.wellnessatwork.me/admin/alerts/rules |
+| Case Management | https://customereq.wellnessatwork.me/admin/alerts/cases |
+| Campaigns | https://customereq.wellnessatwork.me/admin/campaigns |
+| Programs | https://customereq.wellnessatwork.me/admin/programs |
+| Public NPS | https://customereq.wellnessatwork.me/survey/cmnbazt3900cj6oe0amcjddda |
+| Public CSAT | https://customereq.wellnessatwork.me/survey/cmnbb0hky00lt6oe0mzw4253p |
+| Public CES | https://customereq.wellnessatwork.me/survey/cmnbb15ry00v36oe0qp4awa05 |
 
-| Moment | What Happens | Differentiator |
-|--------|-------------|----------------|
-| Customer submits NPS 3 | Response stored, sentiment analyzed, topics extracted | AI-native (competitors need separate tools) |
-| Score ≤ 6 detected | Alert rule fires, case created, Slack/email notification | Automatic closed-loop (competitors need manual setup) |
-| Case assigned | Routed to right team based on topic | Smart assignment rules |
-| Campaign triggers | 200 bonus Diamonds awarded automatically | CX-to-loyalty loop (no competitor does this) |
-| Survey completion | 50 incentive Diamonds earned | Built-in loyalty integration |
+### Demo Members (for live survey submission)
+
+Any of these emails work (150 total, pattern: `firstname.lastname.N@demo.customereq.com`):
+- `emma.smith.0@demo.customereq.com`
+- `liam.johnson.1@demo.customereq.com`
+- `olivia.williams.2@demo.customereq.com`
+- `noah.brown.3@demo.customereq.com`
+
+### Reseed Data
+
+```bash
+node scripts/seed-demo-rich.mjs    # 5 surveys × 110 responses
+node scripts/seed-demo-prod.mjs    # Basic setup (program, theme, alerts, campaign)
+```
+
+### Competitive Differentiators to Emphasize
+
+| vs Qualtrics | vs SurveyMonkey | vs Medallia |
+|-------------|-----------------|-------------|
+| CX-to-loyalty loop (they can't) | Skip logic + theming (they limit) | 10x cheaper, same closed-loop |
+| AI-native (not a bolt-on) | AI sentiment built-in (they charge extra) | Weeks to deploy (not months) |
+| MCP-agent compatible (they don't have) | Alert + case management (they don't have) | Mid-market price (not enterprise-only) |
