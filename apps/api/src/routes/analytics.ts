@@ -314,11 +314,23 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       const surveyResponses = bySurvey.get(s.id) ?? []
       const stats = computeCxStats(surveyResponses)
       // Cluster breakdown for this survey
-      const clusterCounts = new Map<string, number>()
+      const clusterAgg = new Map<string, { id: string; label: string; count: number; sentimentSum: number; sentimentCount: number }>()
       for (const r of surveyResponses) {
         if (r.clusterId) {
           const label = clusterLabelMap.get(r.clusterId) ?? r.clusterId
-          clusterCounts.set(label, (clusterCounts.get(label) ?? 0) + 1)
+          const existing = clusterAgg.get(r.clusterId)
+          if (existing) {
+            existing.count++
+            if (r.sentiment !== null) { existing.sentimentSum += r.sentiment; existing.sentimentCount++ }
+          } else {
+            clusterAgg.set(r.clusterId, {
+              id: r.clusterId,
+              label,
+              count: 1,
+              sentimentSum: r.sentiment ?? 0,
+              sentimentCount: r.sentiment !== null ? 1 : 0,
+            })
+          }
         }
       }
       return {
@@ -327,9 +339,14 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         type: s.type,
         responsesCount: s.responsesCount,
         ...stats,
-        clusters: [...clusterCounts.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .map(([label, count]) => ({ label, count })),
+        clusters: [...clusterAgg.values()]
+          .sort((a, b) => b.count - a.count)
+          .map((c) => ({
+            id: c.id,
+            label: c.label,
+            count: c.count,
+            avgSentiment: c.sentimentCount > 0 ? Math.round((c.sentimentSum / c.sentimentCount) * 100) / 100 : null,
+          })),
       }
     })
 

@@ -19,7 +19,7 @@ interface SurveyStats {
   ces: { average: number | null; responses: number }
   sentiment: { average: number | null; distribution: { positive: number; neutral: number; negative: number }; totalAnalyzed: number }
   topTopics: Array<{ topic: string; count: number }>
-  clusters: Array<{ label: string; count: number }>
+  clusters: Array<{ id: string; label: string; count: number; avgSentiment: number | null }>
 }
 
 interface ClusterSummary {
@@ -365,13 +365,21 @@ export default function CXInsightsPage() {
             <h2 className="text-base font-semibold text-gray-900 mb-4">Feedback Clusters</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {selectedSurvey.clusters.map((c) => (
-                <div
-                  key={c.label}
-                  className="rounded-xl border border-gray-200 bg-white p-5"
+                <Link
+                  key={c.id}
+                  href={`/admin/analytics/cx/clusters/${c.id}`}
+                  className="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all group"
                 >
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">{c.label}</h3>
-                  <span className="text-xs text-gray-600">{c.count} responses</span>
-                </div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 mb-2">{c.label}</h3>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="text-gray-600">{c.count} responses</span>
+                    {c.avgSentiment != null && (
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${sentimentBgColor(c.avgSentiment)}`}>
+                        {c.avgSentiment.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
