@@ -27,9 +27,14 @@ interface ClusterDetail {
 
 interface ClusterResponse {
   id: string
-  memberId: string
+  memberName: string | null
+  memberEmail: string
+  surveyName: string
   score: number | null
   sentiment: number | null
+  text: string | null
+  topics: string[]
+  clusterLabel: string | null
   completedAt: string
 }
 
@@ -189,8 +194,22 @@ export default function ClusterDetailPage() {
         avgSentiment: trendData.avgSentiment,
         trend: trendData.trend ?? [],
       })
-      // Responses list — would need a dedicated API endpoint to filter by cluster
-      setResponses([])
+
+      // Fetch responses in this cluster
+      const respParams = new URLSearchParams({
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        clusterId,
+        pageSize: '50',
+      })
+      const respRes = await fetch(
+        `${API_URL}/v1/analytics/cx/responses?${respParams}`,
+        { headers },
+      )
+      if (respRes.ok) {
+        const respData = await respRes.json()
+        setResponses(respData.data ?? [])
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load cluster')
     } finally {
@@ -300,51 +319,47 @@ export default function ClusterDetailPage() {
         </div>
       </div>
 
-      {/* Responses Table */}
+      {/* Responses in Cluster */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">Responses in Cluster</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            Responses in Cluster
+            {responses.length > 0 && <span className="text-gray-400 font-normal ml-2">({responses.length})</span>}
+          </h2>
         </div>
-        <div className="overflow-x-auto">
-          <table data-testid="cluster-responses-table" className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Member ID
-                </th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Score
-                </th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Sentiment
-                </th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {responses.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-gray-400">
-                    No responses in this cluster.
-                  </td>
-                </tr>
-              ) : (
-                responses.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-mono text-xs text-gray-700">{r.memberId}</td>
-                    <td className="px-6 py-4 text-gray-700">{r.score ?? '--'}</td>
-                    <td className="px-6 py-4">{sentimentBadge(r.sentiment)}</td>
-                    <td className="px-6 py-4 text-gray-500">
-                      {new Date(r.completedAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {responses.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm text-gray-400">No responses in this cluster.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {responses.map((r) => (
+              <div key={r.id} className="px-6 py-4 hover:bg-gray-50">
+                <div className="flex items-start justify-between gap-4 mb-1">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="font-medium text-gray-700">{r.memberName || r.memberEmail}</span>
+                    <span>{r.surveyName}</span>
+                    <span>{new Date(r.completedAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {r.score != null && (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+                        {r.score}
+                      </span>
+                    )}
+                    {sentimentBadge(r.sentiment)}
+                  </div>
+                </div>
+                {r.text && <p className="text-sm text-gray-700 mb-2">{r.text}</p>}
+                {r.topics.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {r.topics.map((t) => (
+                      <span key={t} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

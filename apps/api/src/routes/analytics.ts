@@ -334,8 +334,14 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     // Fetch active clusters with trend data — compute live stats from responses
+    // When filtering by survey, only include clusters that have responses in the filtered set
+    const clusterIdsInScope = new Set(responses.map((r) => r.clusterId).filter(Boolean) as string[])
     const activeClusters = await fastify.prisma.feedbackCluster.findMany({
-      where: { brandId, isActive: true },
+      where: {
+        brandId,
+        isActive: true,
+        ...(filterSurveyId ? { id: { in: [...clusterIdsInScope] } } : {}),
+      },
     })
 
     // Build live cluster stats from responses (not stale denormalized fields)
@@ -438,6 +444,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     const startDate = query.startDate ? new Date(query.startDate) : defaultStart
     const endDate = query.endDate ? new Date(query.endDate) : now
     const surveyId = query.surveyId
+    const clusterId = query.clusterId
     const page = Math.max(1, Number(query.page) || 1)
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 25))
 
@@ -446,6 +453,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       completedAt: { gte: startDate, lte: endDate },
     }
     if (surveyId) where.surveyId = surveyId
+    if (clusterId) where.clusterId = clusterId
 
     const [responses, total] = await Promise.all([
       fastify.prisma.surveyResponse.findMany({

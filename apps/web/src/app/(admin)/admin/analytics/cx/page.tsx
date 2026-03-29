@@ -358,30 +358,49 @@ export default function CXInsightsPage() {
         </div>
       )}
 
-      {/* Cluster Grid */}
-      {data.clusters.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Feedback Clusters</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {data.clusters.map((cluster) => (
-              <Link
-                key={cluster.id}
-                href={`/admin/analytics/cx/clusters/${cluster.id}`}
-                className="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all group"
-              >
-                <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 mb-2">{cluster.label}</h3>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-gray-600">{cluster.responseCount} responses</span>
-                  {cluster.avgSentiment != null && (
-                    <span className={`rounded-full px-2 py-0.5 font-medium ${sentimentBgColor(cluster.avgSentiment)}`}>
-                      {cluster.avgSentiment.toFixed(2)}
-                    </span>
-                  )}
+      {/* Cluster Grid — scoped to selected survey when filtered */}
+      {selectedSurvey ? (
+        selectedSurvey.clusters.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Feedback Clusters</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {selectedSurvey.clusters.map((c) => (
+                <div
+                  key={c.label}
+                  className="rounded-xl border border-gray-200 bg-white p-5"
+                >
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">{c.label}</h3>
+                  <span className="text-xs text-gray-600">{c.count} responses</span>
                 </div>
-              </Link>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )
+      ) : (
+        data.clusters.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Feedback Clusters</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {data.clusters.map((cluster) => (
+                <Link
+                  key={cluster.id}
+                  href={`/admin/analytics/cx/clusters/${cluster.id}`}
+                  className="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all group"
+                >
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 mb-2">{cluster.label}</h3>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="text-gray-600">{cluster.responseCount} responses</span>
+                    {cluster.avgSentiment != null && (
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${sentimentBgColor(cluster.avgSentiment)}`}>
+                        {cluster.avgSentiment.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )
       )}
 
       {/* Response Details */}
