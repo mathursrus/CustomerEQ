@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
-import { computeTrend } from '@customerEQ/ai'
+import { computeTrend, processSentimentForResponse } from '@customerEQ/ai'
 import { SENTIMENT, NPS } from '@customerEQ/shared'
 import { enqueueFeedbackClustering } from '../queues/bullmq.js'
+import { extractOpenEndedText } from '../utils/survey.js'
 
 interface AnalyticsTotals {
   totalMembers: number
@@ -641,6 +642,70 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         campaignsTriggered: campaignPerformance._count,
       },
       dateRange: { startDate: startDateStr, endDate: endDateStr },
+    })
+  })
+  // POST /v1/analytics/cx/backfill-sentiment — backfill sentiment on responses with null sentiment
+  fastify.post('/analytics/cx/backfill-sentiment', async (request, reply) => {
+    const brandId = request.brandId
+    const query = request.query as Record<string, string | undefined>
+    const limit = Math.min(Number(query.limit) || 100, 500)
+
+    // Find responses that have open-ended text but no sentiment
+    const responses = await fastify.prisma.surveyResponse.findMany({
+      where: { brandId, sentiment: null },
+      select: {
+        id: true,
+        memberId: true,
+        surveyId: true,
+        answers: true,
+        score: true,
+        survey: { select: { type: true } },
+      },
+      take: limit,
+      orderBy: { completedAt: 'desc' },
+    })
+
+    let processed = 0
+    let skipped = 0
+    const errors: Array<{ id: string; error: string }> = []
+
+    for (const r of responses) {
+      const answers = r.answers as Record<string, unknown> | null
+      const text = answers ? extractOpenEndedText(answers) : null
+      if (!text) {
+        skipped++
+        continue
+      }
+
+      const eventType = `cx.${r.survey.type.toLowerCase()}_response`
+      try {
+        await processSentimentForResponse(
+          {
+            surveyResponseId: r.id,
+            brandId,
+            memberId: r.memberId,
+            text,
+            eventType,
+            score: r.score ?? undefined,
+          },
+          fastify.prisma,
+        )
+        processed++
+      } catch (err) {
+        errors.push({ id: r.id, error: err instanceof Error ? err.message : String(err) })
+      }
+    }
+
+    const remaining = await fastify.prisma.surveyResponse.count({
+      where: { brandId, sentiment: null },
+    })
+
+    return reply.status(200).send({
+      message: `Backfill complete: ${processed} processed, ${skipped} skipped (no text), ${errors.length} errors`,
+      processed,
+      skipped,
+      errors: errors.slice(0, 10),
+      remaining,
     })
   })
 }

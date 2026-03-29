@@ -7,10 +7,14 @@ import {
   type SentimentAnalysisPayload,
   type FeedbackClusteringPayload,
 } from '@customerEQ/shared'
+import { processSentimentForResponse } from '@customerEQ/ai'
+import { prisma } from '@customerEQ/database'
+import pino from 'pino'
 
-// QUEUE_MODE=inline  → skip Redis, log and return a stub (zero Redis usage)
+// QUEUE_MODE=inline  → skip Redis, run sentiment analysis synchronously
 // QUEUE_MODE=redis   → use BullMQ queues (default)
 const QUEUE_MODE = process.env.QUEUE_MODE ?? 'redis'
+const inlineLogger = pino({ name: 'inline-queue' })
 
 let _loyaltyEventsQueue: Queue | null = null
 let _campaignTriggersQueue: Queue | null = null
@@ -87,7 +91,28 @@ export async function enqueueNotification(
 export async function enqueueSentimentAnalysis(
   payload: SentimentAnalysisPayload,
 ): Promise<Job> {
-  if (QUEUE_MODE === 'inline') return INLINE_STUB
+  if (QUEUE_MODE === 'inline') {
+    // Run sentiment analysis synchronously — no Redis needed
+    processSentimentForResponse(
+      {
+        surveyResponseId: payload.surveyResponseId,
+        brandId: payload.brandId,
+        memberId: payload.memberId,
+        text: payload.text,
+        eventType: payload.eventType,
+        score: payload.score,
+      },
+      prisma,
+    ).then((result) => {
+      inlineLogger.info(
+        { surveyResponseId: payload.surveyResponseId, sentiment: result.sentiment },
+        'Inline sentiment analysis complete',
+      )
+    }).catch((err) => {
+      inlineLogger.error({ err, surveyResponseId: payload.surveyResponseId }, 'Inline sentiment analysis failed')
+    })
+    return INLINE_STUB
+  }
   return getSentimentAnalysisQueue().add('analyze', payload)
 }
 

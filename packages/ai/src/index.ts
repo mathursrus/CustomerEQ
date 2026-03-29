@@ -5,6 +5,8 @@ export { getAiClient, setAiClient, resetAiClient } from './client.js'
 
 // Analysis functions
 export { analyzeResponse } from './analysis/sentiment.js'
+export { processSentimentForResponse } from './analysis/process-response.js'
+export type { SentimentProcessPayload, SentimentProcessResult, SentimentPrisma } from './analysis/process-response.js'
 export { discoverClusters } from './analysis/clustering.js'
 export { detectAnomalies, zScore, isVolumeAnomaly } from './analysis/anomaly.js'
 export { computeTrend } from './analysis/trending.js'
