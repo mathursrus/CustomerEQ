@@ -819,10 +819,11 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     const brandId = request.brandId
     const query = request.query as Record<string, string | undefined>
     const limit = Math.min(Number(query.limit) || 100, 500)
+    const force = query.force === 'true'
 
-    // Find responses that have open-ended text but no sentiment
+    // Find responses — either unanalyzed only or all (force=true for re-analysis)
     const responses = await fastify.prisma.surveyResponse.findMany({
-      where: { brandId, sentiment: null },
+      where: { brandId, ...(force ? {} : { sentiment: null }) },
       select: {
         id: true,
         memberId: true,
