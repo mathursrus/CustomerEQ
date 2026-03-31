@@ -27,7 +27,7 @@ COPY . .
 
 # Generate Prisma client (needed for type resolution) then build
 RUN pnpm --filter @customerEQ/database db:generate
-RUN pnpm turbo run build --filter=@customerEQ/web
+RUN CI=true pnpm turbo run build --filter=@customerEQ/web
 
 # ── Stage 2: Production runner ────────────────────────────────────────
 FROM node:20-alpine AS runner

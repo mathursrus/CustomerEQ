@@ -220,8 +220,10 @@ describe('authPlugin', () => {
         headers: { authorization: 'Bearer token_no_org' },
       })
 
+      // In non-production (test), the dev fallback uses payload.sub as tenant key,
+      // so the error comes from brand-not-found rather than missing org ID.
       expect(res.statusCode).toBe(401)
-      expect(JSON.parse(res.body).error).toBe('Token does not contain an organization ID')
+      expect(JSON.parse(res.body).error).toBe('Brand not found for the provided organization')
     })
   })
 
