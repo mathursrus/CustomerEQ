@@ -9,11 +9,9 @@ interface AlertRule {
   id: string
   name: string
   status: 'ACTIVE' | 'PAUSED'
-  channels: {
-    slackWebhookUrl?: string | null
-    emailRecipients?: string[]
-    teamsWebhookUrl?: string | null
-  }
+  slackWebhookUrl?: string | null
+  emailRecipients?: string[]
+  teamsWebhookUrl?: string | null
   _count?: { cases: number }
   slaHours: number
   createdAt: string
@@ -25,7 +23,7 @@ async function getAlertRules(token: string | null): Promise<AlertRule[]> {
     const res = await fetch(`${API_URL}/v1/alert-rules`, { cache: 'no-store', headers })
     if (!res.ok) return []
     const data = await res.json()
-    return data.alertRules ?? data ?? []
+    return data.rules ?? data ?? []
   } catch {
     return []
   }
@@ -36,31 +34,31 @@ const statusColors: Record<string, string> = {
   PAUSED: 'bg-yellow-100 text-yellow-700',
 }
 
-function ChannelIcons({ channels }: { channels: AlertRule['channels'] }) {
+function ChannelIcons({ rule }: { rule: AlertRule }) {
   return (
     <div className="flex items-center gap-2">
-      {channels.slackWebhookUrl && (
+      {rule.slackWebhookUrl && (
         <span title="Slack" className="inline-flex items-center justify-center h-6 w-6 rounded bg-purple-100 text-purple-700">
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
             <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z" />
           </svg>
         </span>
       )}
-      {channels.emailRecipients && channels.emailRecipients.length > 0 && (
-        <span title={`Email (${channels.emailRecipients.length})`} className="inline-flex items-center justify-center h-6 w-6 rounded bg-blue-100 text-blue-700">
+      {rule.emailRecipients && rule.emailRecipients.length > 0 && (
+        <span title={`Email (${rule.emailRecipients.length})`} className="inline-flex items-center justify-center h-6 w-6 rounded bg-blue-100 text-blue-700">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
           </svg>
         </span>
       )}
-      {channels.teamsWebhookUrl && (
+      {rule.teamsWebhookUrl && (
         <span title="Teams" className="inline-flex items-center justify-center h-6 w-6 rounded bg-indigo-100 text-indigo-700">
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19.404 4.478c0 1.242-1.005 2.249-2.245 2.249s-2.246-1.007-2.246-2.249S15.919 2.23 17.16 2.23s2.245 1.007 2.245 2.248zm2.386 3.058h-5.26a1.2 1.2 0 00-1.198 1.2v5.586a4.087 4.087 0 002.218 3.636 4.082 4.082 0 004.24-6.986V7.536zm-7.9-.533a2.81 2.81 0 10-2.809-2.81 2.81 2.81 0 002.81 2.81zm1.353 1.199h-6.3a1.2 1.2 0 00-1.2 1.2v6.352a5.146 5.146 0 005.05 5.22 5.146 5.146 0 005.05-5.22V9.602a1.6 1.6 0 00-1.6-1.6z" />
           </svg>
         </span>
       )}
-      {!channels.slackWebhookUrl && (!channels.emailRecipients || channels.emailRecipients.length === 0) && !channels.teamsWebhookUrl && (
+      {!rule.slackWebhookUrl && (!rule.emailRecipients || rule.emailRecipients.length === 0) && !rule.teamsWebhookUrl && (
         <span className="text-xs text-gray-400">None</span>
       )}
     </div>
@@ -122,7 +120,7 @@ export default function AlertRulesPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <ChannelIcons channels={rule.channels} />
+                    <ChannelIcons rule={rule} />
                   </td>
                   <td className="px-6 py-4 text-gray-700">{rule._count?.cases ?? 0}</td>
                   <td className="px-6 py-4 text-gray-700">{rule.slaHours}h</td>

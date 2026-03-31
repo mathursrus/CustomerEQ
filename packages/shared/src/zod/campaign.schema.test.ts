@@ -145,15 +145,14 @@ describe('CreateCampaignSchema', () => {
       expect(result.error?.issues.some((i) => i.path.includes('triggerType'))).toBe(true)
     })
 
-    it('rejects when triggerCondition is missing', () => {
+    it('accepts when triggerCondition is missing (optional)', () => {
       const { triggerCondition: _removed, ...input } = requiredBase as typeof requiredBase & {
         triggerCondition?: object
       }
 
       const result = CreateCampaignSchema.safeParse(input)
 
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('triggerCondition'))).toBe(true)
+      expect(result.success).toBe(true)
     })
 
     it('rejects when triggerCondition.op is not a valid enum value', () => {
@@ -212,10 +211,21 @@ describe('CreateCampaignSchema', () => {
       expect(result.error?.issues.some((i) => i.path.includes('actionConfig'))).toBe(true)
     })
 
-    it('rejects actionConfig that has neither points nor rewardId (fails refine)', () => {
+    it('accepts actionConfig with only message (send_message use case)', () => {
       const input = {
         ...requiredBase,
         actionConfig: { message: 'Only a message, no points or rewardId' },
+      }
+
+      const result = CreateCampaignSchema.safeParse(input)
+
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects actionConfig that has neither points, rewardId, nor message', () => {
+      const input = {
+        ...requiredBase,
+        actionConfig: {},
       }
 
       const result = CreateCampaignSchema.safeParse(input)

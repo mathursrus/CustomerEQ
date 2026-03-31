@@ -11,15 +11,15 @@ export const ActionConfigSchema = z.object({
   rewardId: z.string().optional(),
   message: z.string().max(500).optional(),
 }).refine(
-  (data) => data.points !== undefined || data.rewardId !== undefined,
-  { message: 'actionConfig must include either points or rewardId' }
+  (data) => data.points !== undefined || data.rewardId !== undefined || data.message !== undefined,
+  { message: 'actionConfig must include points, rewardId, or message' }
 )
 
 export const CreateCampaignSchema = z.object({
   name: z.string().min(1, 'Campaign name is required').max(100),
   programId: z.string().min(1),
   triggerType: z.string().min(1, 'triggerType is required'),
-  triggerCondition: TriggerConditionSchema,
+  triggerCondition: TriggerConditionSchema.optional(),
   actionType: z.enum(['award_points', 'award_reward', 'send_message']),
   actionConfig: ActionConfigSchema,
   budgetCap: z.number().positive().optional(),
