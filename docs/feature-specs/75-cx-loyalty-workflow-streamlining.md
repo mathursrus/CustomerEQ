@@ -15,10 +15,16 @@ Owner: swavaktp
 
 ## Customer's Desired Outcome
 
+**Member (end customer):**
 - A new member can enroll, earn their first points, and discover a reward **without needing documentation or support**.
 - A CX feedback event (NPS survey, CSAT, review) triggers a visible, personalized loyalty campaign **within 15 minutes**.
-- A marketing manager can configure and launch a CX-triggered campaign **without engineering help**.
 - No member-facing workflow has an unhandled loading, empty, or error state.
+
+**Marketing Manager (operator):**
+- I can see CX health and loyalty program health **in a single dashboard** — not two disconnected tools.
+- When I want to send a survey, the platform tells me **when** to send it, **what type** to use, and **why** — based on what's happening in my loyalty program.
+- I can define what loyalty action happens for each survey response **in the same flow** as building the survey — no cross-tool hand-off.
+- I can see the full loop — survey sent → response received → campaign triggered → loyalty outcome — **on one screen**, with real-time latency data.
 
 ---
 
@@ -26,12 +32,18 @@ Owner: swavaktp
 
 The MVP consists of 7 independent issues (#2–#9), each built in isolation. Without a unified workflow analysis, the following problems will surface at integration time:
 
+**Member-facing problems:**
 1. **Enrollment → Earn gap**: Members complete enrollment but the path to earning first points is unclear — no onboarding nudge, no contextual CTA.
 2. **Hero flow opacity**: The platform's differentiator (CX event → loyalty campaign in <15 min, Issue #6) is invisible to the member — they don't see that their feedback triggered anything.
 3. **Reward discovery dead end**: Members with points don't know rewards exist until they stumble upon the catalog.
-4. **Operator setup maze**: Admins must configure program rules, tiers, rewards catalog, and campaigns in sequence with no guided flow or preview mode.
-5. **Missing UI states**: Loading spinners, empty states, and error messages are unspecified across all 7 MVP issues — each issue owner will implement them inconsistently.
-6. **SLA risk**: The <15-minute feedback-to-action commitment is only enforced in the worker queue (Issue #6). The member-facing confirmation that a campaign was triggered is not defined anywhere.
+4. **Missing UI states**: Loading spinners, empty states, and error messages are unspecified across all 7 MVP issues — each issue owner will implement them inconsistently.
+
+**Operator-facing problems (marketing manager):**
+5. **Two disconnected tools in one portal**: CX surveys live in one section; loyalty programs live in another. A marketing manager has no single view that connects "how are my members feeling?" with "what is my loyalty program doing about it?" They must manually correlate data across both tools to make decisions.
+6. **No decision support for survey creation**: The platform gives no guidance on *when* to send a survey, *what type* to send, or *how to connect* the survey response to a loyalty action. The manager must figure this out externally, then configure it across two separate workflows.
+7. **Response-to-action is a manual hand-off**: After collecting CX feedback, the manager must separately navigate to the campaign builder, recall which members responded, and manually configure what happens next. The connection between "received NPS = 6" and "trigger win-back campaign" is never expressed in one place.
+8. **Operator setup maze**: Admins must configure program rules, tiers, rewards catalog, and campaigns in sequence with no guided flow or preview mode.
+9. **SLA risk**: The <15-minute feedback-to-action commitment is only enforced in the worker queue (Issue #6). The member-facing confirmation that a campaign was triggered is not defined anywhere.
 
 ---
 
@@ -152,6 +164,91 @@ The MVP consists of 7 independent issues (#2–#9), each built in isolation. Wit
 
 ---
 
+## Marketing Manager Workflows (Operator Perspective)
+
+> The following workflows address the core operator problem: **CX and loyalty are currently two disconnected tools in one portal.** A marketing manager has no unified view connecting member sentiment to loyalty program health, no decision support for survey strategy, and no single place to define what happens when a member gives a specific response.
+>
+> These workflows close that gap by introducing a unified CX+Loyalty operator experience.
+
+**UI Mock**: [75-marketing-manager-flow.html](mocks/75-marketing-manager-flow.html)
+
+---
+
+### Workflow 10: Unified CX+Loyalty Dashboard (Marketing Manager)
+
+**The problem today**: The manager opens CustomerEQ and sees two separate sections — "Customer Experience" and "Loyalty Programs" — with no connection between them. They must mentally stitch together NPS scores from one view and redemption rates from another to understand program health.
+
+**R28** — The marketing manager's home dashboard SHALL display a unified "Program Health" view with two side-by-side panels: **CX Health** (avg NPS, active surveys, response rate, at-risk segment size) and **Loyalty Health** (active members, points issued this week, redemption rate, campaigns active).
+
+**R29** — The unified dashboard SHALL surface an "Insights" section that automatically connects CX signals to loyalty outcomes, e.g. "Members who completed the post-purchase survey earned 2.3× more points this month" or "18 detractors (NPS < 7) have not redeemed a reward in 30 days — consider a win-back campaign."
+
+**R30** — From any CX metric on the dashboard (e.g. "18 detractors"), the manager SHALL be able to click through directly to a pre-filtered campaign builder scoped to that segment — without navigating to a separate tool.
+
+*Given* a marketing manager logs into CustomerEQ,
+*When* they land on the home dashboard,
+*Then* they see CX health and loyalty health in the same view, with at least one AI-generated insight connecting a CX signal to a loyalty opportunity.
+
+---
+
+### Workflow 11: Survey Strategy — When, What Type, and Why (Marketing Manager)
+
+**The problem today**: The manager must decide externally when to send a survey and what type to use. CustomerEQ provides no decision support. Surveys are disconnected from loyalty moments (tier upgrades, redemptions, purchase milestones).
+
+**R31** — The "Create Survey" flow SHALL open with a **Survey Trigger** step before any survey content is configured. The trigger step SHALL offer three categories:
+  - **Loyalty moment** (e.g., after tier upgrade, after first redemption, after N purchases, after enrollment)
+  - **CX moment** (e.g., after a support interaction, X days after last purchase, when member goes inactive)
+  - **Scheduled / recurring** (e.g., quarterly NPS pulse to all active members)
+
+**R32** — After selecting a trigger, the system SHALL recommend a survey type with a one-line rationale:
+  - Loyalty moment → **CSAT** ("How satisfied were you with [tier upgrade/reward redemption]?") — measures the quality of the specific loyalty interaction
+  - Churn risk / inactivity → **NPS** ("How likely are you to recommend us?") — measures overall relationship health
+  - Post-support / high-effort interaction → **CES** (Customer Effort Score) — measures friction
+  - Scheduled pulse → **NPS** — standard relationship benchmarking
+
+**R33** — The trigger step SHALL show a live preview of the estimated send volume: "Based on your current program, this trigger would reach ~240 members per month."
+
+**R34** — The manager SHALL be able to override the recommended survey type with a one-click option, with the rationale displayed as a tooltip rather than hidden.
+
+*Given* a manager clicks "Create Survey,"
+*When* they reach the trigger step,
+*Then* they see 3 trigger categories, selecting one surfaces a recommended survey type with rationale and estimated reach — all before they write a single survey question.
+
+---
+
+### Workflow 12: Response-to-Action Rule Builder — Closing the CX-to-Loyalty Loop (Marketing Manager)
+
+**The problem today**: After a survey is configured, the manager must separately navigate to the campaign builder, recall which members responded with which score, and manually build a campaign. The connection between "NPS response" and "loyalty action" is never expressed in one place. This is what makes CX and loyalty feel like two disconnected tools.
+
+**R35** — The survey builder SHALL include a **"What happens next?"** step (after survey content is configured but before launch) where the manager defines response-to-action rules inline, without leaving the survey flow:
+  - Score range → loyalty action mapping (e.g., NPS 0–6 → "Win-back campaign: 100 bonus points + personal apology message"; NPS 7–8 → "Engagement nudge: 25 points + new feature highlight"; NPS 9–10 → "Referral campaign: invite a friend, earn 200 points")
+  - Each rule shows: trigger condition, loyalty action type, estimated member count, and expected cost in points
+
+**R36** — The response-to-action rules SHALL be saved as a named **CX Playbook** that can be reused across future surveys (e.g., "Standard NPS Playbook," "Post-Redemption CSAT Playbook").
+
+**R37** — Once a survey with response-to-action rules is live, the manager SHALL see a real-time **Loop Monitor** showing the full pipeline:
+  - Surveys sent → Responses received (with score distribution) → Rules matched → Campaigns triggered → Loyalty outcomes (points awarded, redemptions, retention rate)
+  - This is a single screen — the manager never needs to cross-reference two separate tools to understand whether the loop is working.
+
+**R38** — If a response-to-action rule has triggered 0 campaigns within 48 hours of the first responses arriving, the system SHALL surface a warning: "No campaigns triggered yet — check your rule conditions or member consent settings."
+
+*Given* a manager has built a survey with response-to-action rules and launched it,
+*When* they open the Loop Monitor,
+*Then* they see a single pipeline view: surveys sent → responses → rules matched → campaigns triggered → loyalty outcomes, all on one screen.
+
+---
+
+### Workflow 13: Survey Results as a Loyalty Signal (Marketing Manager)
+
+**R39** — Survey response data (score + free-text sentiment) SHALL be visible on each member's loyalty profile, enabling the manager to see "Alex gave NPS 6 last month — currently in Bronze tier, last redeemed 45 days ago" in one place.
+
+**R40** — The segmentation builder SHALL support CX attributes as filter criteria: segment by NPS score range, CSAT score, last survey date, and survey completion status — alongside existing loyalty attributes (tier, points balance, last redemption date).
+
+*Given* a manager opens the segmentation builder,
+*When* they add filter criteria,
+*Then* CX attributes (NPS score, last survey response date, sentiment) appear in the same filter panel as loyalty attributes (tier, points, redemption history).
+
+---
+
 ## Friction Inventory
 
 | # | Location | Friction | Priority | Resolving Requirement |
@@ -166,6 +263,11 @@ The MVP consists of 7 independent issues (#2–#9), each built in isolation. Wit
 | F8 | Analytics | No latency metric for hero SLA | P0 | R10, R24 |
 | F9 | CRM setup | No test-connection step | P1 | R26, R27 |
 | F10 | Points history | Silent drop of ineligible events | P1 | R6 |
+| F11 | Operator home | CX and loyalty shown as two disconnected sections | P0 | R28, R29, R30 |
+| F12 | Survey creation | No decision support for when/what type of survey | P0 | R31, R32, R33 |
+| F13 | Survey + campaign builder | Response-to-action is a manual cross-tool hand-off | P0 | R35, R36, R37 |
+| F14 | Member profile | CX signals not visible alongside loyalty data | P1 | R39 |
+| F15 | Segmentation builder | CX attributes not available as filter criteria | P1 | R40 |
 
 ---
 
@@ -196,17 +298,30 @@ Based on `fraim/config.json` compliance settings (GDPR, CCPA, SOC2 target, PCI m
 
 ## Validation Plan
 
-**Browser validation** (Playwright):
+**Member workflows — Browser validation** (Playwright):
 - [ ] New member enrollment → assert Getting Started checklist visible on first dashboard load
 - [ ] Submit NPS feedback → assert campaign notification appears within 15 minutes
 - [ ] Points balance → assert "Redeem Now" CTA appears when affordable reward exists
 - [ ] Tier progress widget → assert progress bar reflects correct points-to-next-tier
 - [ ] Program setup wizard → assert all 5 steps navigable and Preview mode renders
 
+**Marketing manager workflows — Browser validation** (Playwright):
+- [ ] Operator home dashboard → assert CX Health panel and Loyalty Health panel appear side-by-side
+- [ ] Operator home dashboard → assert at least one AI insight connecting a CX metric to a loyalty action is visible
+- [ ] Clicking a CX metric (e.g. "34 detractors") → assert navigates to pre-filtered campaign/segment builder
+- [ ] Create Survey step 1 → assert 3 trigger category cards appear before any survey content is shown
+- [ ] Selecting "Loyalty Moment" trigger → assert system surfaces a recommended survey type with rationale
+- [ ] Estimated reach badge → assert shows member count estimate before proceeding to content
+- [ ] Response-to-action step → assert rules are configurable inline without navigating away from survey builder
+- [ ] Launch survey with rules → assert Loop Monitor pipeline is visible (surveys sent → responses → rules matched → campaigns → outcomes)
+- [ ] Segmentation builder → assert CX attributes (NPS score, survey date) appear in same filter panel as loyalty attributes
+
 **API validation**:
 - [ ] POST a CX feedback event → assert `LoyaltyEvent` record created within 15 min (poll `GET /events/{id}`)
 - [ ] POST enrollment for member without consent → assert campaign notifications are NOT sent
 - [ ] GET rewards catalog → assert affordable rewards appear before unaffordable
+- [ ] GET operator dashboard → assert response includes both `cxHealth` and `loyaltyHealth` sections
+- [ ] POST survey with response rules → assert matching `CampaignTrigger` records created per rule
 
 **SLA validation**:
 - [ ] Run 50 synthetic CX events → assert P95 latency < 15 minutes in campaign dashboard
