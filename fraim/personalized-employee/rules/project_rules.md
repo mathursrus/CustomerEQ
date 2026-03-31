@@ -96,7 +96,16 @@ Any feature that creates or modifies PII (email, name, phone, purchase history, 
 
 Use Playwright (MCP browser tools or the Playwright test runner) for all browser-based testing and automation. Do not use requests/axios/fetch-based scrapers as a primary approach for enterprise SaaS sites — they will be blocked by WAF. Lead with Playwright, not fallback to it.
 
-## 15. Load Business Context Before Major Work
+## 15. Fix at the Right Abstraction Level
+
+Before implementing a fix that touches more than 3 files with the same change, stop and ask: "Should this live in a shared layer instead?" Specifically:
+- **CSS/styling issues** affecting multiple pages → fix in `globals.css` or a shared component, not per-file Tailwind classes.
+- **Repeated logic** across pages → extract to a shared utility or hook.
+- **Configuration** scattered across files → centralize in a config file or environment variable.
+
+The test: if a new page would need the same fix applied manually, the abstraction level is wrong. Default to the highest level that works.
+
+## 16. Load Business Context Before Major Work
 
 Before starting any significant feature work, replication analysis, or architectural decision, read:
 - `docs/replicate/IMPLEMENTATION_ROADMAP.md` (scope and priority)

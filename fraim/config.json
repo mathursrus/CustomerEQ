@@ -1,5 +1,6 @@
 {
-  "version": "unknown",
+  "version": "0.1.0",
+  "mode": "integrated",
   "project": {
     "name": "CustomerEQ",
     "domain": "b2b-saas",
