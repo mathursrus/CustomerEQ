@@ -28,3 +28,9 @@ body {
 * {
   box-sizing: border-box;
 }
+
+input,
+textarea,
+select {
+  color: var(--foreground);
+}

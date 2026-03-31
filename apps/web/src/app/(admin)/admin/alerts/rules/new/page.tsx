@@ -192,7 +192,7 @@ export default function NewAlertRulePage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
                   placeholder="e.g. Low NPS Score Alert"
                 />
                 {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
@@ -250,7 +250,7 @@ export default function NewAlertRulePage() {
                     type="number"
                     value={form.scoreMin}
                     onChange={(e) => setForm((f) => ({ ...f, scoreMin: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="0"
                   />
                 </div>
@@ -263,7 +263,7 @@ export default function NewAlertRulePage() {
                     type="number"
                     value={form.scoreMax}
                     onChange={(e) => setForm((f) => ({ ...f, scoreMax: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="10"
                   />
                 </div>
@@ -281,7 +281,7 @@ export default function NewAlertRulePage() {
                   max="1"
                   value={form.sentimentThreshold}
                   onChange={(e) => setForm((f) => ({ ...f, sentimentThreshold: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g. -0.5 (alert below this sentiment)"
                 />
               </div>
@@ -295,7 +295,7 @@ export default function NewAlertRulePage() {
                   type="text"
                   value={form.topicFilters}
                   onChange={(e) => setForm((f) => ({ ...f, topicFilters: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g. billing, support, onboarding"
                 />
               </div>
@@ -315,7 +315,7 @@ export default function NewAlertRulePage() {
                   type="url"
                   value={form.slackWebhookUrl}
                   onChange={(e) => setForm((f) => ({ ...f, slackWebhookUrl: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="https://hooks.slack.com/services/..."
                 />
               </div>
@@ -328,7 +328,7 @@ export default function NewAlertRulePage() {
                   type="text"
                   value={form.slackChannelName}
                   onChange={(e) => setForm((f) => ({ ...f, slackChannelName: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="#cx-alerts"
                 />
               </div>
@@ -341,7 +341,7 @@ export default function NewAlertRulePage() {
                   rows={3}
                   value={form.emailRecipients}
                   onChange={(e) => setForm((f) => ({ ...f, emailRecipients: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder={"team@example.com\nmanager@example.com"}
                 />
               </div>
@@ -354,7 +354,7 @@ export default function NewAlertRulePage() {
                   type="url"
                   value={form.teamsWebhookUrl}
                   onChange={(e) => setForm((f) => ({ ...f, teamsWebhookUrl: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="https://outlook.office.com/webhook/..."
                 />
               </div>
@@ -374,7 +374,7 @@ export default function NewAlertRulePage() {
                   type="text"
                   value={form.defaultAssignee}
                   onChange={(e) => setForm((f) => ({ ...f, defaultAssignee: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g. cx-team@example.com"
                 />
               </div>
@@ -400,7 +400,7 @@ export default function NewAlertRulePage() {
                         type="text"
                         value={rule.topic}
                         onChange={(e) => updateAssignmentRule(index, 'topic', e.target.value)}
-                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="Topic (e.g. billing)"
                       />
                       <span className="text-gray-400 text-sm">&rarr;</span>
@@ -408,7 +408,7 @@ export default function NewAlertRulePage() {
                         type="text"
                         value={rule.assignee}
                         onChange={(e) => updateAssignmentRule(index, 'assignee', e.target.value)}
-                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="Assignee"
                       />
                       <button
@@ -441,7 +441,7 @@ export default function NewAlertRulePage() {
                 min="1"
                 value={form.slaHours}
                 onChange={(e) => setForm((f) => ({ ...f, slaHours: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="24"
               />
               <p className="mt-1 text-xs text-gray-400">Hours to resolve a case before it becomes overdue</p>

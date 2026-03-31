@@ -93,7 +93,7 @@ function genId() {
 // ---------------------------------------------------------------------------
 
 const inputCls =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 const btnPrimary =
   'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors'
 const btnSecondary =
@@ -292,12 +292,12 @@ export default function SurveyBuilderPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Survey name"
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px] flex-1 max-w-xs"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px] flex-1 max-w-xs"
           />
           <select
             value={surveyType}
             onChange={(e) => setSurveyType(e.target.value as SurveyType)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="NPS">NPS</option>
             <option value="CSAT">CSAT</option>
@@ -307,7 +307,7 @@ export default function SurveyBuilderPage() {
           <select
             value={programId}
             onChange={(e) => setProgramId(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[200px]"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[200px]"
           >
             <option value="">No program</option>
             {programs.map((p) => (
@@ -322,7 +322,7 @@ export default function SurveyBuilderPage() {
             onChange={(e) => setIncentivePoints(e.target.value)}
             placeholder="Points"
             min={0}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-24"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-24"
           />
           <div className="ml-auto flex items-center gap-2">
             <button onClick={() => save(false)} disabled={saving || publishing} className={btnSecondary}>

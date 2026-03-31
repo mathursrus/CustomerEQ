@@ -147,7 +147,7 @@ export default function NewSurveyPage() {
               data-testid="survey-name-input"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
               placeholder="e.g. Post-Purchase NPS Survey"
             />
             {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
@@ -162,7 +162,7 @@ export default function NewSurveyPage() {
               data-testid="survey-program-select"
               value={form.programId}
               onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
             >
               <option value="">Select a program...</option>
               {programs.map((p) => (
@@ -181,7 +181,7 @@ export default function NewSurveyPage() {
               data-testid="survey-type-select"
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as FormData['type'] }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="NPS">NPS - Net Promoter Score</option>
               <option value="CSAT">CSAT - Customer Satisfaction</option>
@@ -201,7 +201,7 @@ export default function NewSurveyPage() {
               value={form.incentivePoints}
               min={0}
               onChange={(e) => setForm((f) => ({ ...f, incentivePoints: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Points awarded for completing the survey"
             />
           </div>
