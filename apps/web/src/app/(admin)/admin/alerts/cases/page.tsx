@@ -146,7 +146,7 @@ export default function CasesPage() {
               id="filterStatus"
               value={filters.status}
               onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All</option>
               <option value="OPEN">Open</option>
@@ -163,7 +163,7 @@ export default function CasesPage() {
               type="text"
               value={filters.assignee}
               onChange={(e) => setFilters((f) => ({ ...f, assignee: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Filter by assignee"
             />
           </div>
@@ -173,7 +173,7 @@ export default function CasesPage() {
               id="filterSla"
               value={filters.sla}
               onChange={(e) => setFilters((f) => ({ ...f, sla: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All</option>
               <option value="on_track">On Track</option>
@@ -188,7 +188,7 @@ export default function CasesPage() {
               type="date"
               value={filters.dateFrom}
               onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -198,7 +198,7 @@ export default function CasesPage() {
               type="date"
               value={filters.dateTo}
               onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         </div>

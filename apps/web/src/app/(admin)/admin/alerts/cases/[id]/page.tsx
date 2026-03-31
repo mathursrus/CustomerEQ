@@ -279,7 +279,7 @@ export default function CaseDetailPage() {
                 rows={3}
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
                 placeholder="Type your note..."
               />
               <div className="flex items-center gap-2">

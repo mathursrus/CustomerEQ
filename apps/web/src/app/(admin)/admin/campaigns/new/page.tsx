@@ -140,7 +140,7 @@ export default function NewCampaignPage() {
               data-testid="campaign-name"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
               placeholder="e.g. NPS Detractor Recovery"
             />
             {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
@@ -156,7 +156,7 @@ export default function NewCampaignPage() {
               data-testid="campaign-program-select"
               value={form.programId}
               onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
             >
               <option value="">Select a program</option>
               {programs.map((p) => (
@@ -176,7 +176,7 @@ export default function NewCampaignPage() {
               data-testid="campaign-trigger-type"
               value={form.triggerType}
               onChange={(e) => setForm((f) => ({ ...f, triggerType: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.triggerType ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.triggerType ? 'border-red-400' : 'border-gray-300'}`}
             >
               <option value="">Select trigger type</option>
               <option value="cx.nps_submitted">cx.nps_submitted</option>
@@ -198,7 +198,7 @@ export default function NewCampaignPage() {
                   data-testid="campaign-condition-field"
                   value={form.conditionField}
                   onChange={(e) => setForm((f) => ({ ...f, conditionField: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g. score"
                 />
               </div>
@@ -209,7 +209,7 @@ export default function NewCampaignPage() {
                   data-testid="campaign-condition-op"
                   value={form.conditionOperator}
                   onChange={(e) => setForm((f) => ({ ...f, conditionOperator: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">—</option>
                   <option value="lt">lt (&lt;)</option>
@@ -227,7 +227,7 @@ export default function NewCampaignPage() {
                   data-testid="campaign-condition-value"
                   value={form.conditionValue}
                   onChange={(e) => setForm((f) => ({ ...f, conditionValue: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="e.g. 6"
                 />
               </div>
@@ -244,7 +244,7 @@ export default function NewCampaignPage() {
               data-testid="campaign-action-type"
               value={form.actionType}
               onChange={(e) => setForm((f) => ({ ...f, actionType: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionType ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionType ? 'border-red-400' : 'border-gray-300'}`}
             >
               <option value="">Select action type</option>
               <option value="award_points">Award Points</option>
@@ -266,7 +266,7 @@ export default function NewCampaignPage() {
                 value={form.actionPoints}
                 min={1}
                 onChange={(e) => setForm((f) => ({ ...f, actionPoints: e.target.value }))}
-                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionPoints ? 'border-red-400' : 'border-gray-300'}`}
+                className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionPoints ? 'border-red-400' : 'border-gray-300'}`}
                 placeholder="e.g. 500"
               />
               {errors.actionPoints && <p className="mt-1 text-xs text-red-600">{errors.actionPoints}</p>}
@@ -284,7 +284,7 @@ export default function NewCampaignPage() {
                 value={form.actionMessage}
                 onChange={(e) => setForm((f) => ({ ...f, actionMessage: e.target.value }))}
                 rows={3}
-                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionMessage ? 'border-red-400' : 'border-gray-300'}`}
+                className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.actionMessage ? 'border-red-400' : 'border-gray-300'}`}
                 placeholder="e.g. Thank you for your feedback! Here are 200 bonus points."
               />
               {errors.actionMessage && <p className="mt-1 text-xs text-red-600">{errors.actionMessage}</p>}
@@ -303,7 +303,7 @@ export default function NewCampaignPage() {
               value={form.budgetCap}
               min={0}
               onChange={(e) => setForm((f) => ({ ...f, budgetCap: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="e.g. 10000"
             />
           </div>
@@ -319,7 +319,7 @@ export default function NewCampaignPage() {
               data-testid="campaign-start-date"
               value={form.startDate}
               onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.startDate ? 'border-red-400' : 'border-gray-300'}`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.startDate ? 'border-red-400' : 'border-gray-300'}`}
             />
             {errors.startDate && <p className="mt-1 text-xs text-red-600">{errors.startDate}</p>}
           </div>
