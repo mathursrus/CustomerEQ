@@ -1,7 +1,7 @@
 # Feature Specification: Member Enrollment
 
 Issue: #3
-PR: (to be added after PR creation)
+PR: Needs manual creation — GitHub MCP and gh CLI unavailable in this session. Branch `feature/3-issue-3` is pushed to `origin`. Create PR at: https://github.com/mathursrus/CustomerEQ/compare/main...feature/3-issue-3
 Branch: `feature/3-issue-3`
 Date: 2026-03-28
 Workflow: `feature-specification`
