@@ -25,8 +25,8 @@ Without enrollment, a customer has no identity in the loyalty system. The enroll
 
 ### API flow (happy path)
 
-1. Member navigates to `/{brandSlug}/enroll` in their browser.
-2. Next.js page calls `GET /v1/public/programs?brandSlug={slug}` to fetch program name and branding (no auth).
+1. Member navigates to `/{programSlug}/enroll` in their browser (e.g., `/acme-rewards-us/enroll`).
+2. Next.js page calls `GET /v1/public/programs/by-slug/{programSlug}` to fetch program name and branding (no auth).
 3. Member fills in email + password (or clicks Google/Facebook — deferred per OQ-2).
 4. Next.js calls Clerk's `signUp.create()` → Clerk returns a `sessionToken` (user-level JWT).
 5. Next.js calls `POST /v1/members/enroll` with the Clerk token in the `Authorization: Bearer` header plus enrollment fields.
@@ -48,15 +48,15 @@ If `POST /v1/members/enroll` is called with an email already enrolled under the 
 
 | File | Change |
 |------|--------|
-| `packages/database/prisma/schema.prisma` | Add `emailOptIn Boolean @default(false)`, `smsOptIn Boolean @default(false)` to `Member` model |
-| `packages/database/prisma/migrations/` | New migration: `add_member_opt_in_fields` |
+| `packages/database/prisma/schema.prisma` | Add `emailOptIn Boolean @default(false)`, `smsOptIn Boolean @default(false)` to `Member` model; add `slug String? @unique` to `Program` model |
+| `packages/database/prisma/migrations/` | Two migrations: `add_member_opt_in_fields`, `add_program_slug` |
 | `packages/shared/src/zod/member.schema.ts` | Add `emailOptIn`, `smsOptIn`, `consentGiven` to `EnrollMemberSchema`; add `EnrollMemberResponseSchema` |
 | `apps/api/src/routes/members.ts` | (1) Change duplicate-email handling from `200` to `409`. (2) Enqueue `enrollment` loyalty event after member creation. (3) Enqueue welcome notification. (4) Return `EnrollMemberResponse` shape. (5) Add `GET /v1/members/me` full profile endpoint. (6) Change auth strategy for enrollment (see Auth Design below). |
 | `apps/api/src/routes/public.ts` | Add `GET /v1/public/programs?brandSlug={slug}` — returns `{ programId, programName, brandName, brandId }` (no auth). |
 | `apps/api/src/plugins/auth.ts` | Handle enrollment route: accept user-level Clerk JWT (without org claim) and set `request.brandId = null`; route derives brandId from programId. |
-| `apps/web/src/app/(member)/enroll/[programId]/page.tsx` | Server component — fetches program info by programId, renders enrollment form (URL uses programId pending slug decision — see Architecture Analysis §3) |
-| `apps/web/src/app/(member)/enroll/[programId]/EnrollmentForm.tsx` | Client component — Clerk `useSignUp()` form: email, password, firstName, lastName, opt-ins, consent checkbox |
-| `apps/web/src/app/(member)/enroll/[programId]/WelcomeScreen.tsx` | Client component — shown on successful enrollment; displays points balance + pending bonus state |
+| `apps/web/src/app/(member)/[programSlug]/enroll/page.tsx` | Server component — fetches program info via `GET /v1/public/programs/by-slug/:slug`, renders enrollment form |
+| `apps/web/src/app/(member)/[programSlug]/enroll/EnrollmentForm.tsx` | Client component — Clerk `useSignUp()` form: email, password, firstName, lastName, opt-ins, consent checkbox |
+| `apps/web/src/app/(member)/[programSlug]/enroll/WelcomeScreen.tsx` | Client component — shown on successful enrollment; displays points balance + pending bonus state |
 | `apps/web/src/app/(member)/dashboard/page.tsx` | Member dashboard shell — authenticated, shows balance (calls `GET /v1/members/me`) |
 | `apps/api/test/integration/members.test.ts` | Update duplicate-email test from `200` to `409`; add tests for new response shape, enrollment event enqueueing |
 | `apps/web/test/e2e/enrollment.test.ts` | New E2E: full enrollment flow — enroll, see welcome screen, navigate to dashboard |
@@ -127,23 +127,24 @@ If `POST /v1/members/enroll` is called with an email already enrolled under the 
 { "error": "Program not found" }
 ```
 
-#### New: `GET /v1/public/programs/:programId`
+#### New: `GET /v1/public/programs/by-slug/:slug`
 
-No auth. Returns program info for the enrollment page. Uses `programId` directly (see Architecture Analysis — `Brand.slug` field does not exist; `programId` is the stable public identifier for enrollment links).
+No auth. Returns program info for the enrollment page. Uses `Program.slug` — the human-readable, globally unique program identifier (e.g., `acme-rewards-us`).
 
 ```
-GET /v1/public/programs/prog_xxx
+GET /v1/public/programs/by-slug/acme-rewards-us
 
 → 200 OK
 {
   "programId": "prog_xxx",
-  "programName": "Acme Rewards",
+  "programName": "Acme Rewards US",
+  "programSlug": "acme-rewards-us",
   "brandId": "brand_xxx",
   "brandName": "Acme Corp"
 }
-```
 
-> **Open question for PR review**: Should enrollment URLs use `programId` (current design) or should we add a `slug String @unique` field to the `Brand` model for human-readable URLs like `/acme-rewards/enroll`? See Architecture Analysis §3 for details.
+→ 404 Not Found (slug not found or program not ACTIVE)
+```
 
 #### New: `GET /v1/members/me`
 
@@ -179,6 +180,16 @@ smsOptIn    Boolean  @default(false)
 Migration: `ALTER TABLE members ADD COLUMN email_opt_in BOOLEAN NOT NULL DEFAULT false, ADD COLUMN sms_opt_in BOOLEAN NOT NULL DEFAULT false;`
 
 No changes to indexes needed (these fields are not queried by filter).
+
+**`Program` model** — add slug field:
+
+```prisma
+slug  String?  @unique
+```
+
+Migration: `ALTER TABLE programs ADD COLUMN slug VARCHAR(100) UNIQUE;`
+
+Nullable for backwards-compatibility with existing programs. Required for new programs. Auto-generated from `name` on creation (e.g., "Acme Rewards US" → `acme-rewards-us`), editable by admin. The enrollment URL `/{programSlug}/enroll` is only live once a slug is set on the program.
 
 ### Auth Design for Enrollment Endpoint
 
@@ -275,12 +286,12 @@ All implementation decisions are clear from codebase analysis. The 10-point gap 
 - `POST /v1/members/enroll` — invalid `programId` → 404
 - `GET /v1/members/me` — valid org JWT → 200 with full profile
 - `GET /v1/members/me` — no matching member → 404
-- `GET /v1/public/programs/:programId` — found → 200; not found → 404
+- `GET /v1/public/programs/by-slug/:slug` — found → 200; not found → 404
 - Confirm `consentGivenAt` is NOT NULL after enrollment
 - Confirm `@@unique([brandId, email])` blocks duplicate insert
 
 ### E2E (Playwright — `apps/web/test/e2e/enrollment.test.ts`)
-- Navigate to `/enroll/{programId}` → enrollment form visible
+- Navigate to `/{programSlug}/enroll` → enrollment form visible
 - Submit valid email+password+consent → welcome screen shown with points balance
 - Click "Go to my Dashboard" → dashboard accessible, authenticated
 - Attempt to re-enroll with same email → error message shown ("Already enrolled")
@@ -368,26 +379,22 @@ These are patterns introduced by this RFC that the architecture document does no
 
 ### 3. Patterns Incorrectly Followed (Design Gaps Requiring Decision)
 
-#### 3a. `Brand.slug` field does not exist — enrollment URL design decision required
+#### 3a. `Program.slug` field does not exist — ✅ RESOLVED
 
-**Problem**: The feature spec uses `/{brandSlug}/enroll` as the enrollment URL, implying a human-readable slug per brand (e.g., `/acme-rewards/enroll`). The `Brand` model has `id`, `clerkOrgId`, `name`, `createdAt` — no `slug` field. The current RFC resolves this by using `programId` in the URL (`/enroll/{programId}`) but this is a placeholder pending a product decision.
+**Decision**: Add `Program.slug String @unique` (globally unique, set by admin at program creation, auto-generated from program name).
 
-**Options**:
+**Rationale**: A brand may operate multiple simultaneous programs for different geographies, user segments, or benefit structures (e.g., a tiered bonus program for premium customers alongside a simple points program for general customers). Using a brand-level slug (`Brand.slug`) would require a secondary selector or query param to identify *which* program a member is enrolling in — eliminating the benefit of a human-readable URL.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **A: Use `programId` in URL** (current RFC) | No schema change. Stable, opaque identifier. | URLs are not human-readable (e.g., `/enroll/clx3q...`). Hard to share via print/QR. |
-| **B: Add `Brand.slug String @unique`** | Human-readable URLs (`/acme-rewards/enroll`). Brand-level (not program-level). Shareable. | Requires schema migration + UI for admins to set/update slug. Risk of slug collisions. |
-| **C: Add `Program.slug String @unique`** | Human-readable AND program-specific. Supports multi-program brands. | More complex. Schema migration + UI for each program. |
+Program-level slugs (`/acme-rewards-us/enroll`, `/acme-elite/enroll`) encode exactly what the member is enrolling in, with no ambiguity. Each QR code, marketing link, or in-store placard points to a specific program. Global uniqueness is chosen over brand-scoped uniqueness to keep URLs to a single path segment — admin-set slugs are brand-prefixed by convention (e.g., `acme-gold`, not just `gold`), making collisions unlikely in practice.
 
-**Recommendation**: Option B — add `Brand.slug String @unique` (auto-generated from brand name at Brand creation, editable by admin). This matches what all competitors use and is required for QR code / marketing link use cases. Defers the `Brand` creation UI change to a separate issue if needed.
+**Schema change**: `Program.slug String? @unique` (nullable for existing programs; required for new programs going forward).
 
-**Action required**: Confirm Option B or alternative in PR review before implementation begins.
+**Migration**: `ALTER TABLE programs ADD COLUMN slug VARCHAR(100) UNIQUE;` — nullable, backwards-compatible. Existing programs will need slugs set before their enrollment URLs go live.
 
-#### 3b. `POST /v1/members/enroll` duplicate-email behavior is a breaking change
+**URL structure**: `/{programSlug}/enroll` (e.g., `/acme-rewards-us/enroll`)
 
-**Problem**: The existing integration test `members.test.ts:43` asserts `expect(secondRes.status).toBe(200)` for duplicate enrollment. The RFC changes this to `409`. This is intentional (the spec requires 409) but it is a **breaking change** to the existing public API contract.
+**Files updated below** to reflect this decision.
 
-**Impact**: Any client currently relying on the idempotent `200` behavior (re-enrolling the same member without error) will need to handle `409` and redirect to login instead.
+#### 3b. `POST /v1/members/enroll` duplicate-email behavior — ✅ RESOLVED
 
-**Action required**: Confirm this breaking change is acceptable. If any external integration currently uses the 200 idempotency behavior, a grace period or API version bump may be needed.
+**Decision**: Proceed with 409. The 200 idempotent behavior was an internal implementation detail not exposed to any external integration. The one test asserting 200 (`members.test.ts:43`) will be updated to expect 409. The member-facing enrollment form should respond to 409 by showing "Already have an account? Sign in instead."

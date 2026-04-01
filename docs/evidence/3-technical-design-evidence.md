@@ -41,14 +41,12 @@ PR: TBD
 
 ---
 
-## Architecture Gaps Requiring User Decision
+## Architecture Gaps — Resolved
 
-Two gaps flagged in [RFC Architecture Analysis](../rfcs/3-member-enrollment.md#architecture-analysis) need product decisions before implementation:
-
-| Gap | Decision Required | RFC Section |
-|-----|------------------|-------------|
-| **Enrollment URL design**: `/enroll/{programId}` vs `/{brandSlug}/enroll` (requires `Brand.slug` field) | Choose Option A (programId), B (Brand.slug), or C (Program.slug) | §3a |
-| **Breaking change**: duplicate email → 409 instead of current 200 idempotent | Confirm acceptable; assess any existing integrations relying on 200 | §3b |
+| Gap | Decision | Rationale |
+|-----|----------|-----------|
+| **Enrollment URL design** | **Option C: `Program.slug String @unique`** — URL: `/{programSlug}/enroll` | A brand may run multiple programs for different geographies or user segments. Brand-level slugs would require a secondary selector to identify which program to enroll in. Program-level slugs encode exactly what the member joins; each QR code/marketing link is unambiguous. Global uniqueness keeps URLs to a single path segment. |
+| **Breaking change: duplicate email → 409** | **Confirmed** — proceed with 409 | The 200 idempotent behavior was an internal implementation detail with no external integrations relying on it. One integration test (`members.test.ts:43`) will be updated. |
 
 ---
 
