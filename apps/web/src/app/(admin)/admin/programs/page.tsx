@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 import { FilterBar } from '@/components/ui/filter-bar'
 import { PaginatedTable, type Column } from '@/components/ui/paginated-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -127,7 +127,7 @@ export default function ProgramsPage() {
   const fetchPrograms = useCallback(async () => {
     setLoading(true)
     try {
-      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+      const token = await getAuthToken(getToken)
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),
@@ -168,7 +168,7 @@ export default function ProgramsPage() {
   const handleStatusChange = async (program: Program, newStatus: 'ACTIVE' | 'PAUSED' | 'ARCHIVED') => {
     setActionError(null)
     try {
-      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+      const token = await getAuthToken(getToken)
       const res = await fetch(`${API_URL}/v1/programs/${program.id}/status`, {
         method: 'PUT',
         headers: {

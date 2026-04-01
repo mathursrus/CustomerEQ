@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface AssignmentRule {
   topic: string
@@ -130,7 +130,7 @@ export default function NewAlertRulePage() {
         slaHours: Number(form.slaHours) || 24,
       }
 
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
 

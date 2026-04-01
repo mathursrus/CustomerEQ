@@ -4,7 +4,7 @@ import { useReducer, useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 import { WizardStepper } from '@/components/ui/wizard-stepper'
 import { ViewOnlyBanner } from '@/components/ui/view-only-banner'
 import { Step1Type } from './wizard-steps/step1-type'
@@ -211,7 +211,7 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
     setSaving(true)
     setSaveError(null)
     try {
-      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+      const token = await getAuthToken(getToken)
       const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       // <input type="date"> returns "YYYY-MM-DD"; API needs ISO datetime
       const toISO = (d: string) => d ? `${d}T00:00:00.000Z` : undefined
@@ -270,7 +270,7 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
     setSaving(true)
     setSaveError(null)
     try {
-    const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+    const token = await getAuthToken(getToken)
     const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
 
     // Step 1: create program if it doesn't exist yet

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface Program {
   id: string
@@ -59,7 +59,7 @@ export default function NewSurveyPage() {
   useEffect(() => {
     async function fetchPrograms() {
       try {
-        const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+        const token = await getAuthToken(getToken)
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
         const res = await fetch(`${API_URL}/v1/programs`, { headers })
         if (res.ok) {
@@ -99,7 +99,7 @@ export default function NewSurveyPage() {
         payload.incentivePoints = Number(form.incentivePoints)
       }
 
-      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch(`${API_URL}/v1/surveys`, {

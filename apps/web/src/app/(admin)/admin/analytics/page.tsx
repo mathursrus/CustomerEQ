@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface OverviewData {
   totalMembers: number
@@ -54,7 +54,7 @@ export default function AnalyticsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const token = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ? null : await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
         : {}

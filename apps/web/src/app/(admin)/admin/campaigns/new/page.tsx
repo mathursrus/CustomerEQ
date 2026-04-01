@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface Program {
   id: string
@@ -46,13 +46,14 @@ export default function NewCampaignPage() {
   const [serverError, setServerError] = useState<string | null>(null)
 
   useEffect(() => {
-    getToken().then((token) => {
+    const fetchPrograms = async () => {
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      fetch(`${API_URL}/v1/programs`, { headers })
-        .then((r) => r.json())
-        .then((d) => setPrograms(d.programs ?? d ?? []))
-        .catch(() => {})
-    })
+      const res = await fetch(`${API_URL}/v1/programs`, { headers })
+      const d = await res.json()
+      setPrograms(d.data ?? d.programs ?? [])
+    }
+    fetchPrograms().catch(() => {})
   }, [getToken])
 
   function validate(): Record<string, string> {
@@ -80,7 +81,7 @@ export default function NewCampaignPage() {
     setSubmitting(true)
 
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const payload = {
         name: form.name,

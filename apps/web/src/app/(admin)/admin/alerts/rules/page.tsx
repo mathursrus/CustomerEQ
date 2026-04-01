@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface AlertRule {
   id: string
@@ -70,7 +70,12 @@ export default function AlertRulesPage() {
   const [rules, setRules] = useState<AlertRule[]>([])
 
   useEffect(() => {
-    getToken().then((token) => getAlertRules(token).then(setRules))
+    const load = async () => {
+      const token = await getAuthToken(getToken)
+      const rules = await getAlertRules(token)
+      setRules(rules)
+    }
+    load().catch(() => {})
   }, [getToken])
 
   return (

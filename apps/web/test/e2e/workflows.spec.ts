@@ -105,11 +105,18 @@ async function mockProgramsAPI(page: Page) {
 /** Intercept campaigns API */
 async function mockCampaignsAPI(page: Page) {
   await page.route(`${API}/v1/campaigns`, (route: Route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'camp-new', name: 'New Campaign', status: 'DRAFT' }),
+      })
+    }
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        campaigns: [
+        data: [
           {
             id: 'camp-1',
             name: 'Welcome Bonus',
@@ -119,6 +126,53 @@ async function mockCampaignsAPI(page: Page) {
             budgetSpent: 500,
             budgetCap: 10000,
             createdAt: '2025-01-20T00:00:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        totalPages: 1,
+      }),
+    })
+  })
+}
+
+/** Intercept alert rules API */
+async function mockAlertRulesAPI(page: Page) {
+  await page.route(`${API}/v1/alert-rules`, (route: Route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'rule-new',
+          name: 'New Rule',
+          status: 'ACTIVE',
+          surveyTypes: ['NPS'],
+          slackWebhookUrl: null,
+          emailRecipients: [],
+          teamsWebhookUrl: null,
+          defaultAssignee: 'team@example.com',
+          slaHours: 24,
+          createdAt: '2025-03-01T00:00:00Z',
+        }),
+      })
+    }
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'Low NPS Alert',
+            status: 'ACTIVE',
+            slackWebhookUrl: 'https://hooks.slack.com/services/xxx',
+            emailRecipients: ['team@example.com'],
+            teamsWebhookUrl: null,
+            slaHours: 24,
+            createdAt: '2025-02-15T00:00:00Z',
+            _count: { cases: 5 },
           },
         ],
       }),
@@ -384,5 +438,113 @@ test.describe('Workflow 4: Program List View', () => {
     // Should show the empty state message
     await expect(page.getByText('No programs yet')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Create your first program' })).toBeVisible()
+  })
+})
+
+// ===========================================================================
+// Workflow 5: Alert Rules — List & Create
+// ===========================================================================
+test.describe('Workflow 5: Alert Rules', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockClerkAuth(page)
+    await mockAlertRulesAPI(page)
+  })
+
+  test('alert rules list renders rules from API', async ({ page }) => {
+    await page.goto('/admin/alerts/rules')
+
+    await expect(page.getByRole('heading', { name: 'Alert Rules' })).toBeVisible()
+
+    // Rule from mock should render in the table
+    await expect(page.getByText('Low NPS Alert')).toBeVisible()
+    await expect(page.getByText('ACTIVE')).toBeVisible()
+    await expect(page.getByText('24h')).toBeVisible()
+  })
+
+  test('alert rules list shows channel icons correctly', async ({ page }) => {
+    await page.goto('/admin/alerts/rules')
+
+    // Slack and Email icons should render (rule has slackWebhookUrl + emailRecipients)
+    await expect(page.locator('[title="Slack"]')).toBeVisible()
+    await expect(page.locator('[title*="Email"]')).toBeVisible()
+  })
+
+  test('create alert rule form renders and validates', async ({ page }) => {
+    await page.goto('/admin/alerts/rules/new')
+
+    await expect(page.getByRole('heading', { name: 'Create Alert Rule' })).toBeVisible()
+
+    // Submit empty form — should show validation errors
+    await page.getByRole('button', { name: 'Save Alert Rule' }).click()
+    await expect(page.getByText('Rule name is required')).toBeVisible()
+    await expect(page.getByText('Select at least one survey type')).toBeVisible()
+  })
+
+  test('create alert rule submits successfully with valid data', async ({ page }) => {
+    await page.goto('/admin/alerts/rules/new')
+
+    // Fill required fields
+    await page.locator('#ruleName').fill('Test NPS Rule')
+    await page.getByLabel('NPS').check()
+    await page.locator('#defaultAssignee').fill('team@example.com')
+
+    // Submit the form
+    await page.getByRole('button', { name: 'Save Alert Rule' }).click()
+
+    // Should redirect to list page on success
+    await page.waitForURL('/admin/alerts/rules')
+  })
+})
+
+// ===========================================================================
+// Workflow 6: Campaign Create Form
+// ===========================================================================
+test.describe('Workflow 6: Campaign Create', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockClerkAuth(page)
+    await mockProgramsAPI(page)
+    await mockCampaignsAPI(page)
+  })
+
+  test('campaign create form loads programs dropdown without crashing', async ({ page }) => {
+    await page.goto('/admin/campaigns/new')
+
+    await expect(page.getByRole('heading', { name: 'Create Campaign' })).toBeVisible()
+
+    // Programs dropdown should load from API and render options
+    const programSelect = page.getByTestId('campaign-program-select')
+    await expect(programSelect).toBeVisible()
+    await expect(programSelect.locator('option')).toHaveCount(3) // placeholder + 2 programs
+  })
+
+  test('campaign create form validates required fields', async ({ page }) => {
+    await page.goto('/admin/campaigns/new')
+
+    // Submit empty form
+    await page.getByTestId('campaign-submit-btn').click()
+
+    await expect(page.getByText('Campaign name is required')).toBeVisible()
+    await expect(page.getByText('Please select a program')).toBeVisible()
+    await expect(page.getByText('Please select a trigger type')).toBeVisible()
+    await expect(page.getByText('Please select an action type')).toBeVisible()
+    await expect(page.getByText('Start date is required')).toBeVisible()
+  })
+
+  test('campaign create submits successfully with valid data', async ({ page }) => {
+    await page.goto('/admin/campaigns/new')
+
+    // Fill all required fields
+    await page.getByTestId('campaign-name').fill('Test Recovery Campaign')
+    await page.getByTestId('campaign-program-select').selectOption('prog-1')
+    await page.getByTestId('campaign-trigger-type').selectOption('cx.nps_submitted')
+    await page.getByTestId('campaign-action-type').selectOption('award_points')
+    await page.getByTestId('campaign-action-points').fill('500')
+    await page.getByTestId('campaign-start-date').fill('2026-05-01')
+
+    // Submit
+    await page.getByTestId('campaign-submit-btn').click()
+
+    // Should redirect to campaigns list on success
+    await page.waitForURL('/admin/campaigns')
   })
 })
