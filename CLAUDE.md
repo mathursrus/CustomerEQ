@@ -12,7 +12,16 @@ This repository uses FRAIM.
 - Once you identify the relevant job, call `get_fraim_job({ job: "<job-name>" })` to get the full phased instructions.
 - For deeper capability detail, call `get_fraim_file({ path: "skills/<category>/<skill-name>.md" })` or `get_fraim_file({ path: "rules/<category>/<rule-name>.md" })`.
 - Read `fraim/personalized-employee/rules/project_rules.md` if it exists before doing work.
+- When users ask for next step recommendations, use recommend-next-job skill under `fraim/ai-employee/skills/` to gather context before suggesting jobs.
 
 > [!IMPORTANT]
 > **Job stubs are for discovery only.** When a user @mentions or references any file under `fraim/ai-employee/jobs/` or `fraim/ai-manager/jobs/`, do NOT attempt to execute the job from the stub content. The stub only shows intent and phase names. Always call `get_fraim_job({ job: "<job-name>" })` first to get the full phased instructions before doing any work.
 <!-- FRAIM_AGENT_ADAPTER_END -->
+
+## Testing Rules
+
+- **Tests must never skip.** If a test cannot run (missing API key, DB unreachable, server down), it must **fail with a clear error** — not skip or pass vacuously.
+- `pnpm test:smoke` — all unit tests, no API keys needed. Must pass on every PR.
+- `pnpm test:baml` — BAML eval tests calling real LLMs (GPT-4o). Requires `OPENAI_API_KEY`. Fails if key is missing.
+- `pnpm test:integration` — API tests against real DB. Requires `DATABASE_URL`.
+- `pnpm test:e2e` — Playwright browser tests. Requires dev server running.

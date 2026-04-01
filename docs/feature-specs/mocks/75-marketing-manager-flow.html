@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Marketing Manager Flow Mock</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; font-size: 14px; }
+
+    /* ── Shell ── */
+    .shell { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: #18181b; color: #e4e4e7; padding: 24px 16px; flex-shrink: 0; }
+    .sidebar .logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 32px; display: flex; align-items: center; gap: 8px; }
+    .sidebar .logo span { color: #6366f1; }
+    .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: #a1a1aa; font-size: 13px; text-decoration: none; margin-bottom: 4px; cursor: pointer; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: #27272a; color: #fff; }
+    .sidebar .nav-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; padding: 16px 10px 6px; }
+    .main { flex: 1; padding: 28px 32px; overflow-y: auto; max-width: 1100px; }
+
+    /* ── Scenario bar ── */
+    .screen-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 10px; }
+    .scenario-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .scenario-btn { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d4d4d8; background: #fff; color: #52525b; }
+    .scenario-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+    /* ── Page header ── */
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .page-header h1 { font-size: 20px; font-weight: 700; }
+    .page-header p { font-size: 13px; color: #71717a; margin-top: 2px; }
+    .btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-ghost { background: #fff; color: #52525b; border: 1px solid #d4d4d8; }
+    .btn-ghost:hover { background: #f4f4f5; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── Cards ── */
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 20px; margin-bottom: 16px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .card-title { font-size: 14px; font-weight: 700; }
+    .card-sub { font-size: 12px; color: #71717a; margin-top: 2px; }
+
+    /* ── Unified Dashboard (Scenario 4) ── */
+    .twin-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .panel { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 20px; }
+    .panel-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #71717a; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+    .panel-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-cx { background: #f59e0b; }
+    .dot-loyalty { background: #6366f1; }
+    .stat-row { display: flex; gap: 16px; margin-bottom: 14px; }
+    .stat { flex: 1; }
+    .stat-val { font-size: 22px; font-weight: 800; }
+    .stat-lbl { font-size: 11px; color: #71717a; margin-top: 2px; }
+    .cx-good { color: #15803d; }
+    .cx-warn { color: #b45309; }
+    .cx-bad { color: #dc2626; }
+    .divider { height: 1px; background: #f4f4f5; margin: 12px 0; }
+    .insight-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+    .insight-card .insight-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #3b82f6; margin-bottom: 6px; }
+    .insight-card p { font-size: 13px; color: #1e40af; line-height: 1.5; }
+    .insight-card .insight-cta { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700; color: #2563eb; cursor: pointer; text-decoration: underline; }
+    .alert-card { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+    .alert-card .alert-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #ea580c; margin-bottom: 6px; }
+    .alert-card p { font-size: 13px; color: #9a3412; }
+    .alert-card .insight-cta { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700; color: #c2410c; cursor: pointer; text-decoration: underline; }
+
+    /* ── Score pill ── */
+    .score-pill { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .pill-green { background: #dcfce7; color: #15803d; }
+    .pill-yellow { background: #fef9c3; color: #854d0e; }
+    .pill-red { background: #fee2e2; color: #dc2626; }
+    .pill-blue { background: #dbeafe; color: #1d4ed8; }
+
+    /* ── Wizard (Scenario 5 & 6) ── */
+    .wizard-shell { display: flex; gap: 24px; }
+    .wizard-steps { width: 200px; flex-shrink: 0; }
+    .wizard-step { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; }
+    .wizard-step.active { background: #eef2ff; }
+    .wizard-step .step-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .step-done .step-num { background: #22c55e; color: #fff; }
+    .step-active .step-num { background: #6366f1; color: #fff; }
+    .step-pending .step-num { background: #e4e4e7; color: #71717a; }
+    .wizard-step-label { font-size: 12px; font-weight: 600; color: #52525b; }
+    .wizard-step.active .wizard-step-label { color: #4338ca; }
+    .wizard-step-sub { font-size: 11px; color: #a1a1aa; margin-top: 1px; }
+    .wizard-content { flex: 1; }
+
+    /* ── Trigger options ── */
+    .trigger-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .trigger-card { border: 2px solid #e4e4e7; border-radius: 10px; padding: 14px; cursor: pointer; transition: border-color 0.15s; }
+    .trigger-card:hover { border-color: #c7d2fe; }
+    .trigger-card.selected { border-color: #6366f1; background: #eef2ff; }
+    .trigger-card .t-icon { font-size: 24px; margin-bottom: 8px; }
+    .trigger-card .t-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .trigger-card .t-desc { font-size: 11px; color: #71717a; line-height: 1.4; }
+    .trigger-card.selected .t-title { color: #4338ca; }
+
+    /* ── Survey type recommendation ── */
+    .recommendation-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+    .rec-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #15803d; margin-bottom: 8px; }
+    .rec-type { font-size: 18px; font-weight: 800; color: #14532d; margin-bottom: 4px; }
+    .rec-rationale { font-size: 13px; color: #166534; line-height: 1.5; }
+    .rec-override { font-size: 12px; color: #16a34a; margin-top: 10px; cursor: pointer; text-decoration: underline; }
+    .reach-badge { display: inline-flex; align-items: center; gap: 6px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #0369a1; font-weight: 600; margin-bottom: 14px; }
+
+    /* ── Response-to-action rules (Scenario 6) ── */
+    .rule-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 8px; background: #fff; }
+    .rule-score { font-size: 13px; font-weight: 700; white-space: nowrap; min-width: 80px; }
+    .rule-arrow { color: #a1a1aa; font-size: 16px; flex-shrink: 0; }
+    .rule-action { flex: 1; font-size: 13px; }
+    .rule-action strong { display: block; }
+    .rule-action span { font-size: 11px; color: #71717a; }
+    .rule-est { font-size: 12px; color: #71717a; white-space: nowrap; text-align: right; min-width: 100px; }
+    .add-rule-btn { width: 100%; padding: 10px; border: 2px dashed #d4d4d8; border-radius: 8px; background: transparent; color: #71717a; font-size: 13px; cursor: pointer; margin-bottom: 16px; }
+    .add-rule-btn:hover { border-color: #a5b4fc; color: #6366f1; }
+
+    /* ── Loop monitor (Scenario 6 preview) ── */
+    .loop-pipeline { display: flex; align-items: center; gap: 0; margin-bottom: 16px; overflow-x: auto; }
+    .pipeline-step { text-align: center; min-width: 120px; padding: 14px 10px; background: #fff; border: 1px solid #e4e4e7; position: relative; }
+    .pipeline-step:not(:first-child)::before { content: '→'; position: absolute; left: -14px; top: 50%; transform: translateY(-50%); color: #a1a1aa; font-size: 18px; }
+    .pipeline-step:first-child { border-radius: 10px 0 0 10px; }
+    .pipeline-step:last-child { border-radius: 0 10px 10px 0; }
+    .p-val { font-size: 22px; font-weight: 800; color: #18181b; }
+    .p-lbl { font-size: 11px; color: #71717a; margin-top: 3px; }
+    .p-delta { font-size: 11px; font-weight: 600; margin-top: 2px; }
+    .p-up { color: #15803d; }
+    .p-down { color: #dc2626; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #e4e4e7; margin-bottom: 16px; }
+    .tab { padding: 9px 16px; font-size: 13px; font-weight: 500; color: #71717a; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #6366f1; border-bottom-color: #6366f1; font-weight: 600; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; padding: 8px 12px; border-bottom: 1px solid #e4e4e7; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f4f4f5; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">Customer<span>EQ</span></div>
+    <div class="nav-section">Operator</div>
+    <nav>
+      <a class="active">🏠 Home</a>
+      <a>📊 Analytics</a>
+      <div class="nav-section">CX</div>
+      <a>💬 Surveys</a>
+      <a>📈 NPS Tracker</a>
+      <div class="nav-section">Loyalty</div>
+      <a>⚙️ Program Setup</a>
+      <a>🎯 Campaigns</a>
+      <a>👥 Members</a>
+      <a>🎁 Rewards</a>
+      <div class="nav-section">Integrations</div>
+      <a>🔗 CRM & Data</a>
+    </nav>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="screen-label">Mock: Issue #75 — Marketing Manager Workflows</div>
+
+    <div class="scenario-bar">
+      <button class="scenario-btn active" onclick="show('s4')">Scenario 4: Unified Dashboard</button>
+      <button class="scenario-btn" onclick="show('s5')">Scenario 5: Create Survey (When + What Type)</button>
+      <button class="scenario-btn" onclick="show('s6')">Scenario 6: Response-to-Action Rules + Loop Monitor</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         SCENARIO 4 — Unified CX + Loyalty Dashboard
+    ═══════════════════════════════════════════════════════════ -->
+    <div id="s4">
+      <div class="page-header">
+        <div>
+          <h1>Program Health — Q1 2026</h1>
+          <p>Spring Rewards Program · Last updated 2 min ago</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm">Export</button>
+          <button class="btn btn-primary btn-sm">+ New Survey</button>
+        </div>
+      </div>
+
+      <!-- Twin panel: CX Health + Loyalty Health side by side -->
+      <div class="twin-panel">
+        <div class="panel">
+          <div class="panel-header"><span class="dot dot-cx"></span>CX Health</div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat-val cx-warn">41</div>
+              <div class="stat-lbl">NPS Score <span class="score-pill pill-yellow">↓3 vs last month</span></div>
+            </div>
+            <div class="stat">
+              <div class="stat-val">68%</div>
+              <div class="stat-lbl">Survey Response Rate</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="display:flex;gap:12px;margin-bottom:10px;">
+            <div style="flex:1;text-align:center;padding:10px;background:#dcfce7;border-radius:8px;">
+              <div style="font-size:18px;font-weight:800;color:#15803d;">124</div>
+              <div style="font-size:11px;color:#166534;">Promoters (9–10)</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:10px;background:#fef9c3;border-radius:8px;">
+              <div style="font-size:18px;font-weight:800;color:#854d0e;">89</div>
+              <div style="font-size:11px;color:#713f12;">Passives (7–8)</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:10px;background:#fee2e2;border-radius:8px;">
+              <div style="font-size:18px;font-weight:800;color:#dc2626;">34</div>
+              <div style="font-size:11px;color:#991b1b;">Detractors (0–6)</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="font-size:12px;color:#71717a;">Active Surveys: <strong style="color:#18181b;">3</strong> &nbsp;·&nbsp; Avg CSAT: <strong style="color:#18181b;">4.1/5</strong></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="dot dot-loyalty"></span>Loyalty Health</div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat-val cx-good">1,847</div>
+              <div class="stat-lbl">Active Members <span class="score-pill pill-green">↑12%</span></div>
+            </div>
+            <div class="stat">
+              <div class="stat-val">23%</div>
+              <div class="stat-lbl">Redemption Rate</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="display:flex;gap:12px;margin-bottom:10px;">
+            <div style="flex:1;text-align:center;padding:10px;background:#eef2ff;border-radius:8px;">
+              <div style="font-size:18px;font-weight:800;color:#4338ca;">48,200</div>
+              <div style="font-size:11px;color:#4338ca;">Points Issued (30d)</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:10px;background:#f5f3ff;border-radius:8px;">
+              <div style="font-size:18px;font-weight:800;color:#6d28d9;">$3,240</div>
+              <div style="font-size:11px;color:#6d28d9;">Rewards Redeemed (30d)</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="font-size:12px;color:#71717a;">Active Campaigns: <strong style="color:#18181b;">2</strong> &nbsp;·&nbsp; Avg Earn/Member: <strong style="color:#18181b;">26 pts/week</strong></div>
+        </div>
+      </div>
+
+      <!-- AI Insights connecting CX and Loyalty -->
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#71717a;margin-bottom:10px;">💡 Insights — CX signals connected to loyalty opportunities</div>
+
+      <div class="insight-card">
+        <div class="insight-label">Opportunity</div>
+        <p>Members who completed the post-purchase CSAT survey earned <strong>2.3× more points</strong> this month than those who didn't. Consider incentivizing survey completion for your low-engagement segment (340 members).</p>
+        <span class="insight-cta" onclick="show('s5')">Create survey for low-engagement members →</span>
+      </div>
+
+      <div class="alert-card">
+        <div class="alert-label">⚠ At-Risk: Action Needed</div>
+        <p><strong>34 detractors (NPS 0–6)</strong> have not redeemed a reward in the last 30 days. Without intervention, this segment historically churns at 3×. A win-back campaign with 100 bonus points reached 71% of a similar cohort last quarter.</p>
+        <span class="insight-cta" onclick="show('s6')">Create win-back campaign for 34 detractors →</span>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-label">Loyalty Milestone Moment</div>
+        <p><strong>47 members</strong> reached Gold tier in the last 7 days. This is the highest-value moment to capture an NPS response — Promoters from this cohort refer 2.1× more friends on average. No survey is currently scheduled for this trigger.</p>
+        <span class="insight-cta" onclick="show('s5')">Schedule NPS survey for new Gold members →</span>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         SCENARIO 5 — Create Survey: When + What Type
+    ═══════════════════════════════════════════════════════════ -->
+    <div id="s5" style="display:none;">
+      <div class="page-header">
+        <div>
+          <h1>Create Survey</h1>
+          <p>Step 1 of 4 — Choose when to send and what type of feedback to collect</p>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="show('s4')">← Back to Dashboard</button>
+      </div>
+
+      <div class="wizard-shell">
+        <!-- Steps sidebar -->
+        <div class="wizard-steps">
+          <div class="wizard-step step-active active">
+            <div class="step-num">1</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">When + what type</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">2</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">Questions & design</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <!-- Wizard content -->
+        <div class="wizard-content">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">When should this survey be sent?</div>
+                <div class="card-sub">Surveys tied to specific moments get 2–4× higher response rates than batch sends.</div>
+              </div>
+            </div>
+
+            <!-- Trigger categories -->
+            <div class="trigger-grid">
+              <div class="trigger-card selected" onclick="selectTrigger(this)">
+                <div class="t-icon">⭐</div>
+                <div class="t-title">Loyalty Moment</div>
+                <div class="t-desc">After a key loyalty event — tier upgrade, first redemption, milestone purchase, enrollment</div>
+              </div>
+              <div class="trigger-card" onclick="selectTrigger(this)">
+                <div class="t-icon">📉</div>
+                <div class="t-title">CX Risk Moment</div>
+                <div class="t-desc">When a member shows churn signals — inactive for X days, NPS drop, support interaction</div>
+              </div>
+              <div class="trigger-card" onclick="selectTrigger(this)">
+                <div class="t-icon">📅</div>
+                <div class="t-title">Scheduled / Recurring</div>
+                <div class="t-desc">Regular pulse — quarterly NPS, monthly CSAT, annual program satisfaction</div>
+              </div>
+            </div>
+
+            <!-- Sub-trigger selection (shown after Loyalty Moment selected) -->
+            <div style="margin-bottom:16px;">
+              <div style="font-size:12px;font-weight:700;color:#52525b;margin-bottom:8px;">Select the specific loyalty moment:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn btn-ghost btn-sm" style="border-color:#6366f1;color:#6366f1;background:#eef2ff;">🏆 Tier Upgrade ✓</button>
+                <button class="btn btn-ghost btn-sm">🎁 First Redemption</button>
+                <button class="btn btn-ghost btn-sm">🛒 5th Purchase</button>
+                <button class="btn btn-ghost btn-sm">🎉 1-Year Anniversary</button>
+                <button class="btn btn-ghost btn-sm">✅ Profile Completed</button>
+              </div>
+            </div>
+
+            <!-- System recommendation -->
+            <div class="recommendation-box">
+              <div class="rec-label">✦ Recommended survey type</div>
+              <div class="rec-type">CSAT — Customer Satisfaction Score</div>
+              <div class="rec-rationale">After a tier upgrade, members are at peak engagement. A CSAT survey measures how satisfied they are with the upgrade experience specifically — ideal for capturing moment-level quality, not overall relationship health. NPS would be too broad for this trigger.</div>
+              <div class="rec-override">Use a different type instead ↓</div>
+            </div>
+
+            <!-- Estimated reach -->
+            <div class="reach-badge">
+              📊 Based on your current program, this trigger would reach ~<strong>47 members</strong> in the next 30 days.
+            </div>
+
+            <!-- Estimated reach breakdown -->
+            <div style="background:#f9fafb;border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+              <div style="font-size:12px;font-weight:600;color:#52525b;margin-bottom:8px;">Delivery preview</div>
+              <div style="display:flex;gap:20px;font-size:12px;color:#71717a;">
+                <span>📧 Email: 47 members</span>
+                <span>📱 In-app: 38 members (opted in)</span>
+                <span>💬 SMS: 12 members (opted in)</span>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+              <button class="btn btn-ghost">Cancel</button>
+              <button class="btn btn-primary" onclick="show('s6')">Continue: Design Questions →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         SCENARIO 6 — Response-to-Action Rules + Loop Monitor
+    ═══════════════════════════════════════════════════════════ -->
+    <div id="s6" style="display:none;">
+      <div class="page-header">
+        <div>
+          <h1>What happens next?</h1>
+          <p>Step 3 of 4 — Define loyalty actions for each response range · Tier Upgrade CSAT Survey</p>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="show('s5')">← Back to Survey</button>
+      </div>
+
+      <div class="wizard-shell">
+        <!-- Steps sidebar -->
+        <div class="wizard-steps">
+          <div class="wizard-step step-done">
+            <div class="step-num">✓</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">Tier upgrade · CSAT</div></div>
+          </div>
+          <div class="wizard-step step-done">
+            <div class="step-num">✓</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">3 questions</div></div>
+          </div>
+          <div class="wizard-step step-active active">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <!-- Rules content -->
+        <div class="wizard-content">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-header" style="margin-bottom:6px;">
+              <div>
+                <div class="card-title">Response-to-Action Rules</div>
+                <div class="card-sub">When a member responds, what loyalty action should trigger automatically?</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:12px;color:#71717a;">Load playbook:</span>
+                <select style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid #d4d4d8;color:#52525b;">
+                  <option>Standard CSAT Playbook</option>
+                  <option>Win-back Playbook</option>
+                  <option>Custom…</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Rule rows -->
+            <div class="rule-row" style="background:#fef2f2;border-color:#fca5a5;">
+              <div class="rule-score"><span class="score-pill pill-red">CSAT 1–2</span></div>
+              <div class="rule-arrow">→</div>
+              <div class="rule-action">
+                <strong>Win-back Campaign</strong>
+                <span>100 bonus points + personal message from Brand · Triggered within 15 min</span>
+              </div>
+              <div class="rule-est">~8 members/mo</div>
+              <button class="btn btn-ghost btn-sm">Edit</button>
+            </div>
+
+            <div class="rule-row" style="background:#fffbeb;border-color:#fde68a;">
+              <div class="rule-score"><span class="score-pill pill-yellow">CSAT 3</span></div>
+              <div class="rule-arrow">→</div>
+              <div class="rule-action">
+                <strong>Recovery Nudge</strong>
+                <span>50 bonus points + "Tell us more" open text follow-up · Triggered within 15 min</span>
+              </div>
+              <div class="rule-est">~14 members/mo</div>
+              <button class="btn btn-ghost btn-sm">Edit</button>
+            </div>
+
+            <div class="rule-row" style="background:#f0fdf4;border-color:#86efac;">
+              <div class="rule-score"><span class="score-pill pill-green">CSAT 4–5</span></div>
+              <div class="rule-arrow">→</div>
+              <div class="rule-action">
+                <strong>Referral Campaign</strong>
+                <span>Invite a friend → earn 200 points each · Sent within 1 hour</span>
+              </div>
+              <div class="rule-est">~25 members/mo</div>
+              <button class="btn btn-ghost btn-sm">Edit</button>
+            </div>
+
+            <button class="add-rule-btn">+ Add another rule</button>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+              <div style="font-size:12px;color:#71717a;">Total estimated budget: <strong style="color:#18181b;">~4,700 points/month</strong> ($47 equivalent)</div>
+              <button class="btn btn-primary" onclick="toggleMonitor()">Launch Survey + Rules →</button>
+            </div>
+          </div>
+
+          <!-- Loop Monitor (appears after launch) -->
+          <div id="loop-monitor" style="display:none;">
+            <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px;">✅ Survey live — monitoring the full CX-to-loyalty loop</div>
+
+            <!-- Pipeline -->
+            <div class="loop-pipeline">
+              <div class="pipeline-step">
+                <div class="p-val">47</div>
+                <div class="p-lbl">Surveys Sent</div>
+                <div class="p-delta p-up">this trigger</div>
+              </div>
+              <div class="pipeline-step">
+                <div class="p-val">31</div>
+                <div class="p-lbl">Responses</div>
+                <div class="p-delta p-up">66% response rate</div>
+              </div>
+              <div class="pipeline-step">
+                <div class="p-val">31</div>
+                <div class="p-lbl">Rules Matched</div>
+                <div class="p-delta" style="color:#6366f1;">100% matched</div>
+              </div>
+              <div class="pipeline-step">
+                <div class="p-val">31</div>
+                <div class="p-lbl">Campaigns Triggered</div>
+                <div class="p-delta p-up">avg 4.2 min latency</div>
+              </div>
+              <div class="pipeline-step">
+                <div class="p-val">18</div>
+                <div class="p-lbl">Rewards Redeemed</div>
+                <div class="p-delta p-up">58% conversion</div>
+              </div>
+            </div>
+
+            <!-- Response breakdown -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px;">Response breakdown by rule</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Score Range</th>
+                    <th>Responses</th>
+                    <th>Campaign</th>
+                    <th>Triggered</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="score-pill pill-red">CSAT 1–2</span></td>
+                    <td>4</td>
+                    <td>Win-back Campaign</td>
+                    <td>4 / 4</td>
+                    <td><span class="score-pill pill-green">2 redeemed</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="score-pill pill-yellow">CSAT 3</span></td>
+                    <td>8</td>
+                    <td>Recovery Nudge</td>
+                    <td>8 / 8</td>
+                    <td><span class="score-pill pill-yellow">5 follow-ups sent</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="score-pill pill-green">CSAT 4–5</span></td>
+                    <td>19</td>
+                    <td>Referral Campaign</td>
+                    <td>19 / 19</td>
+                    <td><span class="score-pill pill-green">11 redeemed</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    ['s4','s5','s6'].forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none');
+    document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+      const ids = ['s4','s5','s6'];
+      btn.classList.toggle('active', ids[i] === id);
+    });
+  }
+  function selectTrigger(el) {
+    document.querySelectorAll('.trigger-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  let monitorVisible = false;
+  function toggleMonitor() {
+    monitorVisible = !monitorVisible;
+    document.getElementById('loop-monitor').style.display = monitorVisible ? '' : 'none';
+    if (monitorVisible) document.getElementById('loop-monitor').scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>

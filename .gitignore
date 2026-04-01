@@ -1,1 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+*.js.map
+*.d.ts.map
+
+# Turbo
+.turbo/
+
+# TypeScript generated
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
 .codex/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright MCP
+.playwright-mcp/
+
+# Test evidence (binary artifacts only — markdown evidence files are committed)
+docs/evidence/**/*.png
+docs/evidence/**/*.jpg
+docs/evidence/**/*.mp4
+
+# Logs
+*.log
+npm-debug.log*
+coverage/
+# packages/ai/src/generated/ — COMMITTED (needed for Docker builds without BAML CLI)

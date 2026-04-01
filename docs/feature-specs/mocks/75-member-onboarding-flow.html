@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Member Onboarding Flow Mock</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; }
+
+    /* ── Layout ── */
+    .shell { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: #18181b; color: #e4e4e7; padding: 24px 16px; flex-shrink: 0; }
+    .sidebar .logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 32px; display: flex; align-items: center; gap: 8px; }
+    .sidebar .logo span { color: #6366f1; }
+    .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: #a1a1aa; font-size: 14px; text-decoration: none; margin-bottom: 4px; cursor: pointer; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: #27272a; color: #fff; }
+    .sidebar nav a .icon { font-size: 16px; }
+    .main { flex: 1; padding: 32px; overflow-y: auto; }
+
+    /* ── Header ── */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+    .badge-points { background: #eef2ff; color: #4338ca; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+
+    /* ── Getting Started Checklist ── */
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 24px; margin-bottom: 20px; }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap-8px; }
+    .card-subtitle { font-size: 13px; color: #71717a; margin-bottom: 18px; }
+    .progress-bar-wrap { height: 8px; background: #e4e4e7; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 8px; background: #6366f1; width: 33%; transition: width 0.4s; }
+
+    .checklist-item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f4f4f5; }
+    .checklist-item:last-child { border-bottom: none; }
+    .check-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #d4d4d8; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; }
+    .check-circle.done { background: #22c55e; border-color: #22c55e; color: #fff; }
+    .check-circle.active { border-color: #6366f1; }
+    .checklist-text { flex: 1; }
+    .checklist-text strong { font-size: 14px; display: block; margin-bottom: 2px; }
+    .checklist-text span { font-size: 12px; color: #71717a; }
+    .points-pill { background: #fef9c3; color: #854d0e; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+    .btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-ghost { background: transparent; color: #6366f1; border: 1px solid #c7d2fe; }
+
+    /* ── Points & Tier Widget ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .stat-card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 20px; }
+    .stat-label { font-size: 12px; color: #71717a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 28px; font-weight: 800; color: #18181b; }
+    .stat-sub { font-size: 12px; color: #71717a; margin-top: 4px; }
+    .tier-badge { display: inline-flex; align-items: center; gap: 6px; background: #fdf4ff; color: #7e22ce; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .tier-progress { height: 6px; background: #e4e4e7; border-radius: 8px; margin: 8px 0; overflow: hidden; }
+    .tier-progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #6366f1); width: 42%; border-radius: 8px; }
+    .tier-hint { font-size: 12px; color: #71717a; }
+
+    /* ── Notification Toast ── */
+    .toast { position: fixed; bottom: 28px; right: 28px; background: #18181b; color: #fff; padding: 14px 18px; border-radius: 12px; font-size: 14px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); max-width: 320px; animation: slideIn 0.35s ease; }
+    .toast .toast-icon { font-size: 22px; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .toast-dismiss { margin-left: auto; background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 16px; }
+
+    /* ── Reward CTA Banner ── */
+    .reward-banner { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; border-radius: 12px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .reward-banner h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .reward-banner p { font-size: 13px; opacity: 0.85; }
+    .btn-white { background: #fff; color: #6366f1; font-weight: 700; padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #e4e4e7; margin-bottom: 20px; }
+    .tab { padding: 10px 18px; font-size: 14px; font-weight: 500; color: #71717a; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+
+    /* ── Hero Flow Confirmation ── */
+    .hero-confirm { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px; display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px; }
+    .hero-confirm .icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+    .hero-confirm h4 { font-size: 14px; font-weight: 700; color: #15803d; margin-bottom: 3px; }
+    .hero-confirm p { font-size: 13px; color: #166534; }
+
+    /* ── Screen label ── */
+    .screen-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 8px; }
+
+    /* ── Scenario tabs ── */
+    .scenario-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .scenario-btn { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d4d4d8; background: #fff; color: #52525b; }
+    .scenario-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">Customer<span>EQ</span></div>
+    <nav>
+      <a class="active"><span class="icon">🏠</span> Dashboard</a>
+      <a><span class="icon">⭐</span> Earn Points</a>
+      <a><span class="icon">🎁</span> Rewards</a>
+      <a><span class="icon">📊</span> My History</a>
+      <a><span class="icon">👤</span> Profile</a>
+    </nav>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <div class="screen-label">Mock: Issue #75 — Member Workflows</div>
+
+    <!-- Scenario switcher -->
+    <div class="scenario-bar">
+      <button class="scenario-btn active" onclick="showScenario('onboarding')">Scenario 1: First Login</button>
+      <button class="scenario-btn" onclick="showScenario('hero')">Scenario 2: Hero Flow (CX → Campaign)</button>
+      <button class="scenario-btn" onclick="showScenario('rewards')">Scenario 3: Reward Discovery</button>
+    </div>
+
+    <!-- ── Scenario 1: First Login / Onboarding ── -->
+    <div id="scenario-onboarding">
+      <div class="page-header">
+        <h1>Welcome back, Alex 👋</h1>
+        <div class="badge-points">✦ 150 points</div>
+      </div>
+
+      <!-- Getting Started -->
+      <div class="card">
+        <div class="card-title">🚀 Getting Started</div>
+        <div class="card-subtitle">Complete these steps to unlock more rewards — 1 of 3 done</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
+
+        <div class="checklist-item">
+          <div class="check-circle done">✓</div>
+          <div class="checklist-text">
+            <strong>Create your account</strong>
+            <span>Done — welcome to the program!</span>
+          </div>
+          <div class="points-pill">+50 pts earned</div>
+        </div>
+
+        <div class="checklist-item">
+          <div class="check-circle active" style="border-width:2.5px;"></div>
+          <div class="checklist-text">
+            <strong>Complete your profile</strong>
+            <span>Add your birthday and preferences</span>
+          </div>
+          <div class="points-pill">+75 pts</div>
+          <button class="btn btn-primary" style="margin-left:12px;">Start →</button>
+        </div>
+
+        <div class="checklist-item">
+          <div class="check-circle"></div>
+          <div class="checklist-text">
+            <strong>Make your first purchase</strong>
+            <span>Earn 2× points on your first order</span>
+          </div>
+          <div class="points-pill">+100 pts</div>
+          <button class="btn btn-ghost" style="margin-left:12px;">Shop</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="grid-2">
+        <div class="stat-card">
+          <div class="stat-label">Points Balance</div>
+          <div class="stat-value">150</div>
+          <div class="stat-sub">+50 this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="tier-badge">🥈 Silver Member</div>
+          <div class="stat-label" style="margin-top:4px;">Progress to Gold</div>
+          <div class="tier-progress"><div class="tier-progress-fill"></div></div>
+          <div class="tier-hint">850 more points to Gold — unlock free shipping + 3× earn</div>
+        </div>
+      </div>
+
+      <!-- Reward CTA -->
+      <div class="reward-banner">
+        <div>
+          <h3>🎁 You can redeem a reward now!</h3>
+          <p>You have enough points for a $5 gift card. Claim it before it expires.</p>
+        </div>
+        <button class="btn-white">View Rewards →</button>
+      </div>
+    </div>
+
+    <!-- ── Scenario 2: Hero Flow (CX → Campaign) ── -->
+    <div id="scenario-hero" style="display:none;">
+      <div class="page-header">
+        <h1>Your Dashboard</h1>
+        <div class="badge-points">✦ 340 points</div>
+      </div>
+
+      <!-- Hero confirmation banner (R7, R8) -->
+      <div class="hero-confirm">
+        <div class="icon">💬</div>
+        <div>
+          <h4>Thanks for your feedback — we heard you!</h4>
+          <p>Your NPS response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active">Activity Feed</div>
+        <div class="tab">Campaigns</div>
+        <div class="tab">History</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Recent Activity</div>
+
+        <div class="checklist-item">
+          <div style="font-size:22px;">🎯</div>
+          <div class="checklist-text">
+            <strong>Campaign triggered by your feedback</strong>
+            <span>Just now · "Thank You" campaign — 50 bonus points + exclusive offer</span>
+          </div>
+          <span style="font-size:12px;background:#dcfce7;color:#15803d;padding:3px 10px;border-radius:20px;font-weight:600;">New</span>
+        </div>
+
+        <div class="checklist-item">
+          <div style="font-size:22px;">✍️</div>
+          <div class="checklist-text">
+            <strong>NPS Survey completed</strong>
+            <span>2 minutes ago · +25 pts awarded</span>
+          </div>
+          <div class="points-pill">+25 pts</div>
+        </div>
+
+        <div class="checklist-item">
+          <div style="font-size:22px;">🛒</div>
+          <div class="checklist-text">
+            <strong>Purchase — Order #4821</strong>
+            <span>Yesterday · Rules engine matched "2× weekend earn"</span>
+          </div>
+          <div class="points-pill">+120 pts</div>
+        </div>
+      </div>
+
+      <!-- SLA indicator (R10) -->
+      <div class="card" style="background:#fafafa;">
+        <div class="card-title" style="font-size:13px;color:#71717a;font-weight:500;">Campaign delivery SLA</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+          <div style="flex:1;height:8px;background:#e4e4e7;border-radius:8px;overflow:hidden;">
+            <div style="width:20%;height:100%;background:#22c55e;border-radius:8px;"></div>
+          </div>
+          <span style="font-size:13px;font-weight:600;color:#15803d;">~3 min remaining of 15-min window</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Scenario 3: Reward Discovery ── -->
+    <div id="scenario-rewards" style="display:none;">
+      <div class="page-header">
+        <h1>Rewards Catalog</h1>
+        <div class="badge-points">✦ 480 points</div>
+      </div>
+
+      <div style="font-size:13px;color:#71717a;margin-bottom:16px;">Showing rewards you can redeem first · Sorted by value</div>
+
+      <!-- Affordable rewards -->
+      <div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <div style="font-size:36px;">🎟️</div>
+            <div>
+              <strong style="font-size:15px;">$5 Gift Card</strong>
+              <div style="font-size:12px;color:#71717a;margin-top:2px;">Digital · Delivered instantly</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:6px;">400 pts</div>
+            <button class="btn btn-primary">Redeem →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <div style="font-size:36px;">☕</div>
+            <div>
+              <strong style="font-size:15px;">Free Coffee Voucher</strong>
+              <div style="font-size:12px;color:#71717a;margin-top:2px;">Digital · Valid at 2,000+ locations</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:6px;">300 pts</div>
+            <button class="btn btn-primary">Redeem →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section separator -->
+      <div style="font-size:12px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.06em;margin:20px 0 12px;">More rewards — earn more points to unlock</div>
+
+      <!-- Unaffordable reward (R13) -->
+      <div class="card" style="opacity:0.65;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <div style="font-size:36px;">✈️</div>
+            <div>
+              <strong style="font-size:15px;">$50 Travel Credit</strong>
+              <div style="font-size:12px;color:#71717a;margin-top:2px;">Digital · Booking.com or Expedia</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;color:#f97316;font-weight:600;margin-bottom:6px;">520 more pts needed</div>
+            <button class="btn btn-ghost" style="font-size:12px;">Earn faster →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Toast notification (shown on Scenario 1) -->
+<div class="toast" id="toast">
+  <span class="toast-icon">🎉</span>
+  <div>
+    <strong>You earned 50 points!</strong><br>
+    <span style="font-size:12px;opacity:0.8;">Welcome bonus · Account created</span>
+  </div>
+  <button class="toast-dismiss" onclick="document.getElementById('toast').style.display='none'">✕</button>
+</div>
+
+<script>
+  function showScenario(name) {
+    ['onboarding','hero','rewards'].forEach(s => {
+      document.getElementById('scenario-' + s).style.display = s === name ? '' : 'none';
+    });
+    document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', btn.textContent.toLowerCase().includes(name === 'onboarding' ? 'first' : name === 'hero' ? 'hero' : 'reward'));
+    });
+    document.getElementById('toast').style.display = name === 'onboarding' ? 'flex' : 'none';
+  }
+</script>
+</body>
+</html>

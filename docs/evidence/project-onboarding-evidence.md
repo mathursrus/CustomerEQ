@@ -1,8 +1,8 @@
 # Evidence: Project Onboarding
 
 **Workflow**: project-onboarding
-**Date**: 2026-03-24
-**Outcome**: FRAIM-ready state established
+**Date**: 2026-03-31
+**Outcome**: FRAIM-ready state refreshed — mode and version fields confirmed
 
 ---
 
@@ -52,8 +52,22 @@ Onboarded the CustomerEQ repository into a FRAIM-ready state. Confirmed existing
 
 ---
 
+## 2026-03-31 Re-onboarding Update
+
+**Changes made:**
+- `fraim/config.json`: `version` updated from `"unknown"` → `"0.1.0"`; `mode: "integrated"` added (confirms code + issues in same GitHub repo)
+- `fraim/personalized-employee/rules/project_rules.md`: no changes — 16 rules confirmed current and accurate
+
+**Confirmed automatically:**
+- All 4 referenced docs exist on disk (architecture, data-models, use-cases, implementation roadmap)
+- All validation commands verified against `package.json` scripts
+- Stack, compliance, and local dev config unchanged
+
+---
+
 ## Deferred (Can Be Added Later)
 
 - Formal ADR files (`docs/architecture/adr/ADR-001` through `ADR-006`)
 - Design system document (shadcn/ui + Tailwind — no doc until component library is built)
 - `infra/` Terraform scaffolding (created when first deployment is needed)
+- Industry/category tags for FRAIM job filtering

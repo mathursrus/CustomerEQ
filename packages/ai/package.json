@@ -1,0 +1,26 @@
+{
+  "name": "@customerEQ/ai",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --reporter=verbose",
+    "test:smoke": "vitest run --reporter=verbose",
+    "test:baml": "vitest run --config vitest.eval.config.ts --reporter=verbose",
+    "generate": "npx @boundaryml/baml@0.211.0 generate"
+  },
+  "dependencies": {
+    "@boundaryml/baml": "0.211.0",
+    "@customerEQ/database": "workspace:*",
+    "@customerEQ/shared": "workspace:*",
+    "dotenv": "^17.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

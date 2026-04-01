@@ -1,0 +1,39 @@
+{
+  "name": "@customerEQ/config",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    "./test-utils": {
+      "import": "./src/test-utils/index.ts",
+      "types": "./src/test-utils/index.ts"
+    },
+    "./vitest": {
+      "import": "./src/vitest.ts"
+    },
+    "./eslint": {
+      "require": "./src/eslint.cjs"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "clean": "echo 'nothing to clean'"
+  },
+  "dependencies": {
+    "@customerEQ/database": "workspace:*",
+    "@customerEQ/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.0",
+    "ioredis-mock": "^8.9.0",
+    "@types/ioredis-mock": "^8.2.0",
+    "ioredis": "^5.3.0",
+    "@types/node": "^20.0.0",
+    "@prisma/client": "^5.13.0",
+    "fastify": "^5.0.0"
+  }
+}

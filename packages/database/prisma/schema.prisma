@@ -1,0 +1,567 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum ProgramType {
+  POINTS
+  TIERED
+  CASHBACK
+  HYBRID
+}
+
+enum HaltBehavior {
+  PAUSE_PROGRAM
+  PAUSE_RULES
+}
+
+enum RewardType {
+  DISCOUNT
+  FREE_ITEM
+  EXPERIENCE
+  VOUCHER
+}
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum RuleStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  ERASED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum RedemptionStatus {
+  PENDING
+  FULFILLED
+  CANCELLED
+}
+
+enum SurveyType {
+  NPS
+  CSAT
+  CES
+  CUSTOM
+}
+
+enum SurveyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model Brand {
+  id                String              @id @default(cuid())
+  clerkOrgId        String              @unique // Clerk organization ID → brandId mapping
+  name              String
+  programs          Program[]
+  members           Member[]
+  surveys           Survey[]
+  surveyThemes      SurveyTheme[]
+  questionTemplates QuestionTemplate[]
+  alertRules        AlertRule[]
+  caseFollowUps     CaseFollowUp[]
+  createdAt         DateTime            @default(now())
+
+  @@map("brands")
+}
+
+model Program {
+  id                   String        @id @default(cuid())
+  brandId              String
+  brand                Brand         @relation(fields: [brandId], references: [id])
+  name                 String
+  description          String?
+  pointCurrencyName    String        @default("Points")
+  pointToCurrencyRatio Float         @default(0.01) // $0.01 per point
+  status               ProgramStatus @default(DRAFT)
+  type                 ProgramType   @default(POINTS)
+  startDate            DateTime?
+  endDate              DateTime?
+  budgetUsdCents       Int?
+  monthlyBudgetUsdCents Int?
+  budgetSpentCents     Int           @default(0)
+  alertThresholdPct    Float?
+  haltBehavior         HaltBehavior?
+  deletedAt            DateTime? // soft delete
+  earningRules         EarningRule[]
+  campaigns            Campaign[]
+  rewards              Reward[]
+  tiers                Tier[]
+  versions             ProgramVersion[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([brandId])
+  @@map("programs")
+}
+
+model EarningRule {
+  id               String     @id @default(cuid())
+  programId        String
+  program          Program    @relation(fields: [programId], references: [id])
+  brandId          String
+  name             String
+  triggerEvent     String // e.g. "purchase", "survey_complete", "enrollment"
+  pointsAwarded    Int
+  multiplier       Float      @default(1.0)
+  conditions       Json? // JSONB: AND/OR condition logic
+  maxUsesPerMember Int? // null = unlimited
+  status           RuleStatus @default(ACTIVE)
+  priority         Int        @default(0)
+  stackable        Boolean    @default(false)
+  budgetCapPoints  Int?
+  budgetUsedPoints Int        @default(0)
+  validFrom        DateTime   @default(now())
+  validTo          DateTime?
+  createdAt        DateTime   @default(now())
+
+  @@index([programId, status])
+  @@index([brandId])
+  @@map("earning_rules")
+}
+
+model Member {
+  id             String         @id @default(cuid())
+  brandId        String
+  brand          Brand          @relation(fields: [brandId], references: [id])
+  email          String
+  clerkUserId    String?
+  firstName      String?
+  lastName       String?
+  phone          String?
+  pointsBalance  Int            @default(0)
+  status         MemberStatus   @default(ACTIVE)
+  consentGivenAt DateTime?
+  consentVersion String?
+  deletedAt      DateTime? // soft delete (C-02)
+  currentTierId  String?
+  currentTier    Tier?          @relation(fields: [currentTierId], references: [id])
+  erased         Boolean        @default(false) // GDPR erasure flag (C-03)
+  loyaltyEvents   LoyaltyEvent[]
+  redemptions     Redemption[]
+  campaignEvents  CampaignEvent[]
+  surveyResponses SurveyResponse[]
+  createdAt       DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([brandId, email])
+  @@index([brandId])
+  @@index([clerkUserId, brandId])
+  @@map("members")
+}
+
+model LoyaltyEvent {
+  id             String   @id @default(cuid())
+  brandId        String
+  memberId       String
+  member         Member   @relation(fields: [memberId], references: [id])
+  eventType      String // "purchase", "cx.nps_submitted", "campaign_award", etc.
+  pointsEarned   Int // positive = earn, negative = burn (redemption deduction)
+  payload        Json? // raw event payload
+  idempotencyKey String? // stored in Redis; also here for audit trail
+  rulesApplied   String[] // array of EarningRule IDs applied
+  campaignId     String? // if triggered by a campaign
+  processedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([brandId, createdAt]) // critical for analytics queries (R7.1, R7.5)
+  @@index([memberId])
+  @@index([idempotencyKey])
+  @@map("loyalty_events")
+}
+
+model Reward {
+  id          String       @id @default(cuid())
+  brandId     String
+  programId   String
+  program     Program      @relation(fields: [programId], references: [id])
+  name        String
+  description String?
+  pointsCost  Int
+  stock       Int? // null = unlimited
+  isAvailable     Boolean      @default(true)
+  type            RewardType?
+  availableFrom   DateTime?
+  availableTo     DateTime?
+  eligibleTierIds String[]
+  deletedAt       DateTime? // soft delete
+  redemptions     Redemption[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([brandId, isAvailable])
+  @@map("rewards")
+}
+
+model Tier {
+  id            String    @id @default(cuid())
+  programId     String
+  program       Program   @relation(fields: [programId], references: [id])
+  brandId       String
+  name          String
+  rank          Int
+  icon          String?   // emoji preset
+  minPoints     Int?
+  minSpendCents Int?
+  benefits      String[]
+  multiplier    Float     @default(1.0)
+  deletedAt     DateTime? // soft delete
+  members       Member[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([programId, rank])
+  @@index([brandId])
+  @@map("tiers")
+}
+
+model ProgramVersion {
+  id        String   @id @default(cuid())
+  programId String
+  program   Program  @relation(fields: [programId], references: [id])
+  brandId   String
+  snapshot  Json     // full program snapshot including tiers, rules, rewards
+  source    String   @default("explicit_save") // "explicit_save" | "auto_save"
+  createdAt DateTime @default(now())
+
+  @@index([programId])
+  @@index([brandId])
+  @@map("program_versions")
+}
+
+model Redemption {
+  id          String           @id @default(cuid())
+  brandId     String
+  memberId    String
+  member      Member           @relation(fields: [memberId], references: [id])
+  rewardId    String
+  reward      Reward           @relation(fields: [rewardId], references: [id])
+  pointsSpent Int
+  status      RedemptionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  @@index([brandId, memberId])
+  @@map("redemptions")
+}
+
+model Campaign {
+  id               String          @id @default(cuid())
+  brandId          String
+  programId        String
+  program          Program         @relation(fields: [programId], references: [id])
+  name             String
+  triggerType      String // "cx.nps_submitted", "cx.ticket_resolved"
+  triggerCondition Json // e.g. { "field": "nps_score", "op": "lt", "value": 7 }
+  actionType       String // "award_points", "award_reward", "send_message"
+  actionConfig     Json // e.g. { "points": 500, "message": "..." }
+  budgetCap        Float? // USD value cap
+  budgetSpent      Float           @default(0)
+  status           CampaignStatus  @default(DRAFT)
+  startDate        DateTime
+  endDate          DateTime?
+  campaignEvents   CampaignEvent[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([brandId, status])
+  @@map("campaigns")
+}
+
+model CampaignEvent {
+  id          String    @id @default(cuid())
+  brandId     String
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  memberId    String
+  member      Member    @relation(fields: [memberId], references: [id])
+  triggeredAt DateTime  @default(now())
+  executedAt  DateTime?
+  latencyMs   Int? // measured latency from event ingestion to action execution
+  status      String    @default("executed")
+
+  @@unique([campaignId, memberId]) // dedup: one trigger per member per campaign (R6.4)
+  @@index([brandId, campaignId])
+  @@map("campaign_events")
+}
+
+model Survey {
+  id              String           @id @default(cuid())
+  brandId         String
+  brand           Brand            @relation(fields: [brandId], references: [id])
+  programId       String
+  name            String
+  type            SurveyType       @default(NPS)
+  questions       Json             // Question definitions (array of question objects)
+  settings        Json?            // Distribution settings, branding, etc.
+  status          SurveyStatus     @default(DRAFT)
+  responsesCount  Int              @default(0)
+  incentivePoints Int?             // Points awarded for completing the survey
+  themeId         String?
+  theme           SurveyTheme?     @relation(fields: [themeId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  responses       SurveyResponse[]
+
+  @@index([brandId, status])
+  @@map("surveys")
+}
+
+model SurveyTheme {
+  id                  String   @id @default(cuid())
+  brandId             String
+  brand               Brand    @relation(fields: [brandId], references: [id])
+  name                String
+  isDefault           Boolean  @default(false)
+
+  logoUrl             String?
+  brandName           String?
+
+  primaryColor        String   @default("#6366f1")
+  secondaryColor      String   @default("#818cf8")
+  backgroundColor     String   @default("#ffffff")
+  textColor           String   @default("#111827")
+  buttonColor         String   @default("#6366f1")
+  buttonTextColor     String   @default("#ffffff")
+  accentColor         String   @default("#6366f1")
+
+  fontFamily          String   @default("system-ui")
+  headingSize         String   @default("md")
+  bodySize            String   @default("md")
+
+  backgroundImageUrl  String?
+  cardStyle           String   @default("shadow")
+  borderRadius        String   @default("md")
+  maxWidth            String   @default("md")
+
+  thankYouMessage     String   @default("Thank you for your feedback!")
+  thankYouRedirectUrl String?
+  showIncentivePoints Boolean  @default(true)
+
+  surveys             Survey[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([brandId])
+  @@map("survey_themes")
+}
+
+model QuestionTemplate {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  name      String
+  question  Json     // Full SurveyQuestion object
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brandId])
+  @@map("question_templates")
+}
+
+model SurveyResponse {
+  id          String   @id @default(cuid())
+  surveyId    String
+  survey      Survey   @relation(fields: [surveyId], references: [id])
+  memberId    String
+  member      Member   @relation(fields: [memberId], references: [id])
+  brandId     String
+  answers     Json     // { questionId: answer }
+  score       Float?   // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
+  sentiment   Float?   // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  confidence  Float?   // AI confidence in sentiment score, 0.0 to 1.0
+  topics      String[] // AI-extracted topics from open-ended responses
+  summary     String?  // AI-generated one-line summary
+  clusterId   String?  // FK to FeedbackCluster
+  cluster     FeedbackCluster? @relation(fields: [clusterId], references: [id])
+  channel     String   @default("link") // email, in_app, link, sms
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([surveyId, memberId]) // One response per member per survey
+  @@index([brandId, completedAt])
+  @@index([clusterId])
+  @@map("survey_responses")
+}
+
+model FeedbackCluster {
+  id            String   @id @default(cuid())
+  brandId       String
+  label         String
+  description   String?
+  keywords      String[]
+  avgSentiment  Float?
+  responseCount Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  responses     SurveyResponse[]
+  snapshots     ClusterSnapshot[]
+
+  @@unique([brandId, label])
+  @@index([brandId, isActive])
+  @@map("feedback_clusters")
+}
+
+model ClusterSnapshot {
+  id           String   @id @default(cuid())
+  clusterId    String
+  cluster      FeedbackCluster @relation(fields: [clusterId], references: [id])
+  brandId      String
+  bucketDate   DateTime // Start of the day bucket
+  volume       Int      // Number of responses in this bucket
+  avgSentiment Float?
+  isAnomaly    Boolean  @default(false)
+  zScore       Float?
+  createdAt    DateTime @default(now())
+
+  @@unique([clusterId, bucketDate])
+  @@index([brandId, bucketDate])
+  @@map("cluster_snapshots")
+}
+
+model FeedbackAnomaly {
+  id         String    @id @default(cuid())
+  brandId    String
+  clusterId  String?
+  type       String    // volume_spike, sentiment_drop, new_theme, volume_decline
+  severity   String    // low, medium, high
+  summary    String
+  detectedAt DateTime  @default(now())
+  resolvedAt DateTime?
+  metadata   Json?
+
+  @@index([brandId, detectedAt])
+  @@map("feedback_anomalies")
+}
+
+model AlertRule {
+  id                 String   @id @default(cuid())
+  brandId            String
+  brand              Brand    @relation(fields: [brandId], references: [id])
+  name               String
+  status             String   @default("ACTIVE") // ACTIVE, PAUSED
+
+  // Trigger conditions
+  surveyTypes        String[] // ['NPS', 'CSAT'] or empty = all
+  scoreMin           Float?
+  scoreMax           Float?
+  sentimentThreshold Float?   // alert if sentiment below this
+  topicFilters       String[] // ['shipping', 'billing'] or empty = all
+
+  // Alert channels
+  slackWebhookUrl    String?
+  slackChannelName   String?
+  emailRecipients    String[]
+  teamsWebhookUrl    String?
+
+  // Assignment
+  defaultAssignee    String
+  assignmentRules    Json     @default("[]") // [{ topic, assignee }]
+
+  // SLA
+  slaHours           Float?
+
+  cases              CaseFollowUp[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([brandId, status])
+  @@map("alert_rules")
+}
+
+model CaseFollowUp {
+  id               String    @id @default(cuid())
+  brandId          String
+  brand            Brand     @relation(fields: [brandId], references: [id])
+  alertRuleId      String
+  alertRule        AlertRule @relation(fields: [alertRuleId], references: [id])
+  surveyResponseId String
+  memberId         String
+
+  status           String    @default("OPEN") // OPEN, CONTACTED, RESOLVED, CLOSED
+  assignee         String
+  priority         String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+
+  // SLA
+  slaDeadline      DateTime?
+  slaBreachedAt    DateTime?
+
+  // External references
+  slackMessageTs   String?
+
+  // Notes / timeline
+  notes            Json      @default("[]") // [{ text, author, timestamp, statusChange? }]
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  contactedAt      DateTime?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+
+  @@index([brandId, status])
+  @@index([alertRuleId])
+  @@map("case_follow_ups")
+}
+
+model DemoRequest {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  workEmail   String
+  companyName String
+  companySize String?
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("demo_requests")
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  brandId      String? // null for system-level events
+  actorId      String // Clerk user ID
+  action       String // "program.create", "campaign.activate", etc.
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([brandId, createdAt])
+  @@map("audit_events")
+}

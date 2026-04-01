@@ -60,9 +60,26 @@ The following commands must all pass before any PR is merged:
 pnpm build       # Build all apps and packages
 pnpm typecheck   # TypeScript strict mode — zero errors
 pnpm lint        # ESLint — zero errors
-pnpm test        # Vitest unit + integration tests
+pnpm test:smoke  # All unit tests across all packages (455+)
 ```
-Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
+Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test:smoke`
+
+Full validation (pre-release):
+```
+pnpm test:smoke        # Unit tests (fast, no API keys)
+pnpm test:integration  # API integration tests (needs DB)
+pnpm test:baml         # BAML eval tests (calls real LLM — needs OPENAI_API_KEY)
+pnpm test:e2e          # Playwright browser tests (needs dev server)
+```
+
+## 11a. Tests Must Never Skip — Fail Loudly
+
+Tests must NEVER silently skip when dependencies are missing. If a test requires an API key, database connection, or external service, it must **fail with a clear error message** explaining what's missing — not skip or pass vacuously. This applies to:
+- BAML eval tests: must fail if OPENAI_API_KEY or ANTHROPIC_API_KEY is not set
+- Integration tests: must fail if DATABASE_URL is not reachable
+- E2E tests: must fail if the dev server is not running
+
+The principle: a green test suite means everything was actually verified, not that tests were skipped.
 
 ## 12. Secrets — Never in Code or Environment Files
 
@@ -79,7 +96,16 @@ Any feature that creates or modifies PII (email, name, phone, purchase history, 
 
 Use Playwright (MCP browser tools or the Playwright test runner) for all browser-based testing and automation. Do not use requests/axios/fetch-based scrapers as a primary approach for enterprise SaaS sites — they will be blocked by WAF. Lead with Playwright, not fallback to it.
 
-## 15. Load Business Context Before Major Work
+## 15. Fix at the Right Abstraction Level
+
+Before implementing a fix that touches more than 3 files with the same change, stop and ask: "Should this live in a shared layer instead?" Specifically:
+- **CSS/styling issues** affecting multiple pages → fix in `globals.css` or a shared component, not per-file Tailwind classes.
+- **Repeated logic** across pages → extract to a shared utility or hook.
+- **Configuration** scattered across files → centralize in a config file or environment variable.
+
+The test: if a new page would need the same fix applied manually, the abstraction level is wrong. Default to the highest level that works.
+
+## 16. Load Business Context Before Major Work
 
 Before starting any significant feature work, replication analysis, or architectural decision, read:
 - `docs/replicate/IMPLEMENTATION_ROADMAP.md` (scope and priority)

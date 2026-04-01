@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survey Builder — CustomerEQ Mock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; color: #111827; }
+
+  /* Layout */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; }
+  .top-bar input { font-size: 18px; font-weight: 600; border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; width: 320px; }
+  .top-bar input:focus { border-color: #6366f1; outline: none; }
+  .top-bar-actions { display: flex; gap: 8px; align-items: center; }
+  .top-bar select { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr 320px; height: calc(100vh - 57px); }
+
+  /* Left Palette */
+  .palette { background: #fff; border-right: 1px solid #e5e7eb; padding: 16px; overflow-y: auto; }
+  .palette h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 12px; }
+  .palette-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; cursor: grab; background: #fff; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .palette-item:hover { border-color: #6366f1; background: #eef2ff; }
+  .palette-item:active { cursor: grabbing; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .palette-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+
+  /* Canvas */
+  .canvas { padding: 24px 32px; overflow-y: auto; }
+  .canvas-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .canvas-header h2 { font-size: 16px; font-weight: 600; color: #374151; }
+  .question-count { font-size: 13px; color: #9ca3af; }
+
+  .question-card { background: #fff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .question-card:hover { border-color: #a5b4fc; }
+  .question-card.selected { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .question-card.dragging { opacity: 0.5; }
+
+  .question-card-header { display: flex; align-items: flex-start; gap: 12px; }
+  .drag-handle { width: 20px; height: 20px; color: #d1d5db; cursor: grab; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; font-size: 16px; }
+  .question-number { width: 28px; height: 28px; border-radius: 50%; background: #eef2ff; color: #6366f1; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .question-body { flex: 1; }
+  .question-body p { font-size: 14px; font-weight: 500; color: #1f2937; margin-bottom: 4px; }
+  .question-meta { font-size: 12px; color: #9ca3af; display: flex; gap: 12px; }
+  .question-meta span { display: flex; align-items: center; gap: 4px; }
+  .type-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .type-rating { background: #eef2ff; color: #4f46e5; }
+  .type-text { background: #f0fdf4; color: #16a34a; }
+  .type-choice { background: #fef3c7; color: #d97706; }
+  .type-matrix { background: #fce7f3; color: #db2777; }
+  .type-slider { background: #e0e7ff; color: #4338ca; }
+
+  .skip-indicator { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #fef3c7; color: #92400e; }
+
+  .question-preview { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f3f4f6; }
+
+  /* Rating preview */
+  .rating-preview { display: flex; gap: 6px; margin-top: 8px; }
+  .rating-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; font-size: 13px; font-weight: 600; color: #6b7280; display: flex; align-items: center; justify-content: center; }
+  .rating-btn.selected { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .rating-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: #9ca3af; }
+
+  /* Text preview */
+  .text-preview textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 13px; resize: none; height: 60px; color: #9ca3af; }
+
+  /* Choice preview */
+  .choice-preview { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .choice-option { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
+  .choice-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #d1d5db; flex-shrink: 0; }
+  .choice-radio.checked { border-color: #6366f1; background: radial-gradient(circle, #6366f1 40%, transparent 45%); }
+
+  /* Matrix preview */
+  .matrix-preview { margin-top: 8px; overflow-x: auto; }
+  .matrix-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .matrix-preview th { padding: 6px 8px; text-align: center; color: #6b7280; font-weight: 600; }
+  .matrix-preview td { padding: 6px 8px; text-align: center; }
+  .matrix-preview td:first-child { text-align: left; color: #374151; font-weight: 500; }
+  .matrix-radio { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #d1d5db; display: inline-block; }
+
+  /* Slider preview */
+  .slider-preview { margin-top: 8px; }
+  .slider-preview input[type="range"] { width: 100%; accent-color: #6366f1; }
+  .slider-labels { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+  /* Add question button */
+  .add-question { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 2px dashed #d1d5db; border-radius: 12px; color: #9ca3af; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; background: transparent; width: 100%; }
+  .add-question:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+
+  /* Right Panel */
+  .config-panel { background: #fff; border-left: 1px solid #e5e7eb; padding: 20px; overflow-y: auto; }
+  .config-panel h3 { font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 16px; }
+  .config-section { margin-bottom: 20px; }
+  .config-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 8px; }
+  .config-field { margin-bottom: 12px; }
+  .config-field label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+  .config-field input, .config-field select, .config-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; }
+  .config-field input:focus, .config-field select:focus, .config-field textarea:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .config-field textarea { resize: vertical; height: 64px; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  .toggle-row span { font-size: 13px; color: #374151; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: #d1d5db; position: relative; cursor: pointer; transition: background 0.2s; }
+  .toggle.on { background: #6366f1; }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* Skip Logic Config */
+  .skip-rule { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .skip-rule-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .skip-rule-header span { font-size: 12px; font-weight: 600; color: #92400e; }
+  .skip-rule-remove { font-size: 11px; color: #dc2626; cursor: pointer; background: none; border: none; }
+  .skip-rule select, .skip-rule input { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; margin-right: 4px; }
+  .skip-rule-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+
+  .add-rule-btn { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border: 1px dashed #fde68a; border-radius: 6px; background: transparent; color: #92400e; font-size: 12px; cursor: pointer; width: 100%; justify-content: center; }
+  .add-rule-btn:hover { background: #fffbeb; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn-secondary:hover { background: #f9fafb; }
+  .btn-ghost { background: transparent; color: #6366f1; }
+  .btn-ghost:hover { background: #eef2ff; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Library badge */
+  .library-actions { display: flex; gap: 4px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="#" style="font-size:13px;color:#6366f1;text-decoration:none;">&larr; Surveys</a>
+    <input type="text" value="Post-Purchase NPS Survey" placeholder="Survey name...">
+    <select>
+      <option selected>NPS</option>
+      <option>CSAT</option>
+      <option>CES</option>
+      <option>Custom</option>
+    </select>
+  </div>
+  <div class="top-bar-actions">
+    <button class="btn btn-secondary">Preview</button>
+    <button class="btn btn-secondary">Save Draft</button>
+    <button class="btn btn-primary">Publish</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Left Palette -->
+  <div class="palette">
+    <h3>Question Types</h3>
+
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#eef2ff;color:#4f46e5;">★</div>
+      Rating
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#f0fdf4;color:#16a34a;">T</div>
+      Text
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#fef3c7;color:#d97706;">◉</div>
+      Multiple Choice
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#fef3c7;color:#d97706;">☑</div>
+      Checkbox
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#e0e7ff;color:#4338ca;">▾</div>
+      Dropdown
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#fce7f3;color:#db2777;">▦</div>
+      Matrix
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#ede9fe;color:#7c3aed;">↕</div>
+      Ranking
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#e0e7ff;color:#4338ca;">⬤</div>
+      Slider
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#fce7f3;color:#db2777;">◔</div>
+      Likert Scale
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#ecfdf5;color:#059669;">🖼</div>
+      Image Choice
+    </div>
+    <div class="palette-item" draggable="true">
+      <div class="palette-icon" style="background:#f3f4f6;color:#6b7280;">📎</div>
+      File Upload
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3>Library</h3>
+      <button class="btn btn-ghost btn-sm" style="width:100%; margin-top:4px;">Insert from Library</button>
+    </div>
+  </div>
+
+  <!-- Center Canvas -->
+  <div class="canvas">
+    <div class="canvas-header">
+      <h2>Questions</h2>
+      <span class="question-count">5 questions</span>
+    </div>
+
+    <!-- Q1: Rating -->
+    <div class="question-card">
+      <div class="question-card-header">
+        <span class="drag-handle">⠿</span>
+        <span class="question-number">1</span>
+        <div class="question-body">
+          <p>On a scale of 0-10, how likely are you to recommend us?</p>
+          <div class="question-meta">
+            <span class="type-badge type-rating">Rating</span>
+            <span>Required</span>
+          </div>
+        </div>
+      </div>
+      <div class="question-preview">
+        <div class="rating-preview">
+          <div class="rating-btn">0</div>
+          <div class="rating-btn">1</div>
+          <div class="rating-btn">2</div>
+          <div class="rating-btn">3</div>
+          <div class="rating-btn">4</div>
+          <div class="rating-btn">5</div>
+          <div class="rating-btn">6</div>
+          <div class="rating-btn selected">7</div>
+          <div class="rating-btn">8</div>
+          <div class="rating-btn">9</div>
+          <div class="rating-btn">10</div>
+        </div>
+        <div class="rating-labels">
+          <span>Not at all likely</span>
+          <span>Extremely likely</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q2: Text with skip logic -->
+    <div class="question-card selected">
+      <div class="question-card-header">
+        <span class="drag-handle">⠿</span>
+        <span class="question-number">2</span>
+        <div class="question-body">
+          <p>What is the primary reason for your score?</p>
+          <div class="question-meta">
+            <span class="type-badge type-text">Text</span>
+            <span>Optional</span>
+            <span class="skip-indicator">⚡ Skip Logic</span>
+          </div>
+        </div>
+      </div>
+      <div class="question-preview">
+        <textarea placeholder="Type your answer here..." readonly></textarea>
+      </div>
+    </div>
+
+    <!-- Q3: Multiple Choice -->
+    <div class="question-card">
+      <div class="question-card-header">
+        <span class="drag-handle">⠿</span>
+        <span class="question-number">3</span>
+        <div class="question-body">
+          <p>Which area could we improve the most?</p>
+          <div class="question-meta">
+            <span class="type-badge type-choice">Multiple Choice</span>
+            <span>Required</span>
+          </div>
+        </div>
+      </div>
+      <div class="question-preview">
+        <div class="choice-preview">
+          <div class="choice-option"><div class="choice-radio"></div> Product quality</div>
+          <div class="choice-option"><div class="choice-radio checked"></div> Customer support</div>
+          <div class="choice-option"><div class="choice-radio"></div> Shipping speed</div>
+          <div class="choice-option"><div class="choice-radio"></div> Pricing</div>
+          <div class="choice-option"><div class="choice-radio"></div> Other (please specify)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q4: Matrix -->
+    <div class="question-card">
+      <div class="question-card-header">
+        <span class="drag-handle">⠿</span>
+        <span class="question-number">4</span>
+        <div class="question-body">
+          <p>Rate the following aspects of your experience:</p>
+          <div class="question-meta">
+            <span class="type-badge type-matrix">Matrix</span>
+            <span>Required</span>
+          </div>
+        </div>
+      </div>
+      <div class="question-preview">
+        <div class="matrix-preview">
+          <table>
+            <thead>
+              <tr><th></th><th>Poor</th><th>Fair</th><th>Good</th><th>Excellent</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Product quality</td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio" style="border-color:#6366f1;background:radial-gradient(circle,#6366f1 40%,transparent 45%)"></div></td><td><div class="matrix-radio"></div></td></tr>
+              <tr><td>Delivery speed</td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio" style="border-color:#6366f1;background:radial-gradient(circle,#6366f1 40%,transparent 45%)"></div></td></tr>
+              <tr><td>Support experience</td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio" style="border-color:#6366f1;background:radial-gradient(circle,#6366f1 40%,transparent 45%)"></div></td><td><div class="matrix-radio"></div></td><td><div class="matrix-radio"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q5: Slider -->
+    <div class="question-card">
+      <div class="question-card-header">
+        <span class="drag-handle">⠿</span>
+        <span class="question-number">5</span>
+        <div class="question-body">
+          <p>How easy was it to complete your purchase?</p>
+          <div class="question-meta">
+            <span class="type-badge type-slider">Slider</span>
+            <span>Required</span>
+          </div>
+        </div>
+      </div>
+      <div class="question-preview">
+        <div class="slider-preview">
+          <input type="range" min="1" max="7" value="5">
+          <div class="slider-labels">
+            <span>Very Difficult</span>
+            <span>Very Easy</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="add-question">+ Add Question</button>
+  </div>
+
+  <!-- Right Config Panel -->
+  <div class="config-panel">
+    <h3>Question Settings</h3>
+    <p style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Editing: Q2</p>
+
+    <div class="config-section">
+      <div class="config-section-title">General</div>
+      <div class="config-field">
+        <label>Question Text</label>
+        <textarea>What is the primary reason for your score?</textarea>
+      </div>
+      <div class="config-field">
+        <label>Type</label>
+        <select>
+          <option>Rating</option>
+          <option selected>Text</option>
+          <option>Multiple Choice</option>
+          <option>Checkbox</option>
+          <option>Dropdown</option>
+          <option>Matrix</option>
+          <option>Ranking</option>
+          <option>Slider</option>
+          <option>Likert Scale</option>
+          <option>Image Choice</option>
+          <option>File Upload</option>
+        </select>
+      </div>
+      <div class="toggle-row">
+        <span>Required</span>
+        <div class="toggle"></div>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <div class="config-section-title">Text Options</div>
+      <div class="config-field">
+        <label>Placeholder</label>
+        <input type="text" value="Type your answer here...">
+      </div>
+      <div class="config-field">
+        <label>Max Length</label>
+        <input type="number" value="500">
+      </div>
+      <div class="toggle-row">
+        <span>Multiline</span>
+        <div class="toggle on"></div>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <div class="config-section-title">Skip Logic</div>
+      <div class="skip-rule">
+        <div class="skip-rule-header">
+          <span>Rule 1</span>
+          <button class="skip-rule-remove">Remove</button>
+        </div>
+        <div class="skip-rule-row">
+          <strong>Show</strong> this question
+        </div>
+        <div class="skip-rule-row">
+          IF
+          <select>
+            <option selected>Q1 (Rating)</option>
+            <option>Q3 (Multiple Choice)</option>
+          </select>
+          <select>
+            <option>equals</option>
+            <option>not equals</option>
+            <option selected>less than</option>
+            <option>less than or equal</option>
+            <option>greater than</option>
+            <option>greater than or equal</option>
+          </select>
+          <input type="text" value="7" style="width:48px;">
+        </div>
+      </div>
+      <button class="add-rule-btn">+ Add Condition</button>
+    </div>
+
+    <div class="config-section">
+      <div class="config-section-title">Piping</div>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:8px;">
+        Use <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:11px;">{{Q1}}</code> in question text to insert a previous answer.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <div class="config-section-title">Library</div>
+      <button class="btn btn-secondary btn-sm" style="width:100%;">Save to Library</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
