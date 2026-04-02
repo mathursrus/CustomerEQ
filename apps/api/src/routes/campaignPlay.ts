@@ -52,34 +52,38 @@ const campaignPlayRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: 'Consent required' })
       }
 
-      // 4. Check already-played (dedup via CampaignEvent unique constraint)
-      const existing = await fastify.prisma.campaignEvent.findFirst({
+      // 4. Find the CampaignEvent created by the trigger processor
+      const event = await fastify.prisma.campaignEvent.findFirst({
         where: { campaignId: campaign.id, memberId: member.id },
-        select: { result: true },
+        select: { id: true, result: true, status: true },
       })
-      if (existing) {
-        return reply.status(200).send({
-          alreadyPlayed: true,
-          reward: existing.result,
-        })
-      }
 
-      // 5. Find the CampaignEvent created by the trigger processor (with pre-determined result)
-      // Race condition: member may click link before worker processes trigger
-      const triggerEvent = await fastify.prisma.campaignEvent.findFirst({
-        where: { campaignId: campaign.id, memberId: member.id },
-        select: { result: true },
-      })
-      if (!triggerEvent) {
+      if (!event) {
         return reply.status(404).send({
           error: 'Spin not ready yet. Please try again in a moment.',
         })
       }
 
-      // 6. Return campaign-type-specific response
+      // 5. Check if already played (status = 'played')
+      // 'executed' = trigger fired, result determined, but member hasn't seen the wheel yet
+      // 'played' = member has already played/viewed the wheel
+      if (event.status === 'played') {
+        return reply.status(200).send({
+          alreadyPlayed: true,
+          reward: event.result,
+        })
+      }
+
+      // 6. Mark as played (first time viewing)
+      await fastify.prisma.campaignEvent.update({
+        where: { id: event.id },
+        data: { status: 'played' },
+      })
+
+      // 7. Return campaign-type-specific response
       if (campaign.actionType === 'spin_wheel') {
         const config = campaign.actionConfig as SpinWheelConfig
-        const resultData = triggerEvent.result as {
+        const resultData = event.result as {
           winningIndex: number
           rewardId: string | null
           points: number
@@ -105,11 +109,11 @@ const campaignPlayRoutes: FastifyPluginAsync = async (fastify) => {
         })
       }
 
-      // Default: return raw result for future campaign types (scratch_card, mystery_box, etc.)
+      // Default: return raw result for future campaign types
       return reply.status(200).send({
         alreadyPlayed: false,
         campaignType: campaign.actionType,
-        reward: triggerEvent.result,
+        reward: event.result,
       })
     },
   )

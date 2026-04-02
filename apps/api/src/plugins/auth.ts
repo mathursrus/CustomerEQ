@@ -39,11 +39,12 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
-    // Skip auth for public routes that have no Authorization header
+    // Skip auth for public routes — they handle their own auth if needed
+    if ((request.routeOptions?.config as unknown as Record<string, unknown>)?.public === true) {
+      return
+    }
+
     if (!authHeader) {
-      if ((request.routeOptions?.config as unknown as Record<string, unknown>)?.public === true) {
-        return
-      }
       return reply
         .status(401)
         .send({ error: 'Authorization header is required' })
