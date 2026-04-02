@@ -1,7 +1,9 @@
 export * from './constants.js'
 export * from './queues.js'
 export * from './conditions.js'
-export * from './random.js'
+// Note: random.js is NOT re-exported here because it uses node:crypto
+// which is not available in browser/webpack. Import directly:
+// import { selectWeightedRandom } from '@customerEQ/shared/random'
 export * from './types/index.js'
 export * from './zod/program.schema.js'
 export * from './zod/member.schema.js'

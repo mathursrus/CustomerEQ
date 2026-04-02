@@ -2,8 +2,8 @@ import type { Job } from 'bullmq'
 import type { Redis } from 'ioredis'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
-import { selectWeightedRandom } from '@customerEQ/shared'
 import type { CampaignTriggerPayload, SpinWheelConfig } from '@customerEQ/shared'
+import { selectWeightedRandom } from '@customerEQ/shared/random'
 import { enqueueNotification } from '../queues/producers.js'
 
 // ---------------------------------------------------------------------------
