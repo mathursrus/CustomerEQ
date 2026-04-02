@@ -2,7 +2,6 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { DemoRequestSchema, NPS } from '@customerEQ/shared'
-import type { SpinWheelConfig } from '@customerEQ/shared'
 import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
@@ -386,112 +385,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         triggered: true,
         surveyLink,
         message: 'Survey notification queued',
-      })
-    },
-  )
-
-  // ─── Spin Wheel Play Endpoint ──────────────────────────────────────────────
-
-  // POST /v1/public/campaigns/:id/play — member spins the wheel
-  // Auth: member JWT in Authorization header (not admin org token)
-  fastify.post(
-    '/public/campaigns/:id/play',
-    { config: { public: true } },
-    async (request, reply) => {
-      const { id: campaignId } = request.params as { id: string }
-
-      // 1. Extract member email from Authorization header
-      // For MVP, we use a simple Bearer token containing the member email
-      // (Production: use Clerk member JWT with verifyToken())
-      const authHeader = request.headers.authorization
-      if (!authHeader?.startsWith('Bearer ')) {
-        return reply.status(401).send({ error: 'Authentication required' })
-      }
-      const memberEmail = authHeader.slice(7).trim()
-      if (!memberEmail || !memberEmail.includes('@')) {
-        return reply.status(401).send({ error: 'Invalid authentication token' })
-      }
-
-      // 2. Find campaign (must be spin_wheel and ACTIVE)
-      const campaign = await fastify.prisma.campaign.findFirst({
-        where: { id: campaignId, status: 'ACTIVE', actionType: 'spin_wheel' },
-        select: {
-          id: true,
-          brandId: true,
-          actionConfig: true,
-          startDate: true,
-          endDate: true,
-        },
-      })
-      if (!campaign) {
-        return reply.status(404).send({ error: 'Campaign not found' })
-      }
-      if (campaign.endDate && campaign.endDate < new Date()) {
-        return reply.status(410).send({ error: 'Campaign has ended' })
-      }
-
-      // 3. Look up member by email within the campaign's brand
-      const member = await fastify.prisma.member.findFirst({
-        where: { email: memberEmail, brandId: campaign.brandId, deletedAt: null },
-        select: { id: true, consentGivenAt: true, erased: true },
-      })
-      if (!member || member.erased) {
-        return reply.status(404).send({ error: 'Member not found' })
-      }
-      if (!member.consentGivenAt) {
-        return reply.status(403).send({ error: 'Consent required' })
-      }
-
-      // 4. Check already-played (dedup via CampaignEvent unique constraint)
-      const existing = await fastify.prisma.campaignEvent.findFirst({
-        where: { campaignId: campaign.id, memberId: member.id },
-        select: { result: true },
-      })
-      if (existing) {
-        return reply.status(200).send({
-          alreadyPlayed: true,
-          reward: existing.result,
-        })
-      }
-
-      // 5. Return wheel config + pre-determined result
-      const config = campaign.actionConfig as SpinWheelConfig
-      // Find the CampaignEvent that the trigger processor created (with the result)
-      const triggerEvent = await fastify.prisma.campaignEvent.findFirst({
-        where: { campaignId: campaign.id, memberId: member.id },
-        select: { result: true },
-      })
-
-      if (!triggerEvent) {
-        // Campaign was triggered but CampaignEvent hasn't been created yet
-        // (race condition: member clicked link before worker processed trigger)
-        return reply.status(404).send({
-          error: 'Spin not ready yet. Please try again in a moment.',
-        })
-      }
-
-      const resultData = triggerEvent.result as {
-        winningIndex: number
-        rewardId: string | null
-        points: number
-        label: string
-      }
-
-      return reply.status(200).send({
-        alreadyPlayed: false,
-        segments: config.segments.map((s, i) => ({
-          label: s.label,
-          color: s.color,
-          index: i,
-        })),
-        winningIndex: resultData.winningIndex,
-        wheelStyle: config.wheelStyle ?? 'classic',
-        reward: {
-          type: resultData.rewardId ? 'reward' : 'points',
-          points: resultData.points,
-          label: resultData.label,
-          rewardId: resultData.rewardId,
-        },
       })
     },
   )
