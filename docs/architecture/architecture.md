@@ -47,7 +47,7 @@ The platform is a multi-tenant loyalty engine with:
 ### 3.1. Presentation Layer (apps/web)
 - **Responsibility**: Marketing site (SSR/SSG), admin portal (program/campaign/analytics management), member portal (dashboard, rewards catalog, redemptions).
 - **Key Modules**: `apps/web/src/app/(marketing)/` (public pages), `apps/web/src/app/(admin)/` (admin portal), `apps/web/src/app/(member)/` (member portal)
-- **Auth**: Clerk middleware guards all non-public routes; `ClerkProvider` wraps the app layout
+- **Auth**: Clerk middleware guards all non-public routes; `ClerkProvider` wraps the app layout. Public routes: `/`, `/sign-in`, `/request-demo`, `/api/public/*`, `/survey/*`, `/{programSlug}/enroll` (Issue #3 — enrollment requires no prior auth)
 - **API Communication**: Server components fetch with Clerk token; client components use `useAuth()` hook
 
 ### 3.2. API Layer (apps/api)
@@ -163,7 +163,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `/v1/surveys` | Survey CRUD + status management + question builder updates |
 | `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
 | `/v1/question-templates` | Question template library CRUD (save/reuse questions across surveys) |
-| `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth), campaign play endpoint (member JWT auth) |
+| `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth), campaign play endpoint (member JWT auth). `GET /v1/public/programs/by-slug/:slug` — resolves programId/brandId for member enrollment entry point (no auth) |
 | `/v1/admin/*` | Demo request list, integration webhook URLs |
 
 ### 4.2 Fastify Plugins
@@ -190,11 +190,11 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | Model | Purpose |
 |---|---|
 | **Brand** | Multi-tenant root entity. `clerkOrgId` (unique) maps Clerk organization to tenant. |
-| **Program** | Loyalty program per brand. Status: DRAFT/ACTIVE/PAUSED/ARCHIVED. Type: POINTS/TIERED/CASHBACK/HYBRID. Budget: `budgetUsdCents`, `monthlyBudgetUsdCents`, `alertThresholdPct`, `haltBehavior`. Soft-deleted via `deletedAt`. |
+| **Program** | Loyalty program per brand. Status: DRAFT/ACTIVE/PAUSED/ARCHIVED. Type: POINTS/TIERED/CASHBACK/HYBRID. Budget: `budgetUsdCents`, `monthlyBudgetUsdCents`, `alertThresholdPct`, `haltBehavior`. Soft-deleted via `deletedAt`. New (Issue #3): `slug` (unique URL-safe identifier, used as enrollment entry point `/{slug}/enroll`). |
 | **EarningRule** | Point-earning triggers. `triggerEvent` matches event types. Supports `multiplier`, `maxUsesPerMember`, validity windows, JSONB `conditions` (AND/OR groups). New: `priority` (lower = evaluated first), `stackable` (fires after first match), `budgetCapPoints` (per-rule point spend cap). |
 | **Tier** | *New (Issue #2).* Tier ladder entry within a program (Bronze/Silver/Gold/Platinum). Fields: `rank` (ordering), `minPoints`, `minSpendCents` (entry criteria), `benefits[]`, `multiplier`. Soft-deleted via `deletedAt`. Assignment of `Member.currentTierId` deferred to Issue #4. |
 | **ProgramVersion** | *New (Issue #2).* Immutable JSON snapshot of a program's full configuration at a point in time. `source`: `explicit_save` (user-triggered) or `auto_save` (step-change). Used for audit history and rollback. |
-| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. New: `currentTierId` FK (tier assignment populated by Issue #4 award flow). |
+| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. New (Issue #3): `emailOptIn`/`smsOptIn` (default false — explicit opt-in only), `consentGivenAt` (ISO datetime, NOT NULL), `consentVersion` (policy identifier). `currentTierId` FK deferred to Issue #4. |
 | **LoyaltyEvent** | Append-only ledger. `pointsEarned` (positive = earn, negative = burn). Stores `rulesApplied`, `idempotencyKey`, `payload` (JSONB). |
 | **Reward** | Redeemable catalog item. `pointsCost`, optional `stock` (null = unlimited), `isAvailable` flag. New: `type` (DISCOUNT/FREE_ITEM/EXPERIENCE/VOUCHER), `availableFrom`, `availableTo`, `eligibleTierIds[]`, `deletedAt` (soft-delete via retire endpoint). |
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
