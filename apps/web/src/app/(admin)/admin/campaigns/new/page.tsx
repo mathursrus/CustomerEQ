@@ -183,10 +183,22 @@ function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: str
   }, [drawWheel])
 
   function handleTestSpin() {
-    if (spinningRef.current) return
+    if (spinningRef.current || segments.length === 0) return
     spinningRef.current = true
 
-    const totalRotation = 1440 + Math.random() * 360
+    // Weighted random selection — respects probabilities
+    const totalProb = segments.reduce((s, seg) => s + seg.probability, 0)
+    let roll = Math.random() * totalProb
+    let winnerIdx = segments.length - 1
+    for (let i = 0; i < segments.length; i++) {
+      roll -= segments[i].probability
+      if (roll <= 0) { winnerIdx = i; break }
+    }
+
+    // Calculate target angle: equal-size slices, land on winner's center
+    const sliceAngle = 360 / segments.length
+    const targetAngle = -(winnerIdx * sliceAngle + sliceAngle / 2)
+    const totalRotation = 360 * 4 + targetAngle - (rotationRef.current % 360)
     const startRot = rotationRef.current
     const start = performance.now()
     const duration = 4000
@@ -194,7 +206,7 @@ function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: str
     function animate(ts: number) {
       const elapsed = ts - start
       const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
+      const eased = 1 - Math.pow(1 - progress, 4)
       rotationRef.current = startRot + totalRotation * eased
       drawWheel(rotationRef.current)
       if (progress < 1) {

@@ -236,12 +236,7 @@ class CeqSpinWheel extends HTMLElement {
     ctx.translate(cx, cy)
     ctx.rotate((rotation * Math.PI) / 180)
 
-    // Calculate total probability for proportional segments
-    const totalProb = this.segments.reduce((sum, s) => {
-      // Find matching segment probability from config
-      return sum + (100 / this.segments.length) // equal size for display
-    }, 0)
-
+    // Equal-size segments — probability doesn't affect visual size
     let startAngle = -Math.PI / 2
     const sliceAngle = (2 * Math.PI) / this.segments.length
 
