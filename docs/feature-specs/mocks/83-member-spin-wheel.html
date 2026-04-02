@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin & Win — Member Experience</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #fff; overflow: hidden; }
+
+  .spin-page { text-align: center; width: 100%; max-width: 420px; padding: 20px; }
+  .brand-logo { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.6); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .spin-title { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .spin-subtitle { font-size: 15px; color: rgba(255,255,255,0.7); margin-bottom: 32px; }
+
+  /* Wheel */
+  .wheel-wrapper { position: relative; width: 340px; height: 340px; margin: 0 auto 32px; }
+  .wheel-pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 28px solid #fbbf24; z-index: 10; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
+  .wheel-outer { width: 100%; height: 100%; border-radius: 50%; padding: 6px; background: linear-gradient(135deg, #fbbf24, #f59e0b, #fbbf24); box-shadow: 0 0 40px rgba(251,191,36,0.3), 0 8px 32px rgba(0,0,0,0.3); }
+  .wheel-inner { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; position: relative; }
+  .wheel-center-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 5; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #1e1b4b; text-transform: uppercase; letter-spacing: 0.5px; transition: transform 0.15s; }
+  .wheel-center-btn:hover { transform: translate(-50%, -50%) scale(1.05); }
+  .wheel-center-btn:active { transform: translate(-50%, -50%) scale(0.95); }
+  .wheel-center-btn.disabled { cursor: not-allowed; opacity: 0.7; }
+
+  .spin-hint { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 20px; }
+
+  /* Result overlay */
+  .result-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+  .result-overlay.show { display: flex; }
+  .result-card { background: #fff; border-radius: 20px; padding: 40px; text-align: center; max-width: 360px; width: 90%; color: #1f2937; animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .result-emoji { font-size: 64px; margin-bottom: 16px; }
+  .result-title { font-size: 24px; font-weight: 700; color: #059669; margin-bottom: 8px; }
+  .result-prize { font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 16px; }
+  .result-message { font-size: 14px; color: #6b7280; margin-bottom: 24px; }
+  .result-btn { padding: 12px 32px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .result-btn:hover { background: #4338ca; }
+
+  /* Already played state */
+  .already-played { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-top: 20px; }
+  .already-played h3 { font-size: 16px; margin-bottom: 8px; }
+  .already-played p { font-size: 14px; color: rgba(255,255,255,0.6); }
+
+  /* Confetti */
+  .confetti { position: fixed; top: -10px; z-index: 101; pointer-events: none; }
+  @keyframes confettiFall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+
+  /* Powered by */
+  .powered-by { position: fixed; bottom: 12px; font-size: 11px; color: rgba(255,255,255,0.3); }
+  .powered-by a { color: rgba(255,255,255,0.5); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="spin-page">
+  <div class="brand-logo">Acme Rewards</div>
+  <div class="spin-title">Spin & Win!</div>
+  <div class="spin-subtitle">You earned a spin from your recent purchase</div>
+
+  <div class="wheel-wrapper">
+    <div class="wheel-pointer"></div>
+    <div class="wheel-outer">
+      <div class="wheel-inner">
+        <canvas id="wheelCanvas" width="328" height="328"></canvas>
+      </div>
+    </div>
+    <div class="wheel-center-btn" id="spinBtn">SPIN</div>
+  </div>
+
+  <div class="spin-hint">Tap SPIN to reveal your reward</div>
+</div>
+
+<!-- Result Overlay -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="result-emoji">&#127881;</div>
+    <div class="result-title">Congratulations!</div>
+    <div class="result-prize" id="resultPrize">Free Coffee</div>
+    <div class="result-message">Your reward has been added to your account. Show this to redeem at any Acme location.</div>
+    <button class="result-btn" onclick="document.getElementById('resultOverlay').classList.remove('show')">Awesome!</button>
+  </div>
+</div>
+
+<div class="powered-by">Powered by <a href="#">CustomerEQ</a></div>
+
+<script>
+  const segments = [
+    { label: '500 Points!', color: '#4F46E5', prob: 40 },
+    { label: 'Free Coffee', color: '#10B981', prob: 15 },
+    { label: '10% Off', color: '#F59E0B', prob: 25 },
+    { label: '100 Points', color: '#EF4444', prob: 20 },
+  ];
+
+  const canvas = document.getElementById('wheelCanvas');
+  const ctx = canvas.getContext('2d');
+  const cx = 164, cy = 164, r = 158;
+  let currentRotation = 0;
+  let spinning = false;
+
+  function drawWheel(rotation) {
+    ctx.clearRect(0, 0, 328, 328);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation * Math.PI / 180);
+    let startAngle = -Math.PI / 2; // Start from top
+    segments.forEach(seg => {
+      const sliceAngle = (seg.prob / 100) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, startAngle, startAngle + sliceAngle);
+      ctx.closePath();
+      ctx.fillStyle = seg.color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Label
+      ctx.save();
+      ctx.rotate(startAngle + sliceAngle / 2);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Inter, system-ui';
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(seg.label, r - 18, 5);
+      ctx.restore();
+      startAngle += sliceAngle;
+    });
+    ctx.restore();
+  }
+
+  drawWheel(0);
+
+  function createConfetti() {
+    const colors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#fbbf24', '#fff'];
+    for (let i = 0; i < 60; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti';
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.width = (Math.random() * 8 + 4) + 'px';
+      el.style.height = (Math.random() * 8 + 4) + 'px';
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      el.style.animation = `confettiFall ${Math.random() * 2 + 2}s linear ${Math.random() * 0.5}s forwards`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+  }
+
+  document.getElementById('spinBtn').addEventListener('click', function() {
+    if (spinning) return;
+    spinning = true;
+    this.classList.add('disabled');
+    this.textContent = '...';
+
+    const winIdx = 1; // Free Coffee (pre-determined by server)
+    // Calculate target: the winning segment should be at the top (pointer position)
+    let angleOffset = 0;
+    for (let i = 0; i < winIdx; i++) angleOffset += segments[i].prob;
+    angleOffset += segments[winIdx].prob / 2;
+    const targetAngle = -(angleOffset / 100 * 360);
+    const totalRotation = 360 * 5 + targetAngle - currentRotation % 360;
+
+    let start = null;
+    const duration = 5000;
+    const startRot = currentRotation;
+
+    function animate(ts) {
+      if (!start) start = ts;
+      const elapsed = ts - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out quart
+      const eased = 1 - Math.pow(1 - progress, 4);
+      currentRotation = startRot + totalRotation * eased;
+      drawWheel(currentRotation);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        spinning = false;
+        document.getElementById('spinBtn').textContent = '&#10003;';
+        // Show result after a brief pause
+        setTimeout(() => {
+          createConfetti();
+          document.getElementById('resultPrize').textContent = segments[winIdx].label;
+          document.getElementById('resultOverlay').classList.add('show');
+        }, 600);
+      }
+    }
+    requestAnimationFrame(animate);
+  });
+</script>
+</body>
+</html>
