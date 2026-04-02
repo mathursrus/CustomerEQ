@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: 'node ./node_modules/next/dist/bin/next dev --port 3098',
     url: 'http://localhost:3098',
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: { PLAYWRIGHT_TEST: 'true', NEXT_PUBLIC_PLAYWRIGHT_TEST: 'true' },
   },

@@ -14,13 +14,24 @@ export const metadata: Metadata = {
   description: 'Turn Customer Feedback Into Loyalty — Automatically',
 }
 
+// During Playwright E2E tests, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set.
+// Use a structurally valid (but non-functional) Clerk key so ClerkProvider
+// initialises without throwing. The middleware bypasses all Clerk auth when
+// PLAYWRIGHT_TEST=true, so no real auth flows run.
+// Key format: pk_test_<base64url(frontendApi + '$')>
+const clerkPublishableKey =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+  (process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+    ? 'pk_test_Y2xlcmsudGVzdC5leGFtcGxlLmZha2Uk'
+    : undefined)
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
       <html lang="en" className={inter.variable}>
         <body>{children}</body>
       </html>
