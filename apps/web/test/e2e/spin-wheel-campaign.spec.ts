@@ -167,8 +167,12 @@ test.describe('Persona 1: Admin creates spin wheel campaign', () => {
     // Submit
     await page.getByTestId('campaign-submit-btn').click()
 
-    // Should redirect to campaigns list (mocked)
-    await page.waitForURL('**/admin/campaigns', { timeout: 5000 })
+    // Spin wheel campaigns show embed code page instead of redirecting
+    await expect(page.getByRole('heading', { name: 'Campaign Created!' })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('heading', { name: 'Embed Code' })).toBeVisible()
+    await expect(page.getByTestId('copy-embed-btn')).toBeVisible()
+    await expect(page.getByTestId('go-to-campaigns-btn')).toBeVisible()
+    await expect(page.getByText('camp-spin-123')).toBeVisible() // campaign ID in embed code
   })
 
   test('segment builder is hidden when action type is not spin_wheel', async ({ page }) => {
