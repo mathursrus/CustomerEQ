@@ -37,6 +37,24 @@ interface FormData {
   wheelStyle: 'classic' | 'neon' | 'minimal'
 }
 
+// ─── Color Helpers ─────────────────────────────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+function adjustBrightness(hex: string, amount: number): string {
+  const [r, g, b] = hexToRgb(hex)
+  const clamp = (v: number) => Math.max(0, Math.min(255, v + amount))
+  return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`
+}
+
+function adjustAlpha(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 // ─── Wheel Canvas Preview ──────────────────────────────────────────────────
 
 function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: string }) {
@@ -52,49 +70,108 @@ function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: str
 
     const cx = 150, cy = 150, r = 145
     ctx.clearRect(0, 0, 300, 300)
+
+    // Background circle for minimal/neon styles
+    if (style === 'neon') {
+      // Outer glow ring
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.beginPath()
+      ctx.arc(0, 0, r + 6, 0, 2 * Math.PI)
+      ctx.strokeStyle = 'rgba(139, 92, 246, 0.4)'
+      ctx.lineWidth = 8
+      ctx.shadowColor = '#8B5CF6'
+      ctx.shadowBlur = 15
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      // Inner glow ring
+      ctx.beginPath()
+      ctx.arc(0, 0, r + 2, 0, 2 * Math.PI)
+      ctx.strokeStyle = 'rgba(167, 139, 250, 0.6)'
+      ctx.lineWidth = 3
+      ctx.stroke()
+      ctx.restore()
+    }
+
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate((rotation * Math.PI) / 180)
 
+    // Equal-sized segments — probability does NOT affect visual size
+    // This prevents users from seeing which segment is most likely
+    const sliceAngle = (2 * Math.PI) / (segments.length || 1)
     let startAngle = -Math.PI / 2
-    const totalProb = segments.reduce((s, seg) => s + seg.probability, 0) || 1
 
-    for (const seg of segments) {
-      const sliceAngle = (seg.probability / totalProb) * 2 * Math.PI
-      if (sliceAngle <= 0) continue
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]
 
       ctx.beginPath()
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, r, startAngle, startAngle + sliceAngle)
       ctx.closePath()
-      ctx.fillStyle = seg.color
+
+      if (style === 'neon') {
+        // Neon: darker base with vivid color, slight gradient
+        const grad = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r)
+        grad.addColorStop(0, adjustBrightness(seg.color, -30))
+        grad.addColorStop(1, seg.color)
+        ctx.fillStyle = grad
+      } else if (style === 'minimal') {
+        // Minimal: muted/pastel version of the color
+        ctx.fillStyle = adjustAlpha(seg.color, 0.7)
+      } else {
+        ctx.fillStyle = seg.color
+      }
       ctx.fill()
-      ctx.strokeStyle = style === 'neon' ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'
-      ctx.lineWidth = style === 'minimal' ? 1 : 2
+
+      // Borders
+      if (style === 'neon') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+        ctx.lineWidth = 2
+        ctx.shadowColor = '#fff'
+        ctx.shadowBlur = 3
+      } else if (style === 'minimal') {
+        ctx.strokeStyle = '#e5e7eb'
+        ctx.lineWidth = 1
+        ctx.shadowBlur = 0
+      } else {
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2.5
+        ctx.shadowBlur = 0
+      }
       ctx.stroke()
+      ctx.shadowBlur = 0
 
       // Label
-      if (sliceAngle > 0.15) {
-        ctx.save()
-        ctx.rotate(startAngle + sliceAngle / 2)
-        ctx.textAlign = 'right'
+      ctx.save()
+      ctx.rotate(startAngle + sliceAngle / 2)
+      ctx.textAlign = 'right'
+      if (style === 'neon') {
         ctx.fillStyle = '#fff'
-        ctx.font = `bold ${segments.length > 6 ? 10 : 12}px Inter, system-ui, sans-serif`
-        ctx.shadowColor = 'rgba(0,0,0,0.3)'
+        ctx.shadowColor = seg.color
+        ctx.shadowBlur = 6
+      } else if (style === 'minimal') {
+        ctx.fillStyle = '#374151'
+        ctx.shadowBlur = 0
+      } else {
+        ctx.fillStyle = '#fff'
+        ctx.shadowColor = 'rgba(0,0,0,0.4)'
         ctx.shadowBlur = 2
-        ctx.fillText(seg.label.slice(0, 15), r - 14, 4)
-        ctx.restore()
       }
+      ctx.font = `bold ${segments.length > 6 ? 10 : 12}px Inter, system-ui, sans-serif`
+      ctx.fillText(seg.label.slice(0, 15), r - 14, 4)
+      ctx.shadowBlur = 0
+      ctx.restore()
 
       startAngle += sliceAngle
     }
 
-    // Neon glow effect
-    if (style === 'neon') {
+    // Minimal: thin outer ring
+    if (style === 'minimal') {
       ctx.beginPath()
-      ctx.arc(0, 0, r + 2, 0, 2 * Math.PI)
-      ctx.strokeStyle = 'rgba(139, 92, 246, 0.5)'
-      ctx.lineWidth = 4
+      ctx.arc(0, 0, r, 0, 2 * Math.PI)
+      ctx.strokeStyle = '#d1d5db'
+      ctx.lineWidth = 1.5
       ctx.stroke()
     }
 
