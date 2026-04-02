@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./random": {
+      "import": "./dist/random.js",
+      "types": "./dist/random.d.ts"
     }
   },
   "scripts": {

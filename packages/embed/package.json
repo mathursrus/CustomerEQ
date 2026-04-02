@@ -1,0 +1,15 @@
+{
+  "name": "@customerEQ/embed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/ceq-spin-wheel.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "typescript": "^5.4.0"
+  }
+}

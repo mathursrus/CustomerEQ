@@ -311,6 +311,7 @@ model CampaignEvent {
   executedAt  DateTime?
   latencyMs   Int? // measured latency from event ingestion to action execution
   status      String    @default("executed")
+  result      Json? // spin_wheel: { winningIndex, rewardId?, points?, label }
 
   @@unique([campaignId, memberId]) // dedup: one trigger per member per campaign (R6.4)
   @@index([brandId, campaignId])

@@ -74,6 +74,15 @@ The platform is a multi-tenant loyalty engine with:
 - **Responsibility**: Shared Tailwind utility (`cn()` class merging). UI components are currently co-located in `apps/web/src/`.
 - **Key Modules**: `packages/ui/src/utils.ts`
 
+### 3.7. Embed Layer (packages/embed)
+- **Responsibility**: CDN-distributed, standalone JavaScript components for embedding CustomerEQ experiences in brand websites. Uses Web Components (Custom Elements) with Shadow DOM for style isolation.
+- **Key Modules**: `packages/embed/src/ceq-spin-wheel.ts` (spin-the-wheel campaign component)
+- **Build**: Vite library mode, IIFE format, ES2020 target. Output: single JS file per component (~7 KB gzipped).
+- **Auth**: Each component receives a member JWT token as an HTML attribute and calls public API endpoints.
+- **Theming**: CSS custom properties (`--ceq-font-family`, `--ceq-primary-color`, `--ceq-background-color`) pierce Shadow DOM for brand customization.
+- **Events**: Components fire custom DOM events (e.g., `ceq:reward-won`) so host pages can react.
+- **No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages.
+
 ---
 
 ## 4. Key Components & Modules
@@ -154,7 +163,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `/v1/surveys` | Survey CRUD + status management + question builder updates |
 | `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
 | `/v1/question-templates` | Question template library CRUD (save/reuse questions across surveys) |
-| `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth) |
+| `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth), campaign play endpoint (member JWT auth) |
 | `/v1/admin/*` | Demo request list, integration webhook URLs |
 
 ### 4.2 Fastify Plugins
@@ -166,13 +175,14 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
 | **redis** | decorator | IORedis client for queues and idempotency, graceful quit on shutdown |
+| **memberAuth** | helper | Lightweight member JWT verification for public endpoints. Uses `Authorization: Bearer <token>` header with Clerk `verifyToken()`. Returns member email/sub claims. Unlike org-level auth plugin, does not require Clerk organization context. Used by `/v1/public/campaigns/:id/play`. |
 
 ### 4.3 BullMQ Workers
 
 | Queue | Processor | Concurrency | Key Logic |
 |---|---|---|---|
 | `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
-| `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification |
+| `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
 
 ### 4.4 Database Models

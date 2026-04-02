@@ -15,16 +15,64 @@ export const ActionConfigSchema = z.object({
   { message: 'actionConfig must include points, rewardId, or message' }
 )
 
+// --- Spin Wheel Schemas ---
+
+export const SpinWheelSegmentSchema = z.object({
+  rewardId: z.string().optional(),
+  points: z.number().int().nonnegative().optional(),
+  probability: z.number().min(0).max(100),
+  label: z.string().min(1).max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color must be a valid hex color (e.g., #4F46E5)'),
+}).refine(
+  (data) => data.rewardId !== undefined || (data.points !== undefined && data.points > 0),
+  { message: 'Segment must have rewardId or positive points' }
+)
+
+export const SpinWheelConfigSchema = z.object({
+  segments: z.array(SpinWheelSegmentSchema).min(2, 'Wheel must have at least 2 segments').max(8, 'Wheel can have at most 8 segments'),
+  wheelStyle: z.enum(['classic', 'neon', 'minimal']).default('classic'),
+}).refine(
+  (data) => Math.abs(data.segments.reduce((sum, s) => sum + s.probability, 0) - 100) < 0.01,
+  { message: 'Segment probabilities must sum to 100%' }
+)
+
+// --- Campaign Action Types ---
+
+export const CAMPAIGN_ACTION_TYPES = ['award_points', 'award_reward', 'send_message', 'spin_wheel'] as const
+export type CampaignActionType = typeof CAMPAIGN_ACTION_TYPES[number]
+
 export const CreateCampaignSchema = z.object({
   name: z.string().min(1, 'Campaign name is required').max(100),
   programId: z.string().min(1),
   triggerType: z.string().min(1, 'triggerType is required'),
   triggerCondition: TriggerConditionSchema.optional(),
-  actionType: z.enum(['award_points', 'award_reward', 'send_message']),
-  actionConfig: ActionConfigSchema,
+  actionType: z.enum(CAMPAIGN_ACTION_TYPES),
+  actionConfig: z.union([ActionConfigSchema, SpinWheelConfigSchema]),
   budgetCap: z.number().positive().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime().optional(),
+}).superRefine((data, ctx) => {
+  if (data.actionType === 'spin_wheel') {
+    const result = SpinWheelConfigSchema.safeParse(data.actionConfig)
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: ['actionConfig', ...issue.path],
+        })
+      }
+    }
+  } else {
+    const result = ActionConfigSchema.safeParse(data.actionConfig)
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: ['actionConfig', ...issue.path],
+        })
+      }
+    }
+  }
 })
 
 export const UpdateCampaignStatusSchema = z.object({
@@ -35,3 +83,5 @@ export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>
 export type UpdateCampaignStatusInput = z.infer<typeof UpdateCampaignStatusSchema>
 export type TriggerCondition = z.infer<typeof TriggerConditionSchema>
 export type ActionConfig = z.infer<typeof ActionConfigSchema>
+export type SpinWheelSegment = z.infer<typeof SpinWheelSegmentSchema>
+export type SpinWheelConfig = z.infer<typeof SpinWheelConfigSchema>

@@ -49,7 +49,7 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
         programId: data.programId,
         name: data.name,
         triggerType: data.triggerType,
-        triggerCondition: data.triggerCondition as Prisma.InputJsonValue,
+        triggerCondition: (data.triggerCondition ?? {}) as Prisma.InputJsonValue,
         actionType: data.actionType,
         actionConfig: data.actionConfig as Prisma.InputJsonValue,
         budgetCap: data.budgetCap ?? undefined,

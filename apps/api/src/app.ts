@@ -22,6 +22,7 @@ import themesRoutes from './routes/themes.js'
 import templatesRoutes from './routes/templates.js'
 import alertRulesRoutes from './routes/alertRules.js'
 import casesRoutes from './routes/cases.js'
+import campaignPlayRoutes from './routes/campaignPlay.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -111,6 +112,7 @@ export async function buildApp() {
   await fastify.register(alertRulesRoutes, { prefix: '/v1' })
   await fastify.register(casesRoutes, { prefix: '/v1' })
   await fastify.register(publicRoutes, { prefix: '/v1' })
+  await fastify.register(campaignPlayRoutes, { prefix: '/v1' })
 
   return fastify
 }
