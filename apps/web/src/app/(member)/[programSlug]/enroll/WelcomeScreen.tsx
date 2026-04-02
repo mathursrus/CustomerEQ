@@ -1,16 +1,9 @@
 'use client'
 
-interface EnrollResponse {
-  memberId: string
-  email: string
-  firstName: string | null
-  pointsBalance: number
-  programName: string
-  enrollmentBonusPending: boolean
-}
+import type { EnrollMemberResponse } from '@customerEQ/shared'
 
 interface Props {
-  result: EnrollResponse
+  result: EnrollMemberResponse
   programName: string
   onDashboard: () => void
 }

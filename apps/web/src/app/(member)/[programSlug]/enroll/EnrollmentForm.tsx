@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useSignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
+import type { EnrollMemberResponse } from '@customerEQ/shared'
 import { API_URL } from '@/lib/config'
 import WelcomeScreen from './WelcomeScreen'
 
@@ -14,21 +15,12 @@ interface ProgramInfo {
   brandName: string
 }
 
-interface EnrollResponse {
-  memberId: string
-  email: string
-  firstName: string | null
-  pointsBalance: number
-  programName: string
-  enrollmentBonusPending: boolean
-}
-
 export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
   const { signUp, isLoaded } = useSignUp()
   const router = useRouter()
 
   const [step, setStep] = useState<'form' | 'welcome'>('form')
-  const [enrollResult, setEnrollResult] = useState<EnrollResponse | null>(null)
+  const [enrollResult, setEnrollResult] = useState<EnrollMemberResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -117,7 +109,7 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
         return
       }
 
-      setEnrollResult(body as unknown as EnrollResponse)
+      setEnrollResult(body as unknown as EnrollMemberResponse)
       setStep('welcome')
     } catch (err: unknown) {
       const clerkErr = err as { errors?: Array<{ message: string }> }
