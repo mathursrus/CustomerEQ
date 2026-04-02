@@ -27,6 +27,39 @@ const SurveyTriggerSchema = z.object({
 })
 
 const publicRoutes: FastifyPluginAsync = async (fastify) => {
+  // GET /v1/public/programs/by-slug/:slug — resolve program info for enrollment page
+  fastify.get<{ Params: { slug: string } }>(
+    '/public/programs/by-slug/:slug',
+    { config: { public: true } },
+    async (request, reply) => {
+      const { slug } = request.params
+
+      const program = await fastify.prisma.program.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+          brandId: true,
+          brand: { select: { name: true } },
+        },
+      })
+
+      if (!program || program.status !== 'ACTIVE') {
+        return reply.status(404).send({ error: 'Program not found or not active' })
+      }
+
+      return reply.status(200).send({
+        programId: program.id,
+        programName: program.name,
+        programSlug: program.slug,
+        brandId: program.brandId,
+        brandName: program.brand.name,
+      })
+    },
+  )
+
   // POST /v1/public/demo-requests — no auth required
   fastify.post(
     '/public/demo-requests',

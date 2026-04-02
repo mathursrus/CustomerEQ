@@ -100,6 +100,7 @@ model Program {
   brandId              String
   brand                Brand         @relation(fields: [brandId], references: [id])
   name                 String
+  slug                 String?       @unique // human-readable enrollment URL segment (e.g. "acme-rewards-us")
   description          String?
   pointCurrencyName    String        @default("Points")
   pointToCurrencyRatio Float         @default(0.01) // $0.01 per point
@@ -163,6 +164,8 @@ model Member {
   status         MemberStatus   @default(ACTIVE)
   consentGivenAt DateTime?
   consentVersion String?
+  emailOptIn     Boolean        @default(false)
+  smsOptIn       Boolean        @default(false)
   deletedAt      DateTime? // soft delete (C-02)
   currentTierId  String?
   currentTier    Tier?          @relation(fields: [currentTierId], references: [id])

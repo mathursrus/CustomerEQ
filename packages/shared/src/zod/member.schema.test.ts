@@ -7,6 +7,7 @@ describe('EnrollMemberSchema', () => {
     email: 'jane.doe@example.com',
     consentGivenAt: '2026-03-24T10:00:00.000Z',
     programId: 'prog-abc-123',
+    consentGiven: true as const,
   }
 
   describe('valid inputs', () => {
@@ -171,6 +172,92 @@ describe('EnrollMemberSchema', () => {
 
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('lastName'))).toBe(true)
+    })
+  })
+
+  describe('consentGiven field', () => {
+    it('rejects when consentGiven is false — emits CONSENT_REQUIRED message', () => {
+      const input = { ...requiredBase, consentGiven: false }
+
+      const result = EnrollMemberSchema.safeParse(input)
+
+      expect(result.success).toBe(false)
+      expect(
+        result.error?.issues.some(
+          (i) => i.path.includes('consentGiven') && i.message === 'CONSENT_REQUIRED',
+        ),
+      ).toBe(true)
+    })
+
+    it('rejects when consentGiven is missing entirely', () => {
+      const { consentGiven: _removed, ...input } = requiredBase as typeof requiredBase & {
+        consentGiven?: true
+      }
+
+      const result = EnrollMemberSchema.safeParse(input)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('consentGiven'))).toBe(true)
+    })
+
+    it('rejects when consentGiven is a string "true" instead of boolean true', () => {
+      const input = { ...requiredBase, consentGiven: 'true' }
+
+      const result = EnrollMemberSchema.safeParse(input)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('consentGiven'))).toBe(true)
+    })
+  })
+
+  describe('opt-in defaults', () => {
+    it('emailOptIn defaults to false when omitted', () => {
+      const result = EnrollMemberSchema.safeParse(requiredBase)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.emailOptIn).toBe(false)
+      }
+    })
+
+    it('smsOptIn defaults to false when omitted', () => {
+      const result = EnrollMemberSchema.safeParse(requiredBase)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.smsOptIn).toBe(false)
+      }
+    })
+
+    it('consentVersion defaults to "privacy-v1.0" when omitted', () => {
+      const result = EnrollMemberSchema.safeParse(requiredBase)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.consentVersion).toBe('privacy-v1.0')
+      }
+    })
+
+    it('accepts explicit emailOptIn: true', () => {
+      const input = { ...requiredBase, emailOptIn: true }
+
+      const result = EnrollMemberSchema.safeParse(input)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.emailOptIn).toBe(true)
+      }
+    })
+
+    it('accepts explicit smsOptIn: true', () => {
+      const input = { ...requiredBase, smsOptIn: true }
+
+      const result = EnrollMemberSchema.safeParse(input)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.smsOptIn).toBe(true)
+      }
     })
   })
 })

@@ -4,9 +4,10 @@ import {
   seedTestDb,
   createBrand,
   createProgram,
-  createMember,
   createConsentedMember,
   authenticatedRequest,
+  unauthenticatedRequest,
+  getTestPrisma,
 } from '@customerEQ/config/test-utils'
 
 describe('Members API — /v1/members', () => {
@@ -19,59 +20,127 @@ describe('Members API — /v1/members', () => {
   // -------------------------------------------------------------------------
 
   describe('POST /v1/members/enroll', () => {
-    it('enrolls a new member and returns status=ACTIVE', async () => {
+    it('enrolls a new member and returns EnrollMemberResponse shape', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = authenticatedRequest(brand.id)
 
-      const res = await request.post('/v1/members/enroll').send({
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
         email: 'alice@example.com',
         firstName: 'Alice',
         lastName: 'Smith',
         programId: program.id,
+        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       })
 
       expect(res.status).toBe(201)
-      expect(res.body.id).toBeDefined()
+      expect(res.body.memberId).toBeDefined()
       expect(res.body.email).toBe('alice@example.com')
-      expect(res.body.status).toBe('ACTIVE')
-      expect(res.body.brandId).toBe(brand.id)
+      expect(res.body.firstName).toBe('Alice')
       expect(res.body.pointsBalance).toBe(0)
+      expect(res.body.programName).toBe(program.name)
+      expect(res.body.enrollmentBonusPending).toBe(true)
     })
 
-    it('returns the existing member (idempotency) when enrolling the same email twice', async () => {
+    it('sets consentGivenAt in the DB after enrollment', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = authenticatedRequest(brand.id)
+      const consentAt = new Date().toISOString()
+
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email: 'consent-check@example.com',
+        firstName: 'Consent',
+        lastName: 'Check',
+        programId: program.id,
+        consentGiven: true,
+        consentGivenAt: consentAt,
+      })
+
+      expect(res.status).toBe(201)
+
+      const prisma = getTestPrisma()
+      const member = await prisma.member.findUnique({
+        where: { brandId_email: { brandId: brand.id, email: 'consent-check@example.com' } },
+        select: { consentGivenAt: true },
+      })
+      expect(member?.consentGivenAt).not.toBeNull()
+    })
+
+    it('returns 409 EMAIL_ALREADY_ENROLLED when enrolling the same email twice', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
       const payload = {
         email: 'bob@example.com',
         firstName: 'Bob',
         lastName: 'Jones',
         programId: program.id,
+        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       }
 
-      const firstRes = await request.post('/v1/members/enroll').send(payload)
+      const firstRes = await unauthenticatedRequest().post('/v1/members/enroll').send(payload)
       expect(firstRes.status).toBe(201)
-      const firstId = firstRes.body.id
 
-      const secondRes = await request.post('/v1/members/enroll').send(payload)
-      expect(secondRes.status).toBe(200)
-      expect(secondRes.body.id).toBe(firstId)
+      const secondRes = await unauthenticatedRequest().post('/v1/members/enroll').send(payload)
+      expect(secondRes.status).toBe(409)
+      expect(secondRes.body.error).toBe('EMAIL_ALREADY_ENROLLED')
+    })
+
+    it('returns 422 CONSENT_REQUIRED when consentGiven is false', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email: 'noconsent@example.com',
+        firstName: 'No',
+        lastName: 'Consent',
+        programId: program.id,
+        consentGiven: false,
+        consentGivenAt: new Date().toISOString(),
+      })
+
+      expect(res.status).toBe(422)
+      expect(res.body.error).toBe('CONSENT_REQUIRED')
+    })
+
+    it('persists emailOptIn and smsOptIn when provided', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email: 'optin@example.com',
+        firstName: 'Opt',
+        lastName: 'In',
+        programId: program.id,
+        consentGiven: true,
+        consentGivenAt: new Date().toISOString(),
+        emailOptIn: true,
+        smsOptIn: true,
+      })
+
+      expect(res.status).toBe(201)
+
+      const prisma = getTestPrisma()
+      const member = await prisma.member.findUnique({
+        where: { brandId_email: { brandId: brand.id, email: 'optin@example.com' } },
+        select: { emailOptIn: true, smsOptIn: true },
+      })
+      expect(member?.emailOptIn).toBe(true)
+      expect(member?.smsOptIn).toBe(true)
     })
 
     it('returns 422 when consentGivenAt is absent', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = authenticatedRequest(brand.id)
 
-      const res = await request.post('/v1/members/enroll').send({
-        email: 'noconsent@example.com',
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email: 'missing-consent-at@example.com',
         firstName: 'No',
         lastName: 'Consent',
         programId: program.id,
+        consentGiven: true,
+        // consentGivenAt intentionally omitted
       })
 
       expect(res.status).toBe(422)
@@ -81,17 +150,61 @@ describe('Members API — /v1/members', () => {
     it('returns 422 when email is missing', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const request = authenticatedRequest(brand.id)
 
-      const res = await request.post('/v1/members/enroll').send({
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
         firstName: 'Missing',
         lastName: 'Email',
         programId: program.id,
+        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       })
 
       expect(res.status).toBe(422)
       expect(res.body.error).toBe('Validation failed')
+    })
+
+    it('allows re-enrollment with same email on a different brand (201)', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      const programA = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
+      const programB = await createProgram({ brandId: brandB.id, status: 'ACTIVE' })
+      const email = 'shared@example.com'
+      const consentAt = new Date().toISOString()
+
+      const resA = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email,
+        firstName: 'Shared',
+        lastName: 'User',
+        programId: programA.id,
+        consentGiven: true,
+        consentGivenAt: consentAt,
+      })
+      expect(resA.status).toBe(201)
+
+      const resB = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email,
+        firstName: 'Shared',
+        lastName: 'User',
+        programId: programB.id,
+        consentGiven: true,
+        consentGivenAt: consentAt,
+      })
+      expect(resB.status).toBe(201)
+      expect(resB.body.memberId).not.toBe(resA.body.memberId)
+    })
+
+    it('returns 404 when programId does not exist', async () => {
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        email: 'badprogram@example.com',
+        firstName: 'Bad',
+        lastName: 'Program',
+        programId: '00000000-0000-0000-0000-000000000000',
+        consentGiven: true,
+        consentGivenAt: new Date().toISOString(),
+      })
+
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe('Program not found')
     })
   })
 
@@ -185,7 +298,6 @@ describe('Members API — /v1/members', () => {
         programId: program.id,
       })
       // Manually update the clerkUserId since the factory doesn't support it
-      const { getTestPrisma } = await import('@customerEQ/config/test-utils')
       const prisma = getTestPrisma()
       await prisma.member.update({
         where: { id: member.id },
@@ -209,4 +321,42 @@ describe('Members API — /v1/members', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/members/me
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/members/me', () => {
+    it('returns full profile for an authenticated member', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      const prisma = getTestPrisma()
+      await prisma.member.update({
+        where: { id: member.id },
+        data: { clerkUserId: 'user_test_123' },
+      })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/members/me')
+
+      expect(res.status).toBe(200)
+      expect(res.body.id).toBe(member.id)
+      expect(res.body.email).toBe(member.email)
+      expect(res.body.pointsBalance).toBe(0)
+      expect(typeof res.body.emailOptIn).toBe('boolean')
+      expect(typeof res.body.smsOptIn).toBe('boolean')
+    })
+
+    it('returns 404 when no member record exists for the authenticated clerk user', async () => {
+      const brand = await createBrand()
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/members/me')
+
+      expect(res.status).toBe(404)
+    })
+  })
+
 })
