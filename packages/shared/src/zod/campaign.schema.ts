@@ -36,9 +36,31 @@ export const SpinWheelConfigSchema = z.object({
   { message: 'Segment probabilities must sum to 100%' }
 )
 
+// --- Scratch Card Schemas ---
+
+export const ScratchCardPrizeSchema = z.object({
+  rewardId: z.string().optional(),
+  points: z.number().int().nonnegative().optional(),
+  probability: z.number().min(0).max(100),
+  label: z.string().min(1).max(50),
+}).refine(
+  (data) => data.rewardId !== undefined || (data.points !== undefined && data.points > 0),
+  { message: 'Prize must have rewardId or positive points' }
+)
+
+export const ScratchCardConfigSchema = z.object({
+  prizes: z.array(ScratchCardPrizeSchema).min(2, 'Card must have at least 2 prizes').max(8, 'Card can have at most 8 prizes'),
+  cardStyle: z.enum(['gold', 'silver', 'holiday', 'branded']).default('gold'),
+  scratchText: z.string().max(50).default('Scratch to reveal!'),
+  brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+}).refine(
+  (data) => Math.abs(data.prizes.reduce((sum, p) => sum + p.probability, 0) - 100) < 0.01,
+  { message: 'Prize probabilities must sum to 100%' }
+)
+
 // --- Campaign Action Types ---
 
-export const CAMPAIGN_ACTION_TYPES = ['award_points', 'award_reward', 'send_message', 'spin_wheel'] as const
+export const CAMPAIGN_ACTION_TYPES = ['award_points', 'award_reward', 'send_message', 'spin_wheel', 'scratch_card'] as const
 export type CampaignActionType = typeof CAMPAIGN_ACTION_TYPES[number]
 
 export const CreateCampaignSchema = z.object({
@@ -47,7 +69,7 @@ export const CreateCampaignSchema = z.object({
   triggerType: z.string().min(1, 'triggerType is required'),
   triggerCondition: TriggerConditionSchema.optional(),
   actionType: z.enum(CAMPAIGN_ACTION_TYPES),
-  actionConfig: z.union([ActionConfigSchema, SpinWheelConfigSchema]),
+  actionConfig: z.union([ActionConfigSchema, SpinWheelConfigSchema, ScratchCardConfigSchema]),
   budgetCap: z.number().positive().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime().optional(),
@@ -56,20 +78,21 @@ export const CreateCampaignSchema = z.object({
     const result = SpinWheelConfigSchema.safeParse(data.actionConfig)
     if (!result.success) {
       for (const issue of result.error.issues) {
-        ctx.addIssue({
-          ...issue,
-          path: ['actionConfig', ...issue.path],
-        })
+        ctx.addIssue({ ...issue, path: ['actionConfig', ...issue.path] })
+      }
+    }
+  } else if (data.actionType === 'scratch_card') {
+    const result = ScratchCardConfigSchema.safeParse(data.actionConfig)
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({ ...issue, path: ['actionConfig', ...issue.path] })
       }
     }
   } else {
     const result = ActionConfigSchema.safeParse(data.actionConfig)
     if (!result.success) {
       for (const issue of result.error.issues) {
-        ctx.addIssue({
-          ...issue,
-          path: ['actionConfig', ...issue.path],
-        })
+        ctx.addIssue({ ...issue, path: ['actionConfig', ...issue.path] })
       }
     }
   }
@@ -85,3 +108,5 @@ export type TriggerCondition = z.infer<typeof TriggerConditionSchema>
 export type ActionConfig = z.infer<typeof ActionConfigSchema>
 export type SpinWheelSegment = z.infer<typeof SpinWheelSegmentSchema>
 export type SpinWheelConfig = z.infer<typeof SpinWheelConfigSchema>
+export type ScratchCardPrize = z.infer<typeof ScratchCardPrizeSchema>
+export type ScratchCardConfig = z.infer<typeof ScratchCardConfigSchema>

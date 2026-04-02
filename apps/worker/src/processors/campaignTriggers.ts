@@ -2,7 +2,7 @@ import type { Job } from 'bullmq'
 import type { Redis } from 'ioredis'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
-import type { CampaignTriggerPayload, SpinWheelConfig } from '@customerEQ/shared'
+import type { CampaignTriggerPayload, SpinWheelConfig, ScratchCardConfig } from '@customerEQ/shared'
 import { selectWeightedRandom } from '@customerEQ/shared/random'
 import { enqueueNotification } from '../queues/producers.js'
 
@@ -82,8 +82,8 @@ export function createCampaignTriggerProcessor(redis: Redis) {
     const latencyMs = Date.now() - new Date(eventIngestedAt).getTime()
 
     // 3. Route by action type
-    if (campaign.actionType === 'spin_wheel') {
-      return await executeSpinWheel(campaign, memberId, brandId, latencyMs, redis)
+    if (campaign.actionType === 'spin_wheel' || campaign.actionType === 'scratch_card') {
+      return await executeInteractiveCampaign(campaign, memberId, brandId, latencyMs, redis)
     }
 
     // 3b. Check budget cap (standard action types)
@@ -142,12 +142,13 @@ export function createCampaignTriggerProcessor(redis: Redis) {
 }
 
 // ---------------------------------------------------------------------------
-// Spin Wheel action handler
+// Interactive campaign handler (spin_wheel + scratch_card)
 // ---------------------------------------------------------------------------
 
-async function executeSpinWheel(
+async function executeInteractiveCampaign(
   campaign: {
     id: string
+    actionType: string
     actionConfig: unknown
     budgetCap: number | null
     budgetSpent: number
@@ -158,10 +159,13 @@ async function executeSpinWheel(
   latencyMs: number,
   redis: Redis,
 ): Promise<{ executed?: boolean; skipped?: boolean; reason?: string; points?: number; latencyMs?: number }> {
-  const config = campaign.actionConfig as SpinWheelConfig
-  const winningSegment = selectWeightedRandom(config.segments)
-  const winningIndex = config.segments.indexOf(winningSegment)
-  const points = winningSegment.points ?? 0
+  // Get the prize/segment array based on campaign type
+  const items = campaign.actionType === 'scratch_card'
+    ? (campaign.actionConfig as ScratchCardConfig).prizes
+    : (campaign.actionConfig as SpinWheelConfig).segments
+  const winningItem = selectWeightedRandom(items)
+  const winningIndex = items.indexOf(winningItem)
+  const points = winningItem.points ?? 0
 
   // Budget check
   if (campaign.budgetCap !== null) {
@@ -174,9 +178,9 @@ async function executeSpinWheel(
 
   const result = {
     winningIndex,
-    rewardId: winningSegment.rewardId ?? null,
+    rewardId: winningItem.rewardId ?? null,
     points,
-    label: winningSegment.label,
+    label: winningItem.label,
   }
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -212,18 +216,18 @@ async function executeSpinWheel(
     }
 
     // Create redemption if reward-based
-    if (winningSegment.rewardId) {
+    if (winningItem.rewardId) {
       await tx.redemption.create({
         data: {
           memberId,
-          rewardId: winningSegment.rewardId,
+          rewardId: winningItem.rewardId,
           brandId,
           pointsSpent: 0,
           status: 'PENDING',
         },
       })
       await tx.reward.updateMany({
-        where: { id: winningSegment.rewardId, stock: { not: null } },
+        where: { id: winningItem.rewardId, stock: { not: null } },
         data: { stock: { decrement: 1 } },
       })
     }

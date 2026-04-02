@@ -4,6 +4,8 @@ import {
   CreateCampaignSchema,
   SpinWheelSegmentSchema,
   SpinWheelConfigSchema,
+  ScratchCardPrizeSchema,
+  ScratchCardConfigSchema,
 } from './campaign.schema'
 
 describe('CreateCampaignSchema', () => {
@@ -442,6 +444,78 @@ describe('CreateCampaignSchema', () => {
       if (result.success) {
         expect(result.data.wheelStyle).toBe('classic')
       }
+    })
+  })
+
+  describe('scratch_card action type', () => {
+    const validScratchConfig = {
+      prizes: [
+        { points: 500, probability: 30, label: '500 Points!' },
+        { points: 50, probability: 70, label: '50 Points' },
+      ],
+      cardStyle: 'gold' as const,
+      scratchText: 'Scratch to reveal!',
+    }
+
+    const scratchBase = {
+      name: 'Holiday Scratch',
+      programId: 'prog-abc',
+      triggerType: 'purchase',
+      actionType: 'scratch_card' as const,
+      actionConfig: validScratchConfig,
+      startDate: '2026-04-15T00:00:00.000Z',
+    }
+
+    it('accepts a valid scratch_card campaign', () => {
+      const result = CreateCampaignSchema.safeParse(scratchBase)
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects when prize probabilities do not sum to 100%', () => {
+      const input = {
+        ...scratchBase,
+        actionConfig: {
+          prizes: [
+            { points: 100, probability: 40, label: 'A' },
+            { points: 50, probability: 30, label: 'B' },
+          ],
+        },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects a prize with neither rewardId nor points', () => {
+      const result = ScratchCardPrizeSchema.safeParse({ probability: 50, label: 'X' })
+      expect(result.success).toBe(false)
+    })
+
+    it('accepts all card styles', () => {
+      for (const style of ['gold', 'silver', 'holiday', 'branded']) {
+        const result = ScratchCardConfigSchema.safeParse({ ...validScratchConfig, cardStyle: style })
+        expect(result.success).toBe(true)
+      }
+    })
+
+    it('defaults cardStyle to gold', () => {
+      const config = { prizes: validScratchConfig.prizes }
+      const result = ScratchCardConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data.cardStyle).toBe('gold')
+    })
+
+    it('defaults scratchText', () => {
+      const config = { prizes: validScratchConfig.prizes }
+      const result = ScratchCardConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data.scratchText).toBe('Scratch to reveal!')
+    })
+
+    it('rejects with 1 prize (below minimum)', () => {
+      const result = ScratchCardConfigSchema.safeParse({
+        prizes: [{ points: 100, probability: 100, label: 'Only' }],
+      })
+      expect(result.success).toBe(false)
     })
   })
 })

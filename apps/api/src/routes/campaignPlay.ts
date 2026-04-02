@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import type { SpinWheelConfig } from '@customerEQ/shared'
+import type { SpinWheelConfig, ScratchCardConfig } from '@customerEQ/shared'
 
 const campaignPlayRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/public/campaigns/:id/play — member plays an interactive campaign
@@ -101,6 +101,30 @@ const campaignPlayRoutes: FastifyPluginAsync = async (fastify) => {
           winningIndex: resultData.winningIndex,
           wheelStyle: config.wheelStyle ?? 'classic',
           reward: {
+            type: resultData.rewardId ? 'reward' : 'points',
+            points: resultData.points,
+            label: resultData.label,
+            rewardId: resultData.rewardId,
+          },
+        })
+      }
+
+      if (campaign.actionType === 'scratch_card') {
+        const config = campaign.actionConfig as ScratchCardConfig
+        const resultData = event.result as {
+          winningIndex: number
+          rewardId: string | null
+          points: number
+          label: string
+        }
+
+        return reply.status(200).send({
+          alreadyPlayed: false,
+          campaignType: 'scratch_card',
+          cardStyle: config.cardStyle ?? 'gold',
+          scratchText: config.scratchText ?? 'Scratch to reveal!',
+          brandColor: config.brandColor ?? null,
+          prize: {
             type: resultData.rewardId ? 'reward' : 'points',
             points: resultData.points,
             label: resultData.label,
