@@ -1,6 +1,10 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { CreateCampaignSchema } from './campaign.schema'
+import {
+  CreateCampaignSchema,
+  SpinWheelSegmentSchema,
+  SpinWheelConfigSchema,
+} from './campaign.schema'
 
 describe('CreateCampaignSchema', () => {
   // The real schema uses z.string().datetime() for dates (ISO strings, not Date objects)
@@ -289,6 +293,155 @@ describe('CreateCampaignSchema', () => {
 
       expect(result.success).toBe(false)
       expect(result.error?.issues.some((i) => i.path.includes('programId'))).toBe(true)
+    })
+  })
+
+  describe('spin_wheel action type', () => {
+    const validSpinWheelConfig = {
+      segments: [
+        { points: 500, probability: 40, label: '500 Points!', color: '#4F46E5' },
+        { rewardId: 'rwd-001', probability: 15, label: 'Free Coffee', color: '#10B981' },
+        { points: 100, probability: 25, label: '10% Off', color: '#F59E0B' },
+        { points: 50, probability: 20, label: '50 Points', color: '#EF4444' },
+      ],
+      wheelStyle: 'classic' as const,
+    }
+
+    const spinWheelBase = {
+      name: 'Holiday Spin & Win',
+      programId: 'prog-abc-123',
+      triggerType: 'purchase',
+      actionType: 'spin_wheel' as const,
+      actionConfig: validSpinWheelConfig,
+      startDate: '2026-04-15T00:00:00.000Z',
+    }
+
+    it('accepts a valid spin_wheel campaign', () => {
+      const result = CreateCampaignSchema.safeParse(spinWheelBase)
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts spin_wheel with 2 segments (minimum)', () => {
+      const input = {
+        ...spinWheelBase,
+        actionConfig: {
+          segments: [
+            { points: 60, probability: 60, label: 'Small', color: '#4F46E5' },
+            { points: 200, probability: 40, label: 'Big', color: '#10B981' },
+          ],
+        },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts spin_wheel with 8 segments (maximum)', () => {
+      const segments = Array.from({ length: 8 }, (_, i) => ({
+        points: 100,
+        probability: 12.5,
+        label: `Seg ${i + 1}`,
+        color: `#${(i * 2 + 1).toString(16).padStart(2, '0')}46E5`,
+      }))
+      const input = {
+        ...spinWheelBase,
+        actionConfig: { segments },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects spin_wheel with 1 segment (below minimum)', () => {
+      const input = {
+        ...spinWheelBase,
+        actionConfig: {
+          segments: [{ points: 100, probability: 100, label: 'Only', color: '#4F46E5' }],
+        },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects spin_wheel with 9 segments (above maximum)', () => {
+      const segments = Array.from({ length: 9 }, (_, i) => ({
+        points: 100,
+        probability: 100 / 9,
+        label: `Seg ${i}`,
+        color: '#4F46E5',
+      }))
+      const input = {
+        ...spinWheelBase,
+        actionConfig: { segments },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects when probabilities do not sum to 100%', () => {
+      const input = {
+        ...spinWheelBase,
+        actionConfig: {
+          segments: [
+            { points: 100, probability: 40, label: 'A', color: '#4F46E5' },
+            { points: 200, probability: 40, label: 'B', color: '#10B981' },
+          ],
+        },
+      }
+      const result = CreateCampaignSchema.safeParse(input)
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects a segment with invalid hex color', () => {
+      const result = SpinWheelSegmentSchema.safeParse({
+        points: 100,
+        probability: 50,
+        label: 'Test',
+        color: 'red',
+      })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues.some((i) => i.path.includes('color'))).toBe(true)
+    })
+
+    it('rejects a segment with neither rewardId nor points', () => {
+      const result = SpinWheelSegmentSchema.safeParse({
+        probability: 50,
+        label: 'Test',
+        color: '#4F46E5',
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('accepts a segment with 0 probability (visual-only segment)', () => {
+      const result = SpinWheelSegmentSchema.safeParse({
+        points: 1000,
+        probability: 0,
+        label: 'Jackpot',
+        color: '#FFD700',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects a segment with empty label', () => {
+      const result = SpinWheelSegmentSchema.safeParse({
+        points: 100,
+        probability: 50,
+        label: '',
+        color: '#4F46E5',
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('accepts SpinWheelConfigSchema with default wheelStyle', () => {
+      const config = {
+        segments: [
+          { points: 50, probability: 50, label: 'A', color: '#4F46E5' },
+          { points: 100, probability: 50, label: 'B', color: '#10B981' },
+        ],
+      }
+      const result = SpinWheelConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.wheelStyle).toBe('classic')
+      }
     })
   })
 })
