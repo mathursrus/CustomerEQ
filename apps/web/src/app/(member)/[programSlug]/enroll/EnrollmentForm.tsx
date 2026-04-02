@@ -117,7 +117,7 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
         return
       }
 
-      setEnrollResult(body as EnrollResponse)
+      setEnrollResult(body as unknown as EnrollResponse)
       setStep('welcome')
     } catch (err: unknown) {
       const clerkErr = err as { errors?: Array<{ message: string }> }

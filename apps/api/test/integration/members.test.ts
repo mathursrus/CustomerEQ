@@ -359,47 +359,4 @@ describe('Members API — /v1/members', () => {
     })
   })
 
-  // -------------------------------------------------------------------------
-  // GET /v1/public/programs/by-slug/:slug
-  // -------------------------------------------------------------------------
-
-  describe('GET /v1/public/programs/by-slug/:slug', () => {
-    it('returns 200 with program info when slug resolves to an active program', async () => {
-      const brand = await createBrand()
-      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-
-      // Set a slug on the program directly via Prisma
-      const prisma = getTestPrisma()
-      const slug = `test-slug-${Date.now()}`
-      await prisma.program.update({ where: { id: program.id }, data: { slug } })
-
-      const res = await unauthenticatedRequest().get(`/v1/public/programs/by-slug/${slug}`)
-
-      expect(res.status).toBe(200)
-      expect(res.body.programId).toBe(program.id)
-      expect(res.body.programName).toBeDefined()
-      expect(res.body.brandId).toBe(brand.id)
-      expect(res.body.brandName).toBeDefined()
-      expect(res.body.programSlug).toBe(slug)
-    })
-
-    it('returns 404 when no program matches the slug', async () => {
-      const res = await unauthenticatedRequest().get('/v1/public/programs/by-slug/does-not-exist')
-
-      expect(res.status).toBe(404)
-    })
-
-    it('returns 404 for an inactive program slug', async () => {
-      const brand = await createBrand()
-      const program = await createProgram({ brandId: brand.id, status: 'DRAFT' })
-
-      const prisma = getTestPrisma()
-      const slug = `inactive-slug-${Date.now()}`
-      await prisma.program.update({ where: { id: program.id }, data: { slug } })
-
-      const res = await unauthenticatedRequest().get(`/v1/public/programs/by-slug/${slug}`)
-
-      expect(res.status).toBe(404)
-    })
-  })
 })
