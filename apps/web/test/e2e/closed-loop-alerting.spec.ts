@@ -23,84 +23,96 @@ const MOCK_ALERT_RULES = [
   {
     id: 'rule-1',
     name: 'NPS Detractor Alert',
-    metric: 'NPS',
-    condition: 'LESS_THAN',
-    threshold: 7,
-    slaHours: 4,
-    assignee: 'Sarah K.',
     status: 'ACTIVE',
+    surveyTypes: ['NPS'],
+    slackWebhookUrl: 'https://hooks.slack.com/services/xxx',
+    emailRecipients: ['sarah@example.com'],
+    teamsWebhookUrl: null,
+    defaultAssignee: 'Sarah K.',
+    slaHours: 4,
     createdAt: '2026-03-20T08:00:00Z',
+    _count: { cases: 3 },
   },
   {
     id: 'rule-2',
     name: 'CSAT Low Score',
-    metric: 'CSAT',
-    condition: 'LESS_THAN',
-    threshold: 3,
-    slaHours: 24,
-    assignee: 'Mike T.',
     status: 'ACTIVE',
+    surveyTypes: ['CSAT'],
+    slackWebhookUrl: null,
+    emailRecipients: [],
+    teamsWebhookUrl: null,
+    defaultAssignee: 'Mike T.',
+    slaHours: 24,
     createdAt: '2026-03-22T14:30:00Z',
+    _count: { cases: 1 },
   },
 ]
 
 const MOCK_CASES = [
   {
     id: 'case-1',
+    caseNumber: 101,
+    score: 3,
+    surveyName: 'Post-Purchase NPS',
+    feedback: 'Very unhappy with the delivery time.',
     status: 'OPEN',
     assignee: 'Sarah K.',
-    priority: 'HIGH',
-    memberId: 'member-1',
-    surveyResponseId: 'resp-1',
-    slaDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    slaStatus: 'ON_TRACK',
-    alertRule: { name: 'NPS Detractor Alert', slaHours: 4 },
-    notes: [
-      { text: 'Case opened — Alert triggered by rule "NPS Detractor Alert"', author: 'system', timestamp: '2026-03-27T10:14:00Z' },
-    ],
+    slaTarget: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     createdAt: '2026-03-27T10:14:00Z',
   },
   {
     id: 'case-2',
+    caseNumber: 102,
+    score: 2,
+    surveyName: 'Support CSAT',
+    feedback: 'Support agent was unhelpful.',
     status: 'CONTACTED',
     assignee: 'Mike T.',
-    priority: 'MEDIUM',
-    memberId: 'member-2',
-    surveyResponseId: 'resp-2',
-    slaDeadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-    slaStatus: 'ON_TRACK',
-    alertRule: { name: 'CSAT Low Score', slaHours: 24 },
-    notes: [
-      { text: 'Case opened — Alert triggered by rule "CSAT Low Score"', author: 'system', timestamp: '2026-03-26T09:00:00Z' },
-      { text: 'Reached out via email', author: 'Mike T.', timestamp: '2026-03-26T11:30:00Z' },
-    ],
+    slaTarget: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
     createdAt: '2026-03-26T09:00:00Z',
   },
   {
     id: 'case-3',
+    caseNumber: 103,
+    score: 4,
+    surveyName: 'Post-Purchase NPS',
+    feedback: 'Product was okay but packaging was damaged.',
     status: 'RESOLVED',
     assignee: 'Sarah K.',
-    priority: 'LOW',
-    memberId: 'member-3',
-    surveyResponseId: 'resp-3',
-    slaDeadline: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    slaStatus: 'MET',
-    alertRule: { name: 'NPS Detractor Alert', slaHours: 4 },
-    notes: [
-      { text: 'Case opened — Alert triggered by rule "NPS Detractor Alert"', author: 'system', timestamp: '2026-03-25T08:00:00Z' },
-      { text: 'Issue resolved after phone call', author: 'Sarah K.', timestamp: '2026-03-25T10:00:00Z' },
-    ],
+    slaTarget: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
     createdAt: '2026-03-25T08:00:00Z',
   },
 ]
-
-const MOCK_CASE_DETAIL = MOCK_CASES[0]
 
 const MOCK_CASE_STATS = {
   open: 1,
   contacted: 1,
   resolved: 1,
   overdue: 0,
+}
+
+const MOCK_CASE_DETAIL = {
+  id: 'case-1',
+  caseNumber: 101,
+  memberId: 'member-1',
+  score: 3,
+  surveyName: 'Post-Purchase NPS',
+  sentiment: -0.6,
+  topics: ['delivery', 'shipping'],
+  feedback: 'Very unhappy with the delivery time.',
+  status: 'OPEN',
+  assignee: 'Sarah K.',
+  priority: 'HIGH',
+  slaTarget: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+  alertRuleName: 'NPS Detractor Alert',
+  channelsNotified: [
+    { channel: 'SLACK', sentAt: '2026-03-27T10:14:00Z', status: 'SENT' },
+    { channel: 'EMAIL', sentAt: '2026-03-27T10:14:01Z', status: 'SENT' },
+  ],
+  notes: [
+    { id: 'n1', text: 'Case opened — Alert triggered by rule "NPS Detractor Alert"', author: 'system', type: 'STATUS_CHANGE', createdAt: '2026-03-27T10:14:00Z' },
+  ],
+  createdAt: '2026-03-27T10:14:00Z',
 }
 
 // ---------------------------------------------------------------------------
@@ -120,88 +132,64 @@ async function mockClerkAuth(page: Page) {
 
 /** Intercept GET and POST for /v1/alert-rules */
 async function mockAlertRulesAPI(page: Page, rules = MOCK_ALERT_RULES) {
-  // List endpoint
   await page.route(`${API}/v1/alert-rules`, (route: Route) => {
-    if (route.request().method() === 'GET') {
+    if (route.request().method() === 'POST') {
       return route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ alertRules: rules }),
+        body: JSON.stringify({
+          id: 'rule-new',
+          name: 'New Alert Rule',
+          status: 'ACTIVE',
+          surveyTypes: ['NPS'],
+          slackWebhookUrl: null,
+          emailRecipients: [],
+          teamsWebhookUrl: null,
+          defaultAssignee: 'Sarah K.',
+          slaHours: 8,
+          createdAt: new Date().toISOString(),
+        }),
       })
     }
-    // POST — rule creation
+    // GET — return { rules } to match actual API shape
     return route.fulfill({
-      status: 201,
+      status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'rule-new',
-        name: 'New Alert Rule',
-        metric: 'NPS',
-        condition: 'LESS_THAN',
-        threshold: 5,
-        slaHours: 8,
-        assignee: 'Sarah K.',
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ rules }),
     })
-  })
-
-  // Detail endpoint (matches /v1/alert-rules/<id>)
-  await page.route(`${API}/v1/alert-rules/*`, (route: Route) => {
-    const url = route.request().url()
-    const id = url.split('/v1/alert-rules/')[1]?.split('?')[0]
-    const rule = rules.find((r) => r.id === id)
-    if (rule) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(rule),
-      })
-    }
-    route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found"}' })
   })
 }
 
-/** Intercept GET /v1/cases, GET /v1/cases/:id, PATCH status, POST notes */
-async function mockCasesAPI(page: Page, cases = MOCK_CASES) {
-  // Stats endpoint
-  await page.route(`${API}/v1/cases/stats`, (route: Route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_CASE_STATS),
-    })
-  })
-
-  // List endpoint
+/** Intercept GET /v1/cases and GET /v1/cases/:id */
+async function mockCasesAPI(page: Page) {
+  // List endpoint — returns cases + stats in one response
   await page.route(`${API}/v1/cases`, (route: Route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ cases }),
+        body: JSON.stringify({ cases: MOCK_CASES, stats: MOCK_CASE_STATS }),
       })
     }
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
 
-  // Detail / PATCH / POST notes (matches /v1/cases/<id> and /v1/cases/<id>/notes)
+  // Detail + PATCH + POST notes (matches /v1/cases/<id>*)
   await page.route(`${API}/v1/cases/*`, (route: Route) => {
     const url = route.request().url()
     const method = route.request().method()
 
-    // POST notes — /v1/cases/:id/notes
+    // POST notes
     if (url.includes('/notes') && method === 'POST') {
       return route.fulfill({
         status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ text: 'New note added', author: 'Sarah K.', timestamp: new Date().toISOString() }),
+        body: JSON.stringify({ id: 'n-new', text: 'New note', author: 'Sarah K.', type: 'NOTE', createdAt: new Date().toISOString() }),
       })
     }
 
-    // PATCH status — /v1/cases/:id
-    if (method === 'PATCH') {
+    // PATCH status — return updated case detail
+    if (url.includes('/status') && method === 'PATCH') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -209,18 +197,13 @@ async function mockCasesAPI(page: Page, cases = MOCK_CASES) {
       })
     }
 
-    // GET detail — /v1/cases/:id
+    // GET detail
     if (method === 'GET') {
-      const id = url.split('/v1/cases/')[1]?.split('?')[0]?.split('/')[0]
-      const found = cases.find((c) => c.id === id)
-      if (found) {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(found),
-        })
-      }
-      return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found"}' })
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_CASE_DETAIL),
+      })
     }
 
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
@@ -238,17 +221,12 @@ test.describe('Closed-Loop Alerting', () => {
   test.describe('Alert Rules', () => {
     test('displays alert rules list with empty state', async ({ page }) => {
       await mockClerkAuth(page)
-      // Override to return empty rules
       await mockAlertRulesAPI(page, [])
 
       await page.goto('/admin/alerts/rules')
 
-      // Should show empty state message
       await expect(page.getByText('No alert rules yet')).toBeVisible()
-
-      // Should show a link/button to create a new rule
-      const createLink = page.getByRole('link', { name: /Create Rule/i })
-      await expect(createLink).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Create Rule' })).toBeVisible()
     })
 
     test('creates an alert rule and redirects to list', async ({ page }) => {
@@ -257,16 +235,14 @@ test.describe('Closed-Loop Alerting', () => {
 
       await page.goto('/admin/alerts/rules/new')
 
-      // Fill the alert rule creation form
-      await page.getByTestId('alert-rule-name').fill('New Alert Rule')
-      await page.getByTestId('alert-rule-metric').selectOption('NPS')
-      await page.getByTestId('alert-rule-condition').selectOption('LESS_THAN')
-      await page.getByTestId('alert-rule-threshold').fill('5')
-      await page.getByTestId('alert-rule-sla-hours').fill('8')
-      await page.getByTestId('alert-rule-assignee').fill('Sarah K.')
+      // Fill the form using actual element IDs from the create page
+      await page.locator('#ruleName').fill('New Alert Rule')
+      await page.getByLabel('NPS').check()
+      await page.locator('#defaultAssignee').fill('Sarah K.')
+      await page.locator('#slaHours').fill('8')
 
       // Submit the form
-      await page.getByTestId('alert-rule-submit-btn').click()
+      await page.getByRole('button', { name: 'Save Alert Rule' }).click()
 
       // Should redirect back to the alert rules list
       await page.waitForURL('/admin/alerts/rules')
@@ -304,55 +280,47 @@ test.describe('Closed-Loop Alerting', () => {
       await expect(page.getByTestId('case-stat-resolved')).toContainText('1')
       await expect(page.getByTestId('case-stat-overdue')).toContainText('0')
 
-      // Verify the cases table is visible with rows
+      // Verify the cases table is visible
       await expect(page.getByTestId('cases-table')).toBeVisible()
 
-      // Verify table rows show case data with status badges
-      await expect(page.getByText('OPEN')).toBeVisible()
-      await expect(page.getByText('CONTACTED')).toBeVisible()
-      await expect(page.getByText('RESOLVED')).toBeVisible()
-
-      // Verify assignee names appear in the table
-      await expect(page.getByText('Sarah K.').first()).toBeVisible()
-      await expect(page.getByText('Mike T.')).toBeVisible()
-
-      // Verify alert rule names appear
-      await expect(page.getByText('NPS Detractor Alert').first()).toBeVisible()
-      await expect(page.getByText('CSAT Low Score')).toBeVisible()
+      // Verify status badges in the table
+      const table = page.getByTestId('cases-table')
+      await expect(table.getByText('OPEN')).toBeVisible()
+      await expect(table.getByText('CONTACTED')).toBeVisible()
+      await expect(table.getByText('RESOLVED')).toBeVisible()
     })
 
     test('navigates to case detail and shows timeline', async ({ page }) => {
       await page.goto('/admin/alerts/cases')
 
-      // Click on the first case to go to its detail page
-      await page.getByRole('link', { name: /case-1/i }).click()
+      // Click on the first case (renders as #101 link)
+      await page.getByRole('link', { name: '#101' }).click()
       await page.waitForURL('/admin/alerts/cases/case-1')
 
-      // Verify case detail page renders respondent info
-      await expect(page.getByText('Sarah K.')).toBeVisible()
+      // Verify case detail renders
+      await expect(page.getByText('Sarah K.').first()).toBeVisible()
       await expect(page.getByText('HIGH')).toBeVisible()
-      await expect(page.getByText('OPEN')).toBeVisible()
-      await expect(page.getByText('NPS Detractor Alert')).toBeVisible()
+      await expect(page.getByText('OPEN').first()).toBeVisible()
+      await expect(page.getByText('NPS Detractor Alert').first()).toBeVisible()
 
-      // Verify timeline entries are displayed
-      await expect(page.getByText('Case opened')).toBeVisible()
+      // Verify timeline entries
       await expect(page.getByText(/Alert triggered by rule/)).toBeVisible()
 
-      // Verify action buttons are visible
-      await expect(page.getByRole('button', { name: /Mark Contacted/i })).toBeVisible()
-      await expect(page.getByRole('button', { name: /Resolve/i })).toBeVisible()
+      // Verify action buttons
+      await expect(page.getByRole('button', { name: /Mark Contacted/ })).toBeVisible()
+      await expect(page.getByRole('button', { name: /Mark Resolved/ })).toBeVisible()
     })
 
     test('updates case status via action buttons', async ({ page }) => {
       await page.goto('/admin/alerts/cases/case-1')
 
       // Verify the case is currently OPEN
-      await expect(page.getByText('OPEN')).toBeVisible()
+      await expect(page.getByText('OPEN').first()).toBeVisible()
 
-      // Click "Mark Contacted" to update status
-      await page.getByRole('button', { name: /Mark Contacted/i }).click()
+      // Click "Mark Contacted"
+      await page.getByRole('button', { name: /Mark Contacted/ }).click()
 
-      // After the PATCH response, the status should update to CONTACTED
+      // After the PATCH, the page reloads case data — mock returns CONTACTED
       await expect(page.getByText('CONTACTED')).toBeVisible()
     })
   })

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface CaseNote {
   id: string
@@ -94,7 +94,7 @@ export default function CaseDetailPage() {
 
   const loadCase = useCallback(async () => {
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const res = await fetch(`${API_URL}/v1/cases/${id}`, { cache: 'no-store', headers })
       if (!res.ok) return
@@ -114,7 +114,7 @@ export default function CaseDetailPage() {
   async function updateStatus(newStatus: string) {
     setUpdatingStatus(true)
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch(`${API_URL}/v1/cases/${id}/status`, {
@@ -136,7 +136,7 @@ export default function CaseDetailPage() {
     if (!noteText.trim()) return
     setSubmittingNote(true)
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch(`${API_URL}/v1/cases/${id}/notes`, {

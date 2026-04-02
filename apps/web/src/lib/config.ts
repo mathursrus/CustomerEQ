@@ -16,7 +16,7 @@ export const API_URL =
  */
 export async function getAuthToken(
   getToken: () => Promise<string | null>,
-  timeoutMs = 2000,
+  timeoutMs = 1000,
 ): Promise<string | null> {
   try {
     return await Promise.race([

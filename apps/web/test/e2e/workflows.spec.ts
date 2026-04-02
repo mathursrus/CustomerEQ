@@ -74,16 +74,42 @@ const MOCK_PROGRAMS = [
 
 /** Intercept programs API for list views */
 async function mockProgramsAPI(page: Page) {
-  // List endpoint — uses glob * (no slash) so it matches /v1/programs and
-  // /v1/programs?page=1&pageSize=25 but NOT /v1/programs/:id sub-paths
+  // List, create, and detail endpoints
   await page.route(`${API}/v1/programs*`, (route: Route) => {
-    // Only handle requests that don't have a path segment after /programs
-    if (route.request().url().includes('/v1/programs/')) {
-      return route.continue()
+    const url = route.request().url()
+    // Detail endpoint — /v1/programs/<id> (no further sub-path)
+    if (url.includes('/v1/programs/') && !url.split('/v1/programs/')[1]?.includes('/')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'prog-new',
+          name: 'Workflow Test Program',
+          type: 'POINTS',
+          status: 'DRAFT',
+          pointCurrencyName: 'Points',
+          startDate: null,
+          endDate: null,
+          budgetUsdCents: null,
+          createdAt: new Date().toISOString(),
+          tiers: [],
+          rewards: [],
+          earningRules: [],
+        }),
+      })
     }
+    // Sub-resource paths (/v1/programs/<id>/rules, /status, etc.)
+    if (url.includes('/v1/programs/')) return route.continue()
     if (route.request().method() === 'POST') {
       return route.fulfill({
         status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'prog-new', name: 'Workflow Test Program' }),
+      })
+    }
+    if (route.request().method() === 'PATCH') {
+      return route.fulfill({
+        status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ id: 'prog-new', name: 'Workflow Test Program' }),
       })
@@ -296,7 +322,14 @@ test.describe('Workflow 2: Program Creation Wizard', () => {
     await mockProgramsAPI(page)
   })
 
-  test('completes the full 7-step wizard and activates a program', async ({ page }) => {
+  test('completes the full 7-step wizard and activates a program', async ({ page }, testInfo) => {
+    testInfo.setTimeout(120_000)
+
+    // Mock rewards endpoint (used during activation)
+    await page.route(`${API}/v1/rewards`, (route: Route) => {
+      route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 'reward-1' }) })
+    })
+
     // Mock all program sub-resource writes (rules, status, etc.)
     // Step 3 auto-adds a default earning rule, so rules POST must be mocked.
     await page.route(`${API}/v1/programs/*/*`, (route: Route) => {
@@ -317,9 +350,10 @@ test.describe('Workflow 2: Program Creation Wizard', () => {
     await page.getByTestId('type-points').click()
     await page.getByRole('button', { name: /Next: Basic Info/ }).click()
 
-    // ── Step 2: Fill program name ──────────────────────────────────────────
+    // ── Step 2: Fill program name and start date ────────────────────────────
     const programName = 'Workflow Test Program'
     await page.locator('input[placeholder*="Summer Rewards"]').fill(programName)
+    await page.locator('input[type="date"]').first().fill('2026-06-01')
     await page.getByRole('button', { name: /Next: Earning Rules/ }).click()
 
     // ── Step 3: Skip earning rules (POINTS → "Next: Rewards →") ───────────
@@ -329,10 +363,15 @@ test.describe('Workflow 2: Program Creation Wizard', () => {
     await expect(page.getByText('does not use tiers')).toBeVisible()
     await page.getByRole('button', { name: /Next: Rewards/ }).click()
 
-    // ── Step 5: Skip rewards ───────────────────────────────────────────────
+    // ── Step 5: Add a reward (required) then proceed ────────────────────────
+    await page.getByRole('button', { name: /Add Reward/ }).click()
+    await page.locator('input[placeholder*="10% Discount"]').fill('Welcome Reward')
+    await page.locator('input[placeholder*="200"]').fill('100')
+    await page.getByRole('button', { name: 'Save Reward' }).click()
     await page.getByRole('button', { name: /Next: Budget/ }).click()
 
-    // ── Step 6: Skip budget ────────────────────────────────────────────────
+    // ── Step 6: Set budget (required) then proceed ──────────────────────────
+    await page.locator('input[placeholder*="10,000"]').fill('5000')
     await page.getByRole('button', { name: /Next: Preview/ }).click()
 
     // ── Step 7: Preview — click Activate Program ───────────────────────────

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 interface Case {
   id: string
@@ -92,7 +92,7 @@ export default function CasesPage() {
   })
 
   const loadCases = useCallback(async () => {
-    const token = await getToken()
+    const token = await getAuthToken(getToken)
     const data = await getCases(token, filters)
     setCases(data.cases)
     setStats(data.stats)
@@ -119,19 +119,19 @@ export default function CasesPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+        <div data-testid="case-stat-open" className="rounded-xl border border-gray-200 bg-white px-6 py-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Open</p>
           <p className="mt-1 text-2xl font-bold text-red-600">{stats.open}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+        <div data-testid="case-stat-contacted" className="rounded-xl border border-gray-200 bg-white px-6 py-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contacted</p>
           <p className="mt-1 text-2xl font-bold text-yellow-600">{stats.contacted}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+        <div data-testid="case-stat-resolved" className="rounded-xl border border-gray-200 bg-white px-6 py-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resolved</p>
           <p className="mt-1 text-2xl font-bold text-green-600">{stats.resolved}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+        <div data-testid="case-stat-overdue" className="rounded-xl border border-gray-200 bg-white px-6 py-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Overdue</p>
           <p className="mt-1 text-2xl font-bold text-red-600 animate-pulse">{stats.overdue}</p>
         </div>
@@ -206,7 +206,7 @@ export default function CasesPage() {
 
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <table className="w-full text-sm">
+        <table data-testid="cases-table" className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Case #</th>
