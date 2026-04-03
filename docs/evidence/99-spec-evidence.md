@@ -1,6 +1,6 @@
 # Feature Specification: Customer Health Score
 Issue: #99
-PR: (to be linked after PR creation)
+PR: https://github.com/mathursrus/CustomerEQ/pull/103
 
 ## Completeness Evidence
 - Issue tagged with label `phase:spec`: Yes
