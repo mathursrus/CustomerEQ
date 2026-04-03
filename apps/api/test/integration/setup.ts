@@ -37,7 +37,7 @@ vi.mock('../../src/plugins/prisma.js', async () => {
   }
 })
 
-import { setupTestDb, teardownTestDb, setTestApp } from '@customerEQ/config/test-utils'
+import { setupTestDb, teardownTestDb, setTestApp, getTestApp } from '@customerEQ/config/test-utils'
 import { buildApp } from '../../src/app.js'
 
 beforeAll(async () => {
@@ -48,5 +48,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  const app = getTestApp()
+  await app.close()
   await teardownTestDb()
 })
