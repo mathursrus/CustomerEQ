@@ -248,6 +248,33 @@ High confidence. All data exists in current DB schema. Pattern matches existing 
 
 ---
 
+## Architecture Analysis
+
+### Patterns Correctly Followed
+
+| Pattern | Architecture Reference | How Design Follows It |
+|---|---|---|
+| RSC server-side data fetching with Clerk token | §3.1 "Server components fetch with Clerk token" | `AdminHomePage` is an RSC that fetches `/v1/analytics/program-health` server-side using `getAuthToken()` before rendering |
+| New route under `/v1/analytics/*` | §4.1 Route table — `/v1/analytics` row | `GET /v1/analytics/program-health` added to existing `analyticsRoutes` Fastify plugin |
+| Parallel DB queries via `Promise.all` | Pattern in existing `analytics.ts:117` | All four sub-queries run concurrently; no sequential waterfalls |
+| `brandId` from JWT only, never request body | §4.2 `multiTenant` plugin | All queries scoped to `request.brandId` derived from JWT; no brand param in query string |
+| Tailwind utility-first CSS | §2 UI stack: "Tailwind CSS v4 + shadcn/ui" | Components use `grid`, `rounded-xl`, `border` Tailwind utilities; no inline styles |
+| Additive-only schema change | Convention established in prior issues | No new Prisma models; all data computable from existing tables |
+
+### Patterns Missing from Architecture
+
+| Pattern | Description | Suggested Resolution |
+|---|---|---|
+| **Admin home route** | §3.1 documents `(admin)/` module group but does not call out `/admin/page.tsx` as the operator home entry point. The architecture implies `/admin/analytics` is the home but this changes with #78. | Update §3.1 to note `/admin/page.tsx` as operator home dashboard; `/admin/analytics` remains as drill-down analytics. |
+| **Rule-based insights engine** | The design introduces a deterministic, in-process computation layer (`computeInsights()`) that joins CX + loyalty data to surface actionable strings. This is a new computational pattern not covered in §3.2 or §3.3. | Add a note in §4.1 analytics route section: "Insights are computed in-process by a rule engine (`computeInsights()`) reading CX + loyalty aggregates. Rules are deterministic; LLM generation is a deferred enhancement." |
+| **URL-state-to-form-preload pattern** | The design uses `searchParams` (`filter=detractors&maxNps=6`) to pre-populate the campaign builder form. This is a new UX pattern (metric click-through → pre-filtered builder) not documented in the architecture. | Add to §3.1 Web App patterns: "Context-aware navigation: CX metric click-throughs use `searchParams` to pre-populate campaign/survey builder forms without a separate API round-trip." |
+
+### Patterns Incorrectly Followed
+
+None found. The design correctly applies all documented architectural patterns.
+
+---
+
 ## Open Questions
 
 | ID | Question | Decision |
