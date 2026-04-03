@@ -1,6 +1,6 @@
 # Feature Specification: CRM Core — Customer 360 API, Search, and KYC Synthesis
 Issue: #98
-PR: (pending creation)
+PR: https://github.com/mathursrus/CustomerEQ/pull/102
 
 ## Summary
 - **Issue:** #98 — Phase A: CRM Core — Customer 360 API, Search, and KYC Synthesis
