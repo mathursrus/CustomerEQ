@@ -1,44 +1,32 @@
 /// <reference types="vitest" />
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { MockPrisma } from '@customerEQ/config/test-utils'
 import { createCampaignTriggerProcessor, evaluateTriggerCondition } from './campaignTriggers.js'
 
 // ---------------------------------------------------------------------------
-// Module mocks
+// Module mocks — use shared factories from test-utils (async import for hoisting)
 // ---------------------------------------------------------------------------
 
-vi.mock('@customerEQ/database', () => ({
-  prisma: {
-    campaign: {
-      findUniqueOrThrow: vi.fn(),
-      update: vi.fn(),
-    },
-    $transaction: vi.fn(),
-  },
-}))
+vi.mock('@customerEQ/database', async () => {
+  const { databaseMockFactory } = await import('@customerEQ/config/test-utils')
+  return databaseMockFactory()
+})
 
 vi.mock('../queues/producers.js', () => ({
   enqueueNotification: vi.fn(),
 }))
 
 // ---------------------------------------------------------------------------
-// Import mocked instances after vi.mock
+// Typed references to mocked modules
 // ---------------------------------------------------------------------------
 
 import { prisma } from '@customerEQ/database'
 import { enqueueNotification } from '../queues/producers.js'
-
-const mockPrisma = prisma as unknown as {
-  campaign: {
-    findUniqueOrThrow: ReturnType<typeof vi.fn>
-    update: ReturnType<typeof vi.fn>
-  }
-  $transaction: ReturnType<typeof vi.fn>
-}
-
+const mockPrisma = prisma as unknown as MockPrisma
 const mockEnqueueNotification = enqueueNotification as ReturnType<typeof vi.fn>
 
 // ---------------------------------------------------------------------------
-// Mock Redis
+// Mock Redis (uses shared createMockRedis pattern)
 // ---------------------------------------------------------------------------
 
 function makeMockRedis() {

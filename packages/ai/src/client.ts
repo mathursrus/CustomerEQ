@@ -20,8 +20,8 @@ export function getAiClient(): AiClient {
   // For 'anthropic' provider, use the BAML-generated client
   // TODO: Wire up BAML generated client once `baml-cli generate` is run
   // For now, fall back to mock with a warning
-  console.warn(
-    `AI_PROVIDER=${AI_PROVIDER} but BAML client not yet generated. Falling back to mock.`,
+  process.stderr.write(
+    `[warn] AI_PROVIDER=${AI_PROVIDER} but BAML client not yet generated. Falling back to mock.\n`,
   )
   _client = createMockClient()
   return _client

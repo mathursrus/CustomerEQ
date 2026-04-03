@@ -1,6 +1,9 @@
 import type { Job } from 'bullmq'
 import type { PrismaClient } from '@prisma/client'
 import type { Prisma } from '@prisma/client'
+import pino from 'pino'
+
+const logger = pino({ name: 'alert-evaluation' })
 
 export interface AlertEvaluationPayload {
   surveyResponseId: string
@@ -226,7 +229,7 @@ async function deliverAlerts(
 
   // Email (via console log for now — notification queue integration in v2)
   for (const email of rule.emailRecipients) {
-    console.log(`[ALERT EMAIL] To: ${email} | ${message}`)
+    logger.info({ to: email, message }, 'Alert email notification')
     details.push({ channel: 'Email', target: email, success: true })
   }
 

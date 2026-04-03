@@ -1,4 +1,7 @@
+import pino from 'pino'
 import { buildApp } from './app.js'
+
+const logger = pino({ name: 'api-server' })
 
 async function main() {
   const fastify = await buildApp()
@@ -16,6 +19,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Fatal error during startup:', err)
+  logger.fatal(err, 'Fatal error during startup')
   process.exit(1)
 })

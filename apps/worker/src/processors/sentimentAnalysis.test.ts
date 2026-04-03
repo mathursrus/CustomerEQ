@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { heuristicAnalyze } from './sentimentAnalysis.js'
 
 describe('heuristicAnalyze — sentiment analysis', () => {

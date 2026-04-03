@@ -584,4 +584,5 @@ function generateWidgetJs(
 })();`
 }
 
+export { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema }
 export default publicRoutes

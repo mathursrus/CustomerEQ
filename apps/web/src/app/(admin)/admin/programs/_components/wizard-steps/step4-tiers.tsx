@@ -57,7 +57,6 @@ export function Step4Tiers({
         dispatch({ type: 'ADD_TIER', tier: makeTier(t) })
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTiered])
 
   function openEdit(tier: Tier) {

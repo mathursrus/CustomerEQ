@@ -6,7 +6,6 @@ import {
   UpdateProgramStatusSchema,
   SimulateSchema,
   CreateTierSchema,
-  CreateRewardSchema,
   RetireRewardSchema,
   evaluateConditions,
 } from '@customerEQ/shared'

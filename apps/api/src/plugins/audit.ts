@@ -110,6 +110,7 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
   })
 }
 
+export { inferAction, extractResourceId }
 export default fp(auditPlugin, {
   name: 'audit',
   dependencies: ['prisma'],

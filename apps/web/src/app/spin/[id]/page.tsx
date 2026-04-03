@@ -113,7 +113,7 @@ export default function MemberSpinPage() {
   }
 
   function handleSpin() {
-    if (spinState !== 'ready' || !data?.winningIndex === undefined) return
+    if (spinState !== 'ready' || data?.winningIndex === undefined) return
     setSpinState('spinning')
 
     const winIdx = data!.winningIndex!

@@ -1,10 +1,11 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
+import { mockClerkVerifyToken } from '@customerEQ/config/test-utils'
 
-// Mock @clerk/backend before importing the auth plugin
+// Mock @clerk/backend using the shared clerk mock factory
 vi.mock('@clerk/backend', () => ({
-  verifyToken: vi.fn(),
+  verifyToken: mockClerkVerifyToken('org_default'),
 }))
 
 import { verifyToken } from '@clerk/backend'

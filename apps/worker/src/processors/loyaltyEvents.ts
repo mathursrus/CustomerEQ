@@ -126,7 +126,7 @@ export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promis
   skipped?: boolean
   reason?: string
 }> {
-  const { brandId, memberId, eventType, payload, idempotencyKey, ingestedAt } = job.data
+  const { brandId, memberId, eventType, payload, idempotencyKey } = job.data
 
   // Idempotency: skip if we have already processed this key
   if (idempotencyKey) {

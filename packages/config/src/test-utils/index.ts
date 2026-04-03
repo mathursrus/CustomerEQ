@@ -21,6 +21,9 @@ export { salesforceNpsPayload, hubspotTicketPayload, invalidSignatureHeaders } f
 export { mockEmailSend, assertEmailSent, clearEmailMock, getSentEmails } from './mocks/email.mock.js'
 export { mockSentimentAnalyze, mockNegativeSentiment, mockPositiveSentiment, clearSentimentMock } from './mocks/sentiment.mock.js'
 export { mockAnalyzeResponse, mockDiscoverClusters, mockDetectAnomalies, mockNegativeAnalysis, mockNewClusterAnalysis, clearAiMock } from './mocks/ai.mock.js'
+export { databaseMockFactory, createMockPrisma } from './mocks/database.mock.js'
+export type { MockPrisma } from './mocks/database.mock.js'
+export { pinoMockFactory } from './mocks/pino.mock.js'
 
 // Helpers
 export { authenticatedRequest, unauthenticatedRequest, setTestApp, getTestApp } from './helpers/api.helper.js'
