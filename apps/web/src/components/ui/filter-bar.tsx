@@ -44,7 +44,7 @@ export function FilterBar({
           onChange={e => onFilterChange(filter.key, e.target.value)}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">All {filter.label}s</option>
+          <option value="">All {filter.label}{filter.label.endsWith('s') ? 'es' : 's'}</option>
           {filter.options.map(opt => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
