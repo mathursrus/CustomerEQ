@@ -172,7 +172,7 @@ test.describe('Persona 1: Admin creates spin wheel campaign', () => {
     await expect(page.getByRole('heading', { name: 'Embed Code' })).toBeVisible()
     await expect(page.getByTestId('copy-embed-btn')).toBeVisible()
     await expect(page.getByTestId('go-to-campaigns-btn')).toBeVisible()
-    await expect(page.getByText('camp-spin-123')).toBeVisible() // campaign ID in embed code
+    await expect(page.getByText('camp-spin-123').first()).toBeVisible() // campaign ID in embed code
   })
 
   test('segment builder is hidden when action type is not spin_wheel', async ({ page }) => {
