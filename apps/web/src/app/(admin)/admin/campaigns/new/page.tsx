@@ -20,6 +20,13 @@ interface SpinSegment {
 
 const DEFAULT_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
 
+interface ScratchPrize {
+  rewardId?: string
+  points: number
+  probability: number
+  label: string
+}
+
 interface FormData {
   name: string
   programId: string
@@ -35,6 +42,9 @@ interface FormData {
   endDate: string
   segments: SpinSegment[]
   wheelStyle: 'classic' | 'neon' | 'minimal'
+  prizes: ScratchPrize[]
+  cardStyle: 'gold' | 'silver' | 'holiday' | 'branded'
+  scratchText: string
 }
 
 // ─── Color Helpers ─────────────────────────────────────────────────────────
@@ -273,6 +283,12 @@ export default function NewCampaignPage() {
       { points: 100, probability: 60, label: '100 Points', color: '#10B981' },
     ],
     wheelStyle: 'classic' as const,
+    prizes: [
+      { points: 500, probability: 30, label: '500 Points!' },
+      { points: 50, probability: 70, label: '50 Points' },
+    ],
+    cardStyle: 'gold' as const,
+    scratchText: 'Scratch to reveal!',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -308,6 +324,13 @@ export default function NewCampaignPage() {
       if (Math.abs(probSum - 100) > 0.01) errs.segments = `Probabilities must sum to 100% (currently ${probSum.toFixed(1)}%)`
       if (form.segments.some((s) => !s.label.trim())) errs.segments = 'All segments must have a label'
     }
+    if (form.actionType === 'scratch_card') {
+      if (form.prizes.length < 2) errs.prizes = 'Card must have at least 2 prizes'
+      if (form.prizes.length > 8) errs.prizes = 'Card can have at most 8 prizes'
+      const probSum = form.prizes.reduce((s, p) => s + p.probability, 0)
+      if (Math.abs(probSum - 100) > 0.01) errs.prizes = `Probabilities must sum to 100% (currently ${probSum.toFixed(1)}%)`
+      if (form.prizes.some((p) => !p.label.trim())) errs.prizes = 'All prizes must have a label'
+    }
     if (!form.startDate) errs.startDate = 'Start date is required'
     return errs
   }
@@ -333,9 +356,11 @@ export default function NewCampaignPage() {
         actionType: form.actionType,
         actionConfig: form.actionType === 'spin_wheel'
           ? { segments: form.segments, wheelStyle: form.wheelStyle }
-          : form.actionType === 'award_points'
-            ? { points: Number(form.actionPoints) }
-            : { message: form.actionMessage },
+          : form.actionType === 'scratch_card'
+            ? { prizes: form.prizes, cardStyle: form.cardStyle, scratchText: form.scratchText }
+            : form.actionType === 'award_points'
+              ? { points: Number(form.actionPoints) }
+              : { message: form.actionMessage },
         budgetCap: form.budgetCap ? Number(form.budgetCap) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : form.startDate,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
@@ -351,7 +376,7 @@ export default function NewCampaignPage() {
         throw new Error(data?.error ?? data?.message ?? `Failed with status ${res.status}`)
       }
       const created = await res.json()
-      if (form.actionType === 'spin_wheel') {
+      if (form.actionType === 'spin_wheel' || form.actionType === 'scratch_card') {
         setCreatedCampaignId(created.id)
       } else {
         router.push('/admin/campaigns')
@@ -364,14 +389,18 @@ export default function NewCampaignPage() {
   }
 
   const isSpinWheel = form.actionType === 'spin_wheel'
+  const isScratchCard = form.actionType === 'scratch_card'
+  const isInteractive = isSpinWheel || isScratchCard
 
-  // After successful spin wheel campaign creation — show embed code
+  // After successful interactive campaign creation — show embed code
   if (createdCampaignId) {
+    const componentName = form.actionType === 'scratch_card' ? 'ceq-scratch-card' : 'ceq-spin-wheel'
+    const memberPagePath = form.actionType === 'scratch_card' ? 'scratch' : 'spin'
     return (
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Campaign Created!</h1>
-          <p className="mt-1 text-sm text-gray-500">Your spin wheel campaign is ready. Embed it on your site.</p>
+          <p className="mt-1 text-sm text-gray-500">Your campaign is ready. Embed it on your site or share the link.</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Embed Code</h2>
@@ -379,7 +408,7 @@ export default function NewCampaignPage() {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(
-                  `<script src="https://cdn.customereq.com/components/v1/ceq-components.js"></script>\n<ceq-spin-wheel campaign-id="${createdCampaignId}" token="{{MEMBER_TOKEN}}"></ceq-spin-wheel>`
+                  `<script src="https://cdn.customereq.com/components/v1/ceq-components.js"></script>\n<${componentName} campaign-id="${createdCampaignId}" token="{{MEMBER_TOKEN}}"></${componentName}>`
                 )
               }}
               className="absolute top-2 right-2 px-2 py-1 bg-gray-700 text-gray-300 rounded text-[10px] hover:bg-gray-600"
@@ -388,11 +417,14 @@ export default function NewCampaignPage() {
               Copy
             </button>
             <div>&lt;script src=&quot;https://cdn.customereq.com/components/v1/ceq-components.js&quot;&gt;&lt;/script&gt;</div>
-            <div className="mt-2">&lt;ceq-spin-wheel</div>
+            <div className="mt-2">&lt;{componentName}</div>
             <div className="ml-4">campaign-id=&quot;{createdCampaignId}&quot;</div>
             <div className="ml-4">token=&quot;{'{{MEMBER_TOKEN}}'}&quot;&gt;</div>
-            <div>&lt;/ceq-spin-wheel&gt;</div>
+            <div>&lt;/{componentName}&gt;</div>
           </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Or use direct link: <code className="bg-gray-100 px-1 rounded">/{memberPagePath}/{createdCampaignId}</code>
+          </p>
           <p className="mt-3 text-xs text-gray-500">
             Replace <code className="bg-gray-100 px-1 rounded">{'{{MEMBER_TOKEN}}'}</code> with the authenticated member&apos;s JWT token.
           </p>
@@ -417,13 +449,13 @@ export default function NewCampaignPage() {
   }
 
   return (
-    <div className={isSpinWheel ? 'max-w-5xl mx-auto' : 'max-w-2xl mx-auto'}>
+    <div className={isInteractive ? 'max-w-5xl mx-auto' : 'max-w-2xl mx-auto'}>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Create Campaign</h1>
         <p className="mt-1 text-sm text-gray-500">Build a CX-triggered loyalty campaign</p>
       </div>
 
-      <div className={isSpinWheel ? 'grid grid-cols-[1fr_380px] gap-8' : ''}>
+      <div className={isInteractive ? 'grid grid-cols-[1fr_380px] gap-8' : ''}>
         {/* Form Panel */}
         <div className="rounded-xl border border-gray-200 bg-white p-8">
           {serverError && (
@@ -485,6 +517,7 @@ export default function NewCampaignPage() {
                   <option value="award_points">Award Points</option>
                   <option value="send_message">Send Message</option>
                   <option value="spin_wheel">Spin Wheel</option>
+              <option value="scratch_card">Scratch Card</option>
                 </select>
                 {errors.actionType && <p className="mt-1 text-xs text-red-600">{errors.actionType}</p>}
               </div>
@@ -742,6 +775,62 @@ export default function NewCampaignPage() {
               </div>
             )}
 
+            {/* Scratch Card Prize Builder */}
+            {isScratchCard && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">Prize Pool <span className="text-red-500">*</span></p>
+                  <span className="text-xs text-gray-400">{form.prizes.length}/8 prizes</span>
+                </div>
+                <div className="space-y-2">
+                  {form.prizes.map((prize, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <input type="text" value={prize.label} onChange={(e) => { const u = [...form.prizes]; u[idx] = { ...u[idx], label: e.target.value }; setForm(f => ({ ...f, prizes: u })) }} className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Prize label" data-testid={`prize-label-${idx}`} />
+                      <input type="number" value={prize.points} min={0} onChange={(e) => { const u = [...form.prizes]; u[idx] = { ...u[idx], points: Number(e.target.value) }; setForm(f => ({ ...f, prizes: u })) }} className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Pts" data-testid={`prize-points-${idx}`} />
+                      <div className="flex items-center gap-0.5">
+                        <input type="number" value={prize.probability} min={0} max={100} onChange={(e) => { const u = [...form.prizes]; u[idx] = { ...u[idx], probability: Number(e.target.value) }; setForm(f => ({ ...f, prizes: u })) }} className="w-14 rounded-lg border border-gray-300 px-1 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" data-testid={`prize-prob-${idx}`} />
+                        <span className="text-[10px] text-gray-400">%</span>
+                      </div>
+                      {form.prizes.length > 2 ? (
+                        <button type="button" onClick={() => setForm(f => ({ ...f, prizes: f.prizes.filter((_, i) => i !== idx) }))} className="w-7 h-7 rounded border border-red-200 bg-red-50 text-red-500 text-sm flex items-center justify-center hover:bg-red-100" data-testid={`prize-remove-${idx}`}>&times;</button>
+                      ) : <div className="w-7" />}
+                    </div>
+                  ))}
+                </div>
+                {form.prizes.length < 8 && (
+                  <button type="button" onClick={() => setForm(f => ({ ...f, prizes: [...f.prizes, { points: 100, probability: 0, label: '' }] }))} className="mt-2 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors" data-testid="add-prize-btn">+ Add Prize</button>
+                )}
+                {(() => {
+                  const sum = form.prizes.reduce((s, p) => s + p.probability, 0)
+                  const isValid = Math.abs(sum - 100) < 0.01
+                  return <p className={`mt-2 text-xs text-right ${isValid ? 'text-green-600' : 'text-red-600'}`} data-testid="prize-prob-total">Total: {sum.toFixed(1)}% {isValid ? '\u2713' : '(must be 100%)'}</p>
+                })()}
+                {errors.prizes && <p className="mt-1 text-xs text-red-600">{errors.prizes}</p>}
+
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Card Style</p>
+                  <div className="flex gap-2">
+                    {([
+                      { key: 'gold' as const, label: 'Gold Foil', bg: 'linear-gradient(135deg, #D4AF37, #F5E6A3, #D4AF37)' },
+                      { key: 'silver' as const, label: 'Silver', bg: 'linear-gradient(135deg, #C0C0C0, #E8E8E8, #C0C0C0)' },
+                      { key: 'holiday' as const, label: 'Holiday', bg: 'linear-gradient(135deg, #c41e3a, #2d5a27, #c41e3a)' },
+                      { key: 'branded' as const, label: 'Branded', bg: '#4f46e5' },
+                    ]).map((s) => (
+                      <button key={s.key} type="button" onClick={() => setForm(f => ({ ...f, cardStyle: s.key }))} className={`flex-1 rounded-lg border overflow-hidden transition-colors ${form.cardStyle === s.key ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'}`}>
+                        <div style={{ background: s.bg }} className="h-8" />
+                        <div className="py-1.5 text-xs font-medium text-center">{s.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Scratch Text</label>
+                  <input type="text" value={form.scratchText} onChange={(e) => setForm(f => ({ ...f, scratchText: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Scratch to reveal!" data-testid="scratch-text-input" />
+                </div>
+              </div>
+            )}
+
             {/* Submit */}
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -757,14 +846,14 @@ export default function NewCampaignPage() {
                 disabled={submitting}
                 className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
-                {submitting ? 'Creating...' : isSpinWheel ? 'Save as Draft' : 'Create Campaign'}
+                {submitting ? 'Creating...' : isInteractive ? 'Save as Draft' : 'Create Campaign'}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Live Preview Panel (spin wheel only) */}
-        {isSpinWheel && (
+        {/* Live Preview Panel (interactive campaigns) */}
+        {isInteractive && (
           <div className="sticky top-8 self-start">
             <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
@@ -772,7 +861,29 @@ export default function NewCampaignPage() {
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">DRAFT</span>
               </div>
               <div className="p-6">
-                <WheelPreview segments={form.segments} style={form.wheelStyle} />
+                {isSpinWheel && <WheelPreview segments={form.segments} style={form.wheelStyle} />}
+                {isScratchCard && (
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-[300px] h-[190px] rounded-xl overflow-hidden shadow-lg" data-testid="scratch-preview">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-white">
+                        <span className="text-3xl mb-1">🎉</span>
+                        <span className="text-lg font-bold text-emerald-600">{form.prizes[0]?.label || 'Prize'}</span>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center text-white font-semibold text-sm" style={{
+                        background: form.cardStyle === 'silver'
+                          ? 'linear-gradient(135deg, #C0C0C0, #E8E8E8, #C0C0C0, #A8A8A8)'
+                          : form.cardStyle === 'holiday'
+                            ? 'linear-gradient(135deg, #c41e3a, #2d5a27, #c41e3a)'
+                            : form.cardStyle === 'branded'
+                              ? '#4f46e5'
+                              : 'linear-gradient(135deg, #D4AF37, #F5E6A3, #D4AF37, #C5982C)',
+                      }}>
+                        {form.scratchText || 'Scratch to reveal!'}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs text-gray-400">Scratch card preview (not interactive here)</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
