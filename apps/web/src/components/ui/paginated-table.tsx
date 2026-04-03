@@ -43,7 +43,7 @@ export function PaginatedTable<T extends { id: string }>({
 
   return (
     <div data-testid={testId} className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -115,6 +115,7 @@ export function PaginatedTable<T extends { id: string }>({
               type="button"
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
+              aria-label="Previous page"
               className="rounded px-2 py-1 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               ‹
@@ -124,6 +125,7 @@ export function PaginatedTable<T extends { id: string }>({
               type="button"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
+              aria-label="Next page"
               className="rounded px-2 py-1 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               ›

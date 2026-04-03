@@ -343,7 +343,7 @@ export default function SurveyBuilderPage() {
       {/* ============ 3-Panel Layout ============ */}
       <div className="flex flex-1 overflow-hidden">
         {/* ---- Left Panel: Palette ---- */}
-        <div className="w-[240px] flex-shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto p-3">
+        <div className="hidden md:block w-[240px] flex-shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto p-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Question Types
           </p>
@@ -453,7 +453,7 @@ export default function SurveyBuilderPage() {
         </div>
 
         {/* ---- Right Panel: Config ---- */}
-        <div className="w-[340px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto p-4">
+        <div className="hidden lg:block w-[340px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto p-4">
           {selected === null || selectedIdx === null ? (
             <div className="flex items-center justify-center h-full text-gray-400 text-sm">
               Select a question to configure
