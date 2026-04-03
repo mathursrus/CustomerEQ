@@ -116,6 +116,75 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(200).send(updated)
     },
   )
+
+  // PATCH /v1/campaigns/:id — edit campaign fields
+  fastify.patch<{ Params: { id: string } }>(
+    '/campaigns/:id',
+    async (request, reply) => {
+      const existing = await fastify.prisma.campaign.findFirst({
+        where: { id: request.params.id, brandId: request.brandId },
+      })
+      if (!existing) {
+        return reply.status(404).send({ error: 'Campaign not found' })
+      }
+
+      const body = request.body as Record<string, unknown>
+
+      // ACTIVE campaigns: only name and budgetCap are editable
+      if (existing.status === 'ACTIVE') {
+        const allowedFields = ['name', 'budgetCap']
+        const disallowed = Object.keys(body).filter((k) => !allowedFields.includes(k))
+        if (disallowed.length > 0) {
+          return reply.status(422).send({
+            error: `Active campaigns can only update: ${allowedFields.join(', ')}. Cannot update: ${disallowed.join(', ')}`,
+          })
+        }
+      }
+
+      // COMPLETED campaigns cannot be edited at all
+      if (existing.status === 'COMPLETED') {
+        return reply.status(422).send({ error: 'Completed campaigns cannot be edited' })
+      }
+
+      // Validate actionConfig if provided
+      if (body.actionConfig) {
+        const actionType = (body.actionType as string) ?? existing.actionType
+        const testPayload = {
+          name: (body.name as string) ?? existing.name,
+          programId: existing.programId,
+          triggerType: (body.triggerType as string) ?? existing.triggerType,
+          actionType,
+          actionConfig: body.actionConfig,
+          startDate: ((body.startDate as string) ?? existing.startDate?.toISOString()) || new Date().toISOString(),
+        }
+        const validation = CreateCampaignSchema.safeParse(testPayload)
+        if (!validation.success) {
+          return reply.status(422).send({
+            error: 'Validation failed',
+            message: validation.error.errors.map((e) => e.message).join(', '),
+            details: validation.error.errors,
+          })
+        }
+      }
+
+      // Build update data
+      const data: Prisma.CampaignUpdateInput = {}
+      if (body.name !== undefined) data.name = body.name as string
+      if (body.triggerType !== undefined) data.triggerType = body.triggerType as string
+      if (body.triggerCondition !== undefined) data.triggerCondition = (body.triggerCondition ?? {}) as Prisma.InputJsonValue
+      if (body.actionConfig !== undefined) data.actionConfig = body.actionConfig as Prisma.InputJsonValue
+      if (body.budgetCap !== undefined) data.budgetCap = body.budgetCap as number | null
+      if (body.startDate !== undefined) data.startDate = new Date(body.startDate as string)
+      if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate as string) : null
+
+      const updated = await fastify.prisma.campaign.update({
+        where: { id: request.params.id },
+        data,
+      })
+
+      return reply.status(200).send(updated)
+    },
+  )
 }
 
 export default campaignsRoutes

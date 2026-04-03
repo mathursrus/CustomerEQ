@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
@@ -31,6 +32,13 @@ export default function CampaignActions({ campaign }: { campaign: Campaign }) {
 
   return (
     <div className="flex items-center justify-end gap-2">
+      <Link
+        href={`/admin/campaigns/${campaign.id}/edit`}
+        className="text-xs font-medium text-gray-600 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+        data-testid={`edit-campaign-${campaign.id}`}
+      >
+        Edit
+      </Link>
       {campaign.status === 'DRAFT' && (
         <button
           onClick={() => updateStatus('ACTIVE')}
