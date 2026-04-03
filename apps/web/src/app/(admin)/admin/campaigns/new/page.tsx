@@ -324,9 +324,9 @@ export default function NewCampaignPage() {
       if (Math.abs(probSum - 100) > 0.01) errs.segments = `Probabilities must sum to 100% (currently ${probSum.toFixed(1)}%)`
       if (form.segments.some((s) => !s.label.trim())) errs.segments = 'All segments must have a label'
     }
-    if (form.actionType === 'scratch_card') {
-      if (form.prizes.length < 2) errs.prizes = 'Card must have at least 2 prizes'
-      if (form.prizes.length > 8) errs.prizes = 'Card can have at most 8 prizes'
+    if (form.actionType === 'scratch_card' || form.actionType === 'mystery_box') {
+      if (form.prizes.length < 2) errs.prizes = 'Must have at least 2 prizes'
+      if (form.prizes.length > 8) errs.prizes = 'Can have at most 8 prizes'
       const probSum = form.prizes.reduce((s, p) => s + p.probability, 0)
       if (Math.abs(probSum - 100) > 0.01) errs.prizes = `Probabilities must sum to 100% (currently ${probSum.toFixed(1)}%)`
       if (form.prizes.some((p) => !p.label.trim())) errs.prizes = 'All prizes must have a label'
@@ -358,7 +358,9 @@ export default function NewCampaignPage() {
           ? { segments: form.segments, wheelStyle: form.wheelStyle }
           : form.actionType === 'scratch_card'
             ? { prizes: form.prizes, cardStyle: form.cardStyle, scratchText: form.scratchText }
-            : form.actionType === 'award_points'
+            : form.actionType === 'mystery_box'
+              ? { prizes: form.prizes, boxStyle: form.cardStyle === 'silver' ? 'treasure' : form.cardStyle === 'branded' ? 'branded' : 'gift' }
+              : form.actionType === 'award_points'
               ? { points: Number(form.actionPoints) }
               : { message: form.actionMessage },
         budgetCap: form.budgetCap ? Number(form.budgetCap) : undefined,
@@ -376,7 +378,7 @@ export default function NewCampaignPage() {
         throw new Error(data?.error ?? data?.message ?? `Failed with status ${res.status}`)
       }
       const created = await res.json()
-      if (form.actionType === 'spin_wheel' || form.actionType === 'scratch_card') {
+      if (form.actionType === 'spin_wheel' || form.actionType === 'scratch_card' || form.actionType === 'mystery_box') {
         setCreatedCampaignId(created.id)
       } else {
         router.push('/admin/campaigns')
@@ -390,12 +392,13 @@ export default function NewCampaignPage() {
 
   const isSpinWheel = form.actionType === 'spin_wheel'
   const isScratchCard = form.actionType === 'scratch_card'
-  const isInteractive = isSpinWheel || isScratchCard
+  const isMysteryBox = form.actionType === 'mystery_box'
+  const isInteractive = isSpinWheel || isScratchCard || isMysteryBox
 
   // After successful interactive campaign creation — show embed code
   if (createdCampaignId) {
-    const componentName = form.actionType === 'scratch_card' ? 'ceq-scratch-card' : 'ceq-spin-wheel'
-    const memberPagePath = form.actionType === 'scratch_card' ? 'scratch' : 'spin'
+    const componentName = form.actionType === 'scratch_card' ? 'ceq-scratch-card' : form.actionType === 'mystery_box' ? 'ceq-mystery-box' : 'ceq-spin-wheel'
+    const memberPagePath = form.actionType === 'scratch_card' ? 'scratch' : form.actionType === 'mystery_box' ? 'mystery' : 'spin'
     return (
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
@@ -518,6 +521,7 @@ export default function NewCampaignPage() {
                   <option value="send_message">Send Message</option>
                   <option value="spin_wheel">Spin Wheel</option>
               <option value="scratch_card">Scratch Card</option>
+              <option value="mystery_box">Mystery Box</option>
                 </select>
                 {errors.actionType && <p className="mt-1 text-xs text-red-600">{errors.actionType}</p>}
               </div>
@@ -776,7 +780,7 @@ export default function NewCampaignPage() {
             )}
 
             {/* Scratch Card Prize Builder */}
-            {isScratchCard && (
+            {(isScratchCard || isMysteryBox) && (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-gray-700">Prize Pool <span className="text-red-500">*</span></p>
@@ -862,7 +866,7 @@ export default function NewCampaignPage() {
               </div>
               <div className="p-6">
                 {isSpinWheel && <WheelPreview segments={form.segments} style={form.wheelStyle} />}
-                {isScratchCard && (
+                {(isScratchCard || isMysteryBox) && (
                   <div className="flex flex-col items-center">
                     <div className="relative w-[300px] h-[190px] rounded-xl overflow-hidden shadow-lg" data-testid="scratch-preview">
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-white">
