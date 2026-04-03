@@ -1,6 +1,6 @@
 # Feature Specification: Support Widget — Embeddable Chat with Rule-Based Response Engine
 Issue: #101
-PR: TBD (will be created during submission)
+PR: https://github.com/mathursrus/CustomerEQ/pull/105
 
 ## Completeness Evidence
 - Issue tagged with label `phase:spec`: Yes
