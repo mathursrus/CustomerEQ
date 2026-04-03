@@ -18,6 +18,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:smoke": "vitest run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "prisma": "^5.13.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   }
 }

@@ -30,10 +30,13 @@
     "onboard-org": "node scripts/onboard-org.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^1.6.0",
+    "eslint": "^10.1.0",
     "turbo": "^2.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.58.0"
   },
   "pnpm": {
     "overrides": {

@@ -30,7 +30,7 @@ export async function processNotification(job: Job<NotificationPayload>): Promis
   memberId: string
   channel: string
 }> {
-  const { memberId, brandId, message, channel } = job.data
+  const { memberId, channel } = job.data
 
   // MVP stub: log the notification (real email provider integration in post-MVP)
   // In production, use process.env.EMAIL_PROVIDER to route to SendGrid/Resend

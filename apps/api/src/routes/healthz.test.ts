@@ -2,23 +2,25 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import Fastify from 'fastify'
 import type { FastifyInstance } from 'fastify'
+import { createMockPrisma } from '@customerEQ/config/test-utils'
+import type { MockPrisma } from '@customerEQ/config/test-utils'
 // Import plugins to pull in the FastifyInstance augmentations for prisma & redis
 import '../plugins/prisma.js'
 import '../plugins/redis.js'
 
 describe('GET /healthz', () => {
   let app: FastifyInstance
+  let mockPrisma: MockPrisma
+  const mockRedis = { ping: vi.fn().mockResolvedValue('PONG') }
 
   beforeAll(async () => {
     app = Fastify()
+    mockPrisma = createMockPrisma()
+    mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }])
 
     // Decorate with mock prisma and redis before registering the route
-    app.decorate('prisma', {
-      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-    } as unknown as FastifyInstance['prisma'])
-    app.decorate('redis', {
-      ping: vi.fn().mockResolvedValue('PONG'),
-    } as unknown as FastifyInstance['redis'])
+    app.decorate('prisma', mockPrisma as unknown as FastifyInstance['prisma'])
+    app.decorate('redis', mockRedis as unknown as FastifyInstance['redis'])
 
     // Register the healthz route the same way app.ts does
     app.get('/healthz', { config: { public: true } }, async (_request, reply) => {
@@ -80,8 +82,7 @@ describe('GET /healthz', () => {
   })
 
   it('returns 503 when database is down', async () => {
-    const prisma = (app as unknown as { prisma: { $queryRaw: ReturnType<typeof vi.fn> } }).prisma
-    prisma.$queryRaw.mockRejectedValueOnce(new Error('connection refused'))
+    mockPrisma.$queryRaw.mockRejectedValueOnce(new Error('connection refused'))
 
     const response = await app.inject({
       method: 'GET',
@@ -98,8 +99,7 @@ describe('GET /healthz', () => {
   })
 
   it('returns 503 when redis is down', async () => {
-    const redis = (app as unknown as { redis: { ping: ReturnType<typeof vi.fn> } }).redis
-    redis.ping.mockRejectedValueOnce(new Error('connection refused'))
+    mockRedis.ping.mockRejectedValueOnce(new Error('connection refused'))
 
     const response = await app.inject({
       method: 'GET',

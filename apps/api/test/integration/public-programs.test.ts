@@ -42,7 +42,7 @@ describe('Public Programs API — /v1/public/programs', () => {
 
     it('returns 404 for an inactive program slug', async () => {
       const brand = await createBrand()
-      const program = await createProgram({ brandId: brand.id, status: 'INACTIVE' })
+      const program = await createProgram({ brandId: brand.id, status: 'PAUSED' })
 
       const prisma = getTestPrisma()
       await prisma.program.update({

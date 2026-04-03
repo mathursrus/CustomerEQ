@@ -345,13 +345,6 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
     }
 
     // Step 4: persist rewards
-    const rewardTypeMap: Record<string, string> = {
-      'Discount Code': 'DISCOUNT',
-      'Free Product': 'FREE_ITEM',
-      'Cashback': 'VOUCHER',
-      'Gift Card': 'VOUCHER',
-      'Experience': 'EXPERIENCE',
-    }
     for (const reward of state.rewards) {
       const res = await fetch(`${API_URL}/v1/rewards`, {
         method: 'POST',

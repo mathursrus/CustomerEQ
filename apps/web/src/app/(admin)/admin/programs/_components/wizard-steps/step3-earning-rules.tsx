@@ -61,7 +61,6 @@ export function Step3EarningRules({
       defaultRuleAdded.current = true
       dispatch({ type: 'ADD_RULE', rule: makeRule(1) })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function addRule() {

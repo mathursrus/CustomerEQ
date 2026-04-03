@@ -1,44 +1,25 @@
 /// <reference types="vitest" />
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { MockPrisma } from '@customerEQ/config/test-utils'
 
 // ---------------------------------------------------------------------------
-// Module mocks
+// Module mocks — use shared factories from test-utils (async import for hoisting)
 // ---------------------------------------------------------------------------
 
-vi.mock('@customerEQ/database', () => ({
-  prisma: {
-    feedbackCluster: {
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-    surveyResponse: {
-      findMany: vi.fn(),
-      update: vi.fn(),
-      aggregate: vi.fn(),
-    },
-    clusterSnapshot: {
-      findMany: vi.fn(),
-      upsert: vi.fn(),
-    },
-    feedbackAnomaly: {
-      create: vi.fn(),
-    },
-  },
-}))
+vi.mock('@customerEQ/database', async () => {
+  const { databaseMockFactory } = await import('@customerEQ/config/test-utils')
+  return databaseMockFactory()
+})
 
-vi.mock('@customerEQ/ai', () => ({
-  discoverClusters: vi.fn(),
-  detectAnomalies: vi.fn(),
-}))
+vi.mock('@customerEQ/ai', async () => {
+  const { mockDiscoverClusters, mockDetectAnomalies } = await import('@customerEQ/config/test-utils')
+  return { discoverClusters: mockDiscoverClusters, detectAnomalies: mockDetectAnomalies }
+})
 
-vi.mock('pino', () => ({
-  default: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('pino', async () => {
+  const { pinoMockFactory } = await import('@customerEQ/config/test-utils')
+  return pinoMockFactory()
+})
 
 // ---------------------------------------------------------------------------
 // Import mocked instances after vi.mock
@@ -48,26 +29,7 @@ import { prisma } from '@customerEQ/database'
 import { discoverClusters, detectAnomalies } from '@customerEQ/ai'
 import { processFeedbackClustering } from './feedbackClustering.js'
 
-const mockPrisma = prisma as unknown as {
-  feedbackCluster: {
-    findMany: ReturnType<typeof vi.fn>
-    create: ReturnType<typeof vi.fn>
-    update: ReturnType<typeof vi.fn>
-  }
-  surveyResponse: {
-    findMany: ReturnType<typeof vi.fn>
-    update: ReturnType<typeof vi.fn>
-    aggregate: ReturnType<typeof vi.fn>
-  }
-  clusterSnapshot: {
-    findMany: ReturnType<typeof vi.fn>
-    upsert: ReturnType<typeof vi.fn>
-  }
-  feedbackAnomaly: {
-    create: ReturnType<typeof vi.fn>
-  }
-}
-
+const mockPrisma = prisma as unknown as MockPrisma
 const mockDiscoverClusters = discoverClusters as ReturnType<typeof vi.fn>
 const mockDetectAnomalies = detectAnomalies as ReturnType<typeof vi.fn>
 

@@ -5,7 +5,6 @@ import { prisma } from '@customerEQ/database'
 import type { SentimentAnalysisPayload } from '@customerEQ/shared'
 import { SENTIMENT } from '@customerEQ/shared'
 import { processSentimentForResponse } from '@customerEQ/ai'
-import type { FeedbackAnalysisResult } from '@customerEQ/ai'
 import { enqueueEvent } from '../queues/producers.js'
 
 const logger = pino({ name: 'sentiment-analysis' })

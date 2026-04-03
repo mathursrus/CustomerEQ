@@ -59,8 +59,8 @@ The following commands must all pass before any PR is merged:
 ```
 pnpm build       # Build all apps and packages
 pnpm typecheck   # TypeScript strict mode — zero errors
-pnpm lint        # ESLint — zero errors
-pnpm test:smoke  # All unit tests across all packages (455+)
+pnpm lint        # ESLint (typescript-eslint) — zero errors, warnings OK
+pnpm test:smoke  # All unit tests across all packages
 ```
 Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test:smoke`
 

@@ -1,12 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import CampaignForm from '@/components/campaigns/CampaignForm'
 
 export default function NewCampaignPage() {
-  const router = useRouter()
   const { getToken } = useAuth()
 
   async function handleCreate(payload: Record<string, unknown>) {
