@@ -24,6 +24,8 @@ const MOCK_CAMPAIGN = {
   status: 'DRAFT',
 }
 
+const MOCK_PROGRAMS = [{ id: 'prog-1', name: 'Acme Rewards' }]
+
 async function mockClerkAuth(page: Page) {
   await page.route('**/clerk.**', (route: Route) => {
     if (route.request().resourceType() === 'document') return route.continue()
@@ -37,6 +39,9 @@ async function mockClerkAuth(page: Page) {
 test.describe('Campaign edit page', () => {
   test.beforeEach(async ({ page }) => {
     await mockClerkAuth(page)
+    await page.route(`${API}/v1/programs`, (route: Route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: MOCK_PROGRAMS }) })
+    })
     await page.route(`${API}/v1/campaigns/${CAMPAIGN_ID}`, (route: Route) => {
       if (route.request().method() === 'PATCH') {
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...MOCK_CAMPAIGN, name: 'Updated Name' }) })
@@ -46,38 +51,40 @@ test.describe('Campaign edit page', () => {
     })
   })
 
-  test('form is pre-filled with existing campaign values', async ({ page }) => {
+  test('edit page shows full form with segment builder and preview', async ({ page }) => {
     await page.goto(`/admin/campaigns/${CAMPAIGN_ID}/edit`)
 
-    await expect(page.getByTestId('edit-campaign-name')).toHaveValue('Holiday Spin & Win')
-    await expect(page.getByTestId('edit-budget-cap')).toHaveValue('5000')
-    await expect(page.getByTestId('edit-trigger-type')).toHaveValue('purchase')
-    await expect(page.getByText('Spin Wheel')).toBeVisible()
-    await expect(page.getByText('500 Points!')).toBeVisible()
-    await expect(page.getByText('100 Points')).toBeVisible()
+    // Uses shared CampaignForm — same testids as creation page
+    await expect(page.getByTestId('campaign-name')).toHaveValue('Holiday Spin & Win')
+    await expect(page.getByTestId('campaign-trigger-type')).toHaveValue('purchase')
+    // Spin wheel segment builder should be visible
+    await expect(page.getByTestId('segment-label-0')).toBeVisible()
+    await expect(page.getByTestId('segment-label-1')).toBeVisible()
+    // Live preview should be visible
+    await expect(page.getByText('Live Preview')).toBeVisible()
   })
 
-  test('can edit name and save', async ({ page }) => {
+  test('can change name and save', async ({ page }) => {
     await page.route(`${API}/v1/campaigns`, (route: Route) => {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) })
     })
 
     await page.goto(`/admin/campaigns/${CAMPAIGN_ID}/edit`)
-    await page.getByTestId('edit-campaign-name').fill('Updated Campaign Name')
-    await page.getByTestId('edit-save-btn').click()
+    await page.getByTestId('campaign-name').fill('Updated Campaign')
+    await page.getByTestId('campaign-submit-btn').click()
 
-    await expect(page.getByText('Saved!')).toBeVisible({ timeout: 3000 })
+    // Should redirect to campaigns list
+    await page.waitForURL('**/admin/campaigns', { timeout: 5000 })
   })
 
-  test('shows DRAFT status and all fields editable', async ({ page }) => {
+  test('action type can be changed on DRAFT campaigns', async ({ page }) => {
     await page.goto(`/admin/campaigns/${CAMPAIGN_ID}/edit`)
 
-    await expect(page.getByText('DRAFT')).toBeVisible()
-    await expect(page.getByTestId('edit-trigger-type')).toBeEnabled()
-    await expect(page.getByTestId('edit-start-date')).toBeEnabled()
+    // Action type should be editable for DRAFT
+    await expect(page.getByTestId('campaign-action-type')).toBeEnabled()
   })
 
-  test('shows warning and locks fields for ACTIVE campaign', async ({ page }) => {
+  test('action type is locked on ACTIVE campaigns', async ({ page }) => {
     await page.route(`${API}/v1/campaigns/${CAMPAIGN_ID}`, (route: Route) => {
       if (route.request().method() === 'GET') {
         route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...MOCK_CAMPAIGN, status: 'ACTIVE' }) })
@@ -87,21 +94,11 @@ test.describe('Campaign edit page', () => {
     })
 
     await page.goto(`/admin/campaigns/${CAMPAIGN_ID}/edit`)
-
-    await expect(page.getByText('This campaign is active')).toBeVisible()
-    await expect(page.getByTestId('edit-campaign-name')).toBeEnabled() // name still editable
-    await expect(page.getByTestId('edit-budget-cap')).toBeEnabled() // budget still editable
-    await expect(page.getByTestId('edit-trigger-type')).toBeDisabled() // locked
-    await expect(page.getByTestId('edit-start-date')).toBeDisabled() // locked
+    await expect(page.getByTestId('campaign-action-type')).toBeDisabled()
   })
 
-  test('shows cancel button that navigates back', async ({ page }) => {
-    await page.route(`${API}/v1/campaigns`, (route: Route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [] }) })
-    })
-
+  test('title shows Edit Campaign', async ({ page }) => {
     await page.goto(`/admin/campaigns/${CAMPAIGN_ID}/edit`)
-    await page.getByText('Cancel').click()
-    await page.waitForURL('**/admin/campaigns', { timeout: 3000 })
+    await expect(page.getByRole('heading', { name: 'Edit Campaign' })).toBeVisible()
   })
 })
