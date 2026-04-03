@@ -54,6 +54,20 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
 }
 
+// ─── Shared Prize Simulator ────────────────────────────────────────────────
+
+/** Weighted random selection matching server-side logic. Used by all previews. */
+function selectRandomPrize(prizes: Array<{ probability: number; label: string }>): { index: number; label: string } {
+  const total = prizes.reduce((s, p) => s + p.probability, 0)
+  if (total <= 0) return { index: 0, label: prizes[0]?.label ?? 'Prize' }
+  let roll = Math.random() * total
+  for (let i = 0; i < prizes.length; i++) {
+    roll -= prizes[i].probability
+    if (roll <= 0) return { index: i, label: prizes[i].label }
+  }
+  return { index: prizes.length - 1, label: prizes[prizes.length - 1].label }
+}
+
 function adjustBrightness(hex: string, amount: number): string {
   const [r, g, b] = hexToRgb(hex)
   const clamp = (v: number) => Math.max(0, Math.min(255, v + amount))
@@ -196,14 +210,8 @@ function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: str
     if (spinningRef.current || segments.length === 0) return
     spinningRef.current = true
 
-    // Weighted random selection — respects probabilities
-    const totalProb = segments.reduce((s, seg) => s + seg.probability, 0)
-    let roll = Math.random() * totalProb
-    let winnerIdx = segments.length - 1
-    for (let i = 0; i < segments.length; i++) {
-      roll -= segments[i].probability
-      if (roll <= 0) { winnerIdx = i; break }
-    }
+    // Weighted random selection — shared with scratch card + mystery box
+    const { index: winnerIdx } = selectRandomPrize(segments)
 
     // Calculate target angle: equal-size slices, land on winner's center
     const sliceAngle = 360 / segments.length
@@ -254,6 +262,151 @@ function WheelPreview({ segments, style }: { segments: SpinSegment[]; style: str
         Test Spin
       </button>
       <p className="mt-2 text-xs text-gray-400">Click to preview the spin animation</p>
+    </div>
+  )
+}
+
+// ─── Scratch Card Preview ──────────────────────────────────────────────────
+
+function drawCardOverlay(ctx: CanvasRenderingContext2D, w: number, h: number, cardStyle: string, text: string) {
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.clearRect(0, 0, w, h)
+  const grad = ctx.createLinearGradient(0, 0, w, h)
+  if (cardStyle === 'silver') {
+    grad.addColorStop(0, '#C0C0C0'); grad.addColorStop(0.3, '#E8E8E8'); grad.addColorStop(0.5, '#C0C0C0'); grad.addColorStop(1, '#A8A8A8')
+  } else if (cardStyle === 'holiday') {
+    grad.addColorStop(0, '#c41e3a'); grad.addColorStop(0.5, '#2d5a27'); grad.addColorStop(1, '#c41e3a')
+  } else if (cardStyle === 'branded') {
+    ctx.fillStyle = '#4f46e5'; ctx.fillRect(0, 0, w, h)
+  } else {
+    grad.addColorStop(0, '#D4AF37'); grad.addColorStop(0.3, '#F5E6A3'); grad.addColorStop(0.5, '#D4AF37'); grad.addColorStop(0.7, '#C5982C'); grad.addColorStop(1, '#D4AF37')
+  }
+  if (cardStyle !== 'branded') { ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h) }
+  for (let i = 0; i < 800; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.1})`
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1)
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'
+  ctx.font = 'bold 14px Inter, system-ui, sans-serif'
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(text || 'Scratch to reveal!', w / 2, h / 2)
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5
+  ctx.strokeRect(5, 5, w - 10, h - 10)
+}
+
+function ScratchCardPreview({ cardStyle, scratchText, prizes }: { cardStyle: string; scratchText: string; prizes: Array<{ probability: number; label: string }> }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const isDrawingRef = useRef(false)
+  const [currentPrize, setCurrentPrize] = useState(() => selectRandomPrize(prizes))
+  const [revealed, setRevealed] = useState(false)
+  const scratchCountRef = useRef(0)
+
+  const resetCard = useCallback(() => {
+    setCurrentPrize(selectRandomPrize(prizes))
+    setRevealed(false)
+    scratchCountRef.current = 0
+    const canvas = canvasRef.current
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) drawCardOverlay(ctx, canvas.width, canvas.height, cardStyle, scratchText)
+    }
+  }, [prizes, cardStyle, scratchText])
+
+  useEffect(() => { resetCard() }, [resetCard])
+
+  function scratch(e: React.MouseEvent) {
+    if (revealed) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const r = canvas.getBoundingClientRect()
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath()
+    ctx.arc(e.clientX - r.left, e.clientY - r.top, 16, 0, Math.PI * 2)
+    ctx.fill()
+    scratchCountRef.current++
+    if (scratchCountRef.current > 40 && !revealed) {
+      setRevealed(true)
+      canvas.style.transition = 'opacity 0.4s'
+      canvas.style.opacity = '0'
+      setTimeout(() => { canvas.style.transition = ''; canvas.style.opacity = '1' }, 500)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-[300px] h-[180px] rounded-xl overflow-hidden shadow-lg" data-testid="scratch-preview">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white">
+          <span className="text-3xl mb-1">🎉</span>
+          <span className="text-lg font-bold text-emerald-600">{currentPrize.label}</span>
+        </div>
+        <canvas ref={canvasRef} width={300} height={180} className="absolute inset-0 cursor-crosshair rounded-xl"
+          onMouseDown={() => { isDrawingRef.current = true }}
+          onMouseUp={() => { isDrawingRef.current = false }}
+          onMouseLeave={() => { isDrawingRef.current = false }}
+          onMouseMove={(e) => { if (isDrawingRef.current) scratch(e) }}
+          data-testid="scratch-preview-canvas"
+        />
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <p className="text-xs text-gray-400">{revealed ? `Prize: ${currentPrize.label}` : 'Drag to scratch'}</p>
+        <button type="button" onClick={resetCard} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium" data-testid="scratch-reset-btn">Try Again</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Mystery Box Preview ───────────────────────────────────────────────────
+
+function MysteryBoxPreview({ prizes }: { prizes: Array<{ probability: number; label: string }> }) {
+  const [opened, setOpened] = useState(false)
+  const [currentPrize, setCurrentPrize] = useState(() => selectRandomPrize(prizes))
+
+  function handleOpen() {
+    if (opened) return
+    setCurrentPrize(selectRandomPrize(prizes))
+    setOpened(true)
+  }
+
+  function handleReset() {
+    setOpened(false)
+  }
+
+  return (
+    <div className="flex flex-col items-center" data-testid="mystery-box-preview">
+      <div className="w-40 h-48 relative cursor-pointer select-none" onClick={handleOpen} style={{ perspective: '600px' }}>
+        {/* Bow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-10 text-2xl" style={{ transition: 'opacity 0.3s', opacity: opened ? 0 : 1 }}>🎀</div>
+        {/* Lid */}
+        <div className="absolute top-1 left-[-3px] w-[166px] h-[38px] rounded-t-lg z-20" style={{
+          background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+          transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transformOrigin: 'bottom left',
+          transform: opened ? 'rotate(-110deg) translateY(-16px)' : 'none',
+        }}>
+          <div className="absolute top-1/2 left-0 right-0 h-3 bg-amber-400 -translate-y-1/2" />
+        </div>
+        {/* Body */}
+        <div className="absolute bottom-0 w-40 h-32 rounded-xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
+          <div className="absolute top-1/2 left-0 right-0 h-3.5 bg-amber-400 -translate-y-1/2" />
+          <div className="absolute top-0 bottom-0 left-1/2 w-3.5 bg-amber-400 -translate-x-1/2" />
+        </div>
+        {/* Prize emoji */}
+        <div className="absolute top-0 left-1/2 text-3xl z-10" style={{
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s',
+          opacity: opened ? 1 : 0,
+          transform: `translateX(-50%) ${opened ? 'translateY(-30px)' : 'translateY(10px)'}`,
+        }}>🎉</div>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <p className="text-xs text-gray-400">
+          {opened ? `Prize: ${currentPrize.label}` : 'Click to open'}
+        </p>
+        {opened && (
+          <button type="button" onClick={handleReset} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium" data-testid="mystery-reset-btn">Try Again</button>
+        )}
+      </div>
     </div>
   )
 }
@@ -866,27 +1019,15 @@ export default function NewCampaignPage() {
               </div>
               <div className="p-6">
                 {isSpinWheel && <WheelPreview segments={form.segments} style={form.wheelStyle} />}
-                {(isScratchCard || isMysteryBox) && (
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-[300px] h-[190px] rounded-xl overflow-hidden shadow-lg" data-testid="scratch-preview">
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-white">
-                        <span className="text-3xl mb-1">🎉</span>
-                        <span className="text-lg font-bold text-emerald-600">{form.prizes[0]?.label || 'Prize'}</span>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center text-white font-semibold text-sm" style={{
-                        background: form.cardStyle === 'silver'
-                          ? 'linear-gradient(135deg, #C0C0C0, #E8E8E8, #C0C0C0, #A8A8A8)'
-                          : form.cardStyle === 'holiday'
-                            ? 'linear-gradient(135deg, #c41e3a, #2d5a27, #c41e3a)'
-                            : form.cardStyle === 'branded'
-                              ? '#4f46e5'
-                              : 'linear-gradient(135deg, #D4AF37, #F5E6A3, #D4AF37, #C5982C)',
-                      }}>
-                        {form.scratchText || 'Scratch to reveal!'}
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs text-gray-400">Scratch card preview (not interactive here)</p>
-                  </div>
+                {isScratchCard && (
+                  <ScratchCardPreview
+                    cardStyle={form.cardStyle}
+                    scratchText={form.scratchText}
+                    prizes={form.prizes}
+                  />
+                )}
+                {isMysteryBox && (
+                  <MysteryBoxPreview prizes={form.prizes} />
                 )}
               </div>
             </div>
