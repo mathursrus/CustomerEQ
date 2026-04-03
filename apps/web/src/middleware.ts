@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   '/(.*)/enroll',
   '/spin(.*)',
   '/scratch(.*)',
+  '/mystery(.*)',
 ])
 
 // During Playwright E2E tests there are no real Clerk keys. Pass placeholders

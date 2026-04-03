@@ -2,7 +2,7 @@ import type { Job } from 'bullmq'
 import type { Redis } from 'ioredis'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
-import type { CampaignTriggerPayload, SpinWheelConfig, ScratchCardConfig } from '@customerEQ/shared'
+import type { CampaignTriggerPayload, SpinWheelConfig, ScratchCardConfig, MysteryBoxConfig } from '@customerEQ/shared'
 import { selectWeightedRandom } from '@customerEQ/shared/random'
 import { enqueueNotification } from '../queues/producers.js'
 
@@ -82,7 +82,7 @@ export function createCampaignTriggerProcessor(redis: Redis) {
     const latencyMs = Date.now() - new Date(eventIngestedAt).getTime()
 
     // 3. Route by action type
-    if (campaign.actionType === 'spin_wheel' || campaign.actionType === 'scratch_card') {
+    if (campaign.actionType === 'spin_wheel' || campaign.actionType === 'scratch_card' || campaign.actionType === 'mystery_box') {
       return await executeInteractiveCampaign(campaign, memberId, brandId, latencyMs, redis)
     }
 
@@ -160,9 +160,11 @@ async function executeInteractiveCampaign(
   redis: Redis,
 ): Promise<{ executed?: boolean; skipped?: boolean; reason?: string; points?: number; latencyMs?: number }> {
   // Get the prize/segment array based on campaign type
-  const items = campaign.actionType === 'scratch_card'
-    ? (campaign.actionConfig as ScratchCardConfig).prizes
-    : (campaign.actionConfig as SpinWheelConfig).segments
+  const items = campaign.actionType === 'spin_wheel'
+    ? (campaign.actionConfig as SpinWheelConfig).segments
+    : campaign.actionType === 'scratch_card'
+      ? (campaign.actionConfig as ScratchCardConfig).prizes
+      : (campaign.actionConfig as MysteryBoxConfig).prizes
   const winningItem = selectWeightedRandom(items)
   const winningIndex = items.indexOf(winningItem)
   const points = winningItem.points ?? 0
