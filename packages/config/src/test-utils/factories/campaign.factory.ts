@@ -44,6 +44,28 @@ export async function createCampaign(opts: {
 }
 
 /**
+ * Creates a CampaignEvent linking a member to a campaign trigger.
+ */
+export async function createCampaignEvent(opts: {
+  brandId: string
+  campaignId: string
+  memberId: string
+  status?: string
+  result?: Prisma.InputJsonValue
+}) {
+  const prisma = getTestPrisma()
+  return prisma.campaignEvent.create({
+    data: {
+      brandId: opts.brandId,
+      campaignId: opts.campaignId,
+      memberId: opts.memberId,
+      status: opts.status ?? 'executed',
+      result: opts.result ?? undefined,
+    },
+  })
+}
+
+/**
  * Creates a standard CX NPS campaign that triggers when nps_score < 7 and awards 500 points.
  */
 export async function createNpsCampaign(opts: {

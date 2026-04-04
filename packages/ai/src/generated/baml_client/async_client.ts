@@ -25,6 +25,8 @@ import type { Checked, Check, RecursivePartialNull as MovedRecursivePartialNull 
 import type { partial_types } from "./partial_types"
 import type * as types from "./types"
 import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation} from "./types"
+=======
+import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, MergeRecommendation} from "./types"
 import type TypeBuilder from "./type_builder"
 import { AsyncHttpRequest, AsyncHttpStreamRequest } from "./async_request"
 import { LlmResponseParser, LlmStreamParser } from "./parser"
@@ -277,6 +279,53 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
             signal,
             )
             return raw.parsed(false) as types.ClusteringResult
+            } catch (error) {
+            throw toBamlError(error);
+            }
+            }
+            
+        async SynthesizeCustomerProfile(
+        context: types.CustomerContext,
+        __baml_options__?: BamlCallOptions
+        ): Promise<types.CustomerProfileSynthesis> {
+          try {
+          const options = { ...this.bamlOptions, ...(__baml_options__ || {}) }
+          const signal = options.signal;
+
+          if (signal?.aborted) {
+          throw new BamlAbortError('Operation was aborted', signal.reason);
+          }
+
+          // Check if onTick is provided - route through streaming if so
+          if (options.onTick) {
+          const stream = this.stream.SynthesizeCustomerProfile(
+          context,
+          __baml_options__
+          );
+
+          return await stream.getFinalResponse();
+          }
+
+          const collector = options.collector ? (Array.isArray(options.collector) ? options.collector :
+          [options.collector]) : [];
+          const rawEnv = __baml_options__?.env ? { ...process.env, ...__baml_options__.env } : { ...process.env };
+          const env: Record<string, string> = Object.fromEntries(
+            Object.entries(rawEnv).filter(([_, value]) => value !== undefined) as [string, string][]
+            );
+            const raw = await this.runtime.callFunction(
+            "SynthesizeCustomerProfile",
+            {
+            "context": context
+            },
+            this.ctxManager.cloneContext(),
+            options.tb?.__tb(),
+            options.clientRegistry,
+            collector,
+            options.tags || {},
+            env,
+            signal,
+            )
+            return raw.parsed(false) as types.CustomerProfileSynthesis
             } catch (error) {
             throw toBamlError(error);
             }
@@ -552,6 +601,72 @@ export type RecursivePartialNull<T> = MovedRecursivePartialNull<T>
                   raw,
                   (a): partial_types.ClusteringResult => a,
                   (a): types.ClusteringResult => a,
+                  this.ctxManager.cloneContext(),
+                  options.signal,
+                  )
+                  } catch (error) {
+                  throw toBamlError(error);
+                  }
+                  }
+                  
+            SynthesizeCustomerProfile(
+            context: types.CustomerContext,
+            __baml_options__?: BamlCallOptions
+            ): BamlStream<partial_types.CustomerProfileSynthesis, types.CustomerProfileSynthesis>
+              {
+              try {
+              const options = { ...this.bamlOptions, ...(__baml_options__ || {}) }
+              const signal = options.signal;
+
+              if (signal?.aborted) {
+              throw new BamlAbortError('Operation was aborted', signal.reason);
+              }
+
+              let collector = options.collector ? (Array.isArray(options.collector) ? options.collector :
+              [options.collector]) : [];
+
+              let onTickWrapper: (() => void) | undefined;
+
+              // Create collector and wrap onTick if provided
+              if (options.onTick) {
+              const tickCollector = new Collector("on-tick-collector");
+              collector = [...collector, tickCollector];
+
+              onTickWrapper = () => {
+              const log = tickCollector.last;
+              if (log) {
+              try {
+              options.onTick!("Unknown", log);
+              } catch (error) {
+              console.error("Error in onTick callback for SynthesizeCustomerProfile", error);
+              }
+              }
+              };
+              }
+
+              const rawEnv = __baml_options__?.env ? { ...process.env, ...__baml_options__.env } : { ...process.env };
+              const env: Record<string, string> = Object.fromEntries(
+                Object.entries(rawEnv).filter(([_, value]) => value !== undefined) as [string, string][]
+                );
+                const raw = this.runtime.streamFunction(
+                "SynthesizeCustomerProfile",
+                {
+                "context": context
+                },
+                undefined,
+                this.ctxManager.cloneContext(),
+                options.tb?.__tb(),
+                options.clientRegistry,
+                collector,
+                options.tags || {},
+                env,
+                signal,
+                onTickWrapper,
+                )
+                return new BamlStream<partial_types.CustomerProfileSynthesis, types.CustomerProfileSynthesis>(
+                  raw,
+                  (a): partial_types.CustomerProfileSynthesis => a,
+                  (a): types.CustomerProfileSynthesis => a,
                   this.ctxManager.cloneContext(),
                   options.signal,
                   )

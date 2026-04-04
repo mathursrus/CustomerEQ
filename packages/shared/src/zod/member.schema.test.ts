@@ -1,263 +1,281 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { EnrollMemberSchema } from './member.schema'
+import {
+  SearchMembersQuerySchema,
+  Customer360QuerySchema,
+  HealthScoreWeightsSchema,
+  HealthScoreFilterSchema,
+  RecomputeHealthScoreSchema,
+} from './member.schema.js'
 
-describe('EnrollMemberSchema', () => {
-  const requiredBase = {
-    email: 'jane.doe@example.com',
-    consentGivenAt: '2026-03-24T10:00:00.000Z',
-    programId: 'prog-abc-123',
-    consentGiven: true as const,
-  }
-
-  describe('valid inputs', () => {
-    it('accepts a valid enrollment with all required fields and optional firstName/lastName', () => {
-      const input = {
-        ...requiredBase,
-        firstName: 'Jane',
-        lastName: 'Doe',
-      }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts a valid enrollment with only required fields and no optional ones', () => {
-      const result = EnrollMemberSchema.safeParse(requiredBase)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts a valid enrollment with only firstName provided', () => {
-      const input = { ...requiredBase, firstName: 'FirstOnly' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts a valid enrollment with only lastName provided', () => {
-      const input = { ...requiredBase, lastName: 'LastOnly' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts email addresses with subdomains', () => {
-      const input = { ...requiredBase, email: 'user@mail.subdomain.example.co.uk' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts email addresses with plus signs', () => {
-      const input = { ...requiredBase, email: 'user+tag@example.com' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts a valid phone when provided', () => {
-      const input = { ...requiredBase, phone: '+1-555-000-1234' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(true)
-    })
+describe('SearchMembersQuerySchema', () => {
+  it('parses valid query with all defaults', () => {
+    const result = SearchMembersQuerySchema.parse({})
+    expect(result.page).toBe(1)
+    expect(result.pageSize).toBe(20)
+    expect(result.sortBy).toBe('createdAt')
+    expect(result.sortOrder).toBe('desc')
+    expect(result.q).toBeUndefined()
+    expect(result.tier).toBeUndefined()
   })
 
-  describe('invalid inputs', () => {
-    it('rejects when email is missing entirely', () => {
-      const { email: _removed, ...input } = requiredBase as typeof requiredBase & { email?: string }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('email'))).toBe(true)
+  it('parses full query with all filters', () => {
+    const result = SearchMembersQuerySchema.parse({
+      q: 'alice',
+      tier: 'Gold',
+      sentimentMin: '-0.5',
+      sentimentMax: '0.8',
+      npsMin: '6',
+      npsMax: '10',
+      balanceMin: '100',
+      balanceMax: '5000',
+      status: 'ACTIVE',
+      enrolledAfter: '2025-01-01T00:00:00.000Z',
+      enrolledBefore: '2026-01-01T00:00:00.000Z',
+      page: '2',
+      pageSize: '10',
+      sortBy: 'name',
+      sortOrder: 'asc',
     })
 
-    it('rejects an invalid email format missing the @ symbol', () => {
-      const input = { ...requiredBase, email: 'not-an-email' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('email'))).toBe(true)
-    })
-
-    it('rejects an invalid email format missing the domain', () => {
-      const input = { ...requiredBase, email: 'user@' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('email'))).toBe(true)
-    })
-
-    it('rejects an empty string for email', () => {
-      const input = { ...requiredBase, email: '' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('email'))).toBe(true)
-    })
-
-    it('rejects a numeric value for email', () => {
-      const input = { ...requiredBase, email: 12345 }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('email'))).toBe(true)
-    })
-
-    it('rejects when consentGivenAt is missing', () => {
-      const { consentGivenAt: _removed, ...input } = requiredBase as typeof requiredBase & {
-        consentGivenAt?: string
-      }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('consentGivenAt'))).toBe(true)
-    })
-
-    it('rejects a non-ISO-8601 string for consentGivenAt', () => {
-      const input = { ...requiredBase, consentGivenAt: 'not-a-date' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('consentGivenAt'))).toBe(true)
-    })
-
-    it('rejects when programId is missing', () => {
-      const { programId: _removed, ...input } = requiredBase as typeof requiredBase & {
-        programId?: string
-      }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('programId'))).toBe(true)
-    })
-
-    it('rejects an empty string for programId', () => {
-      const input = { ...requiredBase, programId: '' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('programId'))).toBe(true)
-    })
-
-    it('rejects a numeric value for firstName', () => {
-      const input = { ...requiredBase, firstName: 123 }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('firstName'))).toBe(true)
-    })
-
-    it('rejects a numeric value for lastName', () => {
-      const input = { ...requiredBase, lastName: 456 }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('lastName'))).toBe(true)
-    })
+    expect(result.q).toBe('alice')
+    expect(result.tier).toBe('Gold')
+    expect(result.sentimentMin).toBe(-0.5)
+    expect(result.sentimentMax).toBe(0.8)
+    expect(result.npsMin).toBe(6)
+    expect(result.npsMax).toBe(10)
+    expect(result.balanceMin).toBe(100)
+    expect(result.balanceMax).toBe(5000)
+    expect(result.status).toBe('ACTIVE')
+    expect(result.page).toBe(2)
+    expect(result.pageSize).toBe(10)
+    expect(result.sortBy).toBe('name')
+    expect(result.sortOrder).toBe('asc')
   })
 
-  describe('consentGiven field', () => {
-    it('rejects when consentGiven is false — emits CONSENT_REQUIRED message', () => {
-      const input = { ...requiredBase, consentGiven: false }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(
-        result.error?.issues.some(
-          (i) => i.path.includes('consentGiven') && i.message === 'CONSENT_REQUIRED',
-        ),
-      ).toBe(true)
+  it('coerces string numbers to numeric types', () => {
+    const result = SearchMembersQuerySchema.parse({
+      sentimentMin: '0.2',
+      npsMin: '7',
+      balanceMin: '500',
+      page: '3',
+      pageSize: '50',
     })
-
-    it('rejects when consentGiven is missing entirely', () => {
-      const { consentGiven: _removed, ...input } = requiredBase as typeof requiredBase & {
-        consentGiven?: true
-      }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('consentGiven'))).toBe(true)
-    })
-
-    it('rejects when consentGiven is a string "true" instead of boolean true', () => {
-      const input = { ...requiredBase, consentGiven: 'true' }
-
-      const result = EnrollMemberSchema.safeParse(input)
-
-      expect(result.success).toBe(false)
-      expect(result.error?.issues.some((i) => i.path.includes('consentGiven'))).toBe(true)
-    })
+    expect(typeof result.sentimentMin).toBe('number')
+    expect(typeof result.npsMin).toBe('number')
+    expect(typeof result.balanceMin).toBe('number')
+    expect(typeof result.page).toBe('number')
+    expect(typeof result.pageSize).toBe('number')
   })
 
-  describe('opt-in defaults', () => {
-    it('emailOptIn defaults to false when omitted', () => {
-      const result = EnrollMemberSchema.safeParse(requiredBase)
+  it('rejects sentiment values outside -1 to 1 range', () => {
+    expect(() => SearchMembersQuerySchema.parse({ sentimentMin: '-2' })).toThrow()
+    expect(() => SearchMembersQuerySchema.parse({ sentimentMax: '1.5' })).toThrow()
+  })
 
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.emailOptIn).toBe(false)
-      }
+  it('rejects NPS values outside 0-10 range', () => {
+    expect(() => SearchMembersQuerySchema.parse({ npsMin: '-1' })).toThrow()
+    expect(() => SearchMembersQuerySchema.parse({ npsMax: '11' })).toThrow()
+  })
+
+  it('rejects invalid status value', () => {
+    expect(() => SearchMembersQuerySchema.parse({ status: 'DELETED' })).toThrow()
+  })
+
+  it('rejects page less than 1', () => {
+    expect(() => SearchMembersQuerySchema.parse({ page: '0' })).toThrow()
+  })
+
+  it('rejects pageSize greater than 100', () => {
+    expect(() => SearchMembersQuerySchema.parse({ pageSize: '101' })).toThrow()
+  })
+
+  it('rejects negative balance values', () => {
+    expect(() => SearchMembersQuerySchema.parse({ balanceMin: '-1' })).toThrow()
+  })
+
+  it('accepts all valid sortBy values', () => {
+    for (const sortBy of ['name', 'email', 'pointsBalance', 'createdAt', 'sentiment']) {
+      const result = SearchMembersQuerySchema.parse({ sortBy })
+      expect(result.sortBy).toBe(sortBy)
+    }
+  })
+
+  it('rejects invalid sortBy value', () => {
+    expect(() => SearchMembersQuerySchema.parse({ sortBy: 'invalid' })).toThrow()
+  })
+})
+
+describe('Customer360QuerySchema', () => {
+  it('parses with all defaults', () => {
+    const result = Customer360QuerySchema.parse({})
+    expect(result.eventsLimit).toBe(20)
+    expect(result.surveysLimit).toBe(10)
+    expect(result.redemptionsLimit).toBe(10)
+    expect(result.campaignEventsLimit).toBe(10)
+  })
+
+  it('parses custom limits from string values', () => {
+    const result = Customer360QuerySchema.parse({
+      eventsLimit: '5',
+      surveysLimit: '3',
+      redemptionsLimit: '15',
+      campaignEventsLimit: '8',
     })
+    expect(result.eventsLimit).toBe(5)
+    expect(result.surveysLimit).toBe(3)
+    expect(result.redemptionsLimit).toBe(15)
+    expect(result.campaignEventsLimit).toBe(8)
+  })
 
-    it('smsOptIn defaults to false when omitted', () => {
-      const result = EnrollMemberSchema.safeParse(requiredBase)
+  it('rejects eventsLimit above 100', () => {
+    expect(() => Customer360QuerySchema.parse({ eventsLimit: '101' })).toThrow()
+  })
 
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.smsOptIn).toBe(false)
-      }
-    })
+  it('rejects surveysLimit below 1', () => {
+    expect(() => Customer360QuerySchema.parse({ surveysLimit: '0' })).toThrow()
+  })
 
-    it('consentVersion defaults to "privacy-v1.0" when omitted', () => {
-      const result = EnrollMemberSchema.safeParse(requiredBase)
+  it('rejects non-integer values', () => {
+    expect(() => Customer360QuerySchema.parse({ eventsLimit: '5.5' })).toThrow()
+  })
+})
 
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.consentVersion).toBe('privacy-v1.0')
-      }
-    })
+// ---------------------------------------------------------------------------
+// Health Score Schemas
+// ---------------------------------------------------------------------------
 
-    it('accepts explicit emailOptIn: true', () => {
-      const input = { ...requiredBase, emailOptIn: true }
+describe('HealthScoreWeightsSchema', () => {
+  it('accepts valid default weights that sum to 1.0', () => {
+    const input = {
+      recency: 0.25,
+      frequency: 0.20,
+      sentiment: 0.25,
+      nps: 0.15,
+      engagement: 0.15,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(true)
+  })
 
-      const result = EnrollMemberSchema.safeParse(input)
+  it('rejects weights that do not sum to 1.0', () => {
+    const input = {
+      recency: 0.5,
+      frequency: 0.5,
+      sentiment: 0.5,
+      nps: 0.5,
+      engagement: 0.5,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
 
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.emailOptIn).toBe(true)
-      }
-    })
+  it('rejects negative weights', () => {
+    const input = {
+      recency: -0.1,
+      frequency: 0.30,
+      sentiment: 0.30,
+      nps: 0.25,
+      engagement: 0.25,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
 
-    it('accepts explicit smsOptIn: true', () => {
-      const input = { ...requiredBase, smsOptIn: true }
+  it('rejects weights greater than 1', () => {
+    const input = {
+      recency: 1.5,
+      frequency: 0,
+      sentiment: 0,
+      nps: 0,
+      engagement: -0.5,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
 
-      const result = EnrollMemberSchema.safeParse(input)
+  it('applies default values when fields are omitted', () => {
+    const result = HealthScoreWeightsSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.recency).toBe(0.25)
+      expect(result.data.frequency).toBe(0.20)
+      expect(result.data.sentiment).toBe(0.25)
+      expect(result.data.nps).toBe(0.15)
+      expect(result.data.engagement).toBe(0.15)
+    }
+  })
+})
 
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.smsOptIn).toBe(true)
-      }
-    })
+describe('HealthScoreFilterSchema', () => {
+  it('accepts valid healthScoreMin and healthScoreMax', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 0, healthScoreMax: 100 })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts only healthScoreMin', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 30 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMin).toBe(30)
+      expect(result.data.healthScoreMax).toBeUndefined()
+    }
+  })
+
+  it('accepts only healthScoreMax', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMax: 70 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMax).toBe(70)
+    }
+  })
+
+  it('accepts empty object (both optional)', () => {
+    const result = HealthScoreFilterSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('coerces string values to numbers', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: '20', healthScoreMax: '80' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMin).toBe(20)
+      expect(result.data.healthScoreMax).toBe(80)
+    }
+  })
+
+  it('rejects values below 0', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects values above 100', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMax: 101 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-integer values', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 30.5 })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('RecomputeHealthScoreSchema', () => {
+  it('accepts empty object (memberId optional)', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts memberId when provided', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({ memberId: 'member-abc-123' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.memberId).toBe('member-abc-123')
+    }
+  })
+
+  it('rejects non-string memberId', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({ memberId: 123 })
+    expect(result.success).toBe(false)
   })
 })

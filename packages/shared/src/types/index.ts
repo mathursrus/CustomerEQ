@@ -50,3 +50,20 @@ export interface EmbeddingGenerationPayload {
   brandId: string
   text: string // concatenation of title + body for embedding
 }
+=======
+export type {
+  HealthScoreComputationPayload,
+  HealthScoreWeights,
+  HealthScoreBreakdown,
+  HealthScoreInputs,
+} from './health-score.js'
+
+export {
+  DEFAULT_HEALTH_SCORE_WEIGHTS,
+  computeRecencyScore,
+  computeFrequencyScore,
+  computeSentimentScore,
+  computeNpsScore,
+  computeEngagementScore,
+  computeHealthScore,
+} from './health-score.js'
