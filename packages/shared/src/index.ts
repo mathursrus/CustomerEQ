@@ -17,5 +17,4 @@ export * from './zod/reward.schema.js'
 export * from './zod/alert.schema.js'
 export * from './zod/support.schema.js'
 export * from './supportRules.js'
-=======
 export * from './zod/kb.schema.js'

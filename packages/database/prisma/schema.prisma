@@ -89,7 +89,8 @@ enum MessageRole {
   CUSTOMER
   AI
   AGENT
-=======
+}
+
 enum KBArticleCategory {
   FAQ
   POLICY
@@ -682,7 +683,8 @@ model SupportRule {
 
   @@index([brandId, status])
   @@map("support_rules")
-=======
+}
+
 model KBArticle {
   id          String            @id @default(cuid())
   brandId     String

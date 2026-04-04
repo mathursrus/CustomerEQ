@@ -7,22 +7,14 @@ import {
   type SentimentAnalysisPayload,
   type FeedbackClusteringPayload,
   type SupportOrchestrationPayload,
-=======
   type EmbeddingGenerationPayload,
-  evaluateConditions,
-} from '@customerEQ/shared'
-import type { ConditionGroup } from '@customerEQ/shared'
-import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding } from '@customerEQ/ai'
-=======
   type HealthScoreComputationPayload,
   evaluateConditions,
   evaluateSupportRules,
 } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
-import { processSentimentForResponse, discoverClusters, detectAnomalies, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
-=======
-import { processSentimentForResponse, discoverClusters, detectAnomalies } from '@customerEQ/ai'
+import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
@@ -41,9 +33,7 @@ let _sentimentAnalysisQueue: Queue | null = null
 let _feedbackClusteringQueue: Queue | null = null
 let _alertEvaluationQueue: Queue | null = null
 let _supportOrchestrationQueue: Queue | null = null
-=======
 let _embeddingGenerationQueue: Queue | null = null
-=======
 let _healthScoreQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
@@ -57,9 +47,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _feedbackClusteringQueue = new Queue(QUEUES.FEEDBACK_CLUSTERING, { connection })
   _alertEvaluationQueue = new Queue(QUEUES.ALERT_EVALUATION, { connection })
   _supportOrchestrationQueue = new Queue(QUEUES.SUPPORT_ORCHESTRATION, { connection })
-=======
   _embeddingGenerationQueue = new Queue(QUEUES.EMBEDDING_GENERATION, { connection })
-=======
   _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
 }
 
@@ -92,11 +80,11 @@ function getAlertEvaluationQueue(): Queue {
 function getSupportOrchestrationQueue(): Queue {
   if (!_supportOrchestrationQueue) throw new Error('Queues not initialized.')
   return _supportOrchestrationQueue
-=======
+}
 function getEmbeddingGenerationQueue(): Queue {
   if (!_embeddingGenerationQueue) throw new Error('Queues not initialized.')
   return _embeddingGenerationQueue
-=======
+}
 function getHealthScoreQueue(): Queue {
   if (!_healthScoreQueue) throw new Error('Queues not initialized.')
   return _healthScoreQueue
@@ -670,7 +658,8 @@ export async function enqueueSupportOrchestration(payload: SupportOrchestrationP
     return INLINE_STUB
   }
   return getSupportOrchestrationQueue().add('orchestrate', payload)
-=======
+}
+
 export async function enqueueHealthScoreComputation(payload: HealthScoreComputationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
     processHealthScoreComputation(payload).then((r) => {
