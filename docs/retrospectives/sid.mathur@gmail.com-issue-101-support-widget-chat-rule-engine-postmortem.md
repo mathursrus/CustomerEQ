@@ -7,84 +7,77 @@ synthesized:
 # Postmortem: Support Widget — Embeddable Chat with Rule-Based Response Engine - Issue #101
 
 **Date**: 2026-04-03
-**Duration**: ~45 minutes
-**Objective**: Create a comprehensive feature specification for an embeddable AI support chat widget with rule-based response engine
+**Duration**: ~45 minutes (implementation phase)
+**Objective**: Implement Phase D support chat widget with rule-based response engine, server-side orchestration pipeline, and admin API for managing conversations and support rules.
 **Outcome**: Success
 
 ## Executive Summary
 
-Successfully completed the feature-specification job for issue #101, producing a detailed spec document with 14 requirements, 3 data models, 12 API endpoints, and 3 interactive HTML mocks. The spec builds on extensive existing codebase patterns (AlertRule, condition-builder, embed package, BullMQ queues) and was validated through browser rendering of all mocks. PR #105 created and submitted for review.
+Implemented the full Phase D support widget feature across 27 files (+2335 lines) in a single session. The implementation followed the approved RFC precisely, with graceful degradation for Phase A-C dependencies that don't exist yet. All CI gates passed (build, typecheck, lint, smoke tests) with 67 new unit tests and zero regressions.
 
 ## Architectural Impact
 
-**Has Architectural Impact**: No
+**Has Architectural Impact**: Yes
 
-This is a specification phase only. Architectural decisions (SSE vs WebSocket, Web Component pattern, SupportRule model design) are documented in the spec for review before any code is written. If approved, the implementation would add new models and API routes but follows existing architectural patterns.
+**Sections Updated**: Data Layer (model count 11->14), Shared Layer (added supportRules.ts), Embed Layer (added ceq-support-chat.ts)
+**Changes Made**: Added 3 new Prisma models, new shared evaluation logic, new embed component
+**Rationale**: Phase D feature adds new domain (support/chat) to the platform
+**Updated in PR**: Yes
 
 ## Timeline of Events
 
-### Phase 1: Context Gathering
-- Loaded issue #101 from GitHub
-- Read existing codebase: `public.ts` (widget.js pattern), `events.ts` (condition evaluation), `schema.prisma` (AlertRule, CaseFollowUp, Member models), `condition-builder.tsx`, `conditions.ts` (evaluateConditions), `ceq-spin-wheel.ts` (embed pattern)
-- Read brainstorming doc `codebase-brainstorming-2026-04-03.md` for S7/S8 details
-- Reviewed existing feature spec format from `41-closed-loop-alerting.md`
-- Reviewed architecture doc for tech stack and patterns
+### Phase 1: Scoping
+- Loaded RFC, architecture doc, project rules, codebase patterns
+- Work list already existed from previous design session
+- Identified 4 implementation phases with ~25 file changes
 
-### Phase 2: Spec Drafting
-- Fetched FEATURESPEC-TEMPLATE.md
-- Drafted comprehensive spec covering all template sections plus data models, API endpoints, orchestration flow, requirements table, error states
-- Created 3 HTML mocks: widget chat UI, admin support rules, admin support analytics
+### Phase 2: Tests
+- Created 67 unit tests across 3 test files
+- Test factories for Conversation, Message, SupportRule
+- All tests passed on first run (after fixing Zod refine/partial issue)
 
-### Phase 3: Competitor Analysis
-- Conducted web research on Intercom Fin AI, Zendesk AI Agents, Freshdesk Freddy
-- Updated spec with current pricing data ($0.99/resolution for Intercom, per-AR billing for Zendesk)
-- Documented 3 key differentiators and competitive response strategies
+### Phase 3: Implementation
+- Parallel work on schema, shared code, AI integration, API routes, web component
+- Single lint error fixed (no-useless-assignment in bullmq.ts)
+- All CI gates passed after fix
 
-### Phase 4: Completeness Review
-- Verified all 3 HTML mocks render correctly in browser via Playwright
-- Confirmed requirement coverage against issue acceptance criteria
-- Validated compliance section, design standards section
-
-### Phase 5: Submission
-- Created evidence document
+### Phase 4: Validation & Submission
+- All 43 test files across 7 packages pass (zero regressions)
 - Committed and pushed to feature branch
-- Created PR #105
-- Updated issue labels to phase:spec + status:needs-review
+- PR #105 comment added with evidence
 
 ## Root Cause Analysis
 
-No significant problems occurred during this spec job.
-
 ### 1. **Primary Cause**
-**Problem**: N/A — no failures
-**Impact**: N/A
+No major issues encountered. The RFC was detailed enough to implement directly.
 
 ### 2. **Contributing Factors**
-**Problem**: File protocol blocked in Playwright required spinning up an HTTP server for mock validation
-**Impact**: Minor delay (~30 seconds) to start http-server and validate mocks
+**Problem**: Zod's `.refine()` returns `ZodEffects` which doesn't support `.partial()`
+**Impact**: Support schema test file failed to load. Required restructuring to use a base schema object before applying `.refine()`.
 
 ## What Went Wrong
 
-1. **Minor: File protocol blocked in Playwright**: Had to start an HTTP server to validate mocks in the browser. This is a known constraint but added a small delay.
+1. **Zod schema structure**: Initially applied `.refine()` directly on the schema object, then tried `.partial()` on the result. Had to introduce `CreateSupportRuleBaseSchema` intermediate to support both `CreateSupportRuleSchema` (with refine) and `UpdateSupportRuleSchema` (with partial).
+2. **Lint error**: Used mutable variables with reassignment pattern for try/catch result handling, triggering `no-useless-assignment`. Restructured to use IIFE pattern.
 
 ## What Went Right
 
-1. **Extensive existing patterns**: The codebase already has AlertRule, condition-builder, embed package (ceq-spin-wheel), and evaluateConditions() — all directly reusable for the support widget. This made the spec highly grounded in reality.
-2. **Brainstorming doc as input**: The `codebase-brainstorming-2026-04-03.md` document provided an excellent foundation with specific file references and gap analysis, significantly accelerating context gathering.
-3. **Existing spec as format reference**: Using `41-closed-loop-alerting.md` as a format reference ensured consistency with established project conventions.
-4. **Interactive mocks validated in browser**: All 3 HTML mocks rendered correctly on first attempt with no issues — the condition builder form, chat widget, and analytics dashboard all display properly.
-5. **Competitive research enriched the spec**: Web search confirmed and updated Intercom/Zendesk pricing and features, adding concrete data points to the competitive analysis.
+1. **RFC precision**: The technical design RFC had exact Prisma schema, exact TypeScript interfaces, exact API route signatures, and exact file paths. This eliminated all ambiguity during implementation.
+2. **Existing patterns**: Every component followed an established codebase pattern (BullMQ inline mode, Fastify route plugins, Zod schemas, Web Components, test factories), making implementation fast and consistent.
+3. **Graceful degradation design**: The RFC explicitly specified fallback behavior for each Phase A-C dependency, which translated directly into try/catch blocks and fallback functions.
+4. **Test-first approach**: Writing tests alongside implementation caught the Zod schema issue immediately.
+5. **Single-pass CI success**: After the two minor fixes (Zod + lint), all 4 CI gates passed in a single run.
 
 ## Lessons Learned
 
-1. **Brainstorming docs are high-value inputs for specs**: When a brainstorming session has already identified gaps and grounded suggestions with file paths, the spec-drafting phase is significantly faster and more accurate.
-2. **Mock validation via HTTP server is reliable**: Starting a local http-server for Playwright mock validation works well as a workaround for the file:// protocol restriction.
-3. **Reusing existing UI patterns in mocks**: Matching the sidebar layout, color scheme, and component patterns from existing admin pages keeps mocks consistent and realistic.
+1. **Zod refine + partial pattern**: When a schema needs both `.refine()` validation and `.partial()` for update schemas, always create a base `z.object()` first, then derive both from it. The refined version cannot be made partial.
+2. **IIFE for complex try/catch**: When ESLint flags `no-useless-assignment` in try/catch result patterns, restructure using an async IIFE that returns a result object from both branches.
+3. **RFC-driven implementation is efficient**: When the RFC specifies exact file paths, exact schemas, and exact function signatures, implementation becomes primarily mechanical. The RFC was the correct level of investment for this feature's complexity.
 
 ## Agent Rule Updates Made to avoid recurrence
 
-1. No rule updates needed — the workflow executed smoothly.
+1. **None required**: The two issues encountered were minor and self-correcting during the implementation flow.
 
 ## Enforcement Updates Made to avoid recurrence
 
-1. No enforcement updates needed.
+1. **None required**: Existing CI gates (typecheck, lint, tests) caught both issues before submission.
