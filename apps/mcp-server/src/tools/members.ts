@@ -41,7 +41,7 @@ export function registerMemberTools(server: McpServer) {
   // Get member details
   server.tool(
     'get_member',
-    'Get full member details including email, status, consent, and points balance.',
+    'Get full member details including email, status, consent, points balance, and health score.',
     z.object({
       memberId: z.string().describe('Member ID'),
     }).shape,
@@ -52,11 +52,11 @@ export function registerMemberTools(server: McpServer) {
     },
   )
 
-  // Get Customer 360 view (Issue #98)
+  // Get Customer 360 view with health score breakdown
   server.tool(
-    'get_customer_360',
-    'Get a comprehensive Customer 360 view including profile, loyalty events, survey responses, ' +
-    'redemptions, campaign events, open cases, and summary statistics.',
+    'get_member_360',
+    'Get a comprehensive Customer 360 view including profile, health score breakdown, loyalty events, ' +
+    'survey responses, redemptions, campaign events, open cases, and summary statistics.',
     z.object({
       memberId: z.string().describe('Member ID'),
       eventsLimit: z.number().int().min(1).max(100).default(20).optional()
@@ -86,7 +86,7 @@ export function registerMemberTools(server: McpServer) {
   server.tool(
     'search_members',
     'Search for loyalty program members by name, email, or behavioral filters (tier, sentiment, ' +
-    'NPS score, points balance, status, enrollment date).',
+    'NPS score, points balance, health score, status, enrollment date).',
     z.object({
       q: z.string().optional().describe('Text search across name and email'),
       tier: z.string().optional().describe('Filter by tier name'),
@@ -96,6 +96,8 @@ export function registerMemberTools(server: McpServer) {
       npsMax: z.number().min(0).max(10).optional().describe('Max NPS score (0-10)'),
       balanceMin: z.number().int().min(0).optional().describe('Min points balance'),
       balanceMax: z.number().int().min(0).optional().describe('Max points balance'),
+      healthScoreMin: z.number().int().min(0).max(100).optional().describe('Min health score (0-100)'),
+      healthScoreMax: z.number().int().min(0).max(100).optional().describe('Max health score (0-100)'),
       status: z.enum(['ACTIVE', 'INACTIVE', 'ERASED']).optional().describe('Member status filter'),
       page: z.number().int().min(1).default(1).optional().describe('Page number (default: 1)'),
       pageSize: z.number().int().min(1).max(100).default(20).optional().describe('Results per page (default: 20)'),

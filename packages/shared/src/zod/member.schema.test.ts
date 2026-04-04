@@ -3,6 +3,9 @@ import { describe, it, expect } from 'vitest'
 import {
   SearchMembersQuerySchema,
   Customer360QuerySchema,
+  HealthScoreWeightsSchema,
+  HealthScoreFilterSchema,
+  RecomputeHealthScoreSchema,
 } from './member.schema.js'
 
 describe('SearchMembersQuerySchema', () => {
@@ -135,5 +138,144 @@ describe('Customer360QuerySchema', () => {
 
   it('rejects non-integer values', () => {
     expect(() => Customer360QuerySchema.parse({ eventsLimit: '5.5' })).toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Health Score Schemas
+// ---------------------------------------------------------------------------
+
+describe('HealthScoreWeightsSchema', () => {
+  it('accepts valid default weights that sum to 1.0', () => {
+    const input = {
+      recency: 0.25,
+      frequency: 0.20,
+      sentiment: 0.25,
+      nps: 0.15,
+      engagement: 0.15,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects weights that do not sum to 1.0', () => {
+    const input = {
+      recency: 0.5,
+      frequency: 0.5,
+      sentiment: 0.5,
+      nps: 0.5,
+      engagement: 0.5,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative weights', () => {
+    const input = {
+      recency: -0.1,
+      frequency: 0.30,
+      sentiment: 0.30,
+      nps: 0.25,
+      engagement: 0.25,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects weights greater than 1', () => {
+    const input = {
+      recency: 1.5,
+      frequency: 0,
+      sentiment: 0,
+      nps: 0,
+      engagement: -0.5,
+    }
+    const result = HealthScoreWeightsSchema.safeParse(input)
+    expect(result.success).toBe(false)
+  })
+
+  it('applies default values when fields are omitted', () => {
+    const result = HealthScoreWeightsSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.recency).toBe(0.25)
+      expect(result.data.frequency).toBe(0.20)
+      expect(result.data.sentiment).toBe(0.25)
+      expect(result.data.nps).toBe(0.15)
+      expect(result.data.engagement).toBe(0.15)
+    }
+  })
+})
+
+describe('HealthScoreFilterSchema', () => {
+  it('accepts valid healthScoreMin and healthScoreMax', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 0, healthScoreMax: 100 })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts only healthScoreMin', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 30 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMin).toBe(30)
+      expect(result.data.healthScoreMax).toBeUndefined()
+    }
+  })
+
+  it('accepts only healthScoreMax', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMax: 70 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMax).toBe(70)
+    }
+  })
+
+  it('accepts empty object (both optional)', () => {
+    const result = HealthScoreFilterSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('coerces string values to numbers', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: '20', healthScoreMax: '80' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.healthScoreMin).toBe(20)
+      expect(result.data.healthScoreMax).toBe(80)
+    }
+  })
+
+  it('rejects values below 0', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects values above 100', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMax: 101 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-integer values', () => {
+    const result = HealthScoreFilterSchema.safeParse({ healthScoreMin: 30.5 })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('RecomputeHealthScoreSchema', () => {
+  it('accepts empty object (memberId optional)', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts memberId when provided', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({ memberId: 'member-abc-123' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.memberId).toBe('member-abc-123')
+    }
+  })
+
+  it('rejects non-string memberId', () => {
+    const result = RecomputeHealthScoreSchema.safeParse({ memberId: 123 })
+    expect(result.success).toBe(false)
   })
 })

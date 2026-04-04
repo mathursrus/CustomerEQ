@@ -170,6 +170,8 @@ model Member {
   currentTierId  String?
   currentTier    Tier?          @relation(fields: [currentTierId], references: [id])
   erased         Boolean        @default(false) // GDPR erasure flag (C-03)
+  healthScore          Int?       // 0-100 computed health score (null = never computed)
+  healthScoreUpdatedAt DateTime?  // timestamp of last health score computation
   loyaltyEvents   LoyaltyEvent[]
   redemptions     Redemption[]
   campaignEvents  CampaignEvent[]
@@ -180,6 +182,7 @@ model Member {
   @@unique([brandId, email])
   @@index([brandId])
   @@index([clerkUserId, brandId])
+  @@index([brandId, healthScore])
   @@map("members")
 }
 

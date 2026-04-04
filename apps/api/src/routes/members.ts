@@ -5,9 +5,11 @@ import {
   EnrollMemberSchema,
   Customer360QuerySchema,
   SearchMembersQuerySchema,
+  HealthScoreFilterSchema,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueNotification } from '../queues/bullmq.js'
+import { computeHealthScoreForMember } from '../queues/healthScore.js'
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/members/enroll — public route (new member has no org JWT yet)
@@ -375,6 +377,8 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           consentGivenAt: profile.consentGivenAt,
           consentVersion: profile.consentVersion,
           tier: profile.currentTier,
+          healthScore: (member as Record<string, unknown>).healthScore ?? null,
+          healthScoreUpdatedAt: (member as Record<string, unknown>).healthScoreUpdatedAt ?? null,
         },
         recentEvents: {
           items: events.slice(0, eventsLimit).map((e) => ({
@@ -448,7 +452,8 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/members', async (request, reply) => {
     const query = SearchMembersQuerySchema.parse(request.query)
     const { q, tier, sentimentMin, sentimentMax, npsMin, npsMax,
-            balanceMin, balanceMax, status, enrolledAfter, enrolledBefore,
+            balanceMin, balanceMax, healthScoreMin, healthScoreMax,
+            status, enrolledAfter, enrolledBefore,
             page, pageSize, sortBy, sortOrder } = query
 
     // Build Prisma where clause
@@ -475,6 +480,8 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     if (balanceMax !== undefined) where.pointsBalance = { ...(where.pointsBalance as object), lte: balanceMax }
     if (enrolledAfter) where.createdAt = { ...(where.createdAt as object), gte: new Date(enrolledAfter) }
     if (enrolledBefore) where.createdAt = { ...(where.createdAt as object), lte: new Date(enrolledBefore) }
+    if (healthScoreMin !== undefined) where.healthScore = { ...(where.healthScore as object), gte: healthScoreMin }
+    if (healthScoreMax !== undefined) where.healthScore = { ...(where.healthScore as object), lte: healthScoreMax }
 
     // Sentiment/NPS filtering via Prisma relational filter
     const needsSurveyFilter = sentimentMin !== undefined || sentimentMax !== undefined ||
