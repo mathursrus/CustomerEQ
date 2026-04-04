@@ -13,6 +13,7 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/alerts/cases', label: 'Alerts' },
+  { href: '/admin/kb', label: 'Knowledge Base' },
   { href: '/admin/support/conversations', label: 'Conversations', section: 'Support' },
   { href: '/admin/support/rules', label: 'Rules' },
   { href: '/admin/support/analytics', label: 'Support Analytics' },
