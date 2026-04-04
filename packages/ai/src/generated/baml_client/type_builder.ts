@@ -49,6 +49,10 @@ export default class TypeBuilder {
     
     FeedbackItem: ClassViewer<'FeedbackItem', "id" | "text" | "sentiment">;
     
+    IntentClassification: ClassViewer<'IntentClassification', "primary_intent" | "confidence" | "urgency" | "suggested_article_ids" | "response_outline" | "reasoning">;
+    
+    KBArticleSummary: ClassViewer<'KBArticleSummary', "id" | "title" | "category">;
+    
     MergeRecommendation: ClassViewer<'MergeRecommendation', "from_labels" | "into_label" | "reason">;
     
     
@@ -56,6 +60,7 @@ export default class TypeBuilder {
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
+            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","ExistingCluster","FeedbackAnalysis","FeedbackItem","IntentClassification","KBArticleSummary","MergeRecommendation",
             "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","CustomerContext","CustomerProfileSynthesis","ExistingCluster","FeedbackAnalysis","FeedbackItem","MergeRecommendation",
           ]),
           enums: new Set([
@@ -106,6 +111,14 @@ export default class TypeBuilder {
         
         this.FeedbackItem = this.tb.classViewer("FeedbackItem", [
           "id","text","sentiment",
+        ]);
+        
+        this.IntentClassification = this.tb.classViewer("IntentClassification", [
+          "primary_intent","confidence","urgency","suggested_article_ids","response_outline","reasoning",
+        ]);
+        
+        this.KBArticleSummary = this.tb.classViewer("KBArticleSummary", [
+          "id","title","category",
         ]);
         
         this.MergeRecommendation = this.tb.classViewer("MergeRecommendation", [

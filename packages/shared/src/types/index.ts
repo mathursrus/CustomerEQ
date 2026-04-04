@@ -45,6 +45,12 @@ export interface FeedbackClusteringPayload {
   triggeredBy?: string
 }
 
+export interface EmbeddingGenerationPayload {
+  articleId: string
+  brandId: string
+  text: string // concatenation of title + body for embedding
+}
+=======
 export type {
   HealthScoreComputationPayload,
   HealthScoreWeights,

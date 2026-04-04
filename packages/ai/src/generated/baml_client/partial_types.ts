@@ -20,6 +20,8 @@ $ pnpm add @boundaryml/baml
 
 import type { Image, Audio, Pdf, Video } from "@boundaryml/baml"
 import type { Checked, Check } from "./types"
+import type {  Anomaly,  AnomalyReport,  ClusterAssignment,  ClusterDefinition,  ClusterTrend,  ClusteringResult,  ExistingCluster,  FeedbackAnalysis,  FeedbackItem,  IntentClassification,  KBArticleSummary,  MergeRecommendation } from "./types"
+=======
 import type {  Anomaly,  AnomalyReport,  ClusterAssignment,  ClusterDefinition,  ClusterTrend,  ClusteringResult,  CustomerContext,  CustomerProfileSynthesis,  ExistingCluster,  FeedbackAnalysis,  FeedbackItem,  MergeRecommendation } from "./types"
 import type * as types from "./types"
 
@@ -109,6 +111,19 @@ export namespace partial_types {
       id?: string | null
       text?: string | null
       sentiment?: number | null
+    }
+    export interface IntentClassification {
+      primary_intent?: string | null
+      confidence?: number | null
+      urgency?: string | null
+      suggested_article_ids: string[]
+      response_outline?: string | null
+      reasoning?: string | null
+    }
+    export interface KBArticleSummary {
+      id?: string | null
+      title?: string | null
+      category?: string | null
     }
     export interface MergeRecommendation {
       from_labels: string[]

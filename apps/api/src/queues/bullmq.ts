@@ -6,6 +6,12 @@ import {
   type NotificationPayload,
   type SentimentAnalysisPayload,
   type FeedbackClusteringPayload,
+  type EmbeddingGenerationPayload,
+  evaluateConditions,
+} from '@customerEQ/shared'
+import type { ConditionGroup } from '@customerEQ/shared'
+import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding } from '@customerEQ/ai'
+=======
   type HealthScoreComputationPayload,
   evaluateConditions,
 } from '@customerEQ/shared'
@@ -28,6 +34,8 @@ let _notificationsQueue: Queue | null = null
 let _sentimentAnalysisQueue: Queue | null = null
 let _feedbackClusteringQueue: Queue | null = null
 let _alertEvaluationQueue: Queue | null = null
+let _embeddingGenerationQueue: Queue | null = null
+=======
 let _healthScoreQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
@@ -40,6 +48,8 @@ export function initQueues(redis: ConnectionOptions): void {
   _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
   _feedbackClusteringQueue = new Queue(QUEUES.FEEDBACK_CLUSTERING, { connection })
   _alertEvaluationQueue = new Queue(QUEUES.ALERT_EVALUATION, { connection })
+  _embeddingGenerationQueue = new Queue(QUEUES.EMBEDDING_GENERATION, { connection })
+=======
   _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
 }
 
@@ -69,6 +79,10 @@ function getAlertEvaluationQueue(): Queue {
   if (!_alertEvaluationQueue) throw new Error('Queues not initialized.')
   return _alertEvaluationQueue
 }
+function getEmbeddingGenerationQueue(): Queue {
+  if (!_embeddingGenerationQueue) throw new Error('Queues not initialized.')
+  return _embeddingGenerationQueue
+=======
 function getHealthScoreQueue(): Queue {
   if (!_healthScoreQueue) throw new Error('Queues not initialized.')
   return _healthScoreQueue
@@ -392,6 +406,36 @@ export interface AlertEvaluationPayload {
   score: number | null
   sentiment: number | null
   topics: string[]
+}
+
+async function inlineEmbeddingGeneration(p: EmbeddingGenerationPayload) {
+  const { articleId, brandId, text } = p
+  try {
+    const embedding = await generateEmbedding(text)
+    const vectorStr = `[${embedding.join(',')}]`
+    await prisma.$executeRawUnsafe(
+      `UPDATE kb_articles SET embedding = $1::vector WHERE id = $2`,
+      vectorStr,
+      articleId,
+    )
+    log.info({ brandId, articleId, embeddingDimensions: embedding.length }, 'Inline embedding generated')
+  } catch (err) {
+    log.error({ err, brandId, articleId }, 'Inline embedding generation failed')
+    throw err
+  }
+}
+
+export async function enqueueEmbeddingGeneration(payload: EmbeddingGenerationPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    inlineEmbeddingGeneration(payload).catch((err) => {
+      log.error({ err, articleId: payload.articleId }, 'Inline embedding generation failed')
+    })
+    return INLINE_STUB
+  }
+  return getEmbeddingGenerationQueue().add('generate', payload, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 1000 },
+  })
 }
 
 export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): Promise<Job> {

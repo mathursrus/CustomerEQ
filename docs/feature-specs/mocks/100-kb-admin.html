@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Issue #100 — Knowledge Base Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  /* Top nav */
+  .topnav {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo { font-weight: 700; font-size: 18px; color: #6366f1; letter-spacing: -0.5px; }
+  .logo span { color: #0f172a; }
+  .nav-user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+  /* Layout */
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar {
+    width: 220px;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+    padding: 20px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-item {
+    padding: 8px 20px;
+    font-size: 13px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .sidebar-item:hover { background: #f1f5f9; }
+  .sidebar-item.active { color: #6366f1; font-weight: 600; background: #eef2ff; }
+  .sidebar-group { padding: 16px 20px 4px; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .main { flex: 1; padding: 32px; max-width: 1200px; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .page-title { font-size: 24px; font-weight: 700; }
+  .page-subtitle { font-size: 14px; color: #64748b; margin-top: 4px; }
+
+  /* Buttons */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn-outline:hover { background: #f9fafb; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-ghost { background: transparent; color: #6366f1; }
+  .btn-ghost:hover { background: #eef2ff; }
+
+  /* Search and filters bar */
+  .toolbar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+  .search-input {
+    flex: 1;
+    max-width: 400px;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") 10px center no-repeat;
+    outline: none;
+  }
+  .search-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .filter-select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* Table */
+  .table-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfd; }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 4px;
+    margin-bottom: 2px;
+  }
+  .tag-billing { background: #fef3c7; color: #92400e; }
+  .tag-shipping { background: #dbeafe; color: #1e40af; }
+  .tag-returns { background: #fce7f3; color: #9d174d; }
+  .tag-account { background: #e0e7ff; color: #3730a3; }
+  .tag-product { background: #d1fae5; color: #065f46; }
+  .tag-general { background: #f1f5f9; color: #475569; }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-published { background: #d1fae5; color: #065f46; }
+  .badge-draft { background: #f1f5f9; color: #475569; }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .badge-published .badge-dot { background: #10b981; }
+  .badge-draft .badge-dot { background: #94a3b8; }
+
+  /* Embedding status */
+  .embed-status { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+  .embed-ok { color: #10b981; }
+  .embed-pending { color: #f59e0b; }
+
+  /* Category pill */
+  .category { font-size: 12px; color: #6366f1; font-weight: 500; }
+
+  /* Stats bar */
+  .stats-bar { display: flex; gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    flex: 1;
+  }
+  .stat-label { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 700; color: #0f172a; }
+  .stat-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; }
+  .tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: #374151; }
+  .tab.active { color: #6366f1; border-bottom-color: #6366f1; font-weight: 600; }
+
+  /* View switcher */
+  .view-switch { display: none; }
+  .view-list, .view-editor, .view-search { display: none; }
+  .view-list.active, .view-editor.active, .view-search.active { display: block; }
+
+  /* Editor */
+  .editor-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
+  .editor-main { display: flex; flex-direction: column; gap: 16px; }
+  .editor-sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 13px; font-weight: 600; color: #374151; }
+  .form-input {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .form-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .form-textarea {
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    min-height: 300px;
+    resize: vertical;
+    outline: none;
+    line-height: 1.6;
+  }
+  .form-textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 12px; }
+
+  /* Search results */
+  .search-result {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .search-result:hover { border-color: #6366f1; }
+  .result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .result-title { font-size: 15px; font-weight: 600; color: #0f172a; }
+  .result-score {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #eef2ff;
+    color: #6366f1;
+  }
+  .result-snippet { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
+  .result-meta { display: flex; gap: 12px; font-size: 11px; color: #94a3b8; }
+
+  /* Intent classification demo */
+  .intent-demo { margin-top: 32px; }
+  .intent-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .intent-result { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .intent-field { padding: 12px; background: #f8fafc; border-radius: 8px; }
+  .intent-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+  .intent-value { font-size: 15px; font-weight: 600; color: #0f172a; }
+  .intent-value.billing { color: #d97706; }
+  .intent-value.high { color: #dc2626; }
+  .confidence-bar { height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 6px; }
+  .confidence-fill { height: 100%; background: #10b981; border-radius: 3px; }
+  .suggested-articles { grid-column: 1 / -1; }
+  .suggested-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .suggested-item { display: flex; justify-content: space-between; padding: 8px 12px; background: #fafbfd; border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="topnav">
+  <div class="logo">Customer<span>EQ</span></div>
+  <div class="nav-user">
+    <span>Acme Corp</span>
+    <div class="avatar">SM</div>
+  </div>
+</nav>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-group">Loyalty</div>
+    <div class="sidebar-item">Programs</div>
+    <div class="sidebar-item">Members</div>
+    <div class="sidebar-item">Campaigns</div>
+    <div class="sidebar-item">Rewards</div>
+    <div class="sidebar-group">CX</div>
+    <div class="sidebar-item">Surveys</div>
+    <div class="sidebar-item">Analytics</div>
+    <div class="sidebar-item">Alert Rules</div>
+    <div class="sidebar-item">Cases</div>
+    <div class="sidebar-group">Support AI</div>
+    <div class="sidebar-item active">Knowledge Base</div>
+    <div class="sidebar-item">Intent Testing</div>
+  </aside>
+
+  <main class="main">
+    <!-- View: Article List -->
+    <div class="view-list active" id="view-list">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Knowledge Base</div>
+          <div class="page-subtitle">Manage articles that power AI-assisted support responses</div>
+        </div>
+        <button class="btn btn-primary" onclick="showEditor()">+ Create Article</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-label">Total Articles</div>
+          <div class="stat-value">24</div>
+          <div class="stat-sub">6 drafts, 18 published</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Categories</div>
+          <div class="stat-value">5</div>
+          <div class="stat-sub">FAQ, Policy, Troubleshooting, Product Guide, Process</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Embeddings</div>
+          <div class="stat-value">22</div>
+          <div class="stat-sub">2 pending generation</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Search Queries (7d)</div>
+          <div class="stat-value">156</div>
+          <div class="stat-sub">Avg relevance: 0.84</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active">All Articles</div>
+        <div class="tab" onclick="showSearch()">Semantic Search</div>
+        <div class="tab" onclick="showIntentDemo()">Intent Testing</div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <input class="search-input" type="text" placeholder="Search articles by title or content..." />
+        <select class="filter-select">
+          <option>All Categories</option>
+          <option>FAQ</option>
+          <option>Policy</option>
+          <option>Troubleshooting</option>
+          <option>Product Guide</option>
+          <option>Process</option>
+        </select>
+        <select class="filter-select">
+          <option>All Statuses</option>
+          <option>Published</option>
+          <option>Draft</option>
+        </select>
+      </div>
+
+      <!-- Articles Table -->
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Tags</th>
+              <th>Status</th>
+              <th>Embedding</th>
+              <th>Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>How to Request a Refund</strong></td>
+              <td><span class="category">Policy</span></td>
+              <td><span class="tag tag-billing">billing</span><span class="tag tag-returns">returns</span></td>
+              <td><span class="badge badge-published"><span class="badge-dot"></span>Published</span></td>
+              <td><span class="embed-status embed-ok">Ready</span></td>
+              <td style="color:#64748b; font-size:12px;">2 hours ago</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="showEditor()">Edit</button></td>
+            </tr>
+            <tr>
+              <td><strong>Shipping Timeframes and Tracking</strong></td>
+              <td><span class="category">FAQ</span></td>
+              <td><span class="tag tag-shipping">shipping</span></td>
+              <td><span class="badge badge-published"><span class="badge-dot"></span>Published</span></td>
+              <td><span class="embed-status embed-ok">Ready</span></td>
+              <td style="color:#64748b; font-size:12px;">1 day ago</td>
+              <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+            </tr>
+            <tr>
+              <td><strong>Troubleshooting Failed Payments</strong></td>
+              <td><span class="category">Troubleshooting</span></td>
+              <td><span class="tag tag-billing">billing</span><span class="tag tag-account">account</span></td>
+              <td><span class="badge badge-published"><span class="badge-dot"></span>Published</span></td>
+              <td><span class="embed-status embed-ok">Ready</span></td>
+              <td style="color:#64748b; font-size:12px;">3 days ago</td>
+              <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+            </tr>
+            <tr>
+              <td><strong>Loyalty Points Earning Rules</strong></td>
+              <td><span class="category">Product Guide</span></td>
+              <td><span class="tag tag-product">product</span><span class="tag tag-general">loyalty</span></td>
+              <td><span class="badge badge-published"><span class="badge-dot"></span>Published</span></td>
+              <td><span class="embed-status embed-ok">Ready</span></td>
+              <td style="color:#64748b; font-size:12px;">5 days ago</td>
+              <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+            </tr>
+            <tr>
+              <td><strong>Account Password Reset Process</strong></td>
+              <td><span class="category">Process</span></td>
+              <td><span class="tag tag-account">account</span></td>
+              <td><span class="badge badge-draft"><span class="badge-dot"></span>Draft</span></td>
+              <td><span class="embed-status embed-pending">Pending</span></td>
+              <td style="color:#64748b; font-size:12px;">1 week ago</td>
+              <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+            </tr>
+            <tr>
+              <td><strong>Product Size Guide</strong></td>
+              <td><span class="category">FAQ</span></td>
+              <td><span class="tag tag-product">product</span></td>
+              <td><span class="badge badge-published"><span class="badge-dot"></span>Published</span></td>
+              <td><span class="embed-status embed-ok">Ready</span></td>
+              <td style="color:#64748b; font-size:12px;">2 weeks ago</td>
+              <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- View: Article Editor -->
+    <div class="view-editor" id="view-editor">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Create Article</div>
+          <div class="page-subtitle">Write a knowledge base article to power AI support responses</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" onclick="showList()">Cancel</button>
+          <button class="btn btn-primary">Save Article</button>
+        </div>
+      </div>
+
+      <div class="editor-layout">
+        <div class="editor-main">
+          <div class="form-group">
+            <label class="form-label">Title</label>
+            <input class="form-input" type="text" placeholder="e.g., How to Request a Refund" value="How to Request a Refund" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Body (Markdown)</label>
+            <textarea class="form-textarea"># How to Request a Refund
+
+## Overview
+Customers can request a refund within 30 days of purchase for most items.
+
+## Eligibility
+- Item must be in original condition
+- Must have proof of purchase (order number or receipt)
+- Digital products are non-refundable after download
+
+## Process
+1. Navigate to **My Orders** in your account
+2. Click **Request Refund** on the order
+3. Select a reason for the refund
+4. Submit the request
+
+## Timeframes
+- Refund review: 1-2 business days
+- Credit card refund: 3-5 business days
+- Store credit: Immediate
+
+## Exceptions
+Contact support for orders over $500 or items past the 30-day window.</textarea>
+          </div>
+        </div>
+
+        <div class="editor-sidebar">
+          <div class="card">
+            <div class="card-title">Article Settings</div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">Category</label>
+              <select class="filter-select" style="width:100%;">
+                <option>FAQ</option>
+                <option selected>Policy</option>
+                <option>Troubleshooting</option>
+                <option>Product Guide</option>
+                <option>Process</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">Tags</label>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
+                <span class="tag tag-billing">billing x</span>
+                <span class="tag tag-returns">returns x</span>
+              </div>
+              <input class="form-input" type="text" placeholder="Add a tag..." style="font-size:12px;" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="filter-select" style="width:100%;">
+                <option>Draft</option>
+                <option selected>Published</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Embedding Status</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <span class="embed-status embed-ok" style="font-size:13px;">Embedding Generated</span>
+            </div>
+            <div style="font-size:12px; color:#94a3b8;">
+              Model: text-embedding-3-small<br/>
+              Dimensions: 1,536<br/>
+              Last generated: 2 hours ago
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: Semantic Search -->
+    <div class="view-search" id="view-search">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Semantic Search</div>
+          <div class="page-subtitle">Test natural language search against your knowledge base</div>
+        </div>
+        <button class="btn btn-outline" onclick="showList()">Back to Articles</button>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <div class="toolbar">
+          <input class="search-input" type="text" placeholder="Ask a question... e.g., 'how do I get my money back?'" value="how do I get my money back?" style="max-width:600px;" />
+          <button class="btn btn-primary">Search</button>
+        </div>
+      </div>
+
+      <div style="font-size:13px; color:#64748b; margin-bottom:16px;">5 results found in 127ms</div>
+
+      <div class="search-result">
+        <div class="result-header">
+          <div class="result-title">How to Request a Refund</div>
+          <span class="result-score">0.94 relevance</span>
+        </div>
+        <div class="result-snippet">Customers can request a refund within 30 days of purchase for most items. Navigate to My Orders, click Request Refund, select a reason...</div>
+        <div class="result-meta">
+          <span>Policy</span>
+          <span>billing, returns</span>
+          <span>Updated 2 hours ago</span>
+        </div>
+      </div>
+
+      <div class="search-result">
+        <div class="result-header">
+          <div class="result-title">Troubleshooting Failed Payments</div>
+          <span class="result-score">0.78 relevance</span>
+        </div>
+        <div class="result-snippet">If your payment failed, check that your card details are correct, your card has not expired, and you have sufficient funds...</div>
+        <div class="result-meta">
+          <span>Troubleshooting</span>
+          <span>billing, account</span>
+          <span>Updated 3 days ago</span>
+        </div>
+      </div>
+
+      <div class="search-result">
+        <div class="result-header">
+          <div class="result-title">Loyalty Points Earning Rules</div>
+          <span class="result-score">0.61 relevance</span>
+        </div>
+        <div class="result-snippet">Points are earned on qualifying purchases. Refunded orders will have their associated points deducted from your balance...</div>
+        <div class="result-meta">
+          <span>Product Guide</span>
+          <span>product, loyalty</span>
+          <span>Updated 5 days ago</span>
+        </div>
+      </div>
+
+      <!-- Intent Classification Demo -->
+      <div class="intent-demo">
+        <h2 style="font-size:20px; font-weight:700; margin-bottom:4px;">Intent Classification</h2>
+        <p style="font-size:14px; color:#64748b; margin-bottom:16px;">Test how the system classifies customer messages</p>
+
+        <div class="intent-card">
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label">Customer Message</label>
+            <textarea class="form-input" style="min-height:60px; font-family:inherit; resize:vertical;">I was charged twice for my last order and I need this fixed immediately</textarea>
+          </div>
+          <button class="btn btn-primary" style="margin-bottom:4px;">Classify Intent</button>
+
+          <div class="intent-result">
+            <div class="intent-field">
+              <div class="intent-label">Primary Intent</div>
+              <div class="intent-value billing">billing</div>
+            </div>
+            <div class="intent-field">
+              <div class="intent-label">Confidence</div>
+              <div class="intent-value">0.94</div>
+              <div class="confidence-bar"><div class="confidence-fill" style="width:94%;"></div></div>
+            </div>
+            <div class="intent-field">
+              <div class="intent-label">Urgency</div>
+              <div class="intent-value high">high</div>
+            </div>
+            <div class="intent-field">
+              <div class="intent-label">Reasoning</div>
+              <div style="font-size:13px; color:#374151; line-height:1.5;">Customer reports duplicate charge, uses urgent language ("immediately"), indicating a billing issue requiring prompt resolution.</div>
+            </div>
+            <div class="intent-field suggested-articles">
+              <div class="intent-label">Suggested KB Articles</div>
+              <div class="suggested-list">
+                <div class="suggested-item">
+                  <span>How to Request a Refund</span>
+                  <span class="result-score">0.94</span>
+                </div>
+                <div class="suggested-item">
+                  <span>Troubleshooting Failed Payments</span>
+                  <span class="result-score">0.78</span>
+                </div>
+              </div>
+            </div>
+            <div class="intent-field" style="grid-column: 1 / -1;">
+              <div class="intent-label">Suggested Response Outline</div>
+              <div style="font-size:13px; color:#374151; line-height:1.6;">
+                1. Apologize for the duplicate charge<br/>
+                2. Confirm the order details and verify the double charge<br/>
+                3. Initiate refund for the duplicate amount per refund policy<br/>
+                4. Provide expected timeframe (3-5 business days for credit card)<br/>
+                5. Offer reference number for tracking
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  function showEditor() {
+    document.getElementById('view-list').classList.remove('active');
+    document.getElementById('view-search').classList.remove('active');
+    document.getElementById('view-editor').classList.add('active');
+  }
+  function showList() {
+    document.getElementById('view-editor').classList.remove('active');
+    document.getElementById('view-search').classList.remove('active');
+    document.getElementById('view-list').classList.add('active');
+  }
+  function showSearch() {
+    document.getElementById('view-list').classList.remove('active');
+    document.getElementById('view-editor').classList.remove('active');
+    document.getElementById('view-search').classList.add('active');
+  }
+  function showIntentDemo() { showSearch(); } // Intent demo is in the search view
+</script>
+</body>
+</html>

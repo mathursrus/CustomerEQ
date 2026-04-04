@@ -5,6 +5,8 @@ export const QUEUES = {
   SENTIMENT_ANALYSIS: 'sentiment-analysis',
   FEEDBACK_CLUSTERING: 'feedback-clustering',
   ALERT_EVALUATION: 'alert-evaluation',
+  EMBEDDING_GENERATION: 'embedding-generation',
+=======
   HEALTH_SCORE_COMPUTATION: 'health-score-computation',
 } as const
 
