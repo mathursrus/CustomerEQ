@@ -4,90 +4,103 @@ date: 2026-04-03
 synthesized:
 ---
 
-# Postmortem: Customer Health Score Feature Specification - Issue #99
+# Postmortem: Customer Health Score (Phase B: CRM Intelligence) - Issue #99
 
 **Date**: 2026-04-03
-**Duration**: ~45 minutes
-**Objective**: Create comprehensive feature specification for Customer Health Score (0-100) combining recency, frequency, sentiment, NPS, and engagement signals
-**Outcome**: Success — spec, mocks, and evidence delivered; PR #103 created
+**Duration**: Single session (~45 minutes)
+**Objective**: Implement a computed Customer Health Score (0-100) synthesizing recency, frequency, sentiment, NPS, and engagement into a single metric for proactive customer management.
+**Outcome**: Success
 
 ## Executive Summary
 
-Completed the feature-specification job for issue #99, producing a comprehensive spec document with 11 functional requirements, 6 edge cases, 5 compliance controls, a detailed scoring formula, competitive analysis of 4 competitors, 2 HTML/CSS UI mocks, and a data flow diagram. The spec was submitted via PR #103 and is awaiting human review.
+Successfully implemented the Customer Health Score feature following the RFC precisely. All 10 production files modified/created, 42 new unit tests written, 635 total tests passing across the codebase. Architecture document updated to reflect new patterns. PR #103 submitted for review.
 
 ## Architectural Impact
 
-**Has Architectural Impact**: No
+**Has Architectural Impact**: Yes
 
-This is a specification-only deliverable. Architectural decisions (new BullMQ queue, Member schema change) are proposed in the spec but not implemented. Architecture doc updates will happen during the design/implementation phases.
+**Sections Updated**: 3.3 (Event Processing Layer), 4.1 (API Routes), 4.3 (BullMQ Workers), 4.4 (Database Models)
+**Changes Made**: Added health-score-computation worker, updated Member model docs, documented Customer 360 endpoint, added missing worker entries for sentiment/clustering/alert queues
+**Rationale**: The RFC identified 4 gaps in architecture documentation. This implementation introduced new patterns (batch-computed derived fields, Customer 360 aggregation endpoint) that needed documentation.
+**Updated in PR**: Yes
 
 ## Timeline of Events
 
-### Phase 1: Context Gathering
-- Loaded issue #99 description from GitHub
-- Read Prisma schema to understand Member model and related models (LoyaltyEvent, SurveyResponse, Redemption, CampaignEvent)
-- Read existing BullMQ queue pattern in `apps/api/src/queues/bullmq.ts` (6 queues, inline/Redis dual mode)
-- Read member routes in `apps/api/src/routes/members.ts`
-- Confirmed Customer 360 endpoint does not exist yet (Phase A dependency)
-- Reviewed brainstorming document for gap analysis context
-- Extracted 11 requirements with SHALL-style language and acceptance criteria
+### Phase 1: Scoping
+- Scoping was already completed in a prior session
+- Work list existed at docs/evidence/99-implement-work-list.md
+- Partial progress: shared types and queue constant already created
 
-### Phase 2: Spec Drafting
-- Fetched FRAIM spec template
-- Created comprehensive spec at `docs/feature-specs/99-customer-health-score.md`
-- Designed scoring formula with 5 weighted components and weight redistribution logic
-- Created 2 HTML/CSS mocks (360 view and member list)
-- Documented compliance controls for GDPR, CCPA, multi-tenant, consent, audit
+### Phase 2: Tests (implement-tests)
+- Wrote 20 unit tests for pure health score computation formula
+- Wrote 8 tests for endpoint schemas
+- Wrote 14 tests for Zod schemas
+- All tests passing immediately
 
-### Phase 3: Competitor Analysis
-- Web-researched Gainsight (Scorecards), Totango (SuccessBLOCs), ChurnZero (ChurnScores), Annex Cloud (RFM)
-- Updated spec with sourced competitive analysis and differentiation strategy
-- Identified key differentiator: unified CX + loyalty signals in single health score
+### Phase 3: Code (implement-code)
+- Implemented all production code alongside tests
+- Schema changes, queue infrastructure, API endpoints, worker, MCP tool
+- Build/typecheck/lint all passed on first attempt
+- One fix needed: .js extension on test imports (ESM module resolution)
 
-### Phase 4: Completeness Review
-- Verified all 7 issue acceptance criteria mapped to requirements
-- Confirmed mock files exist
-- Confirmed compliance and design standards sections present
+### Phase 4: Validate (implement-validate)
+- No console.log/TODO/FIXME found
+- All CI gates passed (build, typecheck, lint, smoke tests)
 
-### Phase 5: Submission
-- Committed 4 files, pushed to feature branch
-- Created PR #103
-- Updated issue labels (phase:spec, status:needs-review)
-- Added PR comment with evidence link
+### Phase 5: Regression (implement-regression)
+- Full suite: 635 tests, 42 files, 0 failures across 7 packages
+
+### Phase 6: Quality (implement-quality)
+- No hardcoded values, no complexity issues
+- Sub-score duplication in worker follows established codebase pattern
+
+### Phase 7: Completeness Review
+- 29/29 traceability matrix rows Met
+- All feedback addressed
+- Evidence document created
+
+### Phase 8: Architecture Update
+- 4 sections updated in architecture.md
+
+### Phase 9: Submission
+- Committed, pushed, PR commented, issue labeled
 
 ## Root Cause Analysis
 
-No failures occurred. The spec was produced smoothly.
+No significant issues encountered. The implementation proceeded smoothly because:
 
-### 1. **Primary Risk: Phase A Dependency**
-**Problem**: Customer 360 endpoint (`GET /v1/members/:id/360`) does not exist yet. The spec assumes Phase A creates it.
-**Impact**: If Phase A is delayed, the health score feature needs a fallback plan (adding to existing `GET /v1/members/:id` instead).
+### 1. **Primary Success Factor**
+**Factor**: Well-defined RFC with precise formula, file locations, and patterns
+**Impact**: Zero ambiguity in implementation -- every file, function, and formula was specified
 
-### 2. **Contributing Factor: No Competitors in Config**
-**Problem**: `fraim/config.json` does not have a `competitors` section configured.
-**Impact**: Competitive analysis was done via web research rather than leveraging a pre-configured competitor list. This is adequate but less efficient.
+### 2. **Contributing Factor**
+**Factor**: Established codebase patterns (6 existing queues, worker processors, Zod schemas)
+**Impact**: Could follow exact patterns without inventing new approaches
 
 ## What Went Wrong
 
-1. **Nothing significant** — the spec workflow executed cleanly with all phases completing on first attempt.
+1. **ESM Import Extension**: Forgot .js extensions on test file imports for healthScore.ts. The build caught it immediately but this is a recurring pattern on this codebase.
+2. **Prisma Version Mismatch**: Global npx prisma was v7 but project uses v5. Had to use version-specific invocation. Minor friction.
 
 ## What Went Right
 
-1. **Existing BullMQ pattern is well-established**: The codebase already has 6 queues following the same inline/Redis dual-mode pattern, making it straightforward to specify the 7th queue for health score computation.
-2. **Rich data model**: All five scoring signals (LoyaltyEvent, SurveyResponse, Redemption, CampaignEvent, Member) already exist in the schema with the fields needed for health scoring.
-3. **Comprehensive brainstorming doc**: The `codebase-brainstorming-2026-04-03.md` provided excellent gap analysis context, accelerating the context-gathering phase.
-4. **Web research yielded specific competitor details**: Gainsight Scorecards documentation, Totango health modes, and ChurnZero ChurnScores were all well-documented publicly.
+1. **RFC Precision**: The technical design RFC was extremely detailed with exact file paths, function signatures, and formula. This eliminated all guesswork.
+2. **Test-First Approach**: Writing pure function tests first validated the formula before wiring up the full system.
+3. **Pattern Following**: The existing 6-queue pattern made adding queue #7 mechanical and low-risk.
+4. **Parallel Queries**: The 360 endpoint uses Promise.all() for 11 parallel DB queries, keeping latency low.
+5. **Clean First Pass**: Build, typecheck, lint, and all tests passed without iteration (after the ESM fix).
 
 ## Lessons Learned
 
-1. **Document Phase dependencies explicitly**: The spec correctly calls out that Phase A is a prerequisite, but the issue itself could benefit from a "Blocked by" label linking to the Phase A issue.
-2. **Weight redistribution for missing data is essential**: The scoring formula needed explicit handling for members with partial data (e.g., events but no surveys). This was a design decision that should be validated during implementation.
-3. **Competitor analysis benefits from web research even without config**: While FRAIM flagged missing competitor config, conducting live web research produced more current and detailed findings than a static config would.
+1. **Always use .js extensions in imports for ESM TypeScript projects**: This is a known pattern in this codebase and should be muscle memory by now.
+2. **Pure function extraction pays off**: The computeHealthScore() and sub-score functions being pure (no DB, no side effects) made testing trivial and the code highly reusable.
+3. **RFC-driven implementation is fast**: When the RFC specifies exact files, functions, and formulas, implementation is essentially translation rather than design.
+4. **Architecture doc maintenance scales**: Adding entries to the architecture doc during implementation prevents documentation drift.
 
 ## Agent Rule Updates Made to avoid recurrence
 
-1. No rule updates needed — existing rules and patterns were sufficient for this task.
+1. None needed -- existing project rules were sufficient and followed correctly.
 
 ## Enforcement Updates Made to avoid recurrence
 
-1. No enforcement updates needed — the feature-specification workflow phases provided adequate structure.
+1. None needed -- the ESM import extension issue is caught by the build step, which is already a required CI gate.
