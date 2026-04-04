@@ -19,6 +19,8 @@ COPY packages/database/package.json packages/database/
 COPY packages/shared/package.json packages/shared/
 COPY packages/config/package.json packages/config/
 COPY packages/ui/package.json packages/ui/
+COPY packages/ai/package.json packages/ai/
+COPY packages/embed/package.json packages/embed/
 
 RUN pnpm install --frozen-lockfile
 
