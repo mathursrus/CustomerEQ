@@ -21,15 +21,15 @@ $ pnpm add @boundaryml/baml
 import type { BamlRuntime, FunctionResult, BamlCtxManager, ClientRegistry, Image, Audio, Pdf, Video, FunctionLog,
 HTTPRequest } from "@boundaryml/baml"
 import { toBamlError, BamlStream, BamlAbortError, Collector } from "@boundaryml/baml"
-import type { Checked, Check, RecursivePartialNull as MovedRecursivePartialNull } from "./types"
-import type { partial_types } from "./partial_types"
-import type * as types from "./types"
-import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation, SupportResponse} from "./types"
-import type TypeBuilder from "./type_builder"
-import { AsyncHttpRequest, AsyncHttpStreamRequest } from "./async_request"
-import { LlmResponseParser, LlmStreamParser } from "./parser"
+import type { Checked, Check, RecursivePartialNull as MovedRecursivePartialNull } from "./types.js"
+import type { partial_types } from "./partial_types.js"
+import type * as types from "./types.js"
+import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation, SupportResponse} from "./types.js"
+import type TypeBuilder from "./type_builder.js"
+import { AsyncHttpRequest, AsyncHttpStreamRequest } from "./async_request.js"
+import { LlmResponseParser, LlmStreamParser } from "./parser.js"
 import { DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_CTX,
-DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME } from "./globals"
+DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME } from "./globals.js"
 
 /**
 * @deprecated Use RecursivePartialNull from 'baml_client/types' instead.

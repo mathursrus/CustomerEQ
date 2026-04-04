@@ -21,10 +21,10 @@ $ pnpm add @boundaryml/baml
 import type { BamlRuntime, BamlCtxManager, ClientRegistry, Image, Audio, Pdf, Video, FunctionLog } from
 "@boundaryml/baml"
 import { toBamlError, HTTPRequest } from "@boundaryml/baml"
-import type { Checked, Check } from "./types"
-import type * as types from "./types"
-import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation, SupportResponse} from "./types"
-import type TypeBuilder from "./type_builder"
+import type { Checked, Check } from "./types.js"
+import type * as types from "./types.js"
+import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation, SupportResponse} from "./types.js"
+import type TypeBuilder from "./type_builder.js"
 
 type TickReason = "Unknown";
 
