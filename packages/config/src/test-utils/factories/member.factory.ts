@@ -41,3 +41,28 @@ export async function createConsentedMember(opts: {
     status: 'ACTIVE',
   })
 }
+
+/**
+ * Creates a member marked as erased (GDPR/CCPA) for PII masking tests.
+ */
+export async function createErasedMember(opts: {
+  brandId: string
+  email?: string
+  firstName?: string
+  lastName?: string
+}) {
+  const prisma = getTestPrisma()
+  counter++
+  return prisma.member.create({
+    data: {
+      brandId: opts.brandId,
+      email: opts.email ?? `erased_${counter}_${Date.now()}@test.com`,
+      firstName: opts.firstName ?? `ErasedFirst${counter}`,
+      lastName: opts.lastName ?? `ErasedLast${counter}`,
+      pointsBalance: 0,
+      status: 'ERASED',
+      erased: true,
+      consentGivenAt: new Date(),
+    },
+  })
+}

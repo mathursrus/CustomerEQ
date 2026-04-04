@@ -5,6 +5,15 @@ import {
   createBrand,
   createProgram,
   createConsentedMember,
+  createErasedMember,
+  createLoyaltyEvent,
+  createSurvey,
+  createSurveyResponse,
+  createReward,
+  createRedemption,
+  createCampaign,
+  createCampaignEvent,
+  createTier,
   authenticatedRequest,
   unauthenticatedRequest,
   getTestPrisma,
@@ -356,6 +365,316 @@ describe('Members API — /v1/members', () => {
       const res = await request.get('/v1/members/me')
 
       expect(res.status).toBe(404)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/members/:id/360 — Customer 360 (Issue #98)
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/members/:id/360', () => {
+    it('returns 200 with all sub-collections populated', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      // Create related data
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'purchase', pointsEarned: 100 })
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'survey_complete', pointsEarned: 50 })
+
+      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, score: 9, sentiment: 0.8, topics: ['service'] })
+
+      const reward = await createReward({ brandId: brand.id, programId: program.id })
+      await createRedemption({ brandId: brand.id, memberId: member.id, rewardId: reward.id, pointsSpent: 200 })
+
+      const campaign = await createCampaign({ brandId: brand.id, programId: program.id })
+      await createCampaignEvent({ brandId: brand.id, campaignId: campaign.id, memberId: member.id })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.member.id).toBe(member.id)
+      expect(res.body.member.email).toBe(member.email)
+      expect(res.body.member.pointsBalance).toBe(0)
+
+      // Sub-collections
+      expect(res.body.recentEvents.items).toHaveLength(2)
+      expect(res.body.recentEvents.hasMore).toBe(false)
+      expect(res.body.recentEvents.total).toBe(2)
+
+      expect(res.body.surveyResponses.items).toHaveLength(1)
+      expect(res.body.surveyResponses.items[0].score).toBe(9)
+
+      expect(res.body.redemptions.items).toHaveLength(1)
+      expect(res.body.redemptions.items[0].pointsSpent).toBe(200)
+
+      expect(res.body.campaignEvents.items).toHaveLength(1)
+
+      // Stats
+      expect(res.body.stats.totalEvents).toBe(2)
+      expect(res.body.stats.totalSurveyResponses).toBe(1)
+      expect(res.body.stats.totalPointsEarned).toBe(150)
+    })
+
+    it('returns 200 with empty sub-collections for a new member', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.recentEvents.items).toHaveLength(0)
+      expect(res.body.recentEvents.hasMore).toBe(false)
+      expect(res.body.recentEvents.total).toBe(0)
+      expect(res.body.surveyResponses.items).toHaveLength(0)
+      expect(res.body.redemptions.items).toHaveLength(0)
+      expect(res.body.campaignEvents.items).toHaveLength(0)
+      expect(res.body.openCases).toHaveLength(0)
+      expect(res.body.stats.totalEvents).toBe(0)
+      expect(res.body.stats.averageSentiment).toBeNull()
+    })
+
+    it('masks PII for erased members', async () => {
+      const brand = await createBrand()
+      const member = await createErasedMember({ brandId: brand.id })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.member.email).toBe('[ERASED]')
+      expect(res.body.member.firstName).toBe('[ERASED]')
+      expect(res.body.member.lastName).toBe('[ERASED]')
+      expect(res.body.member.phone).toBe('[ERASED]')
+    })
+
+    it('returns 404 for non-existent member', async () => {
+      const brand = await createBrand()
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/members/00000000-0000-0000-0000-000000000000/360')
+
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 404 when accessing member from different brand (tenant isolation)', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      const program = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brandA.id, programId: program.id })
+
+      const request = authenticatedRequest(brandB.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(404)
+    })
+
+    it('respects eventsLimit parameter and sets hasMore', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      // Create 5 events
+      for (let i = 0; i < 5; i++) {
+        await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'purchase', pointsEarned: 10 })
+      }
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360?eventsLimit=3`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.recentEvents.items).toHaveLength(3)
+      expect(res.body.recentEvents.hasMore).toBe(true)
+      expect(res.body.recentEvents.total).toBe(5)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/members — Search (Issue #98)
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/members (search)', () => {
+    it('returns paginated results with default params', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'Alice' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'Bob' })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(2)
+      expect(res.body.total).toBe(2)
+      expect(res.body.page).toBe(1)
+      expect(res.body.pageSize).toBe(20)
+      expect(res.body.totalPages).toBe(1)
+    })
+
+    it('searches by name (text search q param)', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'Alice', lastName: 'Wonder' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'Bob', lastName: 'Builder' })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?q=ali')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].firstName).toBe('Alice')
+    })
+
+    it('searches by email', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, email: 'unique-search@test.com' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?q=unique-search')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].email).toBe('unique-search@test.com')
+    })
+
+    it('filters by status', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createErasedMember({ brandId: brand.id })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?status=ERASED')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].status).toBe('ERASED')
+      // PII masked for erased member
+      expect(res.body.data[0].email).toBe('[ERASED]')
+      expect(res.body.data[0].firstName).toBe('[ERASED]')
+    })
+
+    it('filters by points balance range', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 500 })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 1500 })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 3000 })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?balanceMin=1000&balanceMax=2000')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].pointsBalance).toBe(1500)
+    })
+
+    it('paginates correctly with page and pageSize', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      for (let i = 0; i < 7; i++) {
+        await createConsentedMember({ brandId: brand.id, programId: program.id })
+      }
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?page=2&pageSize=3')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(3)
+      expect(res.body.total).toBe(7)
+      expect(res.body.page).toBe(2)
+      expect(res.body.totalPages).toBe(3) // ceil(7/3)
+    })
+
+    it('filters by tier name', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const goldTier = await createTier({ brandId: brand.id, programId: program.id, name: 'Gold', rank: 2 })
+      const memberA = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      // Assign tier
+      const prisma = getTestPrisma()
+      await prisma.member.update({ where: { id: memberA.id }, data: { currentTierId: goldTier.id } })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?tier=Gold')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].tierName).toBe('Gold')
+    })
+
+    it('filters by NPS score range via survey responses', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
+
+      const happyMember = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: happyMember.id, brandId: brand.id, score: 9 })
+
+      const sadMember = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: sadMember.id, brandId: brand.id, score: 3 })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?npsMin=8')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].id).toBe(happyMember.id)
+    })
+
+    it('enforces brand isolation in search', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      const programA = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
+      const programB = await createProgram({ brandId: brandB.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brandA.id, programId: programA.id })
+      await createConsentedMember({ brandId: brandB.id, programId: programB.id })
+
+      const request = authenticatedRequest(brandA.id)
+      const res = await request.get('/v1/members')
+
+      expect(res.status).toBe(200)
+      expect(res.body.total).toBe(1) // Only brandA's member
+    })
+
+    it('excludes soft-deleted members', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      // Soft-delete one member
+      const prisma = getTestPrisma()
+      await prisma.member.update({ where: { id: member.id }, data: { deletedAt: new Date() } })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members')
+
+      expect(res.status).toBe(200)
+      expect(res.body.total).toBe(1) // Soft-deleted excluded
+    })
+
+    it('sorts by pointsBalance ascending', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 300 })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 100 })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 200 })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?sortBy=pointsBalance&sortOrder=asc')
+
+      expect(res.status).toBe(200)
+      const balances = res.body.data.map((m: { pointsBalance: number }) => m.pointsBalance)
+      expect(balances).toEqual([100, 200, 300])
     })
   })
 
