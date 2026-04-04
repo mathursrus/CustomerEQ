@@ -274,7 +274,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 3. Parallel queries for sub-collections
       const [events, eventCount, surveys, surveyCount, redemptions, redemptionCount,
-             campaignEvents, ceCount, openCases, stats] = await Promise.all([
+             campaignEvents, ceCount, openCases, stats, redemptionStats, sentimentStats] = await Promise.all([
         // Recent events
         fastify.prisma.loyaltyEvent.findMany({
           where: { memberId: member.id, brandId: request.brandId },
@@ -324,16 +324,22 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           where: { memberId: member.id, brandId: request.brandId },
           _sum: { pointsEarned: true },
         }),
+        // Total points redeemed (aggregate across all redemptions, not just current page)
+        fastify.prisma.redemption.aggregate({
+          where: { memberId: member.id, brandId: request.brandId },
+          _sum: { pointsSpent: true },
+        }),
+        // Average sentiment across all survey responses (not just current page)
+        fastify.prisma.surveyResponse.aggregate({
+          where: { memberId: member.id, brandId: request.brandId, sentiment: { not: null } },
+          _avg: { sentiment: true },
+        }),
       ])
 
-      // 4. Compute summary stats
+      // 4. Compute summary stats (using DB aggregates for accuracy across all records)
       const totalPointsEarned = stats._sum.pointsEarned ?? 0
-      const totalPointsRedeemed = redemptions
-        .slice(0, redemptionsLimit)
-        .reduce((sum, r) => sum + r.pointsSpent, 0)
-      const avgSentiment = surveyCount > 0
-        ? surveys.slice(0, surveysLimit).reduce((sum, s) => sum + (s.sentiment ?? 0), 0) / Math.min(surveys.length, surveysLimit)
-        : null
+      const totalPointsRedeemed = redemptionStats._sum.pointsSpent ?? 0
+      const avgSentiment = sentimentStats._avg.sentiment ?? null
 
       // 5. Audit log for 360 access (fire-and-forget, C-CCPA-2)
       fastify.prisma.auditEvent.create({
@@ -494,6 +500,9 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
     const isSentimentSort = sortBy === 'sentiment'
 
+    // Start timer before queries for accurate response time logging
+    const responseTimeStart = Date.now()
+
     // Query with pagination
     const [members, total] = await Promise.all([
       fastify.prisma.member.findMany({
@@ -544,7 +553,6 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       results = results.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
     }
 
-    const responseTimeStart = Date.now()
     fastify.log.info(
       {
         brandId: request.brandId,

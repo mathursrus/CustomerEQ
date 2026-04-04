@@ -17,7 +17,7 @@ export function registerMemberTools(server: McpServer) {
     async (params) => {
       const res = await apiFetch('/v1/members/enroll', {
         method: 'POST',
-        body: { ...params, consentGivenAt: new Date().toISOString(), consentVersion: '1.0' },
+        body: { ...params, consentGiven: true, consentGivenAt: new Date().toISOString(), consentVersion: '1.0' },
       })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Member enrolled: ${JSON.stringify(res.data, null, 2)}` }] }
