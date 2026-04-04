@@ -8,6 +8,10 @@ import {
   createConsentedMember,
   createLoyaltyEvent,
   createCampaign,
+  createNpsSurvey,
+  createSurveyResponse,
+  createRedemption,
+  createReward,
   authenticatedRequest,
   InMemoryQueue,
 } from '@customerEQ/config/test-utils'
@@ -181,6 +185,120 @@ describe('Analytics API — /v1/analytics', () => {
 
       const start = Date.now()
       const res = await request.get('/v1/analytics/campaigns')
+      const elapsed = Date.now() - start
+
+      expect(res.status).toBe(200)
+      expect(elapsed).toBeLessThan(3000)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/analytics/program-health
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/analytics/program-health', () => {
+    it('returns 200 with correct shape for an empty brand', async () => {
+      const brand = await createBrand()
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/program-health')
+
+      expect(res.status).toBe(200)
+      expect(res.body.cxHealth).toBeDefined()
+      expect(res.body.loyaltyHealth).toBeDefined()
+      expect(Array.isArray(res.body.insights)).toBe(true)
+      expect(res.body.cxHealth.atRiskCount).toBe(0)
+      expect(res.body.cxHealth.activeSurveys).toBe(0)
+      expect(res.body.loyaltyHealth.activeMembers).toBe(0)
+      expect(res.body.loyaltyHealth.pointsIssuedThisWeek).toBe(0)
+      expect(res.body.insights).toHaveLength(0)
+    })
+
+    it('returns correct avgNps and atRiskCount from seeded NPS responses', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createNpsSurvey({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
+
+      // 5 detractors (score < 7), 1 promoter (score >= 9)
+      for (let i = 0; i < 5; i++) {
+        const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+        await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, score: 4 })
+      }
+      const promoterMember = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: promoterMember.id, brandId: brand.id, score: 9 })
+
+      const res = await request.get('/v1/analytics/program-health')
+
+      expect(res.status).toBe(200)
+      expect(res.body.cxHealth.atRiskCount).toBe(5)
+      // avgNps: (1 promoter - 5 detractors) / 6 total * 100 = -67
+      expect(res.body.cxHealth.avgNps).toBeLessThan(0)
+    })
+
+    it('returns correct pointsIssuedThisWeek from seeded loyalty events', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
+
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'cx.purchase_completed', pointsEarned: 200 })
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'cx.purchase_completed', pointsEarned: 150 })
+
+      const res = await request.get('/v1/analytics/program-health')
+
+      expect(res.status).toBe(200)
+      expect(res.body.loyaltyHealth.pointsIssuedThisWeek).toBe(350)
+    })
+
+    it('surfaces detractors-no-redemption insight when detractors have no recent redemption', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createNpsSurvey({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
+
+      // Create 5 detractors with no redemptions
+      for (let i = 0; i < 5; i++) {
+        const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+        await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, score: 3 })
+      }
+
+      const res = await request.get('/v1/analytics/program-health')
+
+      expect(res.status).toBe(200)
+      const detractorInsight = res.body.insights.find((i: { id: string }) => i.id === 'detractors-no-redemption')
+      expect(detractorInsight).toBeDefined()
+      expect(detractorInsight.message).toContain('5')
+      expect(detractorInsight.ctaHref).toBe('/admin/campaigns/new?filter=detractors&maxNps=6')
+    })
+
+    it('does NOT surface detractors insight when detractors have redeemed recently', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createNpsSurvey({ brandId: brand.id, programId: program.id })
+      const reward = await createReward({ brandId: brand.id, programId: program.id, pointsCost: 100 })
+      const request = authenticatedRequest(brand.id)
+
+      // Create 5 detractors who have redeemed
+      for (let i = 0; i < 5; i++) {
+        const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+        await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, score: 3 })
+        await createRedemption({ brandId: brand.id, memberId: member.id, rewardId: reward.id, pointsSpent: 100 })
+      }
+
+      const res = await request.get('/v1/analytics/program-health')
+
+      expect(res.status).toBe(200)
+      const detractorInsight = res.body.insights.find((i: { id: string }) => i.id === 'detractors-no-redemption')
+      expect(detractorInsight).toBeUndefined()
+    })
+
+    it('completes in less than 3000ms', async () => {
+      const brand = await createBrand()
+      const request = authenticatedRequest(brand.id)
+
+      const start = Date.now()
+      const res = await request.get('/v1/analytics/program-health')
       const elapsed = Date.now() - start
 
       expect(res.status).toBe(200)
