@@ -65,6 +65,14 @@ export interface AnomalyReport {
   overallSummary: string
 }
 
+export interface SupportResponseResult {
+  response: string
+  confidence: number       // 0.0 to 1.0
+  shouldEscalate: boolean
+  escalationReason: string | null
+  kbArticlesUsed: string[]
+}
+
 // The AI client interface — mock or real BAML client
 export interface AiClient {
   analyzeFeedback(
@@ -84,4 +92,14 @@ export interface AiClient {
     totalResponsesLast30d: number,
     totalResponsesPrevious30d: number,
   ): Promise<AnomalyReport>
+
+  generateSupportResponse(
+    customerMessage: string,
+    conversationHistory: string,
+    intent: string,
+    kbContext: string,
+    customerContext: string,
+    brandName: string,
+    supportRulesContext?: string,
+  ): Promise<SupportResponseResult>
 }

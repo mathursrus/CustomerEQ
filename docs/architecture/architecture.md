@@ -64,11 +64,11 @@ The platform is a multi-tenant loyalty engine with:
 
 ### 3.4. Data Layer (packages/database)
 - **Responsibility**: Schema definition (Prisma), migrations, database client singleton.
-- **Key Modules**: `packages/database/prisma/schema.prisma` (11 models), `packages/database/src/` (client exports)
+- **Key Modules**: `packages/database/prisma/schema.prisma` (14 models), `packages/database/src/` (client exports)
 
 ### 3.5. Shared Layer (packages/shared + packages/config)
 - **Responsibility**: Cross-app type contracts (Zod schemas, TypeScript interfaces, queue name constants, pure evaluation helpers), shared test infrastructure (factories, mocks, helpers).
-- **Key Modules**: `packages/shared/src/zod/` (request/response schemas), `packages/shared/src/types/` (internal payload interfaces), `packages/shared/src/queues.ts` (queue names), `packages/shared/src/conditions.ts` (`ConditionGroup` type + `evaluateConditions()` — used by both API simulate endpoint and worker rule evaluator), `packages/config/src/test-utils/` (factories, mocks, DB setup, helpers)
+- **Key Modules**: `packages/shared/src/zod/` (request/response schemas), `packages/shared/src/types/` (internal payload interfaces), `packages/shared/src/queues.ts` (queue names), `packages/shared/src/conditions.ts` (`ConditionGroup` type + `evaluateConditions()` — used by both API simulate endpoint and worker rule evaluator), `packages/shared/src/supportRules.ts` (`evaluateSupportRules()` — support rule matching against conversation context), `packages/config/src/test-utils/` (factories, mocks, DB setup, helpers)
 
 ### 3.6. UI Layer (packages/ui)
 - **Responsibility**: Shared Tailwind utility (`cn()` class merging). UI components are currently co-located in `apps/web/src/`.
@@ -76,7 +76,7 @@ The platform is a multi-tenant loyalty engine with:
 
 ### 3.7. Embed Layer (packages/embed)
 - **Responsibility**: CDN-distributed, standalone JavaScript components for embedding CustomerEQ experiences in brand websites. Uses Web Components (Custom Elements) with Shadow DOM for style isolation.
-- **Key Modules**: `packages/embed/src/ceq-spin-wheel.ts` (spin-the-wheel campaign component)
+- **Key Modules**: `packages/embed/src/ceq-spin-wheel.ts` (spin-the-wheel campaign component), `packages/embed/src/ceq-support-chat.ts` (embeddable support chat widget)
 - **Build**: Vite library mode, IIFE format, ES2020 target. Output: single JS file per component (~7 KB gzipped).
 - **Auth**: Each component receives a member JWT token as an HTML attribute and calls public API endpoints.
 - **Theming**: CSS custom properties (`--ceq-font-family`, `--ceq-primary-color`, `--ceq-background-color`) pierce Shadow DOM for brand customization.

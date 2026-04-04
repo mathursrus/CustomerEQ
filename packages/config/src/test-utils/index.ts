@@ -12,6 +12,7 @@ export { createReward } from './factories/reward.factory.js'
 export { createCampaign, createCampaignEvent, createNpsCampaign } from './factories/campaign.factory.js'
 export { createRedemption } from './factories/redemption.factory.js'
 export { createSurvey, createNpsSurvey, createSurveyResponse } from './factories/survey.factory.js'
+export { createConversation, createMessage, createSupportRule } from './factories/support.factory.js'
 
 // Mocks
 export { mockClerkAuth, mockClerkVerifyToken } from './mocks/clerk.mock.js'

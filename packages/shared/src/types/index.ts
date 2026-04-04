@@ -45,6 +45,13 @@ export interface FeedbackClusteringPayload {
   triggeredBy?: string
 }
 
+export interface SupportOrchestrationPayload {
+  conversationId: string
+  brandId: string
+  memberId: string
+  messageContent: string
+}
+=======
 export interface EmbeddingGenerationPayload {
   articleId: string
   brandId: string

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mock: Admin Support Rules</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f9fafb; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="flex">
+    <!-- Sidebar (matches existing admin layout) -->
+    <aside class="w-64 bg-white border-r border-gray-200 min-h-screen p-4 flex-shrink-0">
+      <div class="text-lg font-bold text-indigo-600 mb-6">CustomerEQ</div>
+      <nav class="space-y-1">
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Dashboard</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Programs</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Members</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Surveys</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Campaigns</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Alerts</a>
+        <div class="pt-2 pb-1 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Support</div>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Conversations</a>
+        <a href="#" class="block px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg">Rules</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Analytics</a>
+        <a href="#" class="block px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50">Widget Setup</a>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1 p-8">
+      <div class="max-w-6xl">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Support Rules</h1>
+            <p class="text-sm text-gray-500 mt-1">Configure automated responses and actions for incoming support messages</p>
+          </div>
+          <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition" onclick="toggleCreateForm()">
+            + Create Rule
+          </button>
+        </div>
+
+        <!-- Rules table -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Priority</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Conditions</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Matches (30d)</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">Gold Tier Billing Escalation</td>
+                <td class="px-4 py-3 text-sm text-gray-600">90</td>
+                <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">ACTIVE</span></td>
+                <td class="px-4 py-3 text-xs text-gray-500">intent = billing AND tierRank &ge; 3</td>
+                <td class="px-4 py-3 text-sm">
+                  <span class="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-1.5 py-0.5 mr-1">Auto-respond</span>
+                  <span class="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 rounded px-1.5 py-0.5">Escalate</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600">127</td>
+                <td class="px-4 py-3 text-sm text-gray-400 text-right">
+                  <button class="hover:text-gray-600">Edit</button>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">At-Risk Customer Apology</td>
+                <td class="px-4 py-3 text-sm text-gray-600">80</td>
+                <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">ACTIVE</span></td>
+                <td class="px-4 py-3 text-xs text-gray-500">healthScore &le; 30 AND sentiment &lt; -0.3</td>
+                <td class="px-4 py-3 text-sm">
+                  <span class="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-1.5 py-0.5 mr-1">Auto-respond</span>
+                  <span class="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mr-1">Award points</span>
+                  <span class="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 rounded px-1.5 py-0.5">Escalate</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600">43</td>
+                <td class="px-4 py-3 text-sm text-gray-400 text-right">
+                  <button class="hover:text-gray-600">Edit</button>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">Shipping FAQ Auto-Response</td>
+                <td class="px-4 py-3 text-sm text-gray-600">50</td>
+                <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">ACTIVE</span></td>
+                <td class="px-4 py-3 text-xs text-gray-500">intent = shipping OR topic = delivery</td>
+                <td class="px-4 py-3 text-sm">
+                  <span class="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-1.5 py-0.5">Auto-respond</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600">312</td>
+                <td class="px-4 py-3 text-sm text-gray-400 text-right">
+                  <button class="hover:text-gray-600">Edit</button>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">Post-Resolution Survey</td>
+                <td class="px-4 py-3 text-sm text-gray-600">20</td>
+                <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">PAUSED</span></td>
+                <td class="px-4 py-3 text-xs text-gray-500">messageCount &ge; 5</td>
+                <td class="px-4 py-3 text-sm">
+                  <span class="inline-flex items-center gap-1 text-xs text-purple-700 bg-purple-50 rounded px-1.5 py-0.5">Trigger survey</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600">0</td>
+                <td class="px-4 py-3 text-sm text-gray-400 text-right">
+                  <button class="hover:text-gray-600">Edit</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Create/Edit Rule Form (toggled) -->
+        <div id="createForm" class="mt-8 bg-white rounded-xl border border-gray-200 p-6" style="display: none;">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">Create Support Rule</h2>
+
+          <div class="space-y-6">
+            <!-- Name + Priority + Status row -->
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
+                <input type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., VIP Billing Escalation" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Priority (1-100)</label>
+                <input type="number" min="1" max="100" value="50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                  <option>ACTIVE</option>
+                  <option>PAUSED</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Condition Builder (reuses condition-builder.tsx pattern) -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Match Conditions</label>
+              <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+                <!-- Operator toggle -->
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500">Match</span>
+                  <div class="flex overflow-hidden rounded-lg border border-gray-300 text-xs">
+                    <button class="px-3 py-1.5 font-medium bg-indigo-600 text-white">AND</button>
+                    <button class="px-3 py-1.5 font-medium bg-white text-gray-600 hover:bg-gray-50">OR</button>
+                  </div>
+                  <span class="text-xs text-gray-500">of the following conditions</span>
+                </div>
+
+                <!-- Condition row 1 -->
+                <div class="flex items-center gap-2">
+                  <select class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                    <option selected>intent</option>
+                    <option>tier</option>
+                    <option>tierRank</option>
+                    <option>healthScore</option>
+                    <option>topic</option>
+                    <option>sentiment</option>
+                    <option>messageCount</option>
+                  </select>
+                  <select class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                    <option selected>=</option>
+                    <option>&ne;</option>
+                    <option>contains</option>
+                  </select>
+                  <input type="text" value="billing" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm flex-1" />
+                  <button class="text-red-400 hover:text-red-600 text-lg px-1">&times;</button>
+                </div>
+
+                <!-- Condition row 2 -->
+                <div class="flex items-center gap-2">
+                  <select class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                    <option>intent</option>
+                    <option>tier</option>
+                    <option selected>tierRank</option>
+                    <option>healthScore</option>
+                    <option>topic</option>
+                    <option>sentiment</option>
+                    <option>messageCount</option>
+                  </select>
+                  <select class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                    <option>=</option>
+                    <option>&ne;</option>
+                    <option>&gt;</option>
+                    <option selected>&ge;</option>
+                    <option>&lt;</option>
+                    <option>&le;</option>
+                  </select>
+                  <input type="text" value="3" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm flex-1" />
+                  <button class="text-red-400 hover:text-red-600 text-lg px-1">&times;</button>
+                </div>
+
+                <button class="text-indigo-600 text-sm font-medium hover:text-indigo-700">+ Add condition</button>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Actions (executed in order)</label>
+              <div class="space-y-3">
+                <!-- Action 1: Auto-respond -->
+                <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="inline-flex items-center gap-1 text-sm font-medium text-blue-700">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                      Auto-respond
+                    </span>
+                    <button class="text-red-400 hover:text-red-600 text-sm">&times; Remove</button>
+                  </div>
+                  <div class="space-y-2">
+                    <div>
+                      <label class="text-xs text-gray-500">KB Article (optional)</label>
+                      <select class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+                        <option>-- Select article --</option>
+                        <option selected>Billing FAQ - How to update payment method</option>
+                        <option>Points Processing Timeline</option>
+                        <option>Tier Benefits Overview</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500">Response Template (optional, supports {{member.firstName}}, {{member.tier}}, {{member.pointsBalance}})</label>
+                      <textarea class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1" rows="2" placeholder="Hi {{member.firstName}}, as a {{member.tier}} member...">Hi {{member.firstName}}, I can help with billing. As a valued {{member.tier}} member, here's what you need to know:</textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action 2: Escalate -->
+                <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="inline-flex items-center gap-1 text-sm font-medium text-red-700">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                      Escalate
+                    </span>
+                    <button class="text-red-400 hover:text-red-600 text-sm">&times; Remove</button>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-gray-500">Priority</label>
+                      <select class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+                        <option>LOW</option>
+                        <option>MEDIUM</option>
+                        <option selected>HIGH</option>
+                        <option>CRITICAL</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-500">Assignee (optional)</label>
+                      <input type="text" value="billing-team@acme.com" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Add action buttons -->
+                <div class="flex gap-2">
+                  <button class="text-sm text-indigo-600 font-medium border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50">+ Auto-respond</button>
+                  <button class="text-sm text-red-600 font-medium border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50">+ Escalate</button>
+                  <button class="text-sm text-amber-600 font-medium border border-amber-200 rounded-lg px-3 py-1.5 hover:bg-amber-50">+ Award Points</button>
+                  <button class="text-sm text-purple-600 font-medium border border-purple-200 rounded-lg px-3 py-1.5 hover:bg-purple-50">+ Trigger Survey</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Save buttons -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button class="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50" onclick="toggleCreateForm()">Cancel</button>
+              <button class="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg font-medium hover:bg-indigo-700">Save Rule</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function toggleCreateForm() {
+      const form = document.getElementById('createForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+  </script>
+</body>
+</html>

@@ -21,5 +21,16 @@ export function createMockClient(): AiClient {
     async detectAnomalies(clusterTrends, totalLast30d, totalPrev30d) {
       return mockDetectAnomalies(clusterTrends, totalLast30d, totalPrev30d)
     },
+
+    async generateSupportResponse(customerMessage, _conversationHistory, intent, _kbContext, customerContext, brandName, _supportRulesContext) {
+      const greeting = customerContext ? `Based on your profile, ` : ''
+      return {
+        response: `${greeting}Thank you for reaching out to ${brandName}. Regarding your ${intent} inquiry: "${customerMessage.slice(0, 50)}..." — I'd be happy to help you with this.`,
+        confidence: 0.75,
+        shouldEscalate: false,
+        escalationReason: null,
+        kbArticlesUsed: [],
+      }
+    },
   }
 }

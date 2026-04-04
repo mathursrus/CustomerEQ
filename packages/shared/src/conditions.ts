@@ -31,6 +31,7 @@ export function evaluateConditions(
       case 'gte': return typeof actual === 'number' && typeof cond.value === 'number' && actual >= cond.value
       case 'lt':  return typeof actual === 'number' && typeof cond.value === 'number' && actual < cond.value
       case 'lte': return typeof actual === 'number' && typeof cond.value === 'number' && actual <= cond.value
+      case 'contains': return typeof actual === 'string' && typeof cond.value === 'string' && actual.toLowerCase().includes(cond.value.toLowerCase())
       default:    return false
     }
   })

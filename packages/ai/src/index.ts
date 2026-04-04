@@ -11,6 +11,8 @@ export { discoverClusters } from './analysis/clustering.js'
 export { detectAnomalies, zScore, isVolumeAnomaly } from './analysis/anomaly.js'
 export { computeTrend } from './analysis/trending.js'
 export type { TrendDirection, TrendResult } from './analysis/trending.js'
+export { generateSupportResponse } from './analysis/support.js'
+=======
 export { generateEmbedding } from './analysis/embeddings.js'
 export { classifyIntent } from './analysis/classify-intent.js'
 export type { IntentClassification, KBArticleSummary } from './analysis/classify-intent.js'
@@ -28,6 +30,7 @@ export type {
   ClusterTrend,
   AnomalyItem,
   AnomalyReport,
+  SupportResponseResult,
 } from './types.js'
 
 // Mocks (for test utilities)

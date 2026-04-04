@@ -77,6 +77,19 @@ enum SurveyStatus {
   CLOSED
 }
 
+enum ConversationStatus {
+  ACTIVE
+  WAITING_ON_CUSTOMER
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+enum MessageRole {
+  CUSTOMER
+  AI
+  AGENT
+=======
 enum KBArticleCategory {
   FAQ
   POLICY
@@ -104,6 +117,8 @@ model Brand {
   questionTemplates QuestionTemplate[]
   alertRules        AlertRule[]
   caseFollowUps     CaseFollowUp[]
+  conversations     Conversation[]
+  supportRules      SupportRule[]
   createdAt         DateTime            @default(now())
 
   @@map("brands")
@@ -190,6 +205,7 @@ model Member {
   redemptions     Redemption[]
   campaignEvents  CampaignEvent[]
   surveyResponses SurveyResponse[]
+  conversations   Conversation[]
   createdAt       DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -587,6 +603,86 @@ model AuditEvent {
   @@map("audit_events")
 }
 
+// ─── Support Chat Models ─────────────────────────────────────────────────────
+
+model Conversation {
+  id             String             @id @default(cuid())
+  brandId        String
+  brand          Brand              @relation(fields: [brandId], references: [id])
+  memberId       String
+  member         Member             @relation(fields: [memberId], references: [id])
+
+  status         ConversationStatus @default(ACTIVE)
+  intent         String?            // classified intent (billing, shipping, etc.)
+  confidence     Float?             // intent classification confidence
+  topic          String?            // extracted topic
+  summary        String?            // AI-generated conversation summary
+
+  // Escalation
+  assignee       String?            // human agent email
+  caseFollowUpId String?            // FK to CaseFollowUp if escalated
+  escalatedAt    DateTime?
+
+  // Rules matched
+  rulesMatched   String[]           // SupportRule IDs that fired
+
+  messages       Message[]
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+
+  @@index([brandId, status])
+  @@index([memberId])
+  @@index([brandId, createdAt])
+  @@map("conversations")
+}
+
+model Message {
+  id              String       @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+
+  role            MessageRole  // CUSTOMER, AI, AGENT
+  content         String       // message text
+  metadata        Json?        // { kbArticleIds, customer360Snapshot, intentResult, confidence }
+
+  createdAt       DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model SupportRule {
+  id              String   @id @default(cuid())
+  brandId         String
+  brand           Brand    @relation(fields: [brandId], references: [id])
+  name            String
+  description     String?
+  status          String   @default("ACTIVE") // ACTIVE, PAUSED
+  priority        Int      @default(0)        // lower = evaluated first
+
+  // Match conditions
+  intentFilters   String[] // ["billing", "shipping"] or empty = all
+  tierFilters     String[] // ["Gold", "Platinum"] or empty = all
+  healthScoreMin  Float?   // match if health score >= this
+  healthScoreMax  Float?   // match if health score <= this
+  topicFilters    String[] // ["refund", "overcharge"] or empty = all
+  conditions      Json     @default("{}") // ConditionGroup for additional field/op/value matching
+
+  // Actions (multiple can fire)
+  autoRespondArticleId String?  // KB article ID to auto-respond with
+  escalateToAssignee   String?  // human agent email for escalation
+  awardPoints          Int?     // compensatory points to award
+  triggerSurveyId      String?  // post-resolution survey to trigger
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([brandId, status])
+  @@map("support_rules")
+=======
 model KBArticle {
   id          String            @id @default(cuid())
   brandId     String
