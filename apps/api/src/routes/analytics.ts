@@ -971,7 +971,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // GET /v1/analytics/program-health — unified CX+loyalty dashboard snapshot
-  // Fixed windows: CX = last 30 days, Loyalty = last 7 days
+  // CX window: last 30 days, Loyalty window: last 7 days (fixed, no query params)
   fastify.get('/analytics/program-health', async (request, reply) => {
     const brandId = request.brandId
     const now = new Date()
