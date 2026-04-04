@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { UserButton } from '@clerk/nextjs'
 
-const navLinks = [
+const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/programs', label: 'Programs' },
   { href: '/admin/members', label: 'Members' },
   { href: '/admin/campaigns', label: 'Campaigns' },
@@ -13,6 +13,9 @@ const navLinks = [
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/alerts/cases', label: 'Alerts' },
+  { href: '/admin/support/conversations', label: 'Conversations', section: 'Support' },
+  { href: '/admin/support/rules', label: 'Rules' },
+  { href: '/admin/support/analytics', label: 'Support Analytics' },
   { href: '/admin/integrations', label: 'Integrations' },
   { href: '/admin/settings/themes', label: 'Settings' },
 ]
@@ -50,19 +53,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navLinks.map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setSidebarOpen(false)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                pathname === href
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'
-              }`}
-            >
-              {label}
-            </Link>
+          {navLinks.map(({ href, label, section }) => (
+            <div key={href}>
+              {section && (
+                <div className="pt-3 pb-1 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {section}
+                </div>
+              )}
+              <Link
+                href={href}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  pathname === href || pathname.startsWith(href + '/')
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'
+                }`}
+              >
+                {label}
+              </Link>
+            </div>
           ))}
         </nav>
         <div className="px-4 py-3 border-t border-gray-200">
