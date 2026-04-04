@@ -113,6 +113,23 @@ export interface FeedbackItem {
   
 }
 
+export interface IntentClassification {
+  primary_intent: string
+  confidence: number
+  urgency: string
+  suggested_article_ids: string[]
+  response_outline: string
+  reasoning: string
+  
+}
+
+export interface KBArticleSummary {
+  id: string
+  title: string
+  category: string
+  
+}
+
 export interface MergeRecommendation {
   from_labels: string[]
   into_label: string

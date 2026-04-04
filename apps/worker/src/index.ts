@@ -8,6 +8,7 @@ import { createCampaignTriggerProcessor } from './processors/campaignTriggers.js
 import { processNotification } from './processors/notifications.js'
 import { createSentimentProcessor } from './processors/sentimentAnalysis.js'
 import { processFeedbackClustering } from './processors/feedbackClustering.js'
+import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -51,11 +52,17 @@ const feedbackClusteringWorker = new Worker(
   { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const embeddingGenerationWorker = new Worker(
+  QUEUES.EMBEDDING_GENERATION,
+  processEmbeddingGeneration,
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -70,7 +77,7 @@ for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notifications
 
 logger.info(
   {
-    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING],
+    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING, QUEUES.EMBEDDING_GENERATION],
   },
   'Workers started',
 )
@@ -87,6 +94,7 @@ async function shutdown(signal: string): Promise<void> {
     notificationsWorker.close(),
     sentimentWorker.close(),
     feedbackClusteringWorker.close(),
+    embeddingGenerationWorker.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

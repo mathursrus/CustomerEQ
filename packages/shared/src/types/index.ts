@@ -44,3 +44,9 @@ export interface FeedbackClusteringPayload {
   brandId: string
   triggeredBy?: string
 }
+
+export interface EmbeddingGenerationPayload {
+  articleId: string
+  brandId: string
+  text: string // concatenation of title + body for embedding
+}
