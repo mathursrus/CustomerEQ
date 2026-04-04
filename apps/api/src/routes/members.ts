@@ -501,6 +501,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       email: { email: sortOrder },
       pointsBalance: { pointsBalance: sortOrder },
       createdAt: { createdAt: sortOrder },
+      healthScore: { healthScore: sortOrder },
     }
 
     const isSentimentSort = sortBy === 'sentiment'
@@ -524,6 +525,8 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           status: true,
           erased: true,
           createdAt: true,
+          healthScore: true,
+          healthScoreUpdatedAt: true,
           currentTier: { select: { name: true } },
           surveyResponses: {
             orderBy: { completedAt: 'desc' },
@@ -544,6 +547,8 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       pointsBalance: m.pointsBalance,
       status: m.status,
       tierName: m.currentTier?.name ?? null,
+      healthScore: m.healthScore ?? null,
+      healthScoreUpdatedAt: m.healthScoreUpdatedAt ?? null,
       latestSentiment: m.surveyResponses[0]?.sentiment ?? null,
       latestNpsScore: m.surveyResponses[0]?.score ?? null,
       createdAt: m.createdAt,
