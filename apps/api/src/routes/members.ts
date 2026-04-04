@@ -5,11 +5,9 @@ import {
   EnrollMemberSchema,
   Customer360QuerySchema,
   SearchMembersQuerySchema,
-  HealthScoreFilterSchema,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueNotification } from '../queues/bullmq.js'
-import { computeHealthScoreForMember } from '../queues/healthScore.js'
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/members/enroll — public route (new member has no org JWT yet)
