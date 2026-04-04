@@ -106,6 +106,11 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Conversation not found' })
       }
 
+      // Reject messages to closed/resolved conversations
+      if (conversation.status === 'CLOSED' || conversation.status === 'RESOLVED') {
+        return reply.status(409).send({ error: 'Conversation is closed' })
+      }
+
       // Create message
       const message = await fastify.prisma.message.create({
         data: {
@@ -164,9 +169,13 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Conversation not found' })
       }
 
+      const { limit: limitStr } = request.query as { limit?: string }
+      const limit = Math.min(200, Math.max(1, parseInt(limitStr ?? '100', 10) || 100))
+
       const messages = await fastify.prisma.message.findMany({
         where: { conversationId },
         orderBy: { createdAt: 'asc' },
+        take: limit,
         select: {
           id: true,
           role: true,

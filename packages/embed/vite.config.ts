@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite'
 
-// Build target can be selected via EMBED_COMPONENT env var.
+// Build target selected via EMBED_COMPONENT env var.
 // Default builds the spin wheel; set EMBED_COMPONENT=ceq-support-chat for chat widget.
+// The package.json build script runs both sequentially.
 const component = process.env.EMBED_COMPONENT ?? 'ceq-spin-wheel'
 
 const entries: Record<string, { entry: string; name: string; fileName: string }> = {
@@ -28,6 +29,7 @@ export default defineConfig({
       fileName: () => config.fileName,
     },
     outDir: 'dist',
+    emptyOutDir: component === 'ceq-spin-wheel', // Only clear dist on first build
     minify: true,
     target: 'es2020',
   },

@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/ceq-spin-wheel.js",
   "scripts": {
-    "build": "vite build",
+    "build": "node build-all.mjs",
     "dev": "vite build --watch"
   },
   "devDependencies": {

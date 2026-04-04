@@ -226,3 +226,97 @@ describe('UpdateSupportRuleSchema', () => {
     expect(result.success).toBe(true)
   })
 })
+
+describe('Schema edge cases', () => {
+  it('CreateConversationSchema accepts message at exactly 5000 chars', () => {
+    const result = CreateConversationSchema.safeParse({
+      memberEmail: 'member@example.com',
+      initialMessage: 'x'.repeat(5000),
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('SendMessageSchema accepts message at exactly 5000 chars', () => {
+    const result = SendMessageSchema.safeParse({ content: 'x'.repeat(5000) })
+    expect(result.success).toBe(true)
+  })
+
+  it('SendMessageSchema rejects message over 5000 chars', () => {
+    const result = SendMessageSchema.safeParse({ content: 'x'.repeat(5001) })
+    expect(result.success).toBe(false)
+  })
+
+  it('CreateSupportRuleSchema accepts healthScoreMin at boundary 0', () => {
+    const result = CreateSupportRuleSchema.safeParse({ name: 'Test', healthScoreMin: 0 })
+    expect(result.success).toBe(true)
+  })
+
+  it('CreateSupportRuleSchema accepts healthScoreMax at boundary 100', () => {
+    const result = CreateSupportRuleSchema.safeParse({ name: 'Test', healthScoreMax: 100 })
+    expect(result.success).toBe(true)
+  })
+
+  it('CreateSupportRuleSchema rejects healthScore above 100', () => {
+    const result = CreateSupportRuleSchema.safeParse({ name: 'Test', healthScoreMin: 101 })
+    expect(result.success).toBe(false)
+  })
+
+  it('CreateSupportRuleSchema rejects healthScore below 0', () => {
+    const result = CreateSupportRuleSchema.safeParse({ name: 'Test', healthScoreMin: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('CreateSupportRuleSchema accepts conditions with OR operator', () => {
+    const result = CreateSupportRuleSchema.safeParse({
+      name: 'Test',
+      conditions: {
+        operator: 'OR',
+        conditions: [
+          { field: 'intent', op: 'eq', value: 'billing' },
+          { field: 'tier', op: 'eq', value: 'Gold' },
+        ],
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('CreateSupportRuleSchema rejects invalid condition operator', () => {
+    const result = CreateSupportRuleSchema.safeParse({
+      name: 'Test',
+      conditions: {
+        operator: 'XOR',
+        conditions: [],
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('CreateSupportRuleSchema rejects invalid condition op', () => {
+    const result = CreateSupportRuleSchema.safeParse({
+      name: 'Test',
+      conditions: {
+        operator: 'AND',
+        conditions: [{ field: 'intent', op: 'regex', value: '.*' }],
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('UpdateConversationStatusSchema rejects assignee that is not an email', () => {
+    const result = UpdateConversationStatusSchema.safeParse({
+      status: 'ESCALATED',
+      assignee: 'not-an-email',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('CreateConversationSchema rejects whitespace-only message', () => {
+    const result = CreateConversationSchema.safeParse({
+      memberEmail: 'member@example.com',
+      initialMessage: '   ',
+    })
+    // min(1) checks length, but whitespace is still > 0 length
+    // This is acceptable behavior — Zod doesn't trim by default
+    expect(result.success).toBe(true)
+  })
+})

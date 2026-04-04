@@ -48,7 +48,9 @@ const STYLES = `
   display: none;
   flex-direction: column;
   width: 380px;
+  max-width: calc(100vw - 24px);
   height: 520px;
+  max-height: calc(100vh - 24px);
   background: var(--bg);
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.12);
@@ -183,7 +185,7 @@ class CeqSupportChat extends HTMLElement {
     this.eventSource?.close()
   }
 
-  private render() {
+  private render(scrollToEnd = false) {
     this.shadow.innerHTML = `
       <style>${STYLES}</style>
       <div class="ceq-panel ${this.state === 'closed' ? '' : 'open'}" id="panel">
@@ -191,11 +193,11 @@ class CeqSupportChat extends HTMLElement {
           <h3>Support Chat</h3>
           <button class="ceq-close" id="close-btn" aria-label="Close chat">&times;</button>
         </div>
-        <div class="ceq-messages" id="messages">
+        <div class="ceq-messages" id="messages" aria-live="polite" role="log">
           ${this.messages.map((m) => `
             <div class="ceq-msg ${m.role.toLowerCase()}">${this.escapeHtml(m.content)}</div>
           `).join('')}
-          ${this.isLoading ? '<div class="ceq-typing"><span>.</span><span>.</span><span>.</span></div>' : ''}
+          ${this.isLoading ? '<div class="ceq-typing" aria-label="Agent is typing"><span>.</span><span>.</span><span>.</span></div>' : ''}
         </div>
         ${this.state === 'error' ? '<div class="ceq-error">Something went wrong. Please try again.</div>' : ''}
         <div class="ceq-input-area">
@@ -214,7 +216,11 @@ class CeqSupportChat extends HTMLElement {
     this.shadow.getElementById('send-btn')?.addEventListener('click', () => this.handleSend())
     this.shadow.getElementById('msg-input')?.addEventListener('keydown', (e: Event) => {
       if ((e as KeyboardEvent).key === 'Enter') this.handleSend()
+      if ((e as KeyboardEvent).key === 'Escape') this.close()
     })
+    if (scrollToEnd) {
+      this.scrollToBottom()
+    }
   }
 
   private open() {
@@ -241,7 +247,7 @@ class CeqSupportChat extends HTMLElement {
     // Add customer message to UI
     this.messages.push({ role: 'CUSTOMER', content, timestamp: new Date().toISOString() })
     this.isLoading = true
-    this.render()
+    this.render(true)
 
     try {
       if (!this.conversationId) {
@@ -296,7 +302,7 @@ class CeqSupportChat extends HTMLElement {
             timestamp: new Date().toISOString(),
           })
           this.isLoading = false
-          this.render()
+          this.render(true)
           this.dispatchEvent(new CustomEvent('ceq:message-received', {
             bubbles: true,
             detail: { conversationId: this.conversationId, role: data.role },
@@ -345,7 +351,7 @@ class CeqSupportChat extends HTMLElement {
             this.messages.push({ role: msg.role, content: msg.content, timestamp: msg.createdAt })
           }
           this.isLoading = false
-          this.render()
+          this.render(true)
           this.dispatchEvent(new CustomEvent('ceq:message-received', {
             bubbles: true,
             detail: { conversationId: this.conversationId, role: aiMessages[0].role },

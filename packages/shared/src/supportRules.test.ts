@@ -217,4 +217,103 @@ describe('evaluateSupportRules', () => {
       expect(result.ruleIds).toEqual(['condition-rule'])
     })
   })
+
+  describe('edge cases', () => {
+    it('handles empty conditions object without throwing', () => {
+      const rules = [makeRule({ id: 'empty-cond', conditions: {} })]
+      const result = evaluateSupportRules(rules, defaultContext)
+      // Empty conditions object should match (no restrictions)
+      expect(result.ruleIds).toEqual(['empty-cond'])
+    })
+
+    it('handles conditions with empty conditions array', () => {
+      const rules = [makeRule({ id: 'empty-arr', conditions: { operator: 'AND', conditions: [] } })]
+      const result = evaluateSupportRules(rules, defaultContext)
+      expect(result.ruleIds).toEqual(['empty-arr'])
+    })
+
+    it('handles health score exactly at min boundary', () => {
+      const rules = [makeRule({ id: 'hs-boundary', healthScoreMin: 65, healthScoreMax: 80 })]
+      const result = evaluateSupportRules(rules, { ...defaultContext, healthScore: 65 })
+      expect(result.ruleIds).toEqual(['hs-boundary'])
+    })
+
+    it('handles health score exactly at max boundary', () => {
+      const rules = [makeRule({ id: 'hs-boundary', healthScoreMin: 50, healthScoreMax: 65 })]
+      const result = evaluateSupportRules(rules, { ...defaultContext, healthScore: 65 })
+      expect(result.ruleIds).toEqual(['hs-boundary'])
+    })
+
+    it('handles health score of 0', () => {
+      const rules = [makeRule({ id: 'hs-zero', healthScoreMin: 0, healthScoreMax: 10 })]
+      const result = evaluateSupportRules(rules, { ...defaultContext, healthScore: 0 })
+      expect(result.ruleIds).toEqual(['hs-zero'])
+    })
+
+    it('handles context with empty topics array', () => {
+      const rules = [makeRule({ id: 'topic-rule', topicFilters: ['refund'] })]
+      const result = evaluateSupportRules(rules, { ...defaultContext, topics: [] })
+      expect(result.ruleIds).toEqual([])
+    })
+
+    it('handles rule with all filters matching simultaneously', () => {
+      const rules = [makeRule({
+        id: 'all-filters',
+        intentFilters: ['billing'],
+        tierFilters: ['Gold'],
+        healthScoreMin: 50,
+        healthScoreMax: 80,
+        topicFilters: ['refund'],
+        conditions: { operator: 'AND', conditions: [{ field: 'intent', op: 'eq', value: 'billing' }] },
+      })]
+      const result = evaluateSupportRules(rules, defaultContext)
+      expect(result.ruleIds).toEqual(['all-filters'])
+    })
+
+    it('returns correct actions from multiple matching rules', () => {
+      const rules = [
+        makeRule({ id: 'rule-a', awardPoints: 100 }),
+        makeRule({ id: 'rule-b', escalateToAssignee: 'agent@test.com', awardPoints: 200 }),
+        makeRule({ id: 'rule-c', autoRespondArticleId: 'kb-1' }),
+      ]
+      const result = evaluateSupportRules(rules, defaultContext)
+      expect(result.ruleIds).toHaveLength(3)
+      expect(result.shouldEscalate).toBe(true)
+      expect(result.escalateToAssignee).toBe('agent@test.com')
+      expect(result.autoResponseContent).toBe('kb-1')
+      // Verify all matched rules carry their action metadata
+      expect(result.rules[0].awardPoints).toBe(100)
+      expect(result.rules[1].awardPoints).toBe(200)
+    })
+
+    it('evaluates OR conditions correctly', () => {
+      const rules = [makeRule({
+        id: 'or-rule',
+        conditions: {
+          operator: 'OR',
+          conditions: [
+            { field: 'intent', op: 'eq', value: 'shipping' }, // false
+            { field: 'intent', op: 'eq', value: 'billing' },  // true
+          ],
+        },
+      })]
+      const result = evaluateSupportRules(rules, defaultContext)
+      expect(result.ruleIds).toEqual(['or-rule'])
+    })
+
+    it('rejects AND conditions when one fails', () => {
+      const rules = [makeRule({
+        id: 'and-fail',
+        conditions: {
+          operator: 'AND',
+          conditions: [
+            { field: 'intent', op: 'eq', value: 'billing' },  // true
+            { field: 'intent', op: 'eq', value: 'shipping' }, // false
+          ],
+        },
+      })]
+      const result = evaluateSupportRules(rules, defaultContext)
+      expect(result.ruleIds).toEqual([])
+    })
+  })
 })
