@@ -1,8 +1,8 @@
-# Retrospective: Issue #98 Bug Bash — Quality Validation
+# Retrospective: Issue #98 Quality Validation (Bug Bash + Test Execution)
 
 - **author**: sid.mathur@gmail.com
 - **date**: 2026-04-03
-- **context**: Issue #98, user-testing-and-bug-bash job
+- **context**: Issue #98, user-testing-and-bug-bash + test-execution jobs
 - **synthesized**:
 
 ## What Went Well
@@ -35,3 +35,19 @@
 1. Add a unit test for MCP tools that validates the request body shape against the Zod schema.
 2. Consider a lint rule or code review checklist item: "Are summary stats computed from aggregates or page data?"
 3. For timing instrumentation, always place the start marker at the beginning of the timed block.
+
+## Test Execution Findings
+
+### Tests Added
+5 new integration tests covering:
+- Aggregate accuracy for totalPointsRedeemed (regression guard for BUG-2)
+- Aggregate accuracy for averageSentiment (regression guard for BUG-3)
+- enrolledAfter date filter (previously untested)
+- sentimentMin filter (previously untested)
+- sentiment sort (previously untested)
+
+### Test Coverage Assessment
+- Schema validation: well covered (16 tests)
+- synthesize-profile: well covered (5 tests)
+- Integration: good coverage (30 tests total, up from 25)
+- MCP tools: gap remains - no contract tests verifying request body shape against Zod schema
