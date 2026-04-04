@@ -105,7 +105,18 @@ Before implementing a fix that touches more than 3 files with the same change, s
 
 The test: if a new page would need the same fix applied manually, the abstraction level is wrong. Default to the highest level that works.
 
-## 16. Load Business Context Before Major Work
+## 16. Orchestrator Pre-Flight: Full Scope From Source of Truth
+
+Before launching implementation agents for any issue, the orchestrator MUST:
+1. **Read the GitHub issue acceptance criteria** — these are the source of truth, not derived artifacts.
+2. **Read the feature spec** (including UI mocks section) — verify all deliverable types are covered.
+3. **Cross-reference the RFC/technical design** against the issue ACs — if any AC is missing from the RFC, fail the design review before proceeding.
+4. **List ALL deliverables in the agent prompt** — backend (API, models, queues, MCP tools) AND frontend (admin pages, UI components, navigation changes) AND tests.
+5. **Read traceability matrices from sub-agents** — verify the requirement rows match the original issue ACs, not a subset.
+
+This rule exists because a prior failure shipped 4 features with complete backends but zero admin UI. The agents did exactly what they were told; the orchestrator scoped out the UI.
+
+## 17. Load Business Context Before Major Work
 
 Before starting any significant feature work, replication analysis, or architectural decision, read:
 - `docs/replicate/IMPLEMENTATION_ROADMAP.md` (scope and priority)
