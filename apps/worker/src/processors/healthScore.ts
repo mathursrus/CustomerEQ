@@ -5,42 +5,16 @@ import type {
   HealthScoreComputationPayload,
   HealthScoreWeights,
 } from '@customerEQ/shared'
-import { DEFAULT_HEALTH_SCORE_WEIGHTS } from '@customerEQ/shared'
+import {
+  DEFAULT_HEALTH_SCORE_WEIGHTS,
+  computeRecencyScore,
+  computeFrequencyScore,
+  computeSentimentScore,
+  computeNpsScore,
+  computeEngagementScore,
+} from '@customerEQ/shared'
 
 const logger = pino({ name: 'health-score-worker' })
-
-// ---------------------------------------------------------------------------
-// Sub-score computation (pure functions)
-// ---------------------------------------------------------------------------
-
-function computeRecencyScore(daysSinceLastActivity: number | null): number {
-  if (daysSinceLastActivity === null) return 50
-  if (daysSinceLastActivity <= 7) return 100
-  if (daysSinceLastActivity >= 90) return 0
-  return Math.round(100 * (90 - daysSinceLastActivity) / (90 - 7))
-}
-
-function computeFrequencyScore(eventCount: number): number {
-  if (eventCount >= 10) return 100
-  return Math.round((eventCount / 10) * 100)
-}
-
-function computeSentimentScore(avgSentiment: number | null): number {
-  if (avgSentiment === null) return 50
-  const clamped = Math.max(-1, Math.min(1, avgSentiment))
-  return Math.round(((clamped + 1) / 2) * 100)
-}
-
-function computeNpsScore(latestScore: number | null): number {
-  if (latestScore === null) return 50
-  const clamped = Math.max(0, Math.min(10, latestScore))
-  return Math.round((clamped / 10) * 100)
-}
-
-function computeEngagementScore(activityCount: number): number {
-  if (activityCount >= 5) return 100
-  return Math.round((activityCount / 5) * 100)
-}
 
 // ---------------------------------------------------------------------------
 // BullMQ processor
