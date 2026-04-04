@@ -6,10 +6,12 @@ import {
   type NotificationPayload,
   type SentimentAnalysisPayload,
   type FeedbackClusteringPayload,
+  type HealthScoreComputationPayload,
   evaluateConditions,
 } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
 import { processSentimentForResponse, discoverClusters, detectAnomalies } from '@customerEQ/ai'
+import { processHealthScoreComputation } from './healthScore.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
@@ -26,6 +28,7 @@ let _notificationsQueue: Queue | null = null
 let _sentimentAnalysisQueue: Queue | null = null
 let _feedbackClusteringQueue: Queue | null = null
 let _alertEvaluationQueue: Queue | null = null
+let _healthScoreQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -37,6 +40,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _sentimentAnalysisQueue = new Queue(QUEUES.SENTIMENT_ANALYSIS, { connection })
   _feedbackClusteringQueue = new Queue(QUEUES.FEEDBACK_CLUSTERING, { connection })
   _alertEvaluationQueue = new Queue(QUEUES.ALERT_EVALUATION, { connection })
+  _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -64,6 +68,10 @@ function getFeedbackClusteringQueue(): Queue {
 function getAlertEvaluationQueue(): Queue {
   if (!_alertEvaluationQueue) throw new Error('Queues not initialized.')
   return _alertEvaluationQueue
+}
+function getHealthScoreQueue(): Queue {
+  if (!_healthScoreQueue) throw new Error('Queues not initialized.')
+  return _healthScoreQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -394,4 +402,14 @@ export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): P
     return INLINE_STUB
   }
   return getAlertEvaluationQueue().add('evaluate', payload, { priority: 10 })
+}
+
+export async function enqueueHealthScoreComputation(payload: HealthScoreComputationPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    processHealthScoreComputation(payload).then((r) => {
+      log.info({ brandId: payload.brandId, ...r }, 'Inline health score computation')
+    }).catch((err) => { log.error({ err, brandId: payload.brandId }, 'Inline health score computation failed') })
+    return INLINE_STUB
+  }
+  return getHealthScoreQueue().add('compute', payload)
 }

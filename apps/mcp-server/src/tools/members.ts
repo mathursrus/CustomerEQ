@@ -41,12 +41,26 @@ export function registerMemberTools(server: McpServer) {
   // Get member details
   server.tool(
     'get_member',
-    'Get full member details including email, status, consent, and points balance.',
+    'Get full member details including email, status, consent, points balance, and health score.',
     z.object({
       memberId: z.string().describe('Member ID'),
     }).shape,
     async ({ memberId }) => {
       const res = await apiFetch(`/v1/members/${memberId}`)
+      if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
+    },
+  )
+
+  // Get member 360 view
+  server.tool(
+    'get_member_360',
+    'Get full Customer 360 view including health score breakdown, recent activity, and engagement stats.',
+    z.object({
+      memberId: z.string().describe('Member ID'),
+    }).shape,
+    async ({ memberId }) => {
+      const res = await apiFetch(`/v1/members/${memberId}/360`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },

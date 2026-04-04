@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { verifyToken } from '@clerk/backend'
-import { EnrollMemberSchema } from '@customerEQ/shared'
+import { EnrollMemberSchema, HealthScoreFilterSchema } from '@customerEQ/shared'
 import { enqueueEvent, enqueueNotification } from '../queues/bullmq.js'
+import { computeHealthScoreForMember } from '../queues/healthScore.js'
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/members/enroll — public route (new member has no org JWT yet)
@@ -240,6 +241,169 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       })
     },
   )
+
+  // GET /v1/members/:id/360 — Customer 360 view with health score breakdown
+  fastify.get<{ Params: { id: string } }>('/members/:id/360', async (request, reply) => {
+    const brandId = request.brandId
+
+    const member = await fastify.prisma.member.findFirst({
+      where: {
+        id: request.params.id,
+        brandId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        pointsBalance: true,
+        status: true,
+        currentTierId: true,
+        healthScore: true,
+        healthScoreUpdatedAt: true,
+        createdAt: true,
+      },
+    })
+
+    if (!member) {
+      return reply.status(404).send({ error: 'Member not found' })
+    }
+
+    // Compute breakdown on-the-fly (always fresh)
+    let healthBreakdown = null
+    try {
+      healthBreakdown = await computeHealthScoreForMember(member.id, brandId)
+    } catch (err) {
+      fastify.log.error({ err, memberId: member.id }, 'health-score.360.computation-error')
+    }
+
+    // Fetch recent activity
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+    const [
+      recentLoyaltyEvents,
+      recentSurveyResponses,
+      recentCampaignEvents,
+      recentRedemptions,
+      totalLoyaltyEvents,
+      totalSurveyResponses,
+      totalCampaignEvents,
+      totalRedemptions,
+      sentimentAgg,
+      latestNpsSurvey,
+      lastActivity,
+    ] = await Promise.all([
+      fastify.prisma.loyaltyEvent.findMany({
+        where: { memberId: member.id, brandId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      fastify.prisma.surveyResponse.findMany({
+        where: { memberId: member.id, brandId },
+        orderBy: { completedAt: 'desc' },
+        take: 5,
+      }),
+      fastify.prisma.campaignEvent.findMany({
+        where: { memberId: member.id, brandId },
+        orderBy: { executedAt: 'desc' },
+        take: 5,
+      }),
+      fastify.prisma.redemption.findMany({
+        where: { memberId: member.id, brandId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      fastify.prisma.loyaltyEvent.count({
+        where: { memberId: member.id, brandId },
+      }),
+      fastify.prisma.surveyResponse.count({
+        where: { memberId: member.id, brandId },
+      }),
+      fastify.prisma.campaignEvent.count({
+        where: { memberId: member.id, brandId },
+      }),
+      fastify.prisma.redemption.count({
+        where: { memberId: member.id, brandId },
+      }),
+      fastify.prisma.surveyResponse.aggregate({
+        where: { memberId: member.id, brandId, completedAt: { gte: ninetyDaysAgo } },
+        _avg: { sentiment: true },
+      }),
+      fastify.prisma.surveyResponse.findFirst({
+        where: { memberId: member.id, brandId, score: { not: null } },
+        orderBy: { completedAt: 'desc' },
+        select: { score: true },
+      }),
+      fastify.prisma.loyaltyEvent.findFirst({
+        where: { memberId: member.id, brandId },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ])
+
+    const daysSinceLastActivity = lastActivity
+      ? Math.floor((Date.now() - lastActivity.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      : null
+
+    return reply.status(200).send({
+      member: {
+        id: member.id,
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        pointsBalance: member.pointsBalance,
+        status: member.status,
+        currentTierId: member.currentTierId,
+        healthScore: member.healthScore,
+        healthScoreUpdatedAt: member.healthScoreUpdatedAt?.toISOString() ?? null,
+        createdAt: member.createdAt.toISOString(),
+      },
+      healthBreakdown,
+      recentLoyaltyEvents,
+      recentSurveyResponses,
+      recentCampaignEvents,
+      recentRedemptions,
+      stats: {
+        totalLoyaltyEvents,
+        totalSurveyResponses,
+        totalCampaignEvents,
+        totalRedemptions,
+        avgSentiment: sentimentAgg._avg.sentiment,
+        latestNpsScore: latestNpsSurvey?.score ?? null,
+        daysSinceLastActivity,
+      },
+    })
+  })
+
+  // GET /v1/members — list members with optional health score filters
+  fastify.get<{ Querystring: Record<string, string> }>('/members', async (request, reply) => {
+    const brandId = request.brandId
+    const filter = HealthScoreFilterSchema.safeParse(request.query)
+
+    const where: Record<string, unknown> = {
+      brandId,
+      deletedAt: null,
+    }
+
+    if (filter.success) {
+      if (filter.data.healthScoreMin !== undefined || filter.data.healthScoreMax !== undefined) {
+        const healthScoreFilter: Record<string, number> = {}
+        if (filter.data.healthScoreMin !== undefined) healthScoreFilter.gte = filter.data.healthScoreMin
+        if (filter.data.healthScoreMax !== undefined) healthScoreFilter.lte = filter.data.healthScoreMax
+        where.healthScore = healthScoreFilter
+      }
+    }
+
+    const members = await fastify.prisma.member.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+
+    return reply.status(200).send({ members })
+  })
 }
 
 export default membersRoutes

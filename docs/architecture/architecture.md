@@ -57,10 +57,10 @@ The platform is a multi-tenant loyalty engine with:
 - **Plugin Registration Order**: CORS -> Sensible -> Prisma -> Redis -> Auth -> MultiTenant -> Audit
 
 ### 3.3. Event Processing Layer (apps/worker)
-- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery.
-- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications), `apps/worker/src/queues/` (Redis connection, producers)
-- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 3 BullMQ workers)
-- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5)
+- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation.
+- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, healthScore), `apps/worker/src/queues/` (Redis connection, producers)
+- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 7 BullMQ workers)
+- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), health-score-computation (3)
 
 ### 3.4. Data Layer (packages/database)
 - **Responsibility**: Schema definition (Prisma), migrations, database client singleton.
@@ -153,7 +153,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 |---|---|
 | `GET /healthz` | Public health check (DB + Redis status) |
 | `/v1/programs` | CRUD for loyalty programs + earning rules + tiers + rewards (retire) + simulate + versions; status transitions via `PUT /programs/:id/status` |
-| `/v1/members` | Member enrollment (idempotent), balance queries |
+| `/v1/members` | Member enrollment (idempotent), balance queries, member list with health score filters, Customer 360 view (aggregated profile with health score breakdown, activity, stats) |
 | `/v1/events` | **Hero endpoint** — event ingestion with idempotency + sync campaign evaluation |
 | `/v1/campaigns` | Campaign CRUD + status management (DRAFT -> ACTIVE -> PAUSED -> COMPLETED) |
 | `/v1/rewards` | Reward catalog management |
@@ -164,7 +164,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
 | `/v1/question-templates` | Question template library CRUD (save/reuse questions across surveys) |
 | `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth), campaign play endpoint (member JWT auth). `GET /v1/public/programs/by-slug/:slug` — resolves programId/brandId for member enrollment entry point (no auth) |
-| `/v1/admin/*` | Demo request list, integration webhook URLs |
+| `/v1/admin/*` | Demo request list, integration webhook URLs, health score recomputation trigger |
 
 ### 4.2 Fastify Plugins
 
@@ -184,6 +184,10 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
+| `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o |
+| `feedback-clustering` | `processFeedbackClustering` | 1 | AI-powered feedback clustering with anomaly detection |
+| `alert-evaluation` | `processAlertEvaluation` | 10 | Rule-based alert evaluation creating case follow-ups |
+| `health-score-computation` | `processHealthScore` | 3 | Batch health score computation for members (weighted formula: recency 25%, frequency 20%, sentiment 25%, NPS 15%, engagement 15%) |
 
 ### 4.4 Database Models
 
@@ -194,7 +198,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **EarningRule** | Point-earning triggers. `triggerEvent` matches event types. Supports `multiplier`, `maxUsesPerMember`, validity windows, JSONB `conditions` (AND/OR groups). New: `priority` (lower = evaluated first), `stackable` (fires after first match), `budgetCapPoints` (per-rule point spend cap). |
 | **Tier** | *New (Issue #2).* Tier ladder entry within a program (Bronze/Silver/Gold/Platinum). Fields: `rank` (ordering), `minPoints`, `minSpendCents` (entry criteria), `benefits[]`, `multiplier`. Soft-deleted via `deletedAt`. Assignment of `Member.currentTierId` deferred to Issue #4. |
 | **ProgramVersion** | *New (Issue #2).* Immutable JSON snapshot of a program's full configuration at a point in time. `source`: `explicit_save` (user-triggered) or `auto_save` (step-change). Used for audit history and rollback. |
-| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. New (Issue #3): `emailOptIn`/`smsOptIn` (default false — explicit opt-in only), `consentGivenAt` (ISO datetime, NOT NULL), `consentVersion` (policy identifier). `currentTierId` FK deferred to Issue #4. |
+| **Member** | Loyalty program participant. Unique by `brandId + email`. Tracks `pointsBalance`, consent, GDPR erasure. Status: ACTIVE/INACTIVE/ERASED. New (Issue #3): `emailOptIn`/`smsOptIn` (default false — explicit opt-in only), `consentGivenAt` (ISO datetime, NOT NULL), `consentVersion` (policy identifier). `currentTierId` FK deferred to Issue #4. New (Issue #99): `healthScore` (0-100 computed metric, nullable), `healthScoreUpdatedAt` (batch-computed, not transactional like `pointsBalance`). Index: `(brandId, healthScore)`. |
 | **LoyaltyEvent** | Append-only ledger. `pointsEarned` (positive = earn, negative = burn). Stores `rulesApplied`, `idempotencyKey`, `payload` (JSONB). |
 | **Reward** | Redeemable catalog item. `pointsCost`, optional `stock` (null = unlimited), `isAvailable` flag. New: `type` (DISCOUNT/FREE_ITEM/EXPERIENCE/VOUCHER), `availableFrom`, `availableTo`, `eligibleTierIds[]`, `deletedAt` (soft-delete via retire endpoint). |
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
