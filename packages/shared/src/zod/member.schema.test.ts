@@ -95,7 +95,7 @@ describe('SearchMembersQuerySchema', () => {
   })
 
   it('accepts all valid sortBy values', () => {
-    for (const sortBy of ['name', 'email', 'pointsBalance', 'createdAt', 'sentiment']) {
+    for (const sortBy of ['name', 'email', 'pointsBalance', 'createdAt', 'sentiment', 'healthScore']) {
       const result = SearchMembersQuerySchema.parse({ sortBy })
       expect(result.sortBy).toBe(sortBy)
     }
