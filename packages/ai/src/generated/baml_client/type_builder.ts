@@ -55,13 +55,14 @@ export default class TypeBuilder {
     
     MergeRecommendation: ClassViewer<'MergeRecommendation', "from_labels" | "into_label" | "reason">;
     
+    SupportResponse: ClassViewer<'SupportResponse', "response" | "confidence" | "shouldEscalate" | "escalationReason" | "kbArticlesUsed">;
+    
     
 
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
-            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","ExistingCluster","FeedbackAnalysis","FeedbackItem","IntentClassification","KBArticleSummary","MergeRecommendation",
-            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","CustomerContext","CustomerProfileSynthesis","ExistingCluster","FeedbackAnalysis","FeedbackItem","MergeRecommendation",
+            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","CustomerContext","CustomerProfileSynthesis","ExistingCluster","FeedbackAnalysis","FeedbackItem","IntentClassification","KBArticleSummary","MergeRecommendation","SupportResponse",
           ]),
           enums: new Set([
             
@@ -123,6 +124,10 @@ export default class TypeBuilder {
         
         this.MergeRecommendation = this.tb.classViewer("MergeRecommendation", [
           "from_labels","into_label","reason",
+        ]);
+        
+        this.SupportResponse = this.tb.classViewer("SupportResponse", [
+          "response","confidence","shouldEscalate","escalationReason","kbArticlesUsed",
         ]);
         
         

@@ -166,3 +166,12 @@ export interface MergeRecommendation {
   reason: string
   
 }
+
+export interface SupportResponse {
+  response: string
+  confidence: number
+  shouldEscalate: boolean
+  escalationReason?: string | null
+  kbArticlesUsed: string[]
+  
+}

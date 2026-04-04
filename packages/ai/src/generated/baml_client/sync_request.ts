@@ -22,8 +22,7 @@ import type { BamlRuntime, BamlCtxManager, ClientRegistry, Image, Audio, Pdf, Vi
 import { toBamlError, HTTPRequest } from "@boundaryml/baml"
 import type { Checked, Check } from "./types"
 import type * as types from "./types"
-import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation} from "./types"
-import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, MergeRecommendation} from "./types"
+import type {Anomaly, AnomalyReport, ClusterAssignment, ClusterDefinition, ClusterTrend, ClusteringResult, CustomerContext, CustomerProfileSynthesis, ExistingCluster, FeedbackAnalysis, FeedbackItem, IntentClassification, KBArticleSummary, MergeRecommendation, SupportResponse} from "./types"
 import type TypeBuilder from "./type_builder"
 
 type BamlCallOptions = {
@@ -124,6 +123,31 @@ export class HttpRequest {
         "DiscoverClusters",
         {
           "unassigned_feedback": unassigned_feedback,"existing_clusters": existing_clusters
+        },
+        this.ctxManager.cloneContext(),
+        __baml_options__?.tb?.__tb(),
+        __baml_options__?.clientRegistry,
+        false,
+        env,
+      )
+    } catch (error) {
+      throw toBamlError(error);
+    }
+  }
+  
+  GenerateSupportResponse(
+      customer_message: string,conversation_history: string,intent: string,kb_context: string,customer_context: string,brand_name: string,support_rules_context?: string | null,
+      __baml_options__?: BamlCallOptions
+  ): HTTPRequest {
+    try {
+      const rawEnv = __baml_options__?.env ? { ...process.env, ...__baml_options__.env } : { ...process.env };
+      const env: Record<string, string> = Object.fromEntries(
+        Object.entries(rawEnv).filter(([_, value]) => value !== undefined) as [string, string][]
+      );
+      return this.runtime.buildRequestSync(
+        "GenerateSupportResponse",
+        {
+          "customer_message": customer_message,"conversation_history": conversation_history,"intent": intent,"kb_context": kb_context,"customer_context": customer_context,"brand_name": brand_name,"support_rules_context": support_rules_context?? null
         },
         this.ctxManager.cloneContext(),
         __baml_options__?.tb?.__tb(),
@@ -255,6 +279,31 @@ export class HttpStreamRequest {
         "DiscoverClusters",
         {
           "unassigned_feedback": unassigned_feedback,"existing_clusters": existing_clusters
+        },
+        this.ctxManager.cloneContext(),
+        __baml_options__?.tb?.__tb(),
+        __baml_options__?.clientRegistry,
+        true,
+        env,
+      )
+    } catch (error) {
+      throw toBamlError(error);
+    }
+  }
+  
+  GenerateSupportResponse(
+      customer_message: string,conversation_history: string,intent: string,kb_context: string,customer_context: string,brand_name: string,support_rules_context?: string | null,
+      __baml_options__?: BamlCallOptions
+  ): HTTPRequest {
+    try {
+      const rawEnv = __baml_options__?.env ? { ...process.env, ...__baml_options__.env } : { ...process.env };
+      const env: Record<string, string> = Object.fromEntries(
+        Object.entries(rawEnv).filter(([_, value]) => value !== undefined) as [string, string][]
+      );
+      return this.runtime.buildRequestSync(
+        "GenerateSupportResponse",
+        {
+          "customer_message": customer_message,"conversation_history": conversation_history,"intent": intent,"kb_context": kb_context,"customer_context": customer_context,"brand_name": brand_name,"support_rules_context": support_rules_context?? null
         },
         this.ctxManager.cloneContext(),
         __baml_options__?.tb?.__tb(),
