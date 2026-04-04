@@ -44,3 +44,10 @@ export interface FeedbackClusteringPayload {
   brandId: string
   triggeredBy?: string
 }
+
+export interface SupportOrchestrationPayload {
+  conversationId: string
+  brandId: string
+  memberId: string
+  messageContent: string
+}

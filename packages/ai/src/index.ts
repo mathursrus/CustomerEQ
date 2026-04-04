@@ -11,6 +11,7 @@ export { discoverClusters } from './analysis/clustering.js'
 export { detectAnomalies, zScore, isVolumeAnomaly } from './analysis/anomaly.js'
 export { computeTrend } from './analysis/trending.js'
 export type { TrendDirection, TrendResult } from './analysis/trending.js'
+export { generateSupportResponse } from './analysis/support.js'
 
 // Types
 export type {
@@ -25,6 +26,7 @@ export type {
   ClusterTrend,
   AnomalyItem,
   AnomalyReport,
+  SupportResponseResult,
 } from './types.js'
 
 // Mocks (for test utilities)
