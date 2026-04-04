@@ -7,13 +7,13 @@ synthesized:
 # Postmortem: Phase C: Support Foundation — Knowledge Base with RAG and Intent Classification - Issue #100
 
 **Date**: 2026-04-03
-**Duration**: ~55 minutes total (issue-preparation + feature-specification + technical-design)
-**Objective**: Create feature specification and technical design for KB with RAG and intent classification
-**Outcome**: Success — spec, mock, RFC, and evidence delivered; PR #104 submitted for review
+**Duration**: ~100 minutes total (issue-preparation + feature-specification + technical-design + feature-implementation)
+**Objective**: Spec, design, and implement KB with RAG and intent classification (Phase C: Support Foundation)
+**Outcome**: Success — spec, RFC, and full backend implementation delivered; PR #104 updated with evidence
 
 ## Executive Summary
 
-Completed the `issue-preparation`, `feature-specification`, and `technical-design` FRAIM jobs for issue #100. The issue-preparation created an isolated worktree and feature branch. The feature-specification produced a detailed spec. The technical-design produced an RFC with full traceability (34/34 requirements Met), architecture gap analysis (6 gaps documented), and comprehensive test matrix. All work builds on proven codebase patterns with pgvector as the only new technology.
+Completed the `issue-preparation`, `feature-specification`, `technical-design`, and `feature-implementation` FRAIM jobs for issue #100. The implementation phase produced 41 file changes with 1943 insertions across 6 layers (database, shared, AI, API, worker, MCP). All validation gates pass: build (9/9), typecheck (13/13), lint (3/3), 645 unit tests (0 failures, 81 new). The traceability matrix shows 24/24 implementation requirements Met. pgvector is the only new technology, with all other components following proven codebase patterns.
 
 ## Architectural Impact
 
@@ -100,6 +100,35 @@ Completed the `issue-preparation`, `feature-specification`, and `technical-desig
 - Checked PR for reviews/comments -- no feedback received yet
 - Reported phase complete (awaiting human review)
 
+### Phase 15: Feature Implementation -- Scoping
+- Loaded RFC, spec, project rules, FRAIM rules (constitution, testing-standards, architecture-standards)
+- Discovered codebase patterns across 6 layers via 10+ file reads
+- Created standing work list (22 files across 6 layers)
+
+### Phase 16: Feature Implementation -- Tests
+- Wrote 81 tests across 7 test files (all passing on first run)
+- BAML eval tests (12) for intent classification accuracy
+
+### Phase 17: Feature Implementation -- Code
+- Built bottom-up: database -> shared -> AI -> API -> worker -> MCP
+- Fixed 3 minor issues: BAML import path, missing openai dependency, implicit any type
+- Generated Prisma client and BAML client after schema changes
+
+### Phase 18: Feature Implementation -- Validation
+- Build (9/9), typecheck (13/13), lint (3/3), no debug artifacts
+
+### Phase 19: Feature Implementation -- Regression
+- Full suite: 645 tests, 0 failures
+
+### Phase 20: Feature Implementation -- Quality
+- All quality checks pass, no unaddressed issues
+
+### Phase 21: Feature Implementation -- Completeness Review
+- 24/24 implementation requirements traced and met
+
+### Phase 22: Feature Implementation -- Submission
+- Committed 41 files (1943 insertions), pushed, PR #104 comment added
+
 ## Root Cause Analysis
 
 No failures occurred. This section documents potential risks identified.
@@ -112,13 +141,26 @@ No failures occurred. This section documents potential risks identified.
 **Problem**: OpenAI embedding API calls on every article create/update could be expensive at scale.
 **Mitigation**: Spec includes NF2 requiring BullMQ queuing for resilience and rate limiting consideration in open questions.
 
-## What Went Wrong
+## What Went Wrong (Implementation)
+
+1. **BAML import path assumption**: Assumed `../generated/index.js` but actual path was `../generated/baml_client/index.js`. Required inspecting the actual generated directory structure.
+2. **Missing openai dependency**: RFC stated openai was "already a dependency via BAML" but it was not in package.json. Had to explicitly `pnpm add openai`.
+3. **Implicit any in TypeScript strict mode**: The `.filter()` callback on `suggested_article_ids` needed explicit `(id: string)` type annotation.
+
+## What Went Wrong (Spec/Design)
 
 1. **Feature spec not on main branch**: The spec only exists on the feature branch worktree, not on main. The initial read from the main repo path failed, requiring a second read from the worktree path. Minor friction but avoidable.
 2. **Architecture doc significantly out of date**: 6 gaps found. The doc was last updated 2026-03-25 and does not reflect work from issues #35-#41. This is pre-existing debt, not a failure of this job, but it adds review burden.
 3. **Missing competitors in config**: `fraim/config.json` has no `competitors` field configured, requiring manual research. This is a known gap flagged by FRAIM.
 
-## What Went Right
+## What Went Right (Implementation)
+
+1. **Bottom-up implementation order**: Building from database -> shared -> AI -> API -> worker -> MCP meant each layer's dependencies were ready before it was built.
+2. **RFC precision**: The RFC specified exact SQL queries, exact file paths, and exact function signatures, making implementation mechanical rather than creative.
+3. **Test-first approach**: Writing schema validation tests first caught edge cases early.
+4. **Existing pattern consistency**: Every new component (route, queue, BAML, MCP tool, worker) followed a proven pattern with zero integration issues.
+
+## What Went Right (Spec/Design)
 
 1. **Pattern reuse**: Existing codebase patterns (Prisma models, BAML functions, API routes, MCP tools) provided clear templates for both spec and RFC, ensuring consistency.
 2. **Parallel context loading**: Reading spec, architecture doc, project rules, BAML files, route patterns, MCP tools, and queue infrastructure in parallel collapsed ~10 sequential reads into 3 parallel batches.
@@ -127,7 +169,14 @@ No failures occurred. This section documents potential risks identified.
 5. **Comprehensive traceability**: 34 requirements mapped line-by-line in traceability matrix, providing high confidence in completeness.
 6. **No spike needed**: All 3 technical ambiguities assessed as Medium or Low uncertainty, avoiding the overhead of a spike phase.
 
-## Lessons Learned
+## Lessons Learned (Implementation)
+
+1. **Verify npm dependencies explicitly**: Even when an RFC says a dependency is transitively available, always check package.json before importing.
+2. **Check generated code import paths**: BAML/Prisma generated code paths may differ from assumed patterns. Always inspect the actual generated directory structure.
+3. **Windows Prisma segfault is cosmetic**: Exit code 3221225477 does not indicate test failure. All tests pass before the process exit crash.
+4. **Detailed RFCs accelerate implementation**: When the RFC includes exact file paths, SQL queries, and function signatures, implementation becomes almost mechanical.
+
+## Lessons Learned (Spec/Design)
 
 1. **Prisma `Unsupported()` type for pgvector**: Prisma does not natively support vector types. The `Unsupported("vector(1536)")` workaround works for column definition but requires raw SQL for similarity queries. Encapsulate all raw SQL in a single service file to limit the blast radius.
 2. **Architecture doc maintenance is a growing debt**: 6 gaps across 5 sections. Each new feature that adds a layer or technology widens the gap. The architecture doc should be updated as part of each feature's implementation, not as a separate task.
