@@ -676,6 +676,121 @@ describe('Members API — /v1/members', () => {
       const balances = res.body.data.map((m: { pointsBalance: number }) => m.pointsBalance)
       expect(balances).toEqual([100, 200, 300])
     })
+
+    it('filters by enrolledAfter date', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const oldMember = await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'Old' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id, firstName: 'New' })
+
+      // Backdate the first member's createdAt
+      const prisma = getTestPrisma()
+      await prisma.member.update({
+        where: { id: oldMember.id },
+        data: { createdAt: new Date('2024-01-01T00:00:00.000Z') },
+      })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?enrolledAfter=2025-01-01T00:00:00.000Z')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].firstName).toBe('New')
+    })
+
+    it('filters by sentimentMin via survey responses', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
+
+      const positiveMember = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: positiveMember.id, brandId: brand.id, sentiment: 0.8 })
+
+      const negativeMember = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: negativeMember.id, brandId: brand.id, sentiment: -0.5 })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?sentimentMin=0.5')
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toHaveLength(1)
+      expect(res.body.data[0].id).toBe(positiveMember.id)
+    })
+
+    it('sorts by sentiment descending', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
+
+      const memberA = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: memberA.id, brandId: brand.id, sentiment: 0.2 })
+
+      const memberB = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: memberB.id, brandId: brand.id, sentiment: 0.9 })
+
+      const memberC = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createSurveyResponse({ surveyId: survey.id, memberId: memberC.id, brandId: brand.id, sentiment: -0.3 })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get('/v1/members?sortBy=sentiment&sortOrder=desc')
+
+      expect(res.status).toBe(200)
+      const sentiments = res.body.data.map((m: { latestSentiment: number | null }) => m.latestSentiment)
+      expect(sentiments).toEqual([0.9, 0.2, -0.3])
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/members/:id/360 — Aggregate accuracy tests (Bug fixes)
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/members/:id/360 — aggregate accuracy', () => {
+    it('computes totalPointsRedeemed from all redemptions, not just the page limit', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const reward = await createReward({ brandId: brand.id, programId: program.id })
+
+      // Create 5 redemptions of 100 points each = 500 total
+      for (let i = 0; i < 5; i++) {
+        await createRedemption({ brandId: brand.id, memberId: member.id, rewardId: reward.id, pointsSpent: 100 })
+      }
+
+      const request = authenticatedRequest(brand.id)
+      // Request with redemptionsLimit=2 — only 2 items returned, but total should be 500
+      const res = await request.get(`/v1/members/${member.id}/360?redemptionsLimit=2`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.redemptions.items).toHaveLength(2)
+      expect(res.body.redemptions.hasMore).toBe(true)
+      expect(res.body.redemptions.total).toBe(5)
+      // The stat must reflect ALL 5 redemptions, not just the 2 on the page
+      expect(res.body.stats.totalPointsRedeemed).toBe(500)
+    })
+
+    it('computes averageSentiment from all surveys, not just the page limit', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
+
+      // Create 4 survey responses: sentiments = 0.8, 0.6, 0.4, 0.2 => avg = 0.5
+      const sentiments = [0.8, 0.6, 0.4, 0.2]
+      for (const sentiment of sentiments) {
+        await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, sentiment, score: 8 })
+      }
+
+      const request = authenticatedRequest(brand.id)
+      // Request with surveysLimit=2 — only 2 items returned, but average should cover all 4
+      const res = await request.get(`/v1/members/${member.id}/360?surveysLimit=2`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.surveyResponses.items).toHaveLength(2)
+      expect(res.body.surveyResponses.hasMore).toBe(true)
+      expect(res.body.surveyResponses.total).toBe(4)
+      // Average must be computed from all 4 responses: (0.8+0.6+0.4+0.2)/4 = 0.5
+      expect(res.body.stats.averageSentiment).toBeCloseTo(0.5, 1)
+    })
   })
 
 })
