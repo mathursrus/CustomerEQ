@@ -6,19 +6,23 @@ import { useState } from 'react'
 import { UserButton } from '@clerk/nextjs'
 
 const navLinks: { href: string; label: string; section?: string }[] = [
-  { href: '/admin/programs', label: 'Programs' },
-  { href: '/admin/members', label: 'Members' },
+  // ── Loyalty ──
+  { href: '/admin/programs', label: 'Programs', section: 'Loyalty' },
   { href: '/admin/campaigns', label: 'Campaigns' },
-  { href: '/admin/surveys', label: 'Surveys' },
-  { href: '/admin/analytics', label: 'Analytics' },
+  { href: '/admin/members', label: 'Members' },
+  // ── CX & Feedback ──
+  { href: '/admin/surveys', label: 'Surveys', section: 'CX & Feedback' },
+  { href: '/admin/analytics', label: 'Loyalty Analytics' },
   { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/alerts/cases', label: 'Alerts' },
-  { href: '/admin/kb', label: 'Knowledge Base' },
+  // ── Support ──
   { href: '/admin/support/conversations', label: 'Conversations', section: 'Support' },
-  { href: '/admin/support/rules', label: 'Rules' },
-  { href: '/admin/support/analytics', label: 'Support Analytics' },
-  { href: '/admin/integrations', label: 'Integrations' },
-  { href: '/admin/settings/themes', label: 'Settings' },
+  { href: '/admin/support/rules', label: 'Support Rules' },
+  { href: '/admin/kb', label: 'Knowledge Base' },
+  { href: '/admin/support/analytics', label: 'Analytics' },
+  // ── Settings ──
+  { href: '/admin/integrations', label: 'Integrations', section: 'Settings' },
+  { href: '/admin/settings/themes', label: 'Themes' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
