@@ -37,4 +37,5 @@ ENV NODE_ENV=production
 ENV API_PORT=4000
 ENV API_HOST=0.0.0.0
 
-CMD ["sh", "-c", "cd /app/packages/database && ./node_modules/.bin/prisma migrate deploy && cd /app && node apps/api/dist/server.js"]
+RUN chmod +x /app/apps/api/docker-entrypoint.sh
+CMD ["/app/apps/api/docker-entrypoint.sh"]
