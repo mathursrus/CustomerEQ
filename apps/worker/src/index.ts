@@ -8,6 +8,9 @@ import { createCampaignTriggerProcessor } from './processors/campaignTriggers.js
 import { processNotification } from './processors/notifications.js'
 import { createSentimentProcessor } from './processors/sentimentAnalysis.js'
 import { processFeedbackClustering } from './processors/feedbackClustering.js'
+import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
+=======
+import { processHealthScore } from './processors/healthScore.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -51,11 +54,24 @@ const feedbackClusteringWorker = new Worker(
   { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const embeddingGenerationWorker = new Worker(
+  QUEUES.EMBEDDING_GENERATION,
+  processEmbeddingGeneration,
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+=======
+const healthScoreWorker = new Worker(
+  QUEUES.HEALTH_SCORE_COMPUTATION,
+  processHealthScore,
+  { connection, concurrency: 3, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker]) {
+=======
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, healthScoreWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -70,7 +86,9 @@ for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notifications
 
 logger.info(
   {
-    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING],
+    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING, QUEUES.EMBEDDING_GENERATION],
+=======
+    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING, QUEUES.HEALTH_SCORE_COMPUTATION],
   },
   'Workers started',
 )
@@ -87,6 +105,9 @@ async function shutdown(signal: string): Promise<void> {
     notificationsWorker.close(),
     sentimentWorker.close(),
     feedbackClusteringWorker.close(),
+    embeddingGenerationWorker.close(),
+=======
+    healthScoreWorker.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

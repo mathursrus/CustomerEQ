@@ -20,7 +20,9 @@ $ pnpm add @boundaryml/baml
 
 import type { Image, Audio, Pdf, Video } from "@boundaryml/baml"
 import type { Checked, Check } from "./types"
-import type {  Anomaly,  AnomalyReport,  ClusterAssignment,  ClusterDefinition,  ClusterTrend,  ClusteringResult,  ExistingCluster,  FeedbackAnalysis,  FeedbackItem,  MergeRecommendation } from "./types"
+import type {  Anomaly,  AnomalyReport,  ClusterAssignment,  ClusterDefinition,  ClusterTrend,  ClusteringResult,  ExistingCluster,  FeedbackAnalysis,  FeedbackItem,  IntentClassification,  KBArticleSummary,  MergeRecommendation } from "./types"
+=======
+import type {  Anomaly,  AnomalyReport,  ClusterAssignment,  ClusterDefinition,  ClusterTrend,  ClusteringResult,  CustomerContext,  CustomerProfileSynthesis,  ExistingCluster,  FeedbackAnalysis,  FeedbackItem,  MergeRecommendation } from "./types"
 import type * as types from "./types"
 
 /******************************************************************************
@@ -67,6 +69,32 @@ export namespace partial_types {
       assignments: ClusterAssignment[]
       merge_recommendations: MergeRecommendation[]
     }
+    export interface CustomerContext {
+      member_status?: string | null
+      points_balance?: number | null
+      tier_name?: string | null
+      total_events?: number | null
+      total_survey_responses?: number | null
+      average_sentiment?: number | null
+      total_points_earned?: number | null
+      total_points_redeemed?: number | null
+      recent_event_types: string[]
+      recent_sentiments: number[]
+      recent_nps_scores: number[]
+      recent_topics: string[][]
+      has_open_cases?: boolean | null
+      open_case_count?: number | null
+      days_since_enrollment?: number | null
+      days_since_last_event?: number | null
+    }
+    export interface CustomerProfileSynthesis {
+      engagement_level?: string | null
+      sentiment_trajectory?: string | null
+      preferences: string[]
+      risk_signals: string[]
+      recommended_actions: string[]
+      summary?: string | null
+    }
     export interface ExistingCluster {
       label?: string | null
       description?: string | null
@@ -83,6 +111,19 @@ export namespace partial_types {
       id?: string | null
       text?: string | null
       sentiment?: number | null
+    }
+    export interface IntentClassification {
+      primary_intent?: string | null
+      confidence?: number | null
+      urgency?: string | null
+      suggested_article_ids: string[]
+      response_outline?: string | null
+      reasoning?: string | null
+    }
+    export interface KBArticleSummary {
+      id?: string | null
+      title?: string | null
+      category?: string | null
     }
     export interface MergeRecommendation {
       from_labels: string[]

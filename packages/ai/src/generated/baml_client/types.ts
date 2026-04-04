@@ -90,6 +90,36 @@ export interface ClusteringResult {
   
 }
 
+export interface CustomerContext {
+  member_status: string
+  points_balance: number
+  tier_name?: string | null
+  total_events: number
+  total_survey_responses: number
+  average_sentiment?: number | null
+  total_points_earned: number
+  total_points_redeemed: number
+  recent_event_types: string[]
+  recent_sentiments: number[]
+  recent_nps_scores: number[]
+  recent_topics: string[][]
+  has_open_cases: boolean
+  open_case_count: number
+  days_since_enrollment: number
+  days_since_last_event?: number | null
+  
+}
+
+export interface CustomerProfileSynthesis {
+  engagement_level: string
+  sentiment_trajectory: string
+  preferences: string[]
+  risk_signals: string[]
+  recommended_actions: string[]
+  summary: string
+  
+}
+
 export interface ExistingCluster {
   label: string
   description: string
@@ -110,6 +140,23 @@ export interface FeedbackItem {
   id: string
   text: string
   sentiment: number
+  
+}
+
+export interface IntentClassification {
+  primary_intent: string
+  confidence: number
+  urgency: string
+  suggested_article_ids: string[]
+  response_outline: string
+  reasoning: string
+  
+}
+
+export interface KBArticleSummary {
+  id: string
+  title: string
+  category: string
   
 }
 

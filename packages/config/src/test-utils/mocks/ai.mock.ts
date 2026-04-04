@@ -45,8 +45,23 @@ export function mockNewClusterAnalysis() {
   })
 }
 
+export const mockGenerateEmbedding = vi.fn().mockResolvedValue(
+  Array.from({ length: 1536 }, (_, i) => Math.sin(i * 0.01)),
+)
+
+export const mockClassifyIntent = vi.fn().mockResolvedValue({
+  primary_intent: 'billing',
+  confidence: 0.92,
+  urgency: 'high',
+  suggested_article_ids: [],
+  response_outline: 'Acknowledge the billing issue and offer to investigate the duplicate charge.',
+  reasoning: 'The customer mentions being charged twice, indicating a billing/payment issue.',
+})
+
 export function clearAiMock() {
   mockAnalyzeResponse.mockClear()
   mockDiscoverClusters.mockClear()
   mockDetectAnomalies.mockClear()
+  mockGenerateEmbedding.mockClear()
+  mockClassifyIntent.mockClear()
 }

@@ -39,11 +39,19 @@ export default class TypeBuilder {
     
     ClusteringResult: ClassViewer<'ClusteringResult', "new_clusters" | "assignments" | "merge_recommendations">;
     
+    CustomerContext: ClassViewer<'CustomerContext', "member_status" | "points_balance" | "tier_name" | "total_events" | "total_survey_responses" | "average_sentiment" | "total_points_earned" | "total_points_redeemed" | "recent_event_types" | "recent_sentiments" | "recent_nps_scores" | "recent_topics" | "has_open_cases" | "open_case_count" | "days_since_enrollment" | "days_since_last_event">;
+    
+    CustomerProfileSynthesis: ClassViewer<'CustomerProfileSynthesis', "engagement_level" | "sentiment_trajectory" | "preferences" | "risk_signals" | "recommended_actions" | "summary">;
+    
     ExistingCluster: ClassViewer<'ExistingCluster', "label" | "description">;
     
     FeedbackAnalysis: ClassViewer<'FeedbackAnalysis', "sentiment" | "confidence" | "topics" | "summary" | "assigned_cluster_label" | "suggested_new_cluster_label">;
     
     FeedbackItem: ClassViewer<'FeedbackItem', "id" | "text" | "sentiment">;
+    
+    IntentClassification: ClassViewer<'IntentClassification', "primary_intent" | "confidence" | "urgency" | "suggested_article_ids" | "response_outline" | "reasoning">;
+    
+    KBArticleSummary: ClassViewer<'KBArticleSummary', "id" | "title" | "category">;
     
     MergeRecommendation: ClassViewer<'MergeRecommendation', "from_labels" | "into_label" | "reason">;
     
@@ -52,7 +60,8 @@ export default class TypeBuilder {
     constructor() {
         this.tb = new _TypeBuilder({
           classes: new Set([
-            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","ExistingCluster","FeedbackAnalysis","FeedbackItem","MergeRecommendation",
+            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","ExistingCluster","FeedbackAnalysis","FeedbackItem","IntentClassification","KBArticleSummary","MergeRecommendation",
+            "Anomaly","AnomalyReport","ClusterAssignment","ClusterDefinition","ClusterTrend","ClusteringResult","CustomerContext","CustomerProfileSynthesis","ExistingCluster","FeedbackAnalysis","FeedbackItem","MergeRecommendation",
           ]),
           enums: new Set([
             
@@ -84,6 +93,14 @@ export default class TypeBuilder {
           "new_clusters","assignments","merge_recommendations",
         ]);
         
+        this.CustomerContext = this.tb.classViewer("CustomerContext", [
+          "member_status","points_balance","tier_name","total_events","total_survey_responses","average_sentiment","total_points_earned","total_points_redeemed","recent_event_types","recent_sentiments","recent_nps_scores","recent_topics","has_open_cases","open_case_count","days_since_enrollment","days_since_last_event",
+        ]);
+        
+        this.CustomerProfileSynthesis = this.tb.classViewer("CustomerProfileSynthesis", [
+          "engagement_level","sentiment_trajectory","preferences","risk_signals","recommended_actions","summary",
+        ]);
+        
         this.ExistingCluster = this.tb.classViewer("ExistingCluster", [
           "label","description",
         ]);
@@ -94,6 +111,14 @@ export default class TypeBuilder {
         
         this.FeedbackItem = this.tb.classViewer("FeedbackItem", [
           "id","text","sentiment",
+        ]);
+        
+        this.IntentClassification = this.tb.classViewer("IntentClassification", [
+          "primary_intent","confidence","urgency","suggested_article_ids","response_outline","reasoning",
+        ]);
+        
+        this.KBArticleSummary = this.tb.classViewer("KBArticleSummary", [
+          "id","title","category",
         ]);
         
         this.MergeRecommendation = this.tb.classViewer("MergeRecommendation", [

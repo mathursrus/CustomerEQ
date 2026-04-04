@@ -8,6 +8,7 @@ import { registerEventTools } from './tools/events.js'
 import { registerCampaignTools } from './tools/campaigns.js'
 import { registerMemberTools } from './tools/members.js'
 import { registerProgramTools } from './tools/programs.js'
+import { registerKBTools } from './tools/kb.js'
 
 const server = new McpServer({
   name: 'CustomerEQ',
@@ -22,6 +23,7 @@ registerEventTools(server)
 registerCampaignTools(server)
 registerMemberTools(server)
 registerProgramTools(server)
+registerKBTools(server)
 
 // Start server on stdio transport
 const transport = new StdioServerTransport()

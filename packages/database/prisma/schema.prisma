@@ -89,6 +89,19 @@ enum MessageRole {
   CUSTOMER
   AI
   AGENT
+=======
+enum KBArticleCategory {
+  FAQ
+  POLICY
+  TROUBLESHOOTING
+  PRODUCT_GUIDE
+  PROCESS
+  OTHER
+}
+
+enum KBArticleStatus {
+  DRAFT
+  PUBLISHED
 }
 
 // ─── Core Models ──────────────────────────────────────────────────────────────
@@ -186,6 +199,8 @@ model Member {
   currentTierId  String?
   currentTier    Tier?          @relation(fields: [currentTierId], references: [id])
   erased         Boolean        @default(false) // GDPR erasure flag (C-03)
+  healthScore          Int?       // 0-100 computed health score (null = never computed)
+  healthScoreUpdatedAt DateTime?  // timestamp of last health score computation
   loyaltyEvents   LoyaltyEvent[]
   redemptions     Redemption[]
   campaignEvents  CampaignEvent[]
@@ -197,6 +212,7 @@ model Member {
   @@unique([brandId, email])
   @@index([brandId])
   @@index([clerkUserId, brandId])
+  @@index([brandId, healthScore])
   @@map("members")
 }
 
@@ -666,4 +682,21 @@ model SupportRule {
 
   @@index([brandId, status])
   @@map("support_rules")
+=======
+model KBArticle {
+  id          String            @id @default(cuid())
+  brandId     String
+  title       String
+  body        String            // Markdown content
+  category    KBArticleCategory @default(FAQ)
+  tags        String[]
+  status      KBArticleStatus   @default(DRAFT)
+  embedding   Unsupported("vector(1536)")? // pgvector -- nullable until generated
+  deletedAt   DateTime?         // soft delete (GDPR/CCPA, project rule #13)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([brandId, status])
+  @@index([brandId, category])
+  @@map("kb_articles")
 }
