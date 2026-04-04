@@ -3,6 +3,8 @@ import {
   CreateKBArticleSchema,
   UpdateKBArticleSchema,
   KBSearchQuerySchema,
+  KB_CATEGORIES,
+  KB_STATUSES,
 } from '@customerEQ/shared'
 import { generateEmbedding } from '@customerEQ/ai'
 import { enqueueEmbeddingGeneration } from '../queues/bullmq.js'
@@ -40,7 +42,7 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.prisma.auditEvent.create({
       data: {
         brandId,
-        actorId: (request as unknown as { auth: { userId: string } }).auth.userId,
+        actorId: request.clerkUserId,
         action: 'kb_article.create',
         resourceType: 'KBArticle',
         resourceId: article.id,
@@ -60,8 +62,18 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     const brandId = request.brandId
 
     const where: Record<string, unknown> = { brandId, deletedAt: null }
-    if (query.category) where.category = query.category
-    if (query.status) where.status = query.status
+    if (query.category) {
+      if (!(KB_CATEGORIES as readonly string[]).includes(query.category)) {
+        return reply.status(422).send({ error: `Invalid category. Must be one of: ${KB_CATEGORIES.join(', ')}` })
+      }
+      where.category = query.category
+    }
+    if (query.status) {
+      if (!(KB_STATUSES as readonly string[]).includes(query.status)) {
+        return reply.status(422).send({ error: `Invalid status. Must be one of: ${KB_STATUSES.join(', ')}` })
+      }
+      where.status = query.status
+    }
 
     const [total, data] = await Promise.all([
       fastify.prisma.kBArticle.count({ where }),
@@ -138,7 +150,7 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.prisma.auditEvent.create({
       data: {
         brandId,
-        actorId: (request as unknown as { auth: { userId: string } }).auth.userId,
+        actorId: request.clerkUserId,
         action: 'kb_article.update',
         resourceType: 'KBArticle',
         resourceId: article.id,
@@ -171,7 +183,7 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.prisma.auditEvent.create({
       data: {
         brandId,
-        actorId: (request as unknown as { auth: { userId: string } }).auth.userId,
+        actorId: request.clerkUserId,
         action: 'kb_article.delete',
         resourceType: 'KBArticle',
         resourceId: id,
