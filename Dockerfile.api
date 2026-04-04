@@ -37,4 +37,4 @@ ENV NODE_ENV=production
 ENV API_PORT=4000
 ENV API_HOST=0.0.0.0
 
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma && node apps/api/dist/server.js"]
+CMD ["sh", "-c", "cd /app/packages/database && ./node_modules/.bin/prisma migrate deploy && cd /app && node apps/api/dist/server.js"]
