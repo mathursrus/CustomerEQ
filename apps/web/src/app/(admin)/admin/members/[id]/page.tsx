@@ -149,6 +149,7 @@ interface Note {
   category: string | null
   sentiment: NoteSentiment | null
   createdAt: string
+  updatedAt: string
 }
 
 const NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
@@ -181,6 +182,10 @@ export default function MemberDetailPage() {
   const [noteSentiment, setNoteSentiment] = useState<NoteSentiment | ''>('')
   const [noteSubmitting, setNoteSubmitting] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editBody, setEditBody] = useState('')
+  const [editCategory, setEditCategory] = useState<string>('note')
+  const [editSentiment, setEditSentiment] = useState<NoteSentiment | ''>('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -256,6 +261,61 @@ export default function MemberDetailPage() {
       setNoteError('Network error')
     } finally {
       setNoteSubmitting(false)
+    }
+  }
+
+  const beginEdit = (note: Note) => {
+    setEditingNoteId(note.id)
+    setEditBody(note.body)
+    setEditCategory(note.category ?? 'note')
+    setEditSentiment(note.sentiment ?? '')
+  }
+
+  const cancelEdit = () => {
+    setEditingNoteId(null)
+    setEditBody('')
+  }
+
+  const handleSaveEdit = async (noteId: string, originalSentiment: NoteSentiment | null) => {
+    if (!editBody.trim()) return
+    const newSentiment = editSentiment || null
+    const sentimentChanged = originalSentiment !== newSentiment
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/members/${params.id}/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          body: editBody.trim(),
+          category: editCategory,
+          sentiment: newSentiment,
+        }),
+      })
+      if (!res.ok) return
+      setEditingNoteId(null)
+      await fetchNotes()
+      if (sentimentChanged) setTimeout(() => void fetchData(), 2500)
+    } catch {
+      // silent
+    }
+  }
+
+  const handleDelete = async (noteId: string, hadSentiment: boolean) => {
+    if (!confirm('Delete this note? This cannot be undone.')) return
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/members/${params.id}/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      await fetchNotes()
+      if (hadSentiment) setTimeout(() => void fetchData(), 2500)
+    } catch {
+      // silent
     }
   }
 
@@ -601,24 +661,98 @@ export default function MemberDetailPage() {
         ) : (
           <div className="space-y-3">
             {notes.map((n) => (
-              <div key={n.id} className="border-l-2 border-indigo-200 pl-3 py-1">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 flex-wrap">
-                  <span className="inline-flex px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium uppercase tracking-wide">
-                    {n.category ?? 'note'}
-                  </span>
-                  {n.sentiment && (
-                    <span
-                      className={`inline-flex px-2 py-0.5 rounded-full font-medium uppercase tracking-wide ${sentimentChip(n.sentiment)}`}
-                      title="Rep-tagged sentiment — influences health score"
-                    >
-                      {sentimentLabel(n.sentiment)}
-                    </span>
-                  )}
-                  <span className="font-medium text-gray-700">{n.author}</span>
-                  <span>&middot;</span>
-                  <span>{formatRelativeTime(n.createdAt)}</span>
-                </div>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.body}</p>
+              <div key={n.id} className="border-l-2 border-indigo-200 pl-3 py-1 group">
+                {editingNoteId === n.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      rows={3}
+                      maxLength={4000}
+                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="rounded border border-gray-300 px-2 py-1"
+                      >
+                        {NOTE_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={editSentiment}
+                        onChange={(e) => setEditSentiment(e.target.value as NoteSentiment | '')}
+                        className="rounded border border-gray-300 px-2 py-1"
+                      >
+                        {NOTE_SENTIMENTS.map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                      <div className="ml-auto flex gap-1">
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="rounded px-2 py-1 text-gray-600 hover:bg-gray-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveEdit(n.id, n.sentiment)}
+                          disabled={!editBody.trim()}
+                          className="rounded bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 flex-wrap">
+                      <span className="inline-flex px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium uppercase tracking-wide">
+                        {n.category ?? 'note'}
+                      </span>
+                      {n.sentiment && (
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-full font-medium uppercase tracking-wide ${sentimentChip(n.sentiment)}`}
+                          title="Rep-tagged sentiment — influences health score"
+                        >
+                          {sentimentLabel(n.sentiment)}
+                        </span>
+                      )}
+                      <span className="font-medium text-gray-700">{n.author}</span>
+                      <span>&middot;</span>
+                      <span>{formatRelativeTime(n.createdAt)}</span>
+                      {n.updatedAt && n.updatedAt !== n.createdAt && (
+                        <span className="italic text-gray-400" title={`Edited ${new Date(n.updatedAt).toLocaleString()}`}>
+                          &middot; edited
+                        </span>
+                      )}
+                      <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => beginEdit(n)}
+                          className="text-gray-500 hover:text-indigo-700 px-1"
+                          title="Edit"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(n.id, !!n.sentiment)}
+                          className="text-gray-500 hover:text-red-700 px-1"
+                          title="Delete"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.body}</p>
+                  </>
+                )}
               </div>
             ))}
           </div>

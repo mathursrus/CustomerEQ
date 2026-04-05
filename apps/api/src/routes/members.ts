@@ -6,6 +6,7 @@ import {
   Customer360QuerySchema,
   SearchMembersQuerySchema,
   CreateMemberNoteSchema,
+  UpdateMemberNoteSchema,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
@@ -670,6 +671,113 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.status(201).send(note)
   })
+
+  // ---------------------------------------------------------------------------
+  // PATCH /v1/members/:id/notes/:noteId — edit a note (body/category/sentiment)
+  // ---------------------------------------------------------------------------
+  fastify.patch<{ Params: { id: string; noteId: string } }>(
+    '/members/:id/notes/:noteId',
+    async (request, reply) => {
+      const { id, noteId } = request.params
+
+      const parse = UpdateMemberNoteSchema.safeParse(request.body)
+      if (!parse.success) {
+        return reply.status(422).send({
+          error: 'Validation failed',
+          message: parse.error.errors.map((e) => e.message).join(', '),
+          details: parse.error.errors,
+        })
+      }
+      const input = parse.data
+
+      const existing = await fastify.prisma.memberNote.findFirst({
+        where: { id: noteId, memberId: id, brandId: request.brandId },
+      })
+      if (!existing) return reply.status(404).send({ error: 'Note not found' })
+
+      const data: {
+        body?: string
+        category?: string | null
+        sentiment?: string | null
+      } = {}
+      if (input.body !== undefined) data.body = input.body
+      if (input.category !== undefined) data.category = input.category
+      if (input.sentiment !== undefined) data.sentiment = input.sentiment
+
+      const updated = await fastify.prisma.memberNote.update({
+        where: { id: noteId },
+        data,
+      })
+
+      await fastify.prisma.auditEvent.create({
+        data: {
+          brandId: request.brandId,
+          actorId: request.clerkUserId,
+          action: 'member_note.update',
+          resourceType: 'MemberNote',
+          resourceId: noteId,
+          metadata: {
+            memberId: id,
+            changedFields: Object.keys(data),
+            previousSentiment: existing.sentiment,
+            newSentiment: updated.sentiment,
+          },
+        },
+      })
+
+      // Recompute health score if sentiment changed — the rep either added,
+      // removed, or shifted their override on this customer.
+      if (existing.sentiment !== updated.sentiment) {
+        enqueueHealthScoreComputation({ brandId: request.brandId, memberId: id }).catch((err) =>
+          fastify.log.warn({ err, memberId: id }, 'health-score recompute after note edit failed'),
+        )
+      }
+
+      return reply.status(200).send(updated)
+    },
+  )
+
+  // ---------------------------------------------------------------------------
+  // DELETE /v1/members/:id/notes/:noteId — remove a note
+  // ---------------------------------------------------------------------------
+  fastify.delete<{ Params: { id: string; noteId: string } }>(
+    '/members/:id/notes/:noteId',
+    async (request, reply) => {
+      const { id, noteId } = request.params
+
+      const existing = await fastify.prisma.memberNote.findFirst({
+        where: { id: noteId, memberId: id, brandId: request.brandId },
+      })
+      if (!existing) return reply.status(404).send({ error: 'Note not found' })
+
+      await fastify.prisma.memberNote.delete({ where: { id: noteId } })
+
+      await fastify.prisma.auditEvent.create({
+        data: {
+          brandId: request.brandId,
+          actorId: request.clerkUserId,
+          action: 'member_note.delete',
+          resourceType: 'MemberNote',
+          resourceId: noteId,
+          metadata: {
+            memberId: id,
+            deletedSentiment: existing.sentiment,
+            deletedCategory: existing.category,
+          },
+        },
+      })
+
+      // If the deleted note had a sentiment tag, recompute — the next-most-recent
+      // tagged note (or none) now drives the modifier.
+      if (existing.sentiment) {
+        enqueueHealthScoreComputation({ brandId: request.brandId, memberId: id }).catch((err) =>
+          fastify.log.warn({ err, memberId: id }, 'health-score recompute after note delete failed'),
+        )
+      }
+
+      return reply.status(204).send()
+    },
+  )
 }
 
 export default membersRoutes

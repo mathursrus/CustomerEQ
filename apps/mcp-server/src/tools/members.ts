@@ -155,4 +155,48 @@ export function registerMemberTools(server: McpServer) {
       return { content: [{ type: 'text' as const, text: `Note added: ${JSON.stringify(res.data, null, 2)}` }] }
     },
   )
+
+  // Update an existing CRM note
+  server.tool(
+    'update_customer_note',
+    'Edit an existing customer note (body, category, and/or sentiment). Pass sentiment as null to clear a rep-tag (which will remove the note modifier from the customer health score).',
+    z.object({
+      memberId: z.string().describe('Customer / member ID'),
+      noteId: z.string().describe('Note ID'),
+      body: z.string().min(1).max(4000).optional().describe('New note text'),
+      category: z.enum(['call', 'email', 'meeting', 'note', 'escalation', 'win-back']).nullable().optional()
+        .describe('New category, or null to clear'),
+      sentiment: z.enum(['very_negative', 'negative', 'neutral', 'positive', 'very_positive']).nullable().optional()
+        .describe('New sentiment tag, or null to clear. Changing sentiment triggers a health-score recompute.'),
+    }).shape,
+    async (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.body !== undefined) body.body = params.body
+      if (params.category !== undefined) body.category = params.category
+      if (params.sentiment !== undefined) body.sentiment = params.sentiment
+      const res = await apiFetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
+        method: 'PATCH',
+        body,
+      })
+      if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
+      return { content: [{ type: 'text' as const, text: `Note updated: ${JSON.stringify(res.data, null, 2)}` }] }
+    },
+  )
+
+  // Delete a CRM note
+  server.tool(
+    'delete_customer_note',
+    'Delete a customer note by ID. If the note carried a sentiment tag, the customer health score will recompute — the next-most-recent tagged note (or none) will drive the modifier instead.',
+    z.object({
+      memberId: z.string().describe('Customer / member ID'),
+      noteId: z.string().describe('Note ID to delete'),
+    }).shape,
+    async (params) => {
+      const res = await apiFetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
+      return { content: [{ type: 'text' as const, text: `Note ${params.noteId} deleted.` }] }
+    },
+  )
 }

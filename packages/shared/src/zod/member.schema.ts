@@ -195,6 +195,18 @@ export const CreateMemberNoteSchema = z.object({
   author: z.string().trim().max(200).optional(),
 })
 
+// Edits use nullable fields so callers can explicitly clear sentiment (passing
+// null removes the rep-tag, which in turn removes the health-score modifier).
+export const UpdateMemberNoteSchema = z.object({
+  body: z.string().trim().min(1).max(4000).optional(),
+  category: z.enum(MEMBER_NOTE_CATEGORIES).nullable().optional(),
+  sentiment: z.enum(MEMBER_NOTE_SENTIMENTS).nullable().optional(),
+}).refine(
+  (data) => data.body !== undefined || data.category !== undefined || data.sentiment !== undefined,
+  { message: 'At least one of body, category, or sentiment must be provided' },
+)
+
 export type CreateMemberNoteInput = z.infer<typeof CreateMemberNoteSchema>
+export type UpdateMemberNoteInput = z.infer<typeof UpdateMemberNoteSchema>
 export type MemberNoteCategory = typeof MEMBER_NOTE_CATEGORIES[number]
 export type MemberNoteSentiment = typeof MEMBER_NOTE_SENTIMENTS[number]

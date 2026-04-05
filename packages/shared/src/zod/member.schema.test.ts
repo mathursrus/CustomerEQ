@@ -7,6 +7,7 @@ import {
   HealthScoreFilterSchema,
   RecomputeHealthScoreSchema,
   CreateMemberNoteSchema,
+  UpdateMemberNoteSchema,
 } from './member.schema.js'
 
 describe('SearchMembersQuerySchema', () => {
@@ -354,5 +355,67 @@ describe('CreateMemberNoteSchema', () => {
   it('rejects author > 200 chars', () => {
     const r = CreateMemberNoteSchema.safeParse({ body: 'ok', author: 'x'.repeat(201) })
     expect(r.success).toBe(false)
+  })
+})
+
+describe('UpdateMemberNoteSchema', () => {
+  it('accepts body-only update', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ body: 'Corrected note' })
+    expect(r.success).toBe(true)
+  })
+
+  it('accepts sentiment-only update', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ sentiment: 'positive' })
+    expect(r.success).toBe(true)
+  })
+
+  it('accepts category-only update', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ category: 'email' })
+    expect(r.success).toBe(true)
+  })
+
+  it('allows clearing sentiment with null', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ sentiment: null })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.sentiment).toBeNull()
+  })
+
+  it('allows clearing category with null', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ category: null })
+    expect(r.success).toBe(true)
+  })
+
+  it('rejects empty update object', () => {
+    const r = UpdateMemberNoteSchema.safeParse({})
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects empty body string', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ body: '' })
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects body over 4000 chars', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ body: 'x'.repeat(4001) })
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects invalid sentiment value', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ sentiment: 'mixed' })
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects body being null (cannot clear body)', () => {
+    const r = UpdateMemberNoteSchema.safeParse({ body: null })
+    expect(r.success).toBe(false)
+  })
+
+  it('accepts full update (body + category + sentiment)', () => {
+    const r = UpdateMemberNoteSchema.safeParse({
+      body: 'Revised context',
+      category: 'meeting',
+      sentiment: 'very_positive',
+    })
+    expect(r.success).toBe(true)
   })
 })

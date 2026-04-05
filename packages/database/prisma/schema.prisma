@@ -229,6 +229,7 @@ model MemberNote {
   category  String? // optional tag: call, email, meeting, note, escalation, win-back
   sentiment String? // optional rep-tagged sentiment: very_negative, negative, neutral, positive, very_positive
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([brandId, memberId, createdAt])
   @@map("member_notes")
