@@ -5,6 +5,7 @@ import {
   EnrollMemberSchema,
   Customer360QuerySchema,
   SearchMembersQuerySchema,
+  CreateMemberNoteSchema,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
@@ -618,28 +619,16 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // ---------------------------------------------------------------------------
   fastify.post<{ Params: { id: string } }>('/members/:id/notes', async (request, reply) => {
     const { id } = request.params
-    const body = request.body as { body?: string; category?: string; author?: string; sentiment?: string }
 
-    if (!body?.body || typeof body.body !== 'string' || body.body.trim().length === 0) {
-      return reply.status(422).send({ error: 'Validation failed', message: 'body is required' })
-    }
-    if (body.body.length > 4000) {
-      return reply.status(422).send({ error: 'Validation failed', message: 'body must be <= 4000 characters' })
-    }
-    const allowedCategories = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back']
-    if (body.category && !allowedCategories.includes(body.category)) {
+    const parse = CreateMemberNoteSchema.safeParse(request.body)
+    if (!parse.success) {
       return reply.status(422).send({
         error: 'Validation failed',
-        message: `category must be one of: ${allowedCategories.join(', ')}`,
+        message: parse.error.errors.map((e) => e.message).join(', '),
+        details: parse.error.errors,
       })
     }
-    const allowedSentiments = ['very_negative', 'negative', 'neutral', 'positive', 'very_positive']
-    if (body.sentiment && !allowedSentiments.includes(body.sentiment)) {
-      return reply.status(422).send({
-        error: 'Validation failed',
-        message: `sentiment must be one of: ${allowedSentiments.join(', ')}`,
-      })
-    }
+    const input = parse.data
 
     const member = await fastify.prisma.member.findFirst({
       where: { id, brandId: request.brandId, deletedAt: null },
@@ -647,15 +636,15 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!member) return reply.status(404).send({ error: 'Customer not found' })
 
-    const author = body.author?.trim() || request.clerkUserId || 'system'
+    const author = input.author || request.clerkUserId || 'system'
     const note = await fastify.prisma.memberNote.create({
       data: {
         brandId: request.brandId,
         memberId: id,
-        body: body.body.trim(),
+        body: input.body,
         author,
-        category: body.category ?? 'note',
-        sentiment: body.sentiment ?? null,
+        category: input.category ?? 'note',
+        sentiment: input.sentiment ?? null,
       },
     })
 

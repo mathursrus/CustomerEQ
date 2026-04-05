@@ -6,6 +6,7 @@ import {
   HealthScoreWeightsSchema,
   HealthScoreFilterSchema,
   RecomputeHealthScoreSchema,
+  CreateMemberNoteSchema,
 } from './member.schema.js'
 
 describe('SearchMembersQuerySchema', () => {
@@ -277,5 +278,81 @@ describe('RecomputeHealthScoreSchema', () => {
   it('rejects non-string memberId', () => {
     const result = RecomputeHealthScoreSchema.safeParse({ memberId: 123 })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('CreateMemberNoteSchema', () => {
+  it('accepts minimal valid note (body only)', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'Called customer, all good.' })
+    expect(r.success).toBe(true)
+  })
+
+  it('accepts full payload with category + sentiment + author', () => {
+    const r = CreateMemberNoteSchema.safeParse({
+      body: 'Churn risk',
+      category: 'call',
+      sentiment: 'very_negative',
+      author: 'sarah@customereq.demo',
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.category).toBe('call')
+      expect(r.data.sentiment).toBe('very_negative')
+    }
+  })
+
+  it('trims whitespace from body', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: '   hello   ' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.body).toBe('hello')
+  })
+
+  it('rejects empty body', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: '' })
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects whitespace-only body (after trim)', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: '   ' })
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects body > 4000 chars', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'x'.repeat(4001) })
+    expect(r.success).toBe(false)
+  })
+
+  it('accepts body at the 4000-char boundary', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'x'.repeat(4000) })
+    expect(r.success).toBe(true)
+  })
+
+  it('rejects invalid category', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'ok', category: 'phone' })
+    expect(r.success).toBe(false)
+  })
+
+  it('accepts each valid category', () => {
+    for (const c of ['call', 'email', 'meeting', 'note', 'escalation', 'win-back']) {
+      const r = CreateMemberNoteSchema.safeParse({ body: 'ok', category: c })
+      expect(r.success).toBe(true)
+    }
+  })
+
+  it('rejects invalid sentiment', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'ok', sentiment: 'mixed' })
+    expect(r.success).toBe(false)
+  })
+
+  it('accepts each valid sentiment', () => {
+    for (const s of ['very_negative', 'negative', 'neutral', 'positive', 'very_positive']) {
+      const r = CreateMemberNoteSchema.safeParse({ body: 'ok', sentiment: s })
+      expect(r.success).toBe(true)
+    }
+  })
+
+  it('rejects author > 200 chars', () => {
+    const r = CreateMemberNoteSchema.safeParse({ body: 'ok', author: 'x'.repeat(201) })
+    expect(r.success).toBe(false)
   })
 })

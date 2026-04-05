@@ -180,3 +180,21 @@ export interface Customer360Response {
     totalPointsRedeemed: number
   }
 }
+
+// ---------------------------------------------------------------------------
+// CRM Notes Schemas
+// ---------------------------------------------------------------------------
+
+export const MEMBER_NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
+export const MEMBER_NOTE_SENTIMENTS = ['very_negative', 'negative', 'neutral', 'positive', 'very_positive'] as const
+
+export const CreateMemberNoteSchema = z.object({
+  body: z.string().trim().min(1, 'body is required').max(4000, 'body must be <= 4000 characters'),
+  category: z.enum(MEMBER_NOTE_CATEGORIES).optional(),
+  sentiment: z.enum(MEMBER_NOTE_SENTIMENTS).optional(),
+  author: z.string().trim().max(200).optional(),
+})
+
+export type CreateMemberNoteInput = z.infer<typeof CreateMemberNoteSchema>
+export type MemberNoteCategory = typeof MEMBER_NOTE_CATEGORIES[number]
+export type MemberNoteSentiment = typeof MEMBER_NOTE_SENTIMENTS[number]
