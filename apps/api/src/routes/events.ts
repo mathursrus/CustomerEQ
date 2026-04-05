@@ -63,18 +63,32 @@ const eventsRoutes: FastifyPluginAsync = async (fastify) => {
     const ingestedAt = new Date().toISOString()
 
     // Step 1: Idempotency check
+    // Prefer Redis (fast path, 24hr TTL) when available; fall back to DB lookup
+    // on the LoyaltyEvent.idempotencyKey column. Redis is an optimization, not
+    // a hard dependency — the DB column has a unique index for correctness.
     if (idempotencyKey) {
-      if (!fastify.redis) {
-        return reply.status(503).send({ error: 'Redis not available' })
-      }
-      const redisKey = `idempotency:${brandId}:${idempotencyKey}`
-      const existing = await fastify.redis.get(redisKey)
-      if (existing !== null) {
-        return reply.status(200).send({
-          cached: true,
-          message: 'duplicate event',
-          jobId: existing,
+      if (fastify.redis) {
+        const redisKey = `idempotency:${brandId}:${idempotencyKey}`
+        const existing = await fastify.redis.get(redisKey)
+        if (existing !== null) {
+          return reply.status(200).send({
+            cached: true,
+            message: 'duplicate event',
+            jobId: existing,
+          })
+        }
+      } else {
+        const existing = await fastify.prisma.loyaltyEvent.findFirst({
+          where: { brandId, idempotencyKey },
+          select: { id: true },
         })
+        if (existing) {
+          return reply.status(200).send({
+            cached: true,
+            message: 'duplicate event',
+            jobId: existing.id,
+          })
+        }
       }
     }
 

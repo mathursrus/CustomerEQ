@@ -481,18 +481,29 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     if (healthScoreMin !== undefined) where.healthScore = { ...(where.healthScore as object), gte: healthScoreMin }
     if (healthScoreMax !== undefined) where.healthScore = { ...(where.healthScore as object), lte: healthScoreMax }
 
-    // Sentiment/NPS filtering via Prisma relational filter
+    // Sentiment/NPS filtering — applied to each member's LATEST survey response
+    // (not any historical response). The displayed latestNpsScore/latestSentiment
+    // must match the filter, otherwise results mislead the user.
     const needsSurveyFilter = sentimentMin !== undefined || sentimentMax !== undefined ||
                               npsMin !== undefined || npsMax !== undefined
 
     if (needsSurveyFilter) {
-      const surveyFilter: Prisma.SurveyResponseWhereInput = {}
-      if (sentimentMin !== undefined) surveyFilter.sentiment = { ...(surveyFilter.sentiment as object), gte: sentimentMin }
-      if (sentimentMax !== undefined) surveyFilter.sentiment = { ...(surveyFilter.sentiment as object), lte: sentimentMax }
-      if (npsMin !== undefined) surveyFilter.score = { ...(surveyFilter.score as object), gte: npsMin }
-      if (npsMax !== undefined) surveyFilter.score = { ...(surveyFilter.score as object), lte: npsMax }
-
-      where.surveyResponses = { some: surveyFilter }
+      const matchingRows = await fastify.prisma.$queryRaw<{ memberId: string }[]>`
+        SELECT "memberId" FROM (
+          SELECT DISTINCT ON (sr."memberId")
+            sr."memberId", sr.score, sr.sentiment
+          FROM survey_responses sr
+          WHERE sr."brandId" = ${request.brandId}
+          ORDER BY sr."memberId", sr."completedAt" DESC NULLS LAST, sr."createdAt" DESC
+        ) latest
+        WHERE
+          (${npsMin ?? null}::int IS NULL OR latest.score >= ${npsMin ?? null}::int)
+          AND (${npsMax ?? null}::int IS NULL OR latest.score <= ${npsMax ?? null}::int)
+          AND (${sentimentMin ?? null}::float IS NULL OR latest.sentiment >= ${sentimentMin ?? null}::float)
+          AND (${sentimentMax ?? null}::float IS NULL OR latest.sentiment <= ${sentimentMax ?? null}::float)
+      `
+      const matchingIds = matchingRows.map((r) => r.memberId)
+      where.id = { in: matchingIds.length > 0 ? matchingIds : ['__none__'] }
     }
 
     // Sort mapping
