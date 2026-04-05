@@ -6,10 +6,11 @@ import { useState } from 'react'
 import { UserButton } from '@clerk/nextjs'
 
 const navLinks: { href: string; label: string; section?: string }[] = [
+  // ── Customer (top-level, cross-functional) ──
+  { href: '/admin/members', label: 'Customers', section: 'Customer' },
   // ── Loyalty ──
   { href: '/admin/programs', label: 'Programs', section: 'Loyalty' },
   { href: '/admin/campaigns', label: 'Campaigns' },
-  { href: '/admin/members', label: 'Members' },
   { href: '/admin/analytics', label: 'Loyalty Analytics' },
   // ── CX & Feedback ──
   { href: '/admin/surveys', label: 'Surveys', section: 'CX & Feedback' },

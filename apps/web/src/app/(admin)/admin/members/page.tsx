@@ -232,8 +232,10 @@ export default function MembersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Members</h1>
-          <p className="mt-1 text-sm text-gray-500">View and manage loyalty program members</p>
+          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Search your full customer base by loyalty tier, sentiment, NPS, health score, or balance — then open any customer for the full 360 view.
+          </p>
         </div>
       </div>
 

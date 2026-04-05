@@ -592,6 +592,77 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       totalPages: Math.ceil(total / pageSize),
     })
   })
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/members/:id/notes — list CRM notes on a customer (newest first)
+  // ---------------------------------------------------------------------------
+  fastify.get<{ Params: { id: string } }>('/members/:id/notes', async (request, reply) => {
+    const { id } = request.params
+    const member = await fastify.prisma.member.findFirst({
+      where: { id, brandId: request.brandId, deletedAt: null },
+      select: { id: true },
+    })
+    if (!member) return reply.status(404).send({ error: 'Customer not found' })
+
+    const notes = await fastify.prisma.memberNote.findMany({
+      where: { brandId: request.brandId, memberId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+    return reply.status(200).send({ data: notes, total: notes.length })
+  })
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/members/:id/notes — add a CRM note to a customer (append-only)
+  // ---------------------------------------------------------------------------
+  fastify.post<{ Params: { id: string } }>('/members/:id/notes', async (request, reply) => {
+    const { id } = request.params
+    const body = request.body as { body?: string; category?: string; author?: string }
+
+    if (!body?.body || typeof body.body !== 'string' || body.body.trim().length === 0) {
+      return reply.status(422).send({ error: 'Validation failed', message: 'body is required' })
+    }
+    if (body.body.length > 4000) {
+      return reply.status(422).send({ error: 'Validation failed', message: 'body must be <= 4000 characters' })
+    }
+    const allowedCategories = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back']
+    if (body.category && !allowedCategories.includes(body.category)) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: `category must be one of: ${allowedCategories.join(', ')}`,
+      })
+    }
+
+    const member = await fastify.prisma.member.findFirst({
+      where: { id, brandId: request.brandId, deletedAt: null },
+      select: { id: true },
+    })
+    if (!member) return reply.status(404).send({ error: 'Customer not found' })
+
+    const author = body.author?.trim() || request.clerkUserId || 'system'
+    const note = await fastify.prisma.memberNote.create({
+      data: {
+        brandId: request.brandId,
+        memberId: id,
+        body: body.body.trim(),
+        author,
+        category: body.category ?? 'note',
+      },
+    })
+
+    await fastify.prisma.auditEvent.create({
+      data: {
+        brandId: request.brandId,
+        actorId: request.clerkUserId,
+        action: 'member_note.create',
+        resourceType: 'MemberNote',
+        resourceId: note.id,
+        metadata: { memberId: id, category: note.category },
+      },
+    })
+
+    return reply.status(201).send(note)
+  })
 }
 
 export default membersRoutes

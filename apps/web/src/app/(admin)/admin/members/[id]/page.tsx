@@ -125,6 +125,16 @@ function eventTypeColor(eventType: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
+interface Note {
+  id: string
+  body: string
+  author: string
+  category: string | null
+  createdAt: string
+}
+
+const NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
+
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const { getToken } = useAuth()
@@ -132,6 +142,11 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [noteBody, setNoteBody] = useState('')
+  const [noteCategory, setNoteCategory] = useState<string>('note')
+  const [noteSubmitting, setNoteSubmitting] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -154,9 +169,55 @@ export default function MemberDetailPage() {
     }
   }, [getToken, params.id])
 
+  const fetchNotes = useCallback(async () => {
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/members/${params.id}/notes`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setNotes(json.data ?? [])
+      }
+    } catch {
+      // silent — notes are non-critical
+    }
+  }, [getToken, params.id])
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!noteBody.trim() || noteSubmitting) return
+    setNoteSubmitting(true)
+    setNoteError(null)
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/members/${params.id}/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ body: noteBody.trim(), category: noteCategory }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setNoteError(err.message || 'Failed to add note')
+        return
+      }
+      setNoteBody('')
+      setNoteCategory('note')
+      await fetchNotes()
+    } catch {
+      setNoteError('Network error')
+    } finally {
+      setNoteSubmitting(false)
+    }
+  }
+
   useEffect(() => {
     void fetchData()
-  }, [fetchData])
+    void fetchNotes()
+  }, [fetchData, fetchNotes])
 
   const handleRecompute = async () => {
     setRecomputing(true)
@@ -192,7 +253,7 @@ export default function MemberDetailPage() {
     return (
       <div className="space-y-4">
         <Link href="/admin/members" className="text-sm text-indigo-600 hover:text-indigo-800">
-          &larr; Back to Members
+          &larr; Back to Customers
         </Link>
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center text-red-700">
           {error ?? 'Failed to load member data'}
@@ -217,7 +278,7 @@ export default function MemberDetailPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Breadcrumb */}
       <Link href="/admin/members" className="text-sm text-indigo-600 hover:text-indigo-800">
-        &larr; Back to Members
+        &larr; Back to Customers
       </Link>
 
       {/* Member Header Row */}
@@ -228,6 +289,7 @@ export default function MemberDetailPage() {
         </div>
         {/* Info */}
         <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-1">Customer 360</p>
           <h1 className="text-xl font-semibold text-gray-900">{displayName}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {member.email}
@@ -363,6 +425,69 @@ export default function MemberDetailPage() {
           </div>
         </div>
       )}
+
+      {/* CRM Notes */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-900">Notes ({notes.length})</h2>
+        </div>
+
+        <form onSubmit={handleAddNote} className="space-y-3 mb-4">
+          <textarea
+            value={noteBody}
+            onChange={(e) => setNoteBody(e.target.value)}
+            placeholder="Add a note about this customer — call summary, action taken, context, follow-up..."
+            rows={3}
+            maxLength={4000}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500">Category:</label>
+              <select
+                value={noteCategory}
+                onChange={(e) => setNoteCategory(e.target.value)}
+                className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                {NOTE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-400 ml-2">{noteBody.length}/4000</span>
+            </div>
+            <button
+              type="submit"
+              disabled={!noteBody.trim() || noteSubmitting}
+              className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {noteSubmitting ? 'Adding...' : 'Add Note'}
+            </button>
+          </div>
+          {noteError && <p className="text-xs text-red-600">{noteError}</p>}
+        </form>
+
+        {notes.length === 0 ? (
+          <p className="text-sm text-gray-400">No notes yet. Add one above to start tracking interactions.</p>
+        ) : (
+          <div className="space-y-3">
+            {notes.map((n) => (
+              <div key={n.id} className="border-l-2 border-indigo-200 pl-3 py-1">
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <span className="inline-flex px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium uppercase tracking-wide">
+                    {n.category ?? 'note'}
+                  </span>
+                  <span className="font-medium text-gray-700">{n.author}</span>
+                  <span>&middot;</span>
+                  <span>{formatRelativeTime(n.createdAt)}</span>
+                </div>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Recent Activity Timeline */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">

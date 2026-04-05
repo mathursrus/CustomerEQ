@@ -113,4 +113,39 @@ export function registerMemberTools(server: McpServer) {
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
   )
+
+  // List CRM notes on a customer
+  server.tool(
+    'list_customer_notes',
+    'List CRM-style notes recorded against a customer (most recent first). Notes capture calls, emails, meetings, escalations, and free-form context.',
+    z.object({
+      memberId: z.string().describe('Customer / member ID'),
+    }).shape,
+    async ({ memberId }) => {
+      const res = await apiFetch(`/v1/members/${memberId}/notes`)
+      if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
+    },
+  )
+
+  // Add a CRM note to a customer
+  server.tool(
+    'add_customer_note',
+    'Add a CRM-style note to a customer record. Append-only audit trail — notes cannot be edited or deleted once recorded. Use for call summaries, action taken, context, or follow-up reminders.',
+    z.object({
+      memberId: z.string().describe('Customer / member ID'),
+      body: z.string().min(1).max(4000).describe('Note text (max 4000 chars)'),
+      category: z.enum(['call', 'email', 'meeting', 'note', 'escalation', 'win-back']).optional()
+        .describe('Note category (default: note)'),
+      author: z.string().optional().describe('Author name or email (defaults to the authenticated caller)'),
+    }).shape,
+    async (params) => {
+      const res = await apiFetch(`/v1/members/${params.memberId}/notes`, {
+        method: 'POST',
+        body: { body: params.body, category: params.category, author: params.author },
+      })
+      if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
+      return { content: [{ type: 'text' as const, text: `Note added: ${JSON.stringify(res.data, null, 2)}` }] }
+    },
+  )
 }

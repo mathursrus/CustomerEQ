@@ -207,6 +207,7 @@ model Member {
   campaignEvents  CampaignEvent[]
   surveyResponses SurveyResponse[]
   conversations   Conversation[]
+  notes           MemberNote[]
   createdAt       DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -215,6 +216,20 @@ model Member {
   @@index([clerkUserId, brandId])
   @@index([brandId, healthScore])
   @@map("members")
+}
+
+model MemberNote {
+  id        String   @id @default(cuid())
+  brandId   String
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id])
+  body      String
+  author    String // clerk user email, API key label, or "system"
+  category  String? // optional tag: call, email, meeting, note, escalation
+  createdAt DateTime @default(now())
+
+  @@index([brandId, memberId, createdAt])
+  @@map("member_notes")
 }
 
 model LoyaltyEvent {
