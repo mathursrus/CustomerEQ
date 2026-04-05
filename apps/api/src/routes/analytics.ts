@@ -969,6 +969,181 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       days,
     })
   })
+
+  // GET /v1/analytics/program-health — unified CX+loyalty dashboard snapshot
+  // CX window: last 30 days, Loyalty window: last 7 days (fixed, no query params)
+  fastify.get('/analytics/program-health', async (request, reply) => {
+    const brandId = request.brandId
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    const warnings: string[] = []
+
+    // ── CX Health query ────────────────────────────────────────────────────
+    type CxHealthRow = {
+      avgNps: number | null
+      activeSurveys: number
+      responseRate: number
+      atRiskCount: number
+    }
+
+    const cxHealthPromise = (async (): Promise<CxHealthRow | null> => {
+      try {
+        const [npsRows, activeSurveysCount, activeMembers, atRiskRows] = await Promise.all([
+          fastify.prisma.$queryRaw<{ avgScore: number | null; total: number }[]>`
+            SELECT
+              AVG(sr.score)::float AS "avgScore",
+              COUNT(sr.id)::int AS total
+            FROM survey_responses sr
+            JOIN surveys s ON sr."surveyId" = s.id
+            WHERE sr."brandId" = ${brandId}
+              AND s.type = 'NPS'
+              AND sr."createdAt" > ${thirtyDaysAgo}
+          `,
+          fastify.prisma.survey.count({ where: { brandId, status: 'ACTIVE' } }),
+          fastify.prisma.member.count({ where: { brandId, status: 'ACTIVE' } }),
+          fastify.prisma.$queryRaw<{ atRiskCount: number }[]>`
+            SELECT COUNT(DISTINCT sr."memberId")::int AS "atRiskCount"
+            FROM survey_responses sr
+            WHERE sr."brandId" = ${brandId}
+              AND sr.score < 7
+              AND sr."createdAt" > ${thirtyDaysAgo}
+          `,
+        ])
+
+        const npsRow = npsRows[0]
+        const totalResponses = npsRow?.total ?? 0
+        const responseRate = activeMembers > 0 ? Math.round((totalResponses / activeMembers) * 100 * 100) / 100 : 0
+
+        // Compute NPS: (promoters - detractors) / total * 100
+        let avgNps: number | null = null
+        if (totalResponses > 0 && npsRow?.avgScore != null) {
+          const npsResponses = await fastify.prisma.surveyResponse.findMany({
+            where: {
+              brandId,
+              survey: { type: 'NPS' },
+              createdAt: { gte: thirtyDaysAgo },
+              score: { not: null },
+            },
+            select: { score: true },
+          })
+          const promoters = npsResponses.filter((r: { score: number | null }) => r.score !== null && r.score >= 9).length
+          const detractors = npsResponses.filter((r: { score: number | null }) => r.score !== null && r.score < 7).length
+          avgNps = npsResponses.length > 0
+            ? Math.round(((promoters - detractors) / npsResponses.length) * 100)
+            : null
+        }
+
+        return {
+          avgNps,
+          activeSurveys: activeSurveysCount,
+          responseRate,
+          atRiskCount: atRiskRows[0]?.atRiskCount ?? 0,
+        }
+      } catch (err) {
+        fastify.log.warn({ err }, 'program-health: cxHealth query failed')
+        warnings.push('cxHealth query failed')
+        return null
+      }
+    })()
+
+    // ── Loyalty Health query ───────────────────────────────────────────────
+    type LoyaltyHealthRow = {
+      activeMembers: number
+      pointsIssuedThisWeek: number
+      redemptionRate: number
+      activeCampaigns: number
+    }
+
+    const loyaltyHealthPromise = (async (): Promise<LoyaltyHealthRow | null> => {
+      try {
+        const [activeMembers, pointsRows, redemptionCount, activeCampaigns] = await Promise.all([
+          fastify.prisma.member.count({ where: { brandId, status: 'ACTIVE' } }),
+          fastify.prisma.$queryRaw<{ pointsIssued: number }[]>`
+            SELECT COALESCE(SUM(le."pointsEarned"), 0)::int AS "pointsIssued"
+            FROM loyalty_events le
+            WHERE le."brandId" = ${brandId}
+              AND le."pointsEarned" > 0
+              AND le."createdAt" > ${sevenDaysAgo}
+          `,
+          fastify.prisma.redemption.count({ where: { brandId, createdAt: { gte: thirtyDaysAgo } } }),
+          fastify.prisma.campaign.count({ where: { brandId, status: 'ACTIVE' } }),
+        ])
+
+        const redemptionRate = activeMembers > 0
+          ? Math.round((redemptionCount / activeMembers) * 100 * 100) / 100
+          : 0
+
+        return {
+          activeMembers,
+          pointsIssuedThisWeek: pointsRows[0]?.pointsIssued ?? 0,
+          redemptionRate,
+          activeCampaigns,
+        }
+      } catch (err) {
+        fastify.log.warn({ err }, 'program-health: loyaltyHealth query failed')
+        warnings.push('loyaltyHealth query failed')
+        return null
+      }
+    })()
+
+    // ── At-risk (detractors with no recent redemption) ─────────────────────
+    type AtRiskRow = { atRiskNoRedemption: number }
+
+    const atRiskPromise = (async (): Promise<AtRiskRow | null> => {
+      try {
+        const rows = await fastify.prisma.$queryRaw<AtRiskRow[]>`
+          SELECT COUNT(DISTINCT sr."memberId")::int AS "atRiskNoRedemption"
+          FROM survey_responses sr
+          LEFT JOIN redemptions r ON r."memberId" = sr."memberId"
+            AND r."brandId" = ${brandId}
+            AND r."createdAt" > ${thirtyDaysAgo}
+          WHERE sr."brandId" = ${brandId}
+            AND sr.score < 7
+            AND sr."createdAt" > ${thirtyDaysAgo}
+            AND r.id IS NULL
+        `
+        return rows[0] ?? { atRiskNoRedemption: 0 }
+      } catch (err) {
+        fastify.log.warn({ err }, 'program-health: atRisk query failed')
+        warnings.push('atRisk query failed')
+        return null
+      }
+    })()
+
+    // ── Run all in parallel ────────────────────────────────────────────────
+    const [cxHealth, loyaltyHealth, atRiskResult] = await Promise.all([
+      cxHealthPromise,
+      loyaltyHealthPromise,
+      atRiskPromise,
+    ])
+
+    // ── Compute insights ───────────────────────────────────────────────────
+    let insights: import('@customerEQ/shared').Insight[] = []
+    try {
+      const { computeInsights } = await import('../utils/computeInsights.js')
+
+      const surveyCompletersMultiplier = null // deferred: requires cross-join AVG computation
+      const surveyCompletersMemberCount = 0
+
+      insights = computeInsights({
+        atRiskCount: atRiskResult?.atRiskNoRedemption ?? 0,
+        activeSurveys: cxHealth?.activeSurveys ?? 0,
+        responseRate: cxHealth?.responseRate ?? 100,
+        surveyCompletersMultiplier,
+        surveyCompletersMemberCount,
+      })
+    } catch (err) {
+      fastify.log.warn({ err }, 'program-health: insights computation failed')
+      warnings.push('insights computation failed')
+    }
+
+    const response: Record<string, unknown> = { cxHealth, loyaltyHealth, insights }
+    if (warnings.length > 0) response.warnings = warnings
+
+    return reply.status(200).send(response)
+  })
 }
 
 export default analyticsRoutes

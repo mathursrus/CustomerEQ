@@ -1,11 +1,24 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import CampaignForm from '@/components/campaigns/CampaignForm'
 
 export default function NewCampaignPage() {
+  const searchParams = useSearchParams()
   const { getToken } = useAuth()
+
+  // Pre-fill segment condition from dashboard click-through (filter=detractors)
+  const filterParam = searchParams.get('filter')
+  const maxNpsParam = searchParams.get('maxNps')
+  const initialData = filterParam === 'detractors'
+    ? {
+        conditionField: 'nps_score',
+        conditionOperator: 'between',
+        conditionValue: `0,${maxNpsParam ?? '6'}`,
+      }
+    : undefined
 
   async function handleCreate(payload: Record<string, unknown>) {
     const token = await getAuthToken(getToken)
@@ -24,5 +37,5 @@ export default function NewCampaignPage() {
     return res.json()
   }
 
-  return <CampaignForm onSubmit={handleCreate} />
+  return <CampaignForm initialData={initialData} onSubmit={handleCreate} />
 }

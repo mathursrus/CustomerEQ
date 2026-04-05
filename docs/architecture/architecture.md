@@ -49,6 +49,8 @@ The platform is a multi-tenant loyalty engine with:
 - **Key Modules**: `apps/web/src/app/(marketing)/` (public pages), `apps/web/src/app/(admin)/` (admin portal), `apps/web/src/app/(member)/` (member portal)
 - **Auth**: Clerk middleware guards all non-public routes; `ClerkProvider` wraps the app layout. Public routes: `/`, `/sign-in`, `/request-demo`, `/api/public/*`, `/survey/*`, `/{programSlug}/enroll` (Issue #3 — enrollment requires no prior auth)
 - **API Communication**: Server components fetch with Clerk token; client components use `useAuth()` hook
+- **Admin home entry point**: `/admin/page.tsx` (RSC) is the operator home dashboard — fetches `GET /v1/analytics/program-health` server-side and renders the unified CX+Loyalty panels. `/admin/analytics` remains as a deeper drill-down analytics view. (Issue #78)
+- **Context-aware navigation**: CX metric click-throughs use `searchParams` to pre-populate campaign/survey builder forms without a separate API round-trip (e.g., `filter=detractors&maxNps=6` pre-fills the campaign builder audience segment). (Issue #78)
 
 ### 3.2. API Layer (apps/api)
 - **Responsibility**: RESTful API (versioned at `/v1/`), request validation (Zod), authentication (Clerk JWT), multi-tenant scoping, event ingestion, campaign trigger evaluation, audit logging.
@@ -158,7 +160,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `/v1/campaigns` | Campaign CRUD + status management (DRAFT -> ACTIVE -> PAUSED -> COMPLETED) |
 | `/v1/rewards` | Reward catalog management |
 | `/v1/redemptions` | Atomic point redemption (transactional debit + stock decrement) |
-| `/v1/analytics` | Overview KPIs (ROI, redemption rate) + per-campaign performance |
+| `/v1/analytics` | Overview KPIs (ROI, redemption rate) + per-campaign performance. `GET /v1/analytics/program-health` — unified CX+loyalty health snapshot (fixed 30d/7d windows); all sub-queries run in `Promise.all`; insights computed in-process by `computeInsights()` (deterministic rule engine — 3 rules; LLM generation deferred). (Issue #78) |
 | `/v1/integrations/webhooks/*` | Salesforce + HubSpot webhook receivers (HMAC-SHA256 verified) |
 | `/v1/surveys` | Survey CRUD + status management + question builder updates |
 | `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
