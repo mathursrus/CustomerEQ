@@ -10,9 +10,9 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/programs', label: 'Programs', section: 'Loyalty' },
   { href: '/admin/campaigns', label: 'Campaigns' },
   { href: '/admin/members', label: 'Members' },
+  { href: '/admin/analytics', label: 'Loyalty Analytics' },
   // ── CX & Feedback ──
   { href: '/admin/surveys', label: 'Surveys', section: 'CX & Feedback' },
-  { href: '/admin/analytics', label: 'Loyalty Analytics' },
   { href: '/admin/analytics/cx', label: 'CX Insights' },
   { href: '/admin/alerts/cases', label: 'Alerts' },
   // ── Support ──
