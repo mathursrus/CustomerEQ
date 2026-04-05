@@ -56,7 +56,8 @@ export function registerMemberTools(server: McpServer) {
   server.tool(
     'get_member_360',
     'Get a comprehensive Customer 360 view including profile, health score breakdown, loyalty events, ' +
-    'survey responses, redemptions, campaign events, open cases, and summary statistics.',
+    'survey responses, redemptions, campaign events, open cases (alert-rule escalations), ' +
+    'open support conversations (chat tickets), and summary statistics.',
     z.object({
       memberId: z.string().describe('Member ID'),
       eventsLimit: z.number().int().min(1).max(100).default(20).optional()

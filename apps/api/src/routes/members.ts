@@ -276,7 +276,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 3. Parallel queries for sub-collections
       const [events, eventCount, surveys, surveyCount, redemptions, redemptionCount,
-             campaignEvents, ceCount, openCases, stats, redemptionStats, sentimentStats] = await Promise.all([
+             campaignEvents, ceCount, openCases, openConversations, stats, redemptionStats, sentimentStats] = await Promise.all([
         // Recent events
         fastify.prisma.loyaltyEvent.findMany({
           where: { memberId: member.id, brandId: request.brandId },
@@ -320,6 +320,16 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.prisma.caseFollowUp.findMany({
           where: { memberId: member.id, brandId: request.brandId, status: 'OPEN' },
           orderBy: { createdAt: 'desc' },
+        }),
+        // Open support conversations (active/waiting/escalated — excludes RESOLVED/CLOSED)
+        fastify.prisma.conversation.findMany({
+          where: {
+            memberId: member.id,
+            brandId: request.brandId,
+            status: { in: ['ACTIVE', 'WAITING_ON_CUSTOMER', 'ESCALATED'] },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { _count: { select: { messages: true } } },
         }),
         // Aggregated stats
         fastify.prisma.loyaltyEvent.aggregate({
@@ -435,6 +445,18 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           assignee: c.assignee,
           slaDeadline: c.slaDeadline,
           createdAt: c.createdAt,
+        })),
+        openConversations: openConversations.map((c) => ({
+          id: c.id,
+          status: c.status,
+          intent: c.intent,
+          topic: c.topic,
+          summary: c.summary,
+          assignee: c.assignee,
+          messageCount: c._count.messages,
+          escalatedAt: c.escalatedAt,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
         })),
         stats: {
           totalEvents: eventCount,

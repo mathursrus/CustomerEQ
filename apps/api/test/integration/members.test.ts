@@ -13,6 +13,7 @@ import {
   createRedemption,
   createCampaign,
   createCampaignEvent,
+  createConversation,
   createTier,
   authenticatedRequest,
   unauthenticatedRequest,
@@ -434,8 +435,61 @@ describe('Members API — /v1/members', () => {
       expect(res.body.redemptions.items).toHaveLength(0)
       expect(res.body.campaignEvents.items).toHaveLength(0)
       expect(res.body.openCases).toHaveLength(0)
+      expect(res.body.openConversations).toHaveLength(0)
       expect(res.body.stats.totalEvents).toBe(0)
       expect(res.body.stats.averageSentiment).toBeNull()
+    })
+
+    it('returns open support conversations (ACTIVE/WAITING_ON_CUSTOMER/ESCALATED) but excludes RESOLVED/CLOSED', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+
+      const active = await createConversation({ brandId: brand.id, memberId: member.id, status: 'ACTIVE', intent: 'billing', topic: 'refund' })
+      const waiting = await createConversation({ brandId: brand.id, memberId: member.id, status: 'WAITING_ON_CUSTOMER' })
+      const escalated = await createConversation({ brandId: brand.id, memberId: member.id, status: 'ESCALATED', assignee: 'agent@example.com' })
+      await createConversation({ brandId: brand.id, memberId: member.id, status: 'RESOLVED' })
+      await createConversation({ brandId: brand.id, memberId: member.id, status: 'CLOSED' })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.openConversations).toHaveLength(3)
+      const ids = res.body.openConversations.map((c: { id: string }) => c.id).sort()
+      expect(ids).toEqual([active.id, waiting.id, escalated.id].sort())
+
+      const activeResult = res.body.openConversations.find((c: { id: string }) => c.id === active.id)
+      expect(activeResult).toMatchObject({
+        status: 'ACTIVE',
+        intent: 'billing',
+        topic: 'refund',
+        messageCount: 0,
+      })
+
+      const escalatedResult = res.body.openConversations.find((c: { id: string }) => c.id === escalated.id)
+      expect(escalatedResult.assignee).toBe('agent@example.com')
+    })
+
+    it('does not return conversations from other members or brands', async () => {
+      const brandA = await createBrand()
+      const brandB = await createBrand()
+      const program = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brandA.id, programId: program.id })
+      const otherMember = await createConsentedMember({ brandId: brandA.id, programId: program.id })
+      const programB = await createProgram({ brandId: brandB.id, status: 'ACTIVE' })
+      const brandBMember = await createConsentedMember({ brandId: brandB.id, programId: programB.id })
+
+      await createConversation({ brandId: brandA.id, memberId: otherMember.id, status: 'ACTIVE' })
+      await createConversation({ brandId: brandB.id, memberId: brandBMember.id, status: 'ACTIVE' })
+      const mine = await createConversation({ brandId: brandA.id, memberId: member.id, status: 'ACTIVE' })
+
+      const request = authenticatedRequest(brandA.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.openConversations).toHaveLength(1)
+      expect(res.body.openConversations[0].id).toBe(mine.id)
     })
 
     it('masks PII for erased members', async () => {
