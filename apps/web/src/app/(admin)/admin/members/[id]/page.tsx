@@ -19,6 +19,22 @@ interface Tier {
   multiplier: number
 }
 
+type NoteSentiment = 'very_negative' | 'negative' | 'neutral' | 'positive' | 'very_positive'
+
+interface HealthScoreBreakdown {
+  recency: number
+  frequency: number
+  sentiment: number
+  nps: number
+  engagement: number
+  baseScore: number
+  noteModifier: number
+  noteSentiment: NoteSentiment | null
+  inconsistency: 'auto_healthy_rep_concerned' | 'auto_weak_rep_positive' | null
+  overall: number
+  computedAt: string
+}
+
 interface MemberProfile {
   id: string
   email: string
@@ -33,6 +49,7 @@ interface MemberProfile {
   tier: Tier | null
   healthScore: number | null
   healthScoreUpdatedAt: string | null
+  healthScoreBreakdown: HealthScoreBreakdown | null
 }
 
 interface LoyaltyEvent {
@@ -130,10 +147,26 @@ interface Note {
   body: string
   author: string
   category: string | null
+  sentiment: NoteSentiment | null
   createdAt: string
 }
 
 const NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
+const NOTE_SENTIMENTS: { value: NoteSentiment | ''; label: string; chip: string }[] = [
+  { value: '', label: 'Not tagged', chip: 'bg-gray-100 text-gray-600' },
+  { value: 'very_negative', label: 'Very negative · churn risk', chip: 'bg-red-100 text-red-800' },
+  { value: 'negative', label: 'Negative · frustrated', chip: 'bg-orange-100 text-orange-800' },
+  { value: 'neutral', label: 'Neutral', chip: 'bg-gray-100 text-gray-700' },
+  { value: 'positive', label: 'Positive · happy', chip: 'bg-emerald-100 text-emerald-800' },
+  { value: 'very_positive', label: 'Very positive · advocate', chip: 'bg-green-100 text-green-800' },
+]
+
+function sentimentChip(s: NoteSentiment | null): string {
+  return NOTE_SENTIMENTS.find((x) => x.value === s)?.chip ?? 'bg-gray-100 text-gray-600'
+}
+function sentimentLabel(s: NoteSentiment | null): string {
+  return s ? s.replace('_', ' ') : 'untagged'
+}
 
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
@@ -145,6 +178,7 @@ export default function MemberDetailPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [noteBody, setNoteBody] = useState('')
   const [noteCategory, setNoteCategory] = useState<string>('note')
+  const [noteSentiment, setNoteSentiment] = useState<NoteSentiment | ''>('')
   const [noteSubmitting, setNoteSubmitting] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
 
@@ -197,7 +231,11 @@ export default function MemberDetailPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ body: noteBody.trim(), category: noteCategory }),
+        body: JSON.stringify({
+          body: noteBody.trim(),
+          category: noteCategory,
+          sentiment: noteSentiment || undefined,
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -206,7 +244,14 @@ export default function MemberDetailPage() {
       }
       setNoteBody('')
       setNoteCategory('note')
+      setNoteSentiment('')
       await fetchNotes()
+      // Sentiment-tagged notes trigger health score recompute on the server;
+      // refetch the 360 after a short delay so the updated score + inconsistency
+      // flag show up.
+      if (noteSentiment) {
+        setTimeout(() => void fetchData(), 2500)
+      }
     } catch {
       setNoteError('Network error')
     } finally {
@@ -338,6 +383,35 @@ export default function MemberDetailPage() {
         />
       </div>
 
+      {/* Inconsistency banner — rep notes and auto signals disagree */}
+      {member.healthScoreBreakdown?.inconsistency && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            member.healthScoreBreakdown.inconsistency === 'auto_healthy_rep_concerned'
+              ? 'border-amber-300 bg-amber-50 text-amber-900'
+              : 'border-blue-300 bg-blue-50 text-blue-900'
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <svg className="w-5 h-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div>
+              <p className="font-medium">
+                {member.healthScoreBreakdown.inconsistency === 'auto_healthy_rep_concerned'
+                  ? 'Automated signals look healthy, but a rep flagged a concern'
+                  : 'Automated signals look weak, but a rep says this customer is happy'}
+              </p>
+              <p className="text-xs mt-1">
+                Base score {member.healthScoreBreakdown.baseScore} from auto signals ·
+                {' '}rep-tagged note shifted this by {member.healthScoreBreakdown.noteModifier > 0 ? '+' : ''}
+                {member.healthScoreBreakdown.noteModifier}. Worth investigating why they diverge.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Health Score Card with Recalculate */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
@@ -369,6 +443,40 @@ export default function MemberDetailPage() {
                 style={{ width: `${member.healthScore}%` }}
               />
             </div>
+            {/* Sub-score breakdown */}
+            {member.healthScoreBreakdown && (
+              <div className="pt-2 border-t border-gray-100 mt-3">
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                  <span>Composition</span>
+                  <span>
+                    Auto signals: {member.healthScoreBreakdown.baseScore}
+                    {member.healthScoreBreakdown.noteModifier !== 0 && (
+                      <span
+                        className={`ml-2 font-medium ${
+                          member.healthScoreBreakdown.noteModifier > 0 ? 'text-emerald-700' : 'text-red-700'
+                        }`}
+                      >
+                        {member.healthScoreBreakdown.noteModifier > 0 ? '+' : ''}
+                        {member.healthScoreBreakdown.noteModifier} rep note
+                        {member.healthScoreBreakdown.noteSentiment && (
+                          <span className="text-gray-400 ml-1">
+                            ({member.healthScoreBreakdown.noteSentiment.replace('_', ' ')})
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {' '}= <span className="font-semibold text-gray-900">{member.healthScoreBreakdown.overall}</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  <SubScoreBar label="Recency" value={member.healthScoreBreakdown.recency} weight={0.25} />
+                  <SubScoreBar label="Frequency" value={member.healthScoreBreakdown.frequency} weight={0.20} />
+                  <SubScoreBar label="Sentiment" value={member.healthScoreBreakdown.sentiment} weight={0.25} />
+                  <SubScoreBar label="NPS" value={member.healthScoreBreakdown.nps} weight={0.15} />
+                  <SubScoreBar label="Engagement" value={member.healthScoreBreakdown.engagement} weight={0.15} />
+                </div>
+              </div>
+            )}
             {/* Stats summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
               <StatCard label="Total Events" value={stats.totalEvents.toLocaleString()} />
@@ -441,7 +549,7 @@ export default function MemberDetailPage() {
             maxLength={4000}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
           />
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <label className="text-xs text-gray-500">Category:</label>
               <select
@@ -455,8 +563,23 @@ export default function MemberDetailPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-gray-400 ml-2">{noteBody.length}/4000</span>
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500">Rep sentiment:</label>
+              <select
+                value={noteSentiment}
+                onChange={(e) => setNoteSentiment(e.target.value as NoteSentiment | '')}
+                className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                title="Tagging sentiment influences the customer health score (e.g. very_negative = -40 points)."
+              >
+                {NOTE_SENTIMENTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className="text-xs text-gray-400 ml-auto">{noteBody.length}/4000</span>
             <button
               type="submit"
               disabled={!noteBody.trim() || noteSubmitting}
@@ -465,6 +588,11 @@ export default function MemberDetailPage() {
               {noteSubmitting ? 'Adding...' : 'Add Note'}
             </button>
           </div>
+          {noteSentiment && (
+            <p className="text-xs text-gray-500 italic">
+              Tagging sentiment will trigger a health-score recompute for this customer.
+            </p>
+          )}
           {noteError && <p className="text-xs text-red-600">{noteError}</p>}
         </form>
 
@@ -474,10 +602,18 @@ export default function MemberDetailPage() {
           <div className="space-y-3">
             {notes.map((n) => (
               <div key={n.id} className="border-l-2 border-indigo-200 pl-3 py-1">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1 flex-wrap">
                   <span className="inline-flex px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium uppercase tracking-wide">
                     {n.category ?? 'note'}
                   </span>
+                  {n.sentiment && (
+                    <span
+                      className={`inline-flex px-2 py-0.5 rounded-full font-medium uppercase tracking-wide ${sentimentChip(n.sentiment)}`}
+                      title="Rep-tagged sentiment — influences health score"
+                    >
+                      {sentimentLabel(n.sentiment)}
+                    </span>
+                  )}
                   <span className="font-medium text-gray-700">{n.author}</span>
                   <span>&middot;</span>
                   <span>{formatRelativeTime(n.createdAt)}</span>
@@ -630,6 +766,24 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="bg-gray-50 rounded-lg p-3 text-center">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="text-lg font-semibold text-gray-900 mt-0.5">{value}</p>
+    </div>
+  )
+}
+
+function SubScoreBar({ label, value, weight }: { label: string; value: number; weight: number }) {
+  return (
+    <div className="bg-gray-50 rounded-md px-2 py-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-wide text-gray-500 font-medium">{label}</span>
+        <span className="text-xs font-semibold text-gray-900">{value}</span>
+      </div>
+      <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
+        <div
+          className={`h-1.5 rounded-full ${getBarColor(value)}`}
+          style={{ width: `${value}%` }}
+        />
+      </div>
+      <p className="text-[10px] text-gray-400 mt-1">wt {(weight * 100).toFixed(0)}%</p>
     </div>
   )
 }

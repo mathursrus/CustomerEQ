@@ -7,7 +7,7 @@ import {
   SearchMembersQuerySchema,
   type Customer360Query,
 } from '@customerEQ/shared'
-import { enqueueEvent, enqueueNotification } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/members/enroll — public route (new member has no org JWT yet)
@@ -377,6 +377,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           tier: profile.currentTier,
           healthScore: (member as Record<string, unknown>).healthScore ?? null,
           healthScoreUpdatedAt: (member as Record<string, unknown>).healthScoreUpdatedAt ?? null,
+          healthScoreBreakdown: (member as Record<string, unknown>).healthScoreBreakdown ?? null,
         },
         recentEvents: {
           items: events.slice(0, eventsLimit).map((e) => ({
@@ -617,7 +618,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // ---------------------------------------------------------------------------
   fastify.post<{ Params: { id: string } }>('/members/:id/notes', async (request, reply) => {
     const { id } = request.params
-    const body = request.body as { body?: string; category?: string; author?: string }
+    const body = request.body as { body?: string; category?: string; author?: string; sentiment?: string }
 
     if (!body?.body || typeof body.body !== 'string' || body.body.trim().length === 0) {
       return reply.status(422).send({ error: 'Validation failed', message: 'body is required' })
@@ -630,6 +631,13 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(422).send({
         error: 'Validation failed',
         message: `category must be one of: ${allowedCategories.join(', ')}`,
+      })
+    }
+    const allowedSentiments = ['very_negative', 'negative', 'neutral', 'positive', 'very_positive']
+    if (body.sentiment && !allowedSentiments.includes(body.sentiment)) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: `sentiment must be one of: ${allowedSentiments.join(', ')}`,
       })
     }
 
@@ -647,6 +655,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         body: body.body.trim(),
         author,
         category: body.category ?? 'note',
+        sentiment: body.sentiment ?? null,
       },
     })
 
@@ -657,9 +666,18 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'member_note.create',
         resourceType: 'MemberNote',
         resourceId: note.id,
-        metadata: { memberId: id, category: note.category },
+        metadata: { memberId: id, category: note.category, sentiment: note.sentiment },
       },
     })
+
+    // If the note carried a sentiment tag, trigger a health-score recompute
+    // for this member — reps expect the score to reflect their observation
+    // immediately, not wait for the next batch run.
+    if (note.sentiment) {
+      enqueueHealthScoreComputation({ brandId: request.brandId, memberId: id }).catch((err) =>
+        fastify.log.warn({ err, memberId: id }, 'health-score recompute after note failed'),
+      )
+    }
 
     return reply.status(201).send(note)
   })

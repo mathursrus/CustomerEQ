@@ -137,12 +137,19 @@ export function registerMemberTools(server: McpServer) {
       body: z.string().min(1).max(4000).describe('Note text (max 4000 chars)'),
       category: z.enum(['call', 'email', 'meeting', 'note', 'escalation', 'win-back']).optional()
         .describe('Note category (default: note)'),
+      sentiment: z.enum(['very_negative', 'negative', 'neutral', 'positive', 'very_positive']).optional()
+        .describe('Rep-tagged customer sentiment. If set, overrides automated health score signals. Use very_negative for churn risk, very_positive for advocates. Leave unset if uncertain.'),
       author: z.string().optional().describe('Author name or email (defaults to the authenticated caller)'),
     }).shape,
     async (params) => {
       const res = await apiFetch(`/v1/members/${params.memberId}/notes`, {
         method: 'POST',
-        body: { body: params.body, category: params.category, author: params.author },
+        body: {
+          body: params.body,
+          category: params.category,
+          sentiment: params.sentiment,
+          author: params.author,
+        },
       })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Note added: ${JSON.stringify(res.data, null, 2)}` }] }

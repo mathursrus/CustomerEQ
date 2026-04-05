@@ -63,10 +63,13 @@ export type {
   HealthScoreWeights,
   HealthScoreBreakdown,
   HealthScoreInputs,
+  NoteSentiment,
 } from './health-score.js'
 
 export {
   DEFAULT_HEALTH_SCORE_WEIGHTS,
+  NOTE_SENTIMENT_VALUES,
+  NOTE_SENTIMENT_MODIFIERS,
   computeRecencyScore,
   computeFrequencyScore,
   computeSentimentScore,

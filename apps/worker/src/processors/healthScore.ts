@@ -4,14 +4,12 @@ import { prisma } from '@customerEQ/database'
 import type {
   HealthScoreComputationPayload,
   HealthScoreWeights,
+  NoteSentiment,
 } from '@customerEQ/shared'
 import {
   DEFAULT_HEALTH_SCORE_WEIGHTS,
-  computeRecencyScore,
-  computeFrequencyScore,
-  computeSentimentScore,
-  computeNpsScore,
-  computeEngagementScore,
+  NOTE_SENTIMENT_VALUES,
+  computeHealthScore,
 } from '@customerEQ/shared'
 
 const logger = pino({ name: 'health-score-worker' })
@@ -65,7 +63,7 @@ export async function processHealthScore(
 
   for (const member of members) {
     try {
-      const [lastEvent, eventCount, sentimentAgg, latestSurvey, campaignEventCount, redemptionCount] = await Promise.all([
+      const [lastEvent, eventCount, sentimentAgg, latestSurvey, campaignEventCount, redemptionCount, latestNote] = await Promise.all([
         prisma.loyaltyEvent.findFirst({
           where: { memberId: member.id, brandId },
           orderBy: { createdAt: 'desc' },
@@ -89,31 +87,45 @@ export async function processHealthScore(
         prisma.redemption.count({
           where: { memberId: member.id, brandId, createdAt: { gte: ninetyDaysAgo } },
         }),
+        prisma.memberNote.findFirst({
+          where: {
+            memberId: member.id, brandId,
+            createdAt: { gte: ninetyDaysAgo },
+            sentiment: { not: null },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { sentiment: true },
+        }),
       ])
 
       const daysSinceLastActivity = lastEvent
         ? Math.floor((Date.now() - lastEvent.createdAt.getTime()) / (1000 * 60 * 60 * 24))
         : null
 
-      const recency = computeRecencyScore(daysSinceLastActivity)
-      const frequency = computeFrequencyScore(eventCount)
-      const sentiment = computeSentimentScore(sentimentAgg._avg.sentiment)
-      const nps = computeNpsScore(latestSurvey?.score ?? null)
-      const engagement = computeEngagementScore(campaignEventCount + redemptionCount)
+      const latestNoteSentiment90d =
+        latestNote?.sentiment && (NOTE_SENTIMENT_VALUES as readonly string[]).includes(latestNote.sentiment)
+          ? (latestNote.sentiment as NoteSentiment)
+          : null
 
-      const overall = Math.round(
-        recency * weights.recency +
-        frequency * weights.frequency +
-        sentiment * weights.sentiment +
-        nps * weights.nps +
-        engagement * weights.engagement
+      const breakdown = computeHealthScore(
+        {
+          daysSinceLastActivity,
+          loyaltyEventCount90d: eventCount,
+          avgSentiment90d: sentimentAgg._avg.sentiment,
+          latestNpsScore: latestSurvey?.score ?? null,
+          engagementCount90d: campaignEventCount + redemptionCount,
+          latestNoteSentiment90d,
+        },
+        weights,
       )
+      const overall = breakdown.overall
 
       await prisma.member.update({
         where: { id: member.id },
         data: {
           healthScore: overall,
           healthScoreUpdatedAt: new Date(),
+          healthScoreBreakdown: breakdown as unknown as object,
         },
       })
 

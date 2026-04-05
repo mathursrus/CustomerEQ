@@ -4,9 +4,11 @@ import type {
   HealthScoreWeights,
   HealthScoreBreakdown,
   HealthScoreComputationPayload,
+  NoteSentiment,
 } from '@customerEQ/shared'
 import {
   DEFAULT_HEALTH_SCORE_WEIGHTS,
+  NOTE_SENTIMENT_VALUES,
   computeRecencyScore,
   computeFrequencyScore,
   computeSentimentScore,
@@ -50,6 +52,7 @@ export async function computeHealthScoreForMember(
     latestSurvey,
     campaignEventCount,
     redemptionCount,
+    latestNote,
   ] = await Promise.all([
     // Most recent loyalty event
     prisma.loyaltyEvent.findFirst({
@@ -80,11 +83,26 @@ export async function computeHealthScoreForMember(
     prisma.redemption.count({
       where: { memberId, brandId, createdAt: { gte: ninetyDaysAgo } },
     }),
+    // Most recent rep-tagged note in the last 90 days
+    prisma.memberNote.findFirst({
+      where: {
+        memberId, brandId,
+        createdAt: { gte: ninetyDaysAgo },
+        sentiment: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { sentiment: true },
+    }),
   ])
 
   const daysSinceLastActivity = lastEvent
     ? Math.floor((Date.now() - lastEvent.createdAt.getTime()) / (1000 * 60 * 60 * 24))
     : null
+
+  const latestNoteSentiment90d =
+    latestNote?.sentiment && (NOTE_SENTIMENT_VALUES as readonly string[]).includes(latestNote.sentiment)
+      ? (latestNote.sentiment as NoteSentiment)
+      : null
 
   return computeHealthScore(
     {
@@ -93,6 +111,7 @@ export async function computeHealthScoreForMember(
       avgSentiment90d: sentimentAgg._avg.sentiment,
       latestNpsScore: latestSurvey?.score ?? null,
       engagementCount90d: campaignEventCount + redemptionCount,
+      latestNoteSentiment90d,
     },
     weights,
   )
@@ -148,6 +167,7 @@ export async function processHealthScoreComputation(
         data: {
           healthScore: breakdown.overall,
           healthScoreUpdatedAt: new Date(),
+          healthScoreBreakdown: breakdown as unknown as object,
         },
       })
 

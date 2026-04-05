@@ -161,6 +161,7 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: null,
       latestNpsScore: null,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     }
     const result = computeHealthScore(inputs)
     // recency=50, frequency=0, sentiment=50, nps=50, engagement=0
@@ -175,6 +176,7 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: 1.0,
       latestNpsScore: 10,
       engagementCount90d: 100,
+      latestNoteSentiment90d: null,
     })
     expect(result.overall).toBe(100)
   })
@@ -186,6 +188,7 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: -1.0,
       latestNpsScore: 0,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     })
     expect(result.overall).toBe(0)
   })
@@ -212,6 +215,7 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: 0.0,
       latestNpsScore: 5,
       engagementCount90d: 2,
+      latestNoteSentiment90d: null,
     })
     expect(result).toHaveProperty('recency')
     expect(result).toHaveProperty('frequency')
@@ -229,6 +233,7 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: null,
       latestNpsScore: null,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     })
     expect(new Date(result.computedAt).toISOString()).toBe(result.computedAt)
   })
@@ -239,7 +244,8 @@ describe('Shared computeHealthScore', () => {
       loyaltyEventCount90d: 0,   // frequency = 0
       avgSentiment90d: null,     // sentiment = 50
       latestNpsScore: null,      // nps = 50
-      engagementCount90d: 0,     // engagement = 0
+      engagementCount90d: 0,
+      latestNoteSentiment90d: null,     // engagement = 0
     }
     // Weight recency at 100%
     const result = computeHealthScore(inputs, {
@@ -268,8 +274,87 @@ describe('Shared computeHealthScore', () => {
       avgSentiment90d: -0.6,
       latestNpsScore: 0,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     })
     // Verify the score is computed correctly (should be low)
     expect(result.overall).toBeLessThanOrEqual(20)
+  })
+})
+
+describe('Rep-note modifier on health score', () => {
+  const healthyAutoSignals: HealthScoreInputs = {
+    daysSinceLastActivity: 2,
+    loyaltyEventCount90d: 20,
+    avgSentiment90d: 0.7,
+    latestNpsScore: 9,
+    engagementCount90d: 8,
+    latestNoteSentiment90d: null,
+  }
+  const weakAutoSignals: HealthScoreInputs = {
+    daysSinceLastActivity: 60,
+    loyaltyEventCount90d: 1,
+    avgSentiment90d: -0.2,
+    latestNpsScore: 3,
+    engagementCount90d: 0,
+    latestNoteSentiment90d: null,
+  }
+
+  it('no note → overall equals baseScore and noteModifier is 0', () => {
+    const r = computeHealthScore(healthyAutoSignals)
+    expect(r.noteModifier).toBe(0)
+    expect(r.noteSentiment).toBeNull()
+    expect(r.overall).toBe(r.baseScore)
+    expect(r.inconsistency).toBeNull()
+  })
+
+  it('very_negative note pulls a healthy customer down by 40', () => {
+    const base = computeHealthScore(healthyAutoSignals).baseScore
+    const r = computeHealthScore({ ...healthyAutoSignals, latestNoteSentiment90d: 'very_negative' })
+    expect(r.baseScore).toBe(base)
+    expect(r.noteModifier).toBe(-40)
+    expect(r.overall).toBe(Math.max(0, base - 40))
+  })
+
+  it('very_positive note lifts a weak customer by 30', () => {
+    const base = computeHealthScore(weakAutoSignals).baseScore
+    const r = computeHealthScore({ ...weakAutoSignals, latestNoteSentiment90d: 'very_positive' })
+    expect(r.noteModifier).toBe(30)
+    expect(r.overall).toBe(Math.min(100, base + 30))
+  })
+
+  it('clamps at 0 on the low end', () => {
+    const r = computeHealthScore({ ...weakAutoSignals, latestNoteSentiment90d: 'very_negative' })
+    expect(r.overall).toBeGreaterThanOrEqual(0)
+    // baseScore for weakAutoSignals is well under 40, minus 40 would go negative
+  })
+
+  it('clamps at 100 on the high end', () => {
+    const r = computeHealthScore({ ...healthyAutoSignals, latestNoteSentiment90d: 'very_positive' })
+    expect(r.overall).toBeLessThanOrEqual(100)
+  })
+
+  it('flags auto_healthy_rep_concerned when base >= 70 and modifier <= -20', () => {
+    const r = computeHealthScore({ ...healthyAutoSignals, latestNoteSentiment90d: 'very_negative' })
+    expect(r.baseScore).toBeGreaterThanOrEqual(70)
+    expect(r.inconsistency).toBe('auto_healthy_rep_concerned')
+  })
+
+  it('flags auto_weak_rep_positive when base <= 40 and modifier >= 15', () => {
+    const r = computeHealthScore({ ...weakAutoSignals, latestNoteSentiment90d: 'positive' })
+    expect(r.baseScore).toBeLessThanOrEqual(40)
+    expect(r.inconsistency).toBe('auto_weak_rep_positive')
+  })
+
+  it('does not flag inconsistency when signals agree', () => {
+    const happy = computeHealthScore({ ...healthyAutoSignals, latestNoteSentiment90d: 'very_positive' })
+    expect(happy.inconsistency).toBeNull()
+    const unhappy = computeHealthScore({ ...weakAutoSignals, latestNoteSentiment90d: 'negative' })
+    expect(unhappy.inconsistency).toBeNull()
+  })
+
+  it('neutral note does nothing (modifier = 0)', () => {
+    const r = computeHealthScore({ ...healthyAutoSignals, latestNoteSentiment90d: 'neutral' })
+    expect(r.noteModifier).toBe(0)
+    expect(r.overall).toBe(r.baseScore)
   })
 })

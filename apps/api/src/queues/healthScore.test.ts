@@ -137,6 +137,7 @@ describe('computeHealthScore', () => {
       avgSentiment90d: null,
       latestNpsScore: null,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     }
     const result = computeHealthScore(inputs)
 
@@ -156,7 +157,8 @@ describe('computeHealthScore', () => {
       loyaltyEventCount90d: 15,   // frequent — frequency = 100
       avgSentiment90d: 0.8,       // positive — sentiment = 90
       latestNpsScore: 9,          // promoter — nps = 90
-      engagementCount90d: 8,      // engaged — engagement = 100
+      engagementCount90d: 8,
+      latestNoteSentiment90d: null,      // engaged — engagement = 100
     }
     const result = computeHealthScore(inputs)
 
@@ -172,7 +174,8 @@ describe('computeHealthScore', () => {
       loyaltyEventCount90d: 0,     // no events — frequency = 0
       avgSentiment90d: -0.8,       // negative — sentiment = 10
       latestNpsScore: 1,           // detractor — nps = 10
-      engagementCount90d: 0,       // no engagement — engagement = 0
+      engagementCount90d: 0,
+      latestNoteSentiment90d: null,       // no engagement — engagement = 0
     }
     const result = computeHealthScore(inputs)
 
@@ -188,7 +191,8 @@ describe('computeHealthScore', () => {
       loyaltyEventCount90d: 5,    // moderate
       avgSentiment90d: 0.0,       // neutral
       latestNpsScore: 5,          // passive
-      engagementCount90d: 2,      // low
+      engagementCount90d: 2,
+      latestNoteSentiment90d: null,      // low
     }
     const result = computeHealthScore(inputs)
     expect(result.overall).toBeGreaterThan(30)
@@ -202,6 +206,7 @@ describe('computeHealthScore', () => {
       avgSentiment90d: null,
       latestNpsScore: null,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     }
     const result = computeHealthScore(inputs)
     expect(result.computedAt).toBeDefined()
@@ -214,7 +219,8 @@ describe('computeHealthScore', () => {
       loyaltyEventCount90d: 0,    // frequency = 0
       avgSentiment90d: null,      // sentiment = 50
       latestNpsScore: null,       // nps = 50
-      engagementCount90d: 0,      // engagement = 0
+      engagementCount90d: 0,
+      latestNoteSentiment90d: null,      // engagement = 0
     }
 
     // Heavily weight recency
@@ -239,6 +245,7 @@ describe('computeHealthScore', () => {
       avgSentiment90d: 1.0,
       latestNpsScore: 10,
       engagementCount90d: 100,
+      latestNoteSentiment90d: null,
     })
     expect(best.overall).toBe(100)
 
@@ -249,6 +256,7 @@ describe('computeHealthScore', () => {
       avgSentiment90d: -1.0,
       latestNpsScore: 0,
       engagementCount90d: 0,
+      latestNoteSentiment90d: null,
     })
     expect(worst.overall).toBe(0)
   })
@@ -260,6 +268,7 @@ describe('computeHealthScore', () => {
       avgSentiment90d: 1.0,
       latestNpsScore: 10,
       engagementCount90d: 5,
+      latestNoteSentiment90d: null,
     }
     const withDefault = computeHealthScore(inputs)
     const withExplicit = computeHealthScore(inputs, DEFAULT_HEALTH_SCORE_WEIGHTS)
