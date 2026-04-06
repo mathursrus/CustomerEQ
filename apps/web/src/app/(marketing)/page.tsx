@@ -29,23 +29,22 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <main>
+        {/* ── Hero ── */}
         <section className="mx-auto max-w-7xl px-6 py-24 text-center">
           <div className="mx-auto max-w-3xl">
             <div className="mb-6 inline-flex items-center rounded-full bg-indigo-50 px-4 py-1.5 text-sm font-medium text-indigo-700">
               Now in Early Access
             </div>
             <h1 className="text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-              Customer Feedback <span className="text-indigo-600">&</span> Loyalty
+              Know Every Customer.
               <br />
-              <span className="text-indigo-600">One Platform. Zero Duct Tape.</span>
+              <span className="text-indigo-600">Act Before They Leave.</span>
             </h1>
             <p className="mt-6 text-xl leading-8 text-gray-600">
-              Most companies run CX surveys in one tool and loyalty programs in another
-              — then spend $75K/year and months of engineering just wiring them together.
-              CustomerEQ replaces both with a single platform where every customer signal
-              triggers the right reward, automatically.
+              CustomerEQ is the AI-powered customer intelligence platform that
+              combines automated signals with human observations into one health
+              score — then closes the loop with the right action, automatically.
             </p>
             <div className="mt-10 flex items-center justify-center gap-4">
               <Link
@@ -65,336 +64,348 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* The Problem */}
+        {/* ── The Problem ── */}
         <section className="bg-gray-50 py-20">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                The integration tax is killing your CX
+                Your customers are telling you everything. You&apos;re hearing almost none of it.
               </h2>
               <p className="mt-4 text-lg text-gray-600">
-                Enterprise survey platforms measure experience. Loyalty platforms reward behavior.
-                But they don&apos;t talk to each other — so your team is stuck in the middle.
+                Survey scores live in one system. Support tickets in another. Purchase data in a third.
+                Rep observations sit in someone&apos;s notebook. By the time you piece the picture together,
+                the customer has already made their decision.
               </p>
             </div>
             <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div className="rounded-2xl bg-white border border-gray-200 p-8 text-center">
-                <p className="text-4xl font-bold text-red-600">72%</p>
-                <p className="mt-2 text-gray-600">of mid-market companies run 2+ disconnected platforms for CX and loyalty</p>
-              </div>
-              <div className="rounded-2xl bg-white border border-gray-200 p-8 text-center">
                 <p className="text-4xl font-bold text-red-600">3+ days</p>
-                <p className="mt-2 text-gray-600">average response time to customer feedback — customers expect minutes</p>
+                <p className="mt-2 text-gray-600">average time to act on customer feedback — customers expect minutes</p>
               </div>
               <div className="rounded-2xl bg-white border border-gray-200 p-8 text-center">
-                <p className="text-4xl font-bold text-red-600">41%</p>
-                <p className="mt-2 text-gray-600">of loyalty leaders can&apos;t quantify the ROI of their programs</p>
+                <p className="text-4xl font-bold text-red-600">67%</p>
+                <p className="mt-2 text-gray-600">of churn is preventable with early intervention — but only if you see it coming</p>
+              </div>
+              <div className="rounded-2xl bg-white border border-gray-200 p-8 text-center">
+                <p className="text-4xl font-bold text-red-600">0</p>
+                <p className="mt-2 text-gray-600">tools combine automated CX signals with rep observations into one customer score</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* How It Works */}
+        {/* ── How It Works ── */}
         <section className="py-20" id="how-it-works">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Listen. Understand. Reward. — In real time.
+                Listen. Understand. Act. — In real time.
               </h2>
               <p className="mt-4 text-lg text-gray-600">
-                CustomerEQ closes the loop from feedback to loyalty action in under 15 minutes.
-                No middleware. No engineering sprints.
+                CustomerEQ continuously ingests every customer signal, builds a living
+                health score, and triggers the right response — all without waiting for
+                a human to connect the dots.
               </p>
             </div>
-            <div className="mt-14 grid grid-cols-1 gap-0 sm:grid-cols-3">
-              {/* Step 1 */}
+            <div className="mt-14 grid grid-cols-1 gap-0 sm:grid-cols-4">
               <div className="relative p-8 text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white text-lg font-bold">1</div>
                 <h3 className="text-lg font-semibold text-gray-900">Capture Every Signal</h3>
                 <p className="mt-2 text-gray-600">
-                  Deploy NPS, CSAT, and CES surveys across email, SMS, web, and in-app — or ingest events from your CRM, helpdesk, and POS automatically.
+                  NPS, CSAT, CES surveys. Support conversations. Purchase events.
+                  Rep notes. Everything flows into one Customer 360.
                 </p>
               </div>
-              {/* Step 2 */}
               <div className="relative p-8 text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white text-lg font-bold">2</div>
                 <h3 className="text-lg font-semibold text-gray-900">AI Understands Intent</h3>
                 <p className="mt-2 text-gray-600">
-                  Sentiment analysis, topic clustering, and churn-risk scoring turn raw feedback into actionable intelligence — no analyst required.
+                  Sentiment analysis, topic clustering, anomaly detection, and
+                  churn-risk scoring — automatically, across every customer.
                 </p>
               </div>
-              {/* Step 3 */}
               <div className="relative p-8 text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white text-lg font-bold">3</div>
-                <h3 className="text-lg font-semibold text-gray-900">Loyalty Responds Instantly</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Humans Add Context</h3>
                 <p className="mt-2 text-gray-600">
-                  The right reward fires automatically — bonus points for a promoter, a recovery offer for a detractor, a tier upgrade for a milestone.
+                  Reps tag sentiment on their notes. When human and AI disagree,
+                  CustomerEQ flags it — because that&apos;s where the insight is.
+                </p>
+              </div>
+              <div className="relative p-8 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white text-lg font-bold">4</div>
+                <h3 className="text-lg font-semibold text-gray-900">Action Fires Instantly</h3>
+                <p className="mt-2 text-gray-600">
+                  Recovery offers, tier upgrades, case escalations, personalized
+                  outreach — the right response, to the right customer, right now.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* CX Feedback Engine */}
-        <section className="bg-gray-50 py-20">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:gap-16">
-              <div className="lg:w-1/2">
-                <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">Voice of Customer</p>
-                <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                  Enterprise-grade CX feedback — built in, not bolted on
-                </h2>
-                <p className="mt-4 text-lg text-gray-600">
-                  Stop paying six figures for a survey platform that can&apos;t trigger a single loyalty action.
-                  CustomerEQ gives you the feedback engine and the response engine in one place.
-                </p>
-              </div>
-              <div className="mt-10 lg:mt-0 lg:w-1/2 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">📋</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">NPS / CSAT / CES Surveys</h4>
-                  <p className="mt-1 text-sm text-gray-600">Transactional and relational surveys with multi-channel distribution</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🧠</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">AI Sentiment Analysis</h4>
-                  <p className="mt-1 text-sm text-gray-600">Open-ended responses scored and clustered by topic automatically</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🔮</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Churn Risk Scoring</h4>
-                  <p className="mt-1 text-sm text-gray-600">Predict at-risk customers before they leave using behavioral + feedback signals</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">📍</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Journey Touchpoint Mapping</h4>
-                  <p className="mt-1 text-sm text-gray-600">See where experience breaks down across the full customer lifecycle</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">📊</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Trend &amp; Anomaly Detection</h4>
-                  <p className="mt-1 text-sm text-gray-600">Spot emerging issues before they become crises with AI-powered alerting</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">👤</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Progressive Profiling</h4>
-                  <p className="mt-1 text-sm text-gray-600">Contextual questions that enrich profiles over time without survey fatigue</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Loyalty Engine */}
-        <section className="py-20">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="flex flex-col lg:flex-row-reverse lg:items-start lg:gap-16">
-              <div className="lg:w-1/2">
-                <p className="text-sm font-semibold uppercase tracking-wide text-violet-600">Loyalty Engine</p>
-                <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                  A full loyalty platform — not just points and punch cards
-                </h2>
-                <p className="mt-4 text-lg text-gray-600">
-                  Points, tiers, rewards, referrals, gamification, and campaign automation —
-                  everything you need to run a world-class program, natively connected to your CX data.
-                </p>
-              </div>
-              <div className="mt-10 lg:mt-0 lg:w-1/2 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🏆</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Points &amp; Tiers</h4>
-                  <p className="mt-1 text-sm text-gray-600">Configurable earn rules, tiered memberships, and milestone rewards</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🎁</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Rewards Catalog</h4>
-                  <p className="mt-1 text-sm text-gray-600">Managed redemptions with stock tracking and atomic point transactions</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🔄</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Smart Campaigns</h4>
-                  <p className="mt-1 text-sm text-gray-600">Rules-based automation that triggers rewards on any CX or behavioral event</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🤝</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Referral Programs</h4>
-                  <p className="mt-1 text-sm text-gray-600">Unique referral codes, attribution tracking, and fraud prevention built in</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">🎮</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Gamification</h4>
-                  <p className="mt-1 text-sm text-gray-600">Challenges, badges, and leaderboards that drive engagement and repeat behavior</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-5">
-                  <span className="text-2xl">📱</span>
-                  <h4 className="mt-2 font-semibold text-gray-900">Social Loyalty</h4>
-                  <p className="mt-1 text-sm text-gray-600">Reward shares, follows, reviews, and user-generated content automatically</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* The Bridge — the real pitch */}
+        {/* ── Customer 360 — the flagship ── */}
         <section className="bg-indigo-600 py-20">
           <div className="mx-auto max-w-7xl px-6 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              The magic is in the middle
+            <p className="text-sm font-semibold uppercase tracking-wide text-indigo-200">Flagship Feature</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Customer 360 with a health score that actually means something
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-indigo-100">
-              Other companies sell you a survey tool or a loyalty tool.
-              CustomerEQ is the real-time bridge between understanding your customers
-              and rewarding them — and that changes everything.
+              Most health scores are black boxes built from one data source.
+              CustomerEQ blends five automated signals with human rep observations
+              into a transparent, explainable 0-100 score — and flags when they disagree.
             </p>
             <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div className="rounded-2xl bg-white/10 backdrop-blur p-8 text-left">
-                <h3 className="text-lg font-semibold text-white">Closed-Loop Actions</h3>
+                <h3 className="text-lg font-semibold text-white">AI + Human Scoring</h3>
                 <p className="mt-2 text-indigo-100">
-                  A detractor NPS score triggers a recovery campaign with bonus points and a personal outreach — within minutes, not days.
+                  Five automated sub-scores (recency, frequency, sentiment, NPS,
+                  engagement) compute a base. Rep-tagged notes shift it up or down.
+                  A &quot;churn risk&quot; tag from a rep drops a healthy-looking 85 to 45.
                 </p>
               </div>
               <div className="rounded-2xl bg-white/10 backdrop-blur p-8 text-left">
-                <h3 className="text-lg font-semibold text-white">CX-Informed Segmentation</h3>
+                <h3 className="text-lg font-semibold text-white">Inconsistency Detection</h3>
                 <p className="mt-2 text-indigo-100">
-                  Segment loyalty campaigns by satisfaction scores, sentiment trends, and churn risk — not just purchase history.
+                  When automated signals say &quot;healthy&quot; but a rep flags concern —
+                  or vice versa — CustomerEQ surfaces the divergence. These are the
+                  highest-value signals in your entire CX operation.
                 </p>
               </div>
               <div className="rounded-2xl bg-white/10 backdrop-blur p-8 text-left">
-                <h3 className="text-lg font-semibold text-white">Unified ROI Dashboard</h3>
+                <h3 className="text-lg font-semibold text-white">Full Activity Timeline</h3>
                 <p className="mt-2 text-indigo-100">
-                  See exactly how feedback-triggered loyalty actions impact retention, revenue, and lifetime value in one view.
+                  Every loyalty event, survey response, campaign interaction,
+                  support conversation, redemption, and CRM note — in one view.
+                  Open any customer and see the full picture in seconds.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Integrations */}
+        {/* ── CX Intelligence ── */}
         <section className="py-20">
-          <div className="mx-auto max-w-7xl px-6 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Plays nice with your stack
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              Ingest events from the tools you already use. No custom middleware required.
-            </p>
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-gray-400">
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">☁️</div>
-                <span className="text-sm font-medium text-gray-600">Salesforce</span>
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:gap-16">
+              <div className="lg:w-1/2">
+                <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">CX Intelligence</p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                  Understand what&apos;s happening across your entire customer base — live
+                </h2>
+                <p className="mt-4 text-lg text-gray-600">
+                  Don&apos;t wait for a quarterly report. CustomerEQ clusters feedback into
+                  themes, tracks sentiment trends, and alerts you to anomalies the moment
+                  patterns shift.
+                </p>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">🟠</div>
-                <span className="text-sm font-medium text-gray-600">HubSpot</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">🛒</div>
-                <span className="text-sm font-medium text-gray-600">Shopify</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">🏪</div>
-                <span className="text-sm font-medium text-gray-600">POS Systems</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">🔗</div>
-                <span className="text-sm font-medium text-gray-600">Webhooks</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-2xl">📧</div>
-                <span className="text-sm font-medium text-gray-600">Email / SMS</span>
+              <div className="mt-10 lg:mt-0 lg:w-1/2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Topic Clustering</h4>
+                  <p className="mt-1 text-sm text-gray-600">AI groups open-ended feedback into actionable themes — &quot;Shipping Delays&quot;, &quot;Product Quality&quot;, &quot;Support Wait Times&quot; — and tracks each over time.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Anomaly Detection</h4>
+                  <p className="mt-1 text-sm text-gray-600">Shipping complaints spike 3x? Support sentiment drops 0.3 in a week? You&apos;ll know within hours, not at the next offsite.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">NPS / CSAT / CES Analytics</h4>
+                  <p className="mt-1 text-sm text-gray-600">Aggregate scores, promoter/detractor splits, per-survey drill-downs, and 30-day trend lines — all in one real-time dashboard.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Closed-Loop Alerts</h4>
+                  <p className="mt-1 text-sm text-gray-600">When a detractor submits a score, a case opens automatically with SLA tracking and assignment. No manual triage.</p>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* AI-Powered Insights */}
+        {/* ── Loyalty + Campaigns ── */}
         <section className="bg-gray-50 py-20">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">AI-Powered</p>
-              <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Intelligence that acts, not just reports
-              </h2>
-              <p className="mt-4 text-lg text-gray-600">
-                CustomerEQ&apos;s AI doesn&apos;t just show you dashboards. It clusters feedback into themes,
-                detects emerging issues before they escalate, and recommends the next best loyalty
-                action for every customer segment.
-              </p>
-            </div>
-            <div className="mt-14 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
-                  <span className="text-xl">🔬</span>
-                </div>
-                <h4 className="mt-4 font-semibold text-gray-900">Topic Clustering</h4>
-                <p className="mt-1 text-sm text-gray-600">Group open-ended feedback into actionable themes automatically</p>
+            <div className="flex flex-col lg:flex-row-reverse lg:items-start lg:gap-16">
+              <div className="lg:w-1/2">
+                <p className="text-sm font-semibold uppercase tracking-wide text-violet-600">Loyalty & Campaigns</p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                  Reward the right behavior at the right moment
+                </h2>
+                <p className="mt-4 text-lg text-gray-600">
+                  Points, tiers, rewards, gamification, and campaign automation — all
+                  natively connected to your CX signals. A promoter gets a referral bonus.
+                  A detractor gets a recovery offer. A milestone gets a spin-the-wheel surprise.
+                </p>
               </div>
-              <div className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
-                  <span className="text-xl">📈</span>
+              <div className="mt-10 lg:mt-0 lg:w-1/2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Smart Campaigns</h4>
+                  <p className="mt-1 text-sm text-gray-600">Rules-based automation: award points, send messages, spin wheels, scratch cards, or mystery boxes — triggered by any customer event.</p>
                 </div>
-                <h4 className="mt-4 font-semibold text-gray-900">Trend Detection</h4>
-                <p className="mt-1 text-sm text-gray-600">Spot shifts in sentiment or satisfaction before they hit your bottom line</p>
-              </div>
-              <div className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
-                  <span className="text-xl">🚨</span>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Points, Tiers & Rewards</h4>
+                  <p className="mt-1 text-sm text-gray-600">Configurable earn rules, tiered memberships, milestone rewards, and a managed catalog with stock tracking and atomic transactions.</p>
                 </div>
-                <h4 className="mt-4 font-semibold text-gray-900">Anomaly Alerts</h4>
-                <p className="mt-1 text-sm text-gray-600">Get notified instantly when feedback patterns deviate from the norm</p>
-              </div>
-              <div className="text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
-                  <span className="text-xl">🧭</span>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">CX-Informed Segments</h4>
+                  <p className="mt-1 text-sm text-gray-600">Target campaigns by health score, sentiment, NPS, or tier — not just purchase history. A win-back campaign for NPS &lt; 6 is one click.</p>
                 </div>
-                <h4 className="mt-4 font-semibold text-gray-900">Next-Best Action</h4>
-                <p className="mt-1 text-sm text-gray-600">AI-suggested loyalty responses tailored to each customer&apos;s journey stage</p>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Unified Analytics</h4>
+                  <p className="mt-1 text-sm text-gray-600">Points issued, redemption rates, top rewards, campaign ROI, and loyalty health — one dashboard that ties CX outcomes to loyalty spend.</p>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Built for Mid-Market */}
+        {/* ── Support Intelligence ── */}
+        <section className="py-20">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:gap-16">
+              <div className="lg:w-1/2">
+                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">Support Intelligence</p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                  Every support conversation makes every customer smarter
+                </h2>
+                <p className="mt-4 text-lg text-gray-600">
+                  CustomerEQ routes support conversations through AI that classifies
+                  intent, searches your knowledge base, and escalates to the right
+                  person — while feeding every interaction back into the Customer 360.
+                </p>
+              </div>
+              <div className="mt-10 lg:mt-0 lg:w-1/2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">AI-Powered Conversations</h4>
+                  <p className="mt-1 text-sm text-gray-600">Customers chat with AI that has full context — their tier, health score, recent orders, and sentiment history — before a human is ever needed.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Knowledge Base & Search</h4>
+                  <p className="mt-1 text-sm text-gray-600">Semantic vector search over your KB articles. AI finds the right answer even when the customer doesn&apos;t use the right words.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">Routing Rules</h4>
+                  <p className="mt-1 text-sm text-gray-600">Gold-tier unhappy customer? Skip the queue. Billing question? Auto-respond. Complaint? Escalate to the account team. All configurable.</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-5">
+                  <h4 className="font-semibold text-gray-900">CRM Notes</h4>
+                  <p className="mt-1 text-sm text-gray-600">Reps add notes with sentiment tags that shift the health score. When a rep says &quot;churn risk&quot;, the system listens — immediately.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── AI-Native / MCP ── */}
+        <section className="bg-gray-900 py-20">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-400">AI-Native Platform</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Your AI assistant already knows your customers
+              </h2>
+              <p className="mt-4 text-lg text-gray-400">
+                CustomerEQ exposes every capability through an MCP (Model Context Protocol)
+                server. Connect Claude, GPT, or any AI assistant and your team can ask
+                questions, take actions, and update records — in natural language.
+              </p>
+            </div>
+            <div className="mt-14 grid grid-cols-1 gap-8 sm:grid-cols-3">
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-6">
+                <p className="text-sm font-mono text-indigo-400">&gt; &quot;Who are my top 5 churn risks?&quot;</p>
+                <p className="mt-3 text-sm text-gray-400">
+                  The AI searches by health score, NPS, and sentiment — returns
+                  the customers, their scores, and what&apos;s driving the risk.
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-6">
+                <p className="text-sm font-mono text-indigo-400">&gt; &quot;Tell me everything about Lisa Park&quot;</p>
+                <p className="mt-3 text-sm text-gray-400">
+                  Full Customer 360: profile, events, surveys, cases, rep notes,
+                  health score breakdown with inconsistency flag — summarized
+                  in natural language.
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-6">
+                <p className="text-sm font-mono text-indigo-400">&gt; &quot;She&apos;s actually happy — add that&quot;</p>
+                <p className="mt-3 text-sm text-gray-400">
+                  The AI adds a sentiment-tagged note, triggers a health score
+                  recompute, and confirms the score shift — all in one turn.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Built-In, Not Bolted On ── */}
         <section className="py-20">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Enterprise power, mid-market price
+                Everything connected. Nothing duct-taped.
               </h2>
               <p className="mt-4 text-lg text-gray-600">
-                You shouldn&apos;t need a $200K enterprise contract and a 6-month implementation
-                to connect customer feedback to loyalty outcomes.
+                Surveys, loyalty, support, analytics, and AI — built as one platform
+                from day one. No integrations to maintain. No data silos to bridge.
+                Every signal feeds into one customer model.
               </p>
             </div>
+            <div className="mt-14 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                { label: 'Surveys', desc: 'NPS, CSAT, CES with drag-and-drop builder' },
+                { label: 'Loyalty', desc: 'Points, tiers, rewards, gamification' },
+                { label: 'Campaigns', desc: '6 action types inc. spin wheel & scratch card' },
+                { label: 'Support', desc: 'AI chat, routing rules, KB search' },
+                { label: 'Analytics', desc: 'CX insights, anomalies, program health' },
+                { label: 'AI/MCP', desc: 'Natural language ops via any AI assistant' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-5 text-center">
+                  <h4 className="font-semibold text-gray-900">{item.label}</h4>
+                  <p className="mt-1 text-xs text-gray-600">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Results ── */}
+        <section className="bg-gray-50 py-20">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                From blind spots to real-time action
+              </h2>
+            </div>
             <div className="mt-14 grid grid-cols-1 gap-8 sm:grid-cols-3">
-              <div className="rounded-2xl border border-gray-200 p-8 text-center">
+              <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
                 <p className="text-4xl font-bold text-indigo-600">&lt;15 min</p>
-                <p className="mt-2 font-semibold text-gray-900">CX-to-loyalty response time</p>
-                <p className="mt-1 text-sm text-gray-600">From survey submission to reward action</p>
+                <p className="mt-2 font-semibold text-gray-900">Signal to action</p>
+                <p className="mt-1 text-sm text-gray-600">From survey submission to recovery campaign, tier upgrade, or case escalation</p>
               </div>
-              <div className="rounded-2xl border border-gray-200 p-8 text-center">
-                <p className="text-4xl font-bold text-indigo-600">1 platform</p>
-                <p className="mt-2 font-semibold text-gray-900">Replaces 2-3 tools</p>
-                <p className="mt-1 text-sm text-gray-600">CX surveys, loyalty engine, and campaign automation</p>
+              <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-4xl font-bold text-indigo-600">1 score</p>
+                <p className="mt-2 font-semibold text-gray-900">AI + Human health score</p>
+                <p className="mt-1 text-sm text-gray-600">Five automated signals, rep-tagged sentiment, and inconsistency detection — in one number</p>
               </div>
-              <div className="rounded-2xl border border-gray-200 p-8 text-center">
-                <p className="text-4xl font-bold text-indigo-600">Weeks</p>
-                <p className="mt-2 font-semibold text-gray-900">Not months to go live</p>
-                <p className="mt-1 text-sm text-gray-600">No custom integration work or engineering sprints</p>
+              <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-4xl font-bold text-indigo-600">6 in 1</p>
+                <p className="mt-2 font-semibold text-gray-900">Platform, not point tools</p>
+                <p className="mt-1 text-sm text-gray-600">Surveys, loyalty, campaigns, support, analytics, and AI — one platform, one customer model</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* CTA */}
+        {/* ── CTA ── */}
         <section className="bg-indigo-600 py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Stop paying the integration tax
+              Stop flying blind. Start acting in real time.
             </h2>
             <p className="mt-4 text-lg text-indigo-100">
-              See how CustomerEQ unifies customer feedback and loyalty
-              into one platform that actually closes the loop.
+              See how CustomerEQ turns fragmented customer data into a living
+              health score and automated action engine — in one platform your
+              whole team can use.
             </p>
             <div className="mt-10 flex items-center justify-center gap-4">
               <Link
