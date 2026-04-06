@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CustomerEQ — Survey Trigger Wizard (Issue #79)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; font-size: 14px; }
+
+    /* ── Shell ── */
+    .shell { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: #18181b; color: #e4e4e7; padding: 24px 16px; flex-shrink: 0; }
+    .sidebar .logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 32px; display: flex; align-items: center; gap: 8px; }
+    .sidebar .logo span { color: #6366f1; }
+    .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: #a1a1aa; font-size: 13px; text-decoration: none; margin-bottom: 4px; cursor: pointer; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: #27272a; color: #fff; }
+    .sidebar .nav-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; padding: 16px 10px 6px; }
+    .main { flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+    /* ── Scenario bar ── */
+    .screen-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 10px; }
+    .scenario-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .scenario-btn { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d4d4d8; background: #fff; color: #52525b; }
+    .scenario-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+    /* ── Page header ── */
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+    .page-header h1 { font-size: 20px; font-weight: 700; }
+    .page-header p { font-size: 13px; color: #71717a; margin-top: 2px; }
+
+    /* ── Buttons ── */
+    .btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; }
+    .btn-ghost { background: #fff; color: #52525b; border: 1px solid #d4d4d8; }
+    .btn-ghost:hover { background: #f4f4f5; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-type { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 2px solid #e4e4e7; background: #fff; color: #52525b; cursor: pointer; }
+    .btn-type.selected { border-color: #6366f1; background: #eef2ff; color: #4338ca; }
+
+    /* ── Wizard layout ── */
+    .wizard-shell { display: flex; gap: 24px; max-width: 1000px; }
+    .wizard-steps { width: 200px; flex-shrink: 0; }
+    .wizard-step { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; }
+    .wizard-step.active { background: #eef2ff; }
+    .wizard-step .step-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .step-done .step-num { background: #22c55e; color: #fff; }
+    .step-active .step-num { background: #6366f1; color: #fff; }
+    .step-pending .step-num { background: #e4e4e7; color: #71717a; }
+    .wizard-step-label { font-size: 12px; font-weight: 600; color: #52525b; }
+    .wizard-step.active .wizard-step-label { color: #4338ca; }
+    .wizard-step-sub { font-size: 11px; color: #a1a1aa; margin-top: 1px; }
+    .wizard-content { flex: 1; }
+
+    /* ── Card ── */
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 20px; margin-bottom: 16px; }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .card-sub { font-size: 13px; color: #71717a; margin-bottom: 18px; }
+
+    /* ── Trigger category cards ── */
+    .trigger-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .trigger-card { border: 2px solid #e4e4e7; border-radius: 10px; padding: 16px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+    .trigger-card:hover { border-color: #c7d2fe; background: #fafafa; }
+    .trigger-card.selected { border-color: #6366f1; background: #eef2ff; }
+    .trigger-card .t-icon { font-size: 26px; margin-bottom: 10px; }
+    .trigger-card .t-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #18181b; }
+    .trigger-card.selected .t-title { color: #4338ca; }
+    .trigger-card .t-desc { font-size: 11px; color: #71717a; line-height: 1.5; }
+
+    /* ── Sub-trigger picker ── */
+    .sub-trigger-section { margin-bottom: 20px; display: none; }
+    .sub-trigger-section.visible { display: block; }
+    .sub-trigger-label { font-size: 12px; font-weight: 700; color: #52525b; margin-bottom: 8px; }
+    .sub-trigger-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sub-trigger-pill { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid #d4d4d8; background: #fff; color: #52525b; cursor: pointer; }
+    .sub-trigger-pill:hover { border-color: #a5b4fc; color: #6366f1; }
+    .sub-trigger-pill.selected { border-color: #6366f1; background: #eef2ff; color: #4338ca; }
+    .sub-trigger-empty { font-size: 12px; color: #71717a; padding: 8px 0; }
+    .sub-trigger-empty a { color: #6366f1; text-decoration: underline; cursor: pointer; }
+
+    /* ── Recommendation box ── */
+    .recommendation-section { display: none; margin-bottom: 16px; }
+    .recommendation-section.visible { display: block; }
+    .recommendation-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+    .rec-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #15803d; margin-bottom: 8px; }
+    .rec-type { font-size: 18px; font-weight: 800; color: #14532d; margin-bottom: 6px; }
+    .rec-rationale { font-size: 13px; color: #166534; line-height: 1.5; }
+    .rec-override-link { font-size: 12px; color: #16a34a; margin-top: 10px; cursor: pointer; text-decoration: underline; display: inline-block; }
+
+    /* ── Override picker ── */
+    .override-picker { display: none; margin-top: 12px; padding: 14px; background: #f9fafb; border-radius: 8px; border: 1px solid #e4e4e7; }
+    .override-picker.visible { display: block; }
+    .override-picker-label { font-size: 12px; font-weight: 700; color: #52525b; margin-bottom: 10px; }
+    .override-types { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .override-note { font-size: 11px; color: #71717a; line-height: 1.4; padding: 8px 10px; background: #fff; border-radius: 6px; border: 1px solid #e4e4e7; }
+
+    /* ── Reach estimate ── */
+    .reach-section { display: none; margin-bottom: 16px; }
+    .reach-section.visible { display: block; }
+    .reach-badge { display: inline-flex; align-items: center; gap: 8px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #0369a1; font-weight: 600; margin-bottom: 12px; }
+    .delivery-preview { background: #f9fafb; border-radius: 8px; padding: 12px 14px; }
+    .delivery-preview-label { font-size: 12px; font-weight: 600; color: #52525b; margin-bottom: 8px; }
+    .delivery-channels { display: flex; gap: 20px; font-size: 12px; color: #71717a; }
+
+    /* ── Validation error ── */
+    .validation-msg { font-size: 12px; color: #dc2626; margin-top: 6px; display: none; }
+    .validation-msg.visible { display: block; }
+
+    /* ── Step actions ── */
+    .step-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 16px; border-top: 1px solid #f4f4f5; }
+
+    /* ── State: No loyalty moments configured ── */
+    .empty-state-inline { padding: 12px 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; font-size: 12px; color: #9a3412; }
+    .empty-state-inline a { color: #c2410c; text-decoration: underline; cursor: pointer; }
+
+    /* ── Scenario B: Validation errors ── */
+    .field-error { border-color: #fca5a5 !important; background: #fef2f2 !important; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">Customer<span>EQ</span></div>
+    <div class="nav-section">Operator</div>
+    <nav>
+      <a>🏠 Home</a>
+      <a>📊 Analytics</a>
+      <div class="nav-section">CX</div>
+      <a class="active">💬 Surveys</a>
+      <a>📈 NPS Tracker</a>
+      <div class="nav-section">Loyalty</div>
+      <a>⚙️ Program Setup</a>
+      <a>🎯 Campaigns</a>
+      <a>👥 Members</a>
+      <a>🎁 Rewards</a>
+    </nav>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="screen-label">Mock: Issue #79 — Survey Trigger Wizard</div>
+
+    <div class="scenario-bar">
+      <button class="scenario-btn active" onclick="showScenario('sA')">Scenario A: Happy Path — Loyalty Moment</button>
+      <button class="scenario-btn" onclick="showScenario('sB')">Scenario B: Validation Errors</button>
+      <button class="scenario-btn" onclick="showScenario('sC')">Scenario C: CX Risk + Override</button>
+      <button class="scenario-btn" onclick="showScenario('sD')">Scenario D: No Earn Rules Configured</button>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════
+         SCENARIO A — Happy path: Loyalty Moment → Tier Upgrade → CSAT
+    ════════════════════════════════════════════════════ -->
+    <div id="sA">
+      <div class="page-header">
+        <div>
+          <h1>Create Survey</h1>
+          <p>Step 1 of 4 — Choose when to send and what type of feedback to collect</p>
+        </div>
+        <button class="btn btn-ghost btn-sm">✕ Cancel</button>
+      </div>
+
+      <div class="wizard-shell">
+        <!-- Wizard steps sidebar -->
+        <div class="wizard-steps">
+          <div class="wizard-step step-active active">
+            <div class="step-num">1</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">When + what type</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">2</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">Questions & design</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <!-- Wizard content -->
+        <div class="wizard-content">
+          <div class="card">
+            <div class="card-title">When should this survey be sent?</div>
+            <div class="card-sub">Surveys tied to specific moments get 2–4× higher response rates than batch sends.</div>
+
+            <!-- Category cards -->
+            <div class="trigger-grid">
+              <div class="trigger-card selected" id="sA-cat-loyalty" onclick="sASelectCategory('loyalty')">
+                <div class="t-icon">⭐</div>
+                <div class="t-title">Loyalty Moment</div>
+                <div class="t-desc">After a key loyalty event — tier upgrade, first redemption, milestone purchase, enrollment</div>
+              </div>
+              <div class="trigger-card" id="sA-cat-cx" onclick="sASelectCategory('cx')">
+                <div class="t-icon">📉</div>
+                <div class="t-title">CX Risk Moment</div>
+                <div class="t-desc">When a member shows churn signals — inactive for X days, NPS drop, support interaction</div>
+              </div>
+              <div class="trigger-card" id="sA-cat-scheduled" onclick="sASelectCategory('scheduled')">
+                <div class="t-icon">📅</div>
+                <div class="t-title">Scheduled / Recurring</div>
+                <div class="t-desc">Regular pulse — quarterly NPS, monthly CSAT, annual program satisfaction</div>
+              </div>
+            </div>
+
+            <!-- Sub-trigger picker -->
+            <div class="sub-trigger-section visible" id="sA-sub-section">
+              <div class="sub-trigger-label" id="sA-sub-label">Select the specific loyalty moment:</div>
+              <div class="sub-trigger-pills" id="sA-sub-pills">
+                <button class="sub-trigger-pill selected" onclick="sASelectSub(this, 'tier_upgrade', 'CSAT — Customer Satisfaction Score', 'After a tier upgrade, members are at peak engagement. A CSAT survey measures satisfaction with the upgrade experience specifically — ideal for moment-level quality, not overall relationship health. NPS would be too broad for this trigger.', 47)">🏆 Tier Upgrade</button>
+                <button class="sub-trigger-pill" onclick="sASelectSub(this, 'first_redemption', 'CSAT — Customer Satisfaction Score', 'The first redemption is a peak satisfaction moment. CSAT captures how satisfying the reward experience was — the primary signal for reward product quality.', 31)">🎁 First Redemption</button>
+                <button class="sub-trigger-pill" onclick="sASelectSub(this, '5th_purchase', 'CSAT — Customer Satisfaction Score', 'A milestone purchase is a great moment to measure satisfaction with the purchase interaction. CSAT captures moment-level quality at a defined engagement threshold.', 58)">🛒 5th Purchase</button>
+                <button class="sub-trigger-pill" onclick="sASelectSub(this, 'anniversary', 'NPS — Net Promoter Score', 'After one year, an overall relationship health check is appropriate. NPS measures loyalty and likelihood to recommend — the right metric for a long-term relationship milestone.', 22)">🎉 1-Year Anniversary</button>
+                <button class="sub-trigger-pill" onclick="sASelectSub(this, 'enrollment', 'CES — Customer Effort Score', 'Enrollment is about friction. CES measures how easy the process was — the primary signal at onboarding. Low effort drives retention; high effort predicts early churn.', 103)">✅ Enrollment</button>
+              </div>
+            </div>
+
+            <!-- Recommendation box -->
+            <div class="recommendation-section visible" id="sA-rec-section">
+              <div class="recommendation-box">
+                <div class="rec-label">✦ Recommended survey type</div>
+                <div class="rec-type" id="sA-rec-type">CSAT — Customer Satisfaction Score</div>
+                <div class="rec-rationale" id="sA-rec-rationale">After a tier upgrade, members are at peak engagement. A CSAT survey measures satisfaction with the upgrade experience specifically — ideal for moment-level quality, not overall relationship health. NPS would be too broad for this trigger.</div>
+                <span class="rec-override-link" onclick="sAToggleOverride()">Use a different type instead ↓</span>
+              </div>
+
+              <!-- Override picker (hidden by default) -->
+              <div class="override-picker" id="sA-override-picker">
+                <div class="override-picker-label">Select survey type:</div>
+                <div class="override-types">
+                  <button class="btn-type" onclick="sASelectType(this, 'NPS')">NPS</button>
+                  <button class="btn-type selected" onclick="sASelectType(this, 'CSAT')">CSAT</button>
+                  <button class="btn-type" onclick="sASelectType(this, 'CES')">CES</button>
+                  <button class="btn-type" onclick="sASelectType(this, 'Custom')">Custom</button>
+                </div>
+                <div class="override-note" id="sA-override-note">
+                  💡 <strong>Why we recommended CSAT:</strong> After a tier upgrade, members are at peak engagement. A CSAT survey measures satisfaction with the upgrade experience specifically — ideal for moment-level quality, not overall relationship health.
+                </div>
+              </div>
+            </div>
+
+            <!-- Reach estimate -->
+            <div class="reach-section visible" id="sA-reach-section">
+              <div class="reach-badge">
+                📊 Based on your current program, this trigger would reach ~<strong id="sA-reach-count">47 members</strong> in the next 30 days.
+              </div>
+              <div class="delivery-preview">
+                <div class="delivery-preview-label">Delivery preview</div>
+                <div class="delivery-channels" id="sA-delivery-channels">
+                  <span>📧 Email: 47 members</span>
+                  <span>📱 In-app: 38 members (opted in)</span>
+                  <span>💬 SMS: 12 members (opted in)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button class="btn btn-ghost">Cancel</button>
+              <button class="btn btn-primary" onclick="alert('Proceeding to Step 2: Survey Content (existing survey builder)')">Continue: Design Questions →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════
+         SCENARIO B — Validation errors: no category, no sub-trigger selected
+    ════════════════════════════════════════════════════ -->
+    <div id="sB" style="display:none;">
+      <div class="page-header">
+        <div>
+          <h1>Create Survey</h1>
+          <p>Step 1 of 4 — Choose when to send and what type of feedback to collect</p>
+        </div>
+        <button class="btn btn-ghost btn-sm">✕ Cancel</button>
+      </div>
+
+      <div class="wizard-shell">
+        <div class="wizard-steps">
+          <div class="wizard-step step-active active">
+            <div class="step-num">1</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">When + what type</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">2</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">Questions & design</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <div class="wizard-content">
+          <div class="card">
+            <div class="card-title">When should this survey be sent?</div>
+            <div class="card-sub">Surveys tied to specific moments get 2–4× higher response rates than batch sends.</div>
+
+            <!-- Category cards — none selected, showing error border -->
+            <div class="trigger-grid" id="sB-trigger-grid" style="border: 2px solid #fca5a5; border-radius: 10px; padding: 8px; background: #fef2f2;">
+              <div class="trigger-card">
+                <div class="t-icon">⭐</div>
+                <div class="t-title">Loyalty Moment</div>
+                <div class="t-desc">After a key loyalty event — tier upgrade, first redemption, milestone purchase, enrollment</div>
+              </div>
+              <div class="trigger-card">
+                <div class="t-icon">📉</div>
+                <div class="t-title">CX Risk Moment</div>
+                <div class="t-desc">When a member shows churn signals — inactive for X days, NPS drop, support interaction</div>
+              </div>
+              <div class="trigger-card">
+                <div class="t-icon">📅</div>
+                <div class="t-title">Scheduled / Recurring</div>
+                <div class="t-desc">Regular pulse — quarterly NPS, monthly CSAT, annual program satisfaction</div>
+              </div>
+            </div>
+            <div class="validation-msg visible" style="margin-bottom: 12px;">Please select a trigger category before continuing.</div>
+
+            <div class="step-actions">
+              <button class="btn btn-ghost">Cancel</button>
+              <button class="btn btn-primary" disabled>Continue: Design Questions →</button>
+            </div>
+          </div>
+
+          <!-- State B2: Category selected but no sub-trigger -->
+          <div class="card" style="margin-top: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">↳ Error state B2: Category selected but no sub-trigger chosen</div>
+            <div class="sub-trigger-label">Select the specific loyalty moment:</div>
+            <div class="sub-trigger-pills" style="margin-bottom: 6px;">
+              <button class="sub-trigger-pill">🏆 Tier Upgrade</button>
+              <button class="sub-trigger-pill">🎁 First Redemption</button>
+              <button class="sub-trigger-pill">🛒 5th Purchase</button>
+            </div>
+            <div class="validation-msg visible">Select a specific moment to continue.</div>
+          </div>
+
+          <!-- State B3: Reach estimate unavailable -->
+          <div class="card" style="margin-top: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">↳ Error state B3: Reach estimate unavailable (API failure or insufficient history)</div>
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: #f9fafb; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #71717a; font-weight: 500;">
+              📊 Reach estimate unavailable — not enough historical data for this trigger yet.
+            </div>
+            <div style="font-size: 11px; color: #71717a; margin-top: 6px;">This won't block you from continuing. The estimate will appear once this trigger has been active for 7+ days.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════
+         SCENARIO C — CX Risk Moment + Override to NPS
+    ════════════════════════════════════════════════════ -->
+    <div id="sC" style="display:none;">
+      <div class="page-header">
+        <div>
+          <h1>Create Survey</h1>
+          <p>Step 1 of 4 — Choose when to send and what type of feedback to collect</p>
+        </div>
+        <button class="btn btn-ghost btn-sm">✕ Cancel</button>
+      </div>
+
+      <div class="wizard-shell">
+        <div class="wizard-steps">
+          <div class="wizard-step step-active active">
+            <div class="step-num">1</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">When + what type</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">2</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">Questions & design</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <div class="wizard-content">
+          <div class="card">
+            <div class="card-title">When should this survey be sent?</div>
+            <div class="card-sub">Surveys tied to specific moments get 2–4× higher response rates than batch sends.</div>
+
+            <div class="trigger-grid">
+              <div class="trigger-card">
+                <div class="t-icon">⭐</div>
+                <div class="t-title">Loyalty Moment</div>
+                <div class="t-desc">After a key loyalty event — tier upgrade, first redemption, milestone purchase, enrollment</div>
+              </div>
+              <div class="trigger-card selected">
+                <div class="t-icon">📉</div>
+                <div class="t-title">CX Risk Moment</div>
+                <div class="t-desc">When a member shows churn signals — inactive for X days, NPS drop, support interaction</div>
+              </div>
+              <div class="trigger-card">
+                <div class="t-icon">📅</div>
+                <div class="t-title">Scheduled / Recurring</div>
+                <div class="t-desc">Regular pulse — quarterly NPS, monthly CSAT, annual program satisfaction</div>
+              </div>
+            </div>
+
+            <div class="sub-trigger-section visible">
+              <div class="sub-trigger-label">Select the specific CX risk signal:</div>
+              <div class="sub-trigger-pills">
+                <button class="sub-trigger-pill">😴 Inactive 30+ Days</button>
+                <button class="sub-trigger-pill selected">📉 After Support Interaction</button>
+                <button class="sub-trigger-pill">⬇️ NPS Drop Detected</button>
+              </div>
+            </div>
+
+            <!-- Recommendation: CES — with override open to NPS -->
+            <div class="recommendation-section visible">
+              <div class="recommendation-box" style="background: #fff7ed; border-color: #fed7aa;">
+                <div class="rec-label" style="color: #c2410c;">✦ Recommended survey type</div>
+                <div class="rec-type" style="color: #7c2d12;">CES — Customer Effort Score</div>
+                <div class="rec-rationale" style="color: #9a3412;">After a support interaction, Customer Effort Score measures how easy it was to resolve the issue — the primary signal for support quality. Low effort drives loyalty; high effort predicts churn.</div>
+                <span class="rec-override-link" style="color: #c2410c;" onclick="document.getElementById('sC-override').classList.toggle('visible')">Use a different type instead ↓</span>
+              </div>
+
+              <div class="override-picker visible" id="sC-override">
+                <div class="override-picker-label">Select survey type:</div>
+                <div class="override-types">
+                  <button class="btn-type selected" onclick="sCSelectType(this)">NPS</button>
+                  <button class="btn-type" onclick="sCSelectType(this)">CSAT</button>
+                  <button class="btn-type" onclick="sCSelectType(this)">CES</button>
+                  <button class="btn-type" onclick="sCSelectType(this)">Custom</button>
+                </div>
+                <div class="override-note">
+                  💡 <strong>Why we recommended CES:</strong> After a support interaction, Customer Effort Score measures how easy it was to resolve the issue — the primary signal for support quality. Your override (NPS) is valid if you want to capture overall relationship health instead of interaction-level effort.
+                </div>
+              </div>
+            </div>
+
+            <div class="reach-section visible">
+              <div class="reach-badge">
+                📊 Based on your current program, this trigger would reach ~<strong>23 members</strong> in the next 30 days.
+              </div>
+              <div class="delivery-preview">
+                <div class="delivery-preview-label">Delivery preview</div>
+                <div class="delivery-channels">
+                  <span>📧 Email: 23 members</span>
+                  <span>📱 In-app: 18 members (opted in)</span>
+                  <span>💬 SMS: 7 members (opted in)</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size: 12px; color: #71717a; padding: 8px 10px; background: #f9fafb; border-radius: 6px; margin-bottom: 16px;">
+              Selected: <strong style="color: #18181b;">CX Risk Moment: After Support Interaction</strong> · Survey type: <strong style="color: #6366f1;">NPS</strong> (overridden)
+            </div>
+
+            <div class="step-actions">
+              <button class="btn btn-ghost">Cancel</button>
+              <button class="btn btn-primary" onclick="alert('Proceeding to Step 2: Survey Content')">Continue: Design Questions →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════
+         SCENARIO D — No earn rules configured (dynamic sub-triggers empty)
+    ════════════════════════════════════════════════════ -->
+    <div id="sD" style="display:none;">
+      <div class="page-header">
+        <div>
+          <h1>Create Survey</h1>
+          <p>Step 1 of 4 — Choose when to send and what type of feedback to collect</p>
+        </div>
+        <button class="btn btn-ghost btn-sm">✕ Cancel</button>
+      </div>
+
+      <div class="wizard-shell">
+        <div class="wizard-steps">
+          <div class="wizard-step step-active active">
+            <div class="step-num">1</div>
+            <div><div class="wizard-step-label">Survey Trigger</div><div class="wizard-step-sub">When + what type</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">2</div>
+            <div><div class="wizard-step-label">Survey Content</div><div class="wizard-step-sub">Questions & design</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">3</div>
+            <div><div class="wizard-step-label">Response Rules</div><div class="wizard-step-sub">What happens next</div></div>
+          </div>
+          <div class="wizard-step step-pending">
+            <div class="step-num">4</div>
+            <div><div class="wizard-step-label">Review & Launch</div><div class="wizard-step-sub">Confirm & schedule</div></div>
+          </div>
+        </div>
+
+        <div class="wizard-content">
+          <div class="card">
+            <div class="card-title">When should this survey be sent?</div>
+            <div class="card-sub">Surveys tied to specific moments get 2–4× higher response rates than batch sends.</div>
+
+            <div class="trigger-grid">
+              <div class="trigger-card selected">
+                <div class="t-icon">⭐</div>
+                <div class="t-title">Loyalty Moment</div>
+                <div class="t-desc">After a key loyalty event — tier upgrade, first redemption, milestone purchase, enrollment</div>
+              </div>
+              <div class="trigger-card">
+                <div class="t-icon">📉</div>
+                <div class="t-title">CX Risk Moment</div>
+                <div class="t-desc">When a member shows churn signals — inactive for X days, NPS drop, support interaction</div>
+              </div>
+              <div class="trigger-card">
+                <div class="t-icon">📅</div>
+                <div class="t-title">Scheduled / Recurring</div>
+                <div class="t-desc">Regular pulse — quarterly NPS, monthly CSAT, annual program satisfaction</div>
+              </div>
+            </div>
+
+            <!-- Empty state: no earn rules configured -->
+            <div class="sub-trigger-section visible">
+              <div class="sub-trigger-label">Select the specific loyalty moment:</div>
+              <div class="empty-state-inline">
+                No loyalty moments are configured for your program yet. <a>Set up earn rules →</a> to enable loyalty-moment triggers. In the meantime, use <strong>CX Risk Moment</strong> or <strong>Scheduled / Recurring</strong> triggers.
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button class="btn btn-ghost">Cancel</button>
+              <button class="btn btn-primary" disabled title="Select a valid trigger to continue">Continue: Design Questions →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── Scenario switcher ──
+  function showScenario(id) {
+    ['sA','sB','sC','sD'].forEach(s => {
+      document.getElementById(s).style.display = (s === id) ? '' : 'none';
+    });
+    document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', ['sA','sB','sC','sD'][i] === id);
+    });
+  }
+
+  // ── Scenario A logic ──
+  const triggerData = {
+    tier_upgrade:      { type: 'CSAT — Customer Satisfaction Score', rationale: 'After a tier upgrade, members are at peak engagement. A CSAT survey measures satisfaction with the upgrade experience specifically — ideal for moment-level quality, not overall relationship health. NPS would be too broad for this trigger.', reach: 47, email: 47, inApp: 38, sms: 12 },
+    first_redemption:  { type: 'CSAT — Customer Satisfaction Score', rationale: 'The first redemption is a peak satisfaction moment. CSAT captures how satisfying the reward experience was — the primary signal for reward product quality.', reach: 31, email: 31, inApp: 25, sms: 8 },
+    '5th_purchase':    { type: 'CSAT — Customer Satisfaction Score', rationale: 'A milestone purchase is a great moment to measure satisfaction with the purchase interaction. CSAT captures moment-level quality at a defined engagement threshold.', reach: 58, email: 58, inApp: 44, sms: 15 },
+    anniversary:       { type: 'NPS — Net Promoter Score', rationale: 'After one year, an overall relationship health check is appropriate. NPS measures loyalty and likelihood to recommend — the right metric for a long-term relationship milestone.', reach: 22, email: 22, inApp: 18, sms: 5 },
+    enrollment:        { type: 'CES — Customer Effort Score', rationale: 'Enrollment is about friction. CES measures how easy the process was — the primary signal at onboarding. Low effort drives retention; high effort predicts early churn.', reach: 103, email: 103, inApp: 72, sms: 28 },
+  };
+
+  function sASelectCategory(cat) {
+    ['sA-cat-loyalty','sA-cat-cx','sA-cat-scheduled'].forEach(id => document.getElementById(id).classList.remove('selected'));
+    document.getElementById('sA-cat-' + cat).classList.add('selected');
+    // Reset sub-triggers and downstream
+    document.getElementById('sA-sub-section').classList.add('visible');
+    document.getElementById('sA-rec-section').classList.remove('visible');
+    document.getElementById('sA-reach-section').classList.remove('visible');
+    document.getElementById('sA-override-picker').classList.remove('visible');
+    document.querySelectorAll('#sA-sub-pills .sub-trigger-pill').forEach(p => p.classList.remove('selected'));
+    const labels = { loyalty: 'Select the specific loyalty moment:', cx: 'Select the specific CX risk signal:', scheduled: 'Select the recurring schedule:' };
+    document.getElementById('sA-sub-label').textContent = labels[cat];
+  }
+
+  function sASelectSub(el, key, type, rationale, reach) {
+    document.querySelectorAll('#sA-sub-pills .sub-trigger-pill').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('sA-rec-type').textContent = type;
+    document.getElementById('sA-rec-rationale').textContent = rationale;
+    document.getElementById('sA-override-note').innerHTML = '💡 <strong>Why we recommended ' + type.split(' ')[0] + ':</strong> ' + rationale;
+    const d = triggerData[key] || { reach, email: reach, inApp: Math.floor(reach * 0.8), sms: Math.floor(reach * 0.25) };
+    document.getElementById('sA-reach-count').textContent = d.reach + ' members';
+    document.getElementById('sA-delivery-channels').innerHTML = '📧 Email: ' + d.email + ' members &nbsp; 📱 In-app: ' + d.inApp + ' members (opted in) &nbsp; 💬 SMS: ' + d.sms + ' members (opted in)';
+    document.getElementById('sA-rec-section').classList.add('visible');
+    document.getElementById('sA-reach-section').classList.add('visible');
+    // Reset override picker type selections
+    document.querySelectorAll('#sA-override-picker .btn-type').forEach(b => b.classList.remove('selected'));
+    const shortType = type.split(' ')[0];
+    document.querySelectorAll('#sA-override-picker .btn-type').forEach(b => { if (b.textContent === shortType) b.classList.add('selected'); });
+  }
+
+  function sAToggleOverride() {
+    document.getElementById('sA-override-picker').classList.toggle('visible');
+  }
+
+  function sASelectType(el, type) {
+    document.querySelectorAll('#sA-override-picker .btn-type').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  function sCSelectType(el) {
+    document.querySelectorAll('#sC-override .btn-type').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+</script>
+</body>
+</html>
