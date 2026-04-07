@@ -2,7 +2,7 @@
 
 ## Summary
 
-Completed FRAIM `technical-design` authoring for issue `#113` on branch `feature/issue-113-social-review-ingestion-design`.
+Completed FRAIM `technical-design` authoring for issue `#113`, with the RFC now carried on branch `feature/issue-113-social-review-ingestion-spec` so the design stays in the existing review thread.
 
 ## Inputs Reviewed
 

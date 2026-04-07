@@ -1,14 +1,14 @@
 # Feature: Social Review Ingestion and External Signal Hub
 Issue: #113  
 Feature Spec: `docs/feature-specs/113-social-review-ingestion.md`  
-PR: https://github.com/mathursrus/CustomerEQ/pull/115
+PR: https://github.com/mathursrus/CustomerEQ/pull/114
 
 ## Summary
 
 - Issue: `#113` — Ingest reviews from social channels
 - Workflow type: technical design
 - Work completed: authored the RFC, completed architecture-gap review, completed design-vs-spec traceability review, and packaged design evidence for human review
-- Branch: `feature/issue-113-social-review-ingestion-design`
+- Branch: `feature/issue-113-social-review-ingestion-spec`
 
 ## Work Completed
 
@@ -33,7 +33,7 @@ PR: https://github.com/mathursrus/CustomerEQ/pull/115
 
 | PR Comment | How Addressed |
 |---|---|
-| Submission comment on PR `#115` | Added comment linking `docs/evidence/113-technical-design-evidence.md` and marking the design ready for review |
+| Review thread correction on PR `#114` | Design deliverables were moved onto the existing review thread so the RFC and evidence are visible where the user expected them |
 
 ### Traceability Matrix
 
