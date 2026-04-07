@@ -1,12 +1,12 @@
 # Feature Specification: Social Review Ingestion and External Signal Hub
 Issue: #113  
-PR: pending
+PR: https://github.com/mathursrus/CustomerEQ/pull/114
 
 ## Completeness Evidence
 
-- Issue tagged with label `phase:spec`: Pending
-- Issue tagged with label `status:needs-review`: Pending
-- All specification documents committed/synced to branch: Pending
+- Issue tagged with label `phase:spec`: Yes
+- Issue tagged with label `status:needs-review`: Yes
+- All specification documents committed/synced to branch: Yes
 
 ### Customer Research Areas
 
