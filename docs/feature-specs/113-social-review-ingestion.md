@@ -92,6 +92,7 @@ This issue is primarily about ingestion and visibility, not full automation auth
 - customer health score enrichment
 
 **UI Mocks**: [113-view.html](mocks/113-view.html)
+The current mock intentionally focuses on only two surfaces for clarity: the source configuration experience in Integrations and the matched-result experience inside Customer 360.
 
 ## Design Standards Applied
 

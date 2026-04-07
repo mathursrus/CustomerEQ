@@ -19,13 +19,13 @@ PR: https://github.com/mathursrus/CustomerEQ/pull/114
 
 ### Feedback History
 
-No feedback file existed at `docs/evidence/113-spec-feedback.md` at submission time.
+Feedback was later captured in `docs/evidence/113-spec-feedback.md`.
 
 ### PR Comments and Disposition
 
 | PR Comment | How Addressed |
 |---|---|
-| None yet | Initial submission package |
+| "this is waaaay too complex for a user to grok.... please show what this would look like in the integrated view for customer360 and also the integration view. Simplfiy, simplify" | Replaced the original mock with a simplified two-panel HTML artifact focused on `/admin/integrations` and the integrated Customer 360 result |
 
 ## Work Completed
 
