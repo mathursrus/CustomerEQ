@@ -546,6 +546,70 @@ const programsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(200).send({ data: versions })
     },
   )
+
+  // -------------------------------------------------------------------------
+  // GET /v1/programs/:id/trigger-options — dynamic loyalty moment sub-triggers (Issue #79)
+  // Returns sub-triggers derived from active EarningRule.triggerEvent values
+  // -------------------------------------------------------------------------
+
+  // Map EarningRule.triggerEvent → display label and icon for the wizard
+  const TRIGGER_EVENT_DISPLAY: Record<string, { label: string; icon: string }> = {
+    'tier.upgraded': { label: 'Tier Upgrade', icon: '🏆' },
+    'member.enrolled': { label: 'Enrollment', icon: '✅' },
+    'member.first_redemption': { label: 'First Redemption', icon: '🎁' },
+    purchase: { label: '5th Purchase', icon: '🛍️' },
+    'member.anniversary': { label: 'Anniversary', icon: '🎂' },
+    'member.inactive': { label: 'Win-back (30d inactive)', icon: '💤' },
+    'cx.ticket_resolved': { label: 'After Support', icon: '🎧' },
+  }
+
+  // Map EarningRule.triggerEvent → triggerKey used by the frontend/analytics
+  const TRIGGER_EVENT_KEY: Record<string, string> = {
+    'tier.upgraded': 'tier_upgrade',
+    'member.enrolled': 'enrollment',
+    'member.first_redemption': 'first_redemption',
+    purchase: '5th_purchase',
+    'member.anniversary': 'anniversary',
+    'member.inactive': 'inactive_30d',
+    'cx.ticket_resolved': 'after_support',
+  }
+
+  fastify.get<{ Params: { id: string } }>(
+    '/programs/:id/trigger-options',
+    async (request, reply) => {
+      const program = await fastify.prisma.program.findFirst({
+        where: { id: request.params.id, brandId: request.brandId, deletedAt: null },
+      })
+      if (!program) return reply.status(404).send({ error: 'Program not found' })
+
+      const rules = await fastify.prisma.earningRule.findMany({
+        where: { programId: program.id, brandId: request.brandId, status: 'ACTIVE' },
+        select: { triggerEvent: true },
+        distinct: ['triggerEvent'],
+      })
+
+      const hasEarnRules = rules.length > 0
+
+      // Deduplicate by key and build loyalty moment pills
+      const seenKeys = new Set<string>()
+      const loyaltyMoments: { key: string; label: string; icon: string }[] = []
+
+      for (const rule of rules) {
+        const key = TRIGGER_EVENT_KEY[rule.triggerEvent] ?? rule.triggerEvent
+        if (seenKeys.has(key)) continue
+        seenKeys.add(key)
+
+        const display = TRIGGER_EVENT_DISPLAY[rule.triggerEvent]
+        loyaltyMoments.push({
+          key,
+          label: display?.label ?? rule.triggerEvent,
+          icon: display?.icon ?? '⚡',
+        })
+      }
+
+      return reply.status(200).send({ loyaltyMoments, hasEarnRules })
+    },
+  )
 }
 
 export default programsRoutes

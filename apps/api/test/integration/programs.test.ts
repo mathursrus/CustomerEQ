@@ -635,3 +635,92 @@ describe('Programs API — /v1/programs', () => {
     })
   })
 })
+
+
+  // -------------------------------------------------------------------------
+  // GET /v1/programs/:id/trigger-options (Issue #79)
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/programs/:id/trigger-options', () => {
+    it('returns hasEarnRules=false and empty loyaltyMoments when no earn rules configured', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}/trigger-options`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.hasEarnRules).toBe(false)
+      expect(Array.isArray(res.body.loyaltyMoments)).toBe(true)
+      expect(res.body.loyaltyMoments).toHaveLength(0)
+    })
+
+    it('returns deduplicated loyaltyMoments from active earn rules', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        rules: [
+          { triggerEvent: 'tier.upgraded', pointsAwarded: 100 },
+          { triggerEvent: 'member.enrolled', pointsAwarded: 50 },
+          { triggerEvent: 'tier.upgraded', pointsAwarded: 200 }, // duplicate — should be deduped
+        ],
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}/trigger-options`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.hasEarnRules).toBe(true)
+      const keys = res.body.loyaltyMoments.map((m: { key: string }) => m.key)
+      expect(keys).toContain('tier_upgrade')
+      expect(keys).toContain('enrollment')
+      // deduplication: tier.upgraded appears only once
+      expect(keys.filter((k: string) => k === 'tier_upgrade')).toHaveLength(1)
+    })
+
+    it('each loyaltyMoment has key, label, and icon fields', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        rules: [{ triggerEvent: 'tier.upgraded', pointsAwarded: 100 }],
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}/trigger-options`)
+
+      expect(res.status).toBe(200)
+      const moment = res.body.loyaltyMoments[0]
+      expect(moment).toHaveProperty('key')
+      expect(moment).toHaveProperty('label')
+      expect(moment).toHaveProperty('icon')
+      expect(typeof moment.label).toBe('string')
+    })
+
+    it('returns 404 for program belonging to another brand', async () => {
+      const ownerBrand = await createBrand()
+      const program = await createProgram({ brandId: ownerBrand.id })
+      const attackerBrand = await createBrand()
+      const request = await authenticatedRequest(attackerBrand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}/trigger-options`)
+
+      expect(res.status).toBe(404)
+    })
+
+    it('unknown triggerEvent values surface as passthrough key with default icon', async () => {
+      const brand = await createBrand()
+      const { program } = await createProgramWithRules({
+        brandId: brand.id,
+        rules: [{ triggerEvent: 'some.custom_event', pointsAwarded: 100 }],
+      })
+      const request = await authenticatedRequest(brand.id)
+
+      const res = await request.get(`/v1/programs/${program.id}/trigger-options`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.loyaltyMoments).toHaveLength(1)
+      const moment = res.body.loyaltyMoments[0]
+      expect(moment.key).toBe('some.custom_event')
+      expect(moment.icon).toBeTruthy()
+    })
+  })
