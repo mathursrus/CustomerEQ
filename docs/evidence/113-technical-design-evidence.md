@@ -1,7 +1,7 @@
 # Feature: Social Review Ingestion and External Signal Hub
 Issue: #113  
 Feature Spec: `docs/feature-specs/113-social-review-ingestion.md`  
-PR: Pending
+PR: https://github.com/mathursrus/CustomerEQ/pull/115
 
 ## Summary
 
@@ -29,11 +29,11 @@ PR: Pending
 
 - Issue tagged with label `phase:design`: Yes
 - Issue tagged with label `status:needs-review`: Yes
-- All files committed/synced to branch: No
+- All files committed/synced to branch: Yes
 
 | PR Comment | How Addressed |
 |---|---|
-| No PR feedback yet | RFC and evidence prepared for review |
+| Submission comment on PR `#115` | Added comment linking `docs/evidence/113-technical-design-evidence.md` and marking the design ready for review |
 
 ### Traceability Matrix
 
