@@ -71,6 +71,10 @@ export const CreateSurveySchema = z.object({
   settings: z.record(z.unknown()).optional(),
   incentivePoints: z.number().int().positive().max(100000, 'Incentive points cannot exceed 100,000').optional(),
   themeId: z.string().optional(),
+  // Issue #79 — trigger wizard fields (all optional for backwards compatibility)
+  triggerCategory: z.enum(['loyalty', 'cx_risk', 'scheduled']).optional(),
+  triggerKey: z.string().optional(),
+  surveyTypeOverride: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']).optional(),
 })
 
 export const UpdateSurveySchema = z.object({

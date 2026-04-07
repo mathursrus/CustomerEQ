@@ -51,6 +51,7 @@ The platform is a multi-tenant loyalty engine with:
 - **API Communication**: Server components fetch with Clerk token; client components use `useAuth()` hook
 - **Admin home entry point**: `/admin/page.tsx` (RSC) is the operator home dashboard — fetches `GET /v1/analytics/program-health` server-side and renders the unified CX+Loyalty panels. `/admin/analytics` remains as a deeper drill-down analytics view. (Issue #78)
 - **Context-aware navigation**: CX metric click-throughs use `searchParams` to pre-populate campaign/survey builder forms without a separate API round-trip (e.g., `filter=detractors&maxNps=6` pre-fills the campaign builder audience segment). (Issue #78)
+- **Client-side utilities**: Pure, web-only functions (e.g. recommendation lookups, formatting helpers) are co-located in `apps/web/src/utils/` — not exported to `packages/shared`. Use this location for functions that have no server-side or cross-package use case. (Issue #79)
 
 ### 3.2. API Layer (apps/api)
 - **Responsibility**: RESTful API (versioned at `/v1/`), request validation (Zod), authentication (Clerk JWT), multi-tenant scoping, event ingestion, campaign trigger evaluation, audit logging.
@@ -162,13 +163,13 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | Route Prefix | Responsibility |
 |---|---|
 | `GET /healthz` | Public health check (DB + Redis status) |
-| `/v1/programs` | CRUD for loyalty programs + earning rules + tiers + rewards (retire) + simulate + versions; status transitions via `PUT /programs/:id/status` |
+| `/v1/programs` | CRUD for loyalty programs + earning rules + tiers + rewards (retire) + simulate + versions; status transitions via `PUT /programs/:id/status`. Sub-resource `GET /v1/programs/:id/trigger-options` — computed/derived configuration data (earn rule → display label mapping for survey trigger wizard). **Convention**: read-only sub-resources on `/v1/programs/:id/` for derived config data follow GET-only, no-pagination pattern. (Issue #79) |
 | `/v1/members` | Member enrollment (idempotent), balance queries, member list with health score filters, Customer 360 view (aggregated profile with health score breakdown, activity, stats, and matched external signals) |
 | `/v1/events` | **Hero endpoint** — event ingestion with idempotency + sync campaign evaluation |
 | `/v1/campaigns` | Campaign CRUD + status management (DRAFT -> ACTIVE -> PAUSED -> COMPLETED) |
 | `/v1/rewards` | Reward catalog management |
 | `/v1/redemptions` | Atomic point redemption (transactional debit + stock decrement) |
-| `/v1/analytics` | Overview KPIs (ROI, redemption rate) + per-campaign performance. `GET /v1/analytics/program-health` — unified CX+loyalty health snapshot (fixed 30d/7d windows); all sub-queries run in `Promise.all`; insights computed in-process by `computeInsights()` (deterministic rule engine — 3 rules; LLM generation deferred). (Issue #78) `GET /v1/analytics/cx/external-signals` adds the normalized external-signal feed used by the CX workspace. |
+| `/v1/analytics` | Overview KPIs (ROI, redemption rate) + per-campaign performance. `GET /v1/analytics/program-health` — unified CX+loyalty health snapshot (fixed 30d/7d windows); all sub-queries run in `Promise.all`; insights computed in-process by `computeInsights()` (deterministic rule engine — 3 rules; LLM generation deferred). (Issue #78). `GET /v1/analytics/reach-estimate` — projected member reach for a given trigger key over 30 days; follows graceful-degradation contract: DB/timeout failures return `{ estimatedCount: null, reason: '...' }` (200) rather than 5xx to prevent UI blocking. (Issue #79). `GET /v1/analytics/cx/external-signals` adds the normalized external-signal feed used by the CX workspace. **Convention**: all analytics sub-query endpoints follow this graceful-degradation contract — non-critical reads must never return 5xx. |
 | `/v1/integrations/webhooks/*` | Salesforce + HubSpot webhook receivers (HMAC-SHA256 verified) plus source-scoped external signal webhook ingestion at `/v1/integrations/webhooks/external-signals/:sourceId` |
 | `/v1/surveys` | Survey CRUD + status management + question builder updates |
 | `/v1/themes` | Survey theme CRUD + set-default (brand-scoped white-labeling) |
@@ -217,7 +218,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
 | **Campaign** | Rule-based automation. `triggerType` + `triggerCondition` (JSON) -> `actionType` + `actionConfig` (JSON). Budget cap tracking. |
 | **CampaignEvent** | Campaign trigger execution record. Unique per `campaignId + memberId`. Tracks `latencyMs`. |
-| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. |
+| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. New (Issue #79): `triggerCategory` (loyalty/cx_risk/scheduled), `triggerKey` (e.g. tier_upgrade), `surveyTypeOverride` (non-null when manager deviated from recommendation) — all nullable, backwards-compatible. |
 | **SurveyResponse** | Individual feedback with AI-analyzed sentiment, topics, confidence, cluster assignment. |
 | **ExternalSignalSource** | Brand-scoped registry of review/social inputs. Stores `sourceType`, `connectionMethod`, `syncMode`, scope/filter/matching config, credential reference, health status, and last sync diagnostics. |
 | **ExternalSignal** | Normalized external review/social record. Stores `sourceId`, `externalId`, optional `memberId`, match status/confidence, provider metadata, canonical URL, `postedAt`, `ingestedAt`, and `statusHistory`. Unique on `(sourceId, externalId)`. |

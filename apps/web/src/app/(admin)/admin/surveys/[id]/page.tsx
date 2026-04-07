@@ -26,6 +26,9 @@ interface Survey {
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
   _count?: { responses: number }
   incentivePoints: number | null
+  triggerCategory: string | null
+  triggerKey: string | null
+  surveyTypeOverride: string | null
   responses: SurveyResponse[]
   createdAt: string
 }
@@ -184,6 +187,17 @@ export default function SurveyDetailPage() {
             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[survey.status] ?? 'bg-gray-100 text-gray-700'}`}>
               {survey.status}
             </span>
+            {survey.triggerKey && (
+              <span
+                data-testid="survey-trigger-badge"
+                className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700"
+              >
+                {survey.triggerCategory && <span className="capitalize">{survey.triggerCategory.replace('_', ' ')}</span>}
+                {survey.triggerCategory && ' · '}
+                {survey.triggerKey.replace(/_/g, ' ')}
+                {survey.surveyTypeOverride && <span className="ml-1 opacity-60">(override: {survey.surveyTypeOverride})</span>}
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500">
             {survey._count?.responses ?? responses.length} responses
