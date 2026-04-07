@@ -255,8 +255,13 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { id: string }; Querystring: Customer360Query }>(
     '/members/:id/360',
     async (request, reply) => {
-      const { eventsLimit, surveysLimit, redemptionsLimit, campaignEventsLimit } =
-        Customer360QuerySchema.parse(request.query)
+      const {
+        eventsLimit,
+        surveysLimit,
+        redemptionsLimit,
+        campaignEventsLimit,
+        externalSignalsLimit,
+      } = Customer360QuerySchema.parse(request.query)
 
       // 1. Fetch member with tier
       const member = await fastify.prisma.member.findFirst({
@@ -276,7 +281,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 3. Parallel queries for sub-collections
       const [events, eventCount, surveys, surveyCount, redemptions, redemptionCount,
-             campaignEvents, ceCount, openCases, openConversations, stats, redemptionStats, sentimentStats] = await Promise.all([
+             campaignEvents, ceCount, externalSignals, externalSignalCount, openCases, openConversations, stats, redemptionStats, sentimentStats] = await Promise.all([
         // Recent events
         fastify.prisma.loyaltyEvent.findMany({
           where: { memberId: member.id, brandId: request.brandId },
@@ -317,6 +322,27 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           where: { memberId: member.id, brandId: request.brandId },
         }),
         // Open cases (all, no limit — typically small)
+        fastify.prisma.externalSignal.findMany({
+          where: {
+            memberId: member.id,
+            brandId: request.brandId,
+            matchStatus: 'MATCHED',
+            status: 'ACTIVE',
+          },
+          orderBy: [{ postedAt: 'desc' }, { ingestedAt: 'desc' }],
+          take: externalSignalsLimit + 1,
+          include: {
+            source: { select: { id: true, name: true } },
+          },
+        }),
+        fastify.prisma.externalSignal.count({
+          where: {
+            memberId: member.id,
+            brandId: request.brandId,
+            matchStatus: 'MATCHED',
+            status: 'ACTIVE',
+          },
+        }),
         fastify.prisma.caseFollowUp.findMany({
           where: { memberId: member.id, brandId: request.brandId, status: 'OPEN' },
           orderBy: { createdAt: 'desc' },
@@ -437,6 +463,26 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           })),
           hasMore: campaignEvents.length > campaignEventsLimit,
           total: ceCount,
+        },
+        externalSignals: {
+          items: externalSignals.slice(0, externalSignalsLimit).map((signal) => ({
+            id: signal.id,
+            sourceId: signal.sourceId,
+            sourceType: signal.sourceType,
+            sourceName: signal.source.name,
+            body: signal.body,
+            summary: signal.summary,
+            rating: signal.rating,
+            sentiment: signal.sentiment,
+            topics: signal.topics,
+            canonicalUrl: signal.canonicalUrl,
+            externalAuthorLabel: signal.externalAuthorLabel,
+            subjectLabel: signal.subjectLabel,
+            postedAt: signal.postedAt,
+            matchConfidence: signal.matchConfidence,
+          })),
+          hasMore: externalSignals.length > externalSignalsLimit,
+          total: externalSignalCount,
         },
         openCases: openCases.map((c) => ({
           id: c.id,

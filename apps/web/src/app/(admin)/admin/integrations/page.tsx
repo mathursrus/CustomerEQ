@@ -1,7 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { API_URL } from '@/lib/config'
+import { useEffect, useState } from 'react'
+import { useAuth } from '@clerk/nextjs'
+import { API_URL, getAuthToken } from '@/lib/config'
+import {
+  DEFAULT_EXTERNAL_SIGNAL_SOURCE_FORM,
+  ExternalSignalSourceForm,
+  type SourceType,
+  type SyncMode,
+} from './external-signal-source-form'
 
 const WEBHOOKS = [
   {
@@ -24,6 +31,40 @@ const WEBHOOKS = [
   },
 ] as const
 
+interface ExternalSignalSource {
+  id: string
+  name: string
+  sourceType: SourceType
+  connectionMethod: string
+  syncMode: SyncMode
+  enabled: boolean
+  healthStatus: string
+  lastSyncAt: string | null
+  lastSuccessAt: string | null
+  lastImportCount: number | null
+  lastError: string | null
+  scopeConfig: Record<string, unknown>
+  webhookPath: string
+}
+
+interface ExternalSignalPreview {
+  externalId: string
+  body: string
+  summary: string | null
+  rating: number | null
+  sentiment: number | null
+  topics: string[]
+}
+
+function parseJsonField(value: string): Record<string, unknown> {
+  if (!value.trim()) return {}
+  const parsed = JSON.parse(value) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('JSON config must be an object')
+  }
+  return parsed as Record<string, unknown>
+}
+
 function CopyButton({ value, testId }: { value: string; testId: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -33,7 +74,7 @@ function CopyButton({ value, testId }: { value: string; testId: string }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // fallback: select the text
+      // Ignore clipboard failures in unsupported environments.
     }
   }
 
@@ -42,61 +83,332 @@ function CopyButton({ value, testId }: { value: string; testId: string }) {
       type="button"
       data-testid={testId}
       onClick={handleCopy}
-      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
     >
-      {copied ? (
-        <>
-          <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
-          Copied!
-        </>
-      ) : (
-        <>
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-          </svg>
-          Copy
-        </>
-      )}
+      {copied ? 'Copied!' : 'Copy'}
     </button>
   )
 }
 
-export default function IntegrationsPage() {
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase()
+  const className =
+    normalized === 'healthy'
+      ? 'bg-green-100 text-green-700'
+      : normalized === 'error'
+        ? 'bg-red-100 text-red-700'
+        : 'bg-gray-100 text-gray-700'
+
   return (
-    <div>
-      <div className="mb-6">
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${className}`}>
+      {status.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+export default function IntegrationsPage() {
+  const { getToken } = useAuth()
+  const [sources, setSources] = useState<ExternalSignalSource[]>([])
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<ExternalSignalPreview[]>([])
+  const [previewSourceId, setPreviewSourceId] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(DEFAULT_EXTERNAL_SIGNAL_SOURCE_FORM)
+
+  async function getHeaders() {
+    const token = await getAuthToken(getToken)
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    return headers
+  }
+
+  async function loadSources() {
+    setLoading(true)
+    setError(null)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${API_URL}/v1/admin/external-signal-sources?page=1&pageSize=50`, {
+        headers,
+      })
+      if (!res.ok) throw new Error('Failed to load external signal sources')
+      const json = await res.json()
+      setSources(json.data ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load external signal sources')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadSources()
+  }, [])
+
+  const formHint =
+    form.syncMode === 'WEBHOOK'
+      ? 'Webhook sources can ingest immediately via the generated source URL.'
+      : form.syncMode === 'POLL'
+        ? 'Polling sources use samplePayloads for the initial implementation path.'
+        : 'Manual sources can be previewed and synced on demand.'
+
+  async function handleCreateSource(event: React.FormEvent) {
+    event.preventDefault()
+    setSubmitting(true)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const headers = await getHeaders()
+      const payload = {
+        name: form.name.trim(),
+        sourceType: form.sourceType,
+        connectionMethod: form.connectionMethod.trim(),
+        syncMode: form.syncMode,
+        enabled: form.enabled,
+        scopeConfig: parseJsonField(form.scopeConfig),
+        filterConfig: parseJsonField(form.filterConfig),
+        matchingConfig: parseJsonField(form.matchingConfig),
+        credentialRef: form.credentialRef.trim() || null,
+      }
+
+      const res = await fetch(`${API_URL}/v1/admin/external-signal-sources`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? body.message ?? 'Failed to create source')
+      }
+
+      setForm(DEFAULT_EXTERNAL_SIGNAL_SOURCE_FORM)
+      setMessage('Source created')
+      await loadSources()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create source')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleTestSource(sourceId: string) {
+    setError(null)
+    setMessage(null)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${API_URL}/v1/admin/external-signal-sources/${sourceId}/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error('Failed to test source')
+      const json = await res.json()
+      setPreview(json.samples ?? [])
+      setPreviewSourceId(sourceId)
+      setMessage('Connection test returned preview data')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to test source')
+    }
+  }
+
+  async function handleSyncSource(sourceId: string) {
+    setError(null)
+    setMessage(null)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${API_URL}/v1/admin/external-signal-sources/${sourceId}/sync`, {
+        method: 'POST',
+        headers,
+      })
+      if (!res.ok) throw new Error('Failed to queue source sync')
+      setMessage('Source sync queued')
+      await loadSources()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to queue source sync')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="mb-2">
         <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
-        <p className="mt-1 text-sm text-gray-500">Connect your CX tools to CustomerEQ via webhooks</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Configure inbound CX webhooks and brand-scoped review or social signal sources.
+        </p>
       </div>
 
-      <div className="space-y-4">
-        {WEBHOOKS.map((wh) => (
-          <div key={wh.slug} className="rounded-xl border border-gray-200 bg-white p-6">
+      {message && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="space-y-4">
+        {WEBHOOKS.map((webhook) => (
+          <div key={webhook.slug} className="rounded-xl border border-gray-200 bg-white p-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`h-8 w-8 rounded-lg ${wh.badgeBg} flex items-center justify-center`}>
-                    <span className={`${wh.badgeText} text-xs font-bold`}>{wh.badgeLabel}</span>
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${webhook.badgeBg}`}>
+                    <span className={`${webhook.badgeText} text-xs font-bold`}>{webhook.badgeLabel}</span>
                   </div>
-                  <h3 className="text-base font-semibold text-gray-900">{wh.name}</h3>
+                  <h2 className="text-base font-semibold text-gray-900">{webhook.name}</h2>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">{wh.description}</p>
+                <p className="mb-3 text-xs text-gray-500">{webhook.description}</p>
                 <code
-                  data-testid={`webhook-url-${wh.slug}`}
-                  className="block rounded-lg bg-gray-50 border border-gray-200 px-4 py-2.5 text-sm font-mono text-gray-800 break-all"
+                  data-testid={`webhook-url-${webhook.slug}`}
+                  className="block break-all rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 font-mono text-sm text-gray-800"
                 >
-                  {wh.url}
+                  {webhook.url}
                 </code>
               </div>
-              <div className="shrink-0 mt-10">
-                <CopyButton value={wh.url} testId={`copy-webhook-${wh.slug}`} />
+              <div className="mt-10 shrink-0">
+                <CopyButton value={webhook.url} testId={`copy-webhook-${webhook.slug}`} />
               </div>
             </div>
           </div>
         ))}
-      </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Review and Social Sources</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Brand-scoped registry for external review, owned social, and webhook-backed sources.
+              </p>
+            </div>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+              {sources.length} configured
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="py-12 text-center text-sm text-gray-400">Loading sources...</div>
+          ) : sources.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+              No external sources configured yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sources.map((source) => (
+                <div
+                  key={source.id}
+                  data-testid={`external-source-row-${source.id}`}
+                  className="rounded-xl border border-gray-200 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900">{source.name}</h3>
+                        <StatusBadge status={source.healthStatus} />
+                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">
+                          {source.sourceType.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {source.connectionMethod} via {source.syncMode.toLowerCase()} {source.enabled ? '- active' : '- paused'}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-400">
+                        Last sync: {source.lastSyncAt ? new Date(source.lastSyncAt).toLocaleString() : 'never'} - Last import: {source.lastImportCount ?? 0}
+                      </p>
+                      {source.lastError && (
+                        <p className="mt-2 text-xs text-red-600">{source.lastError}</p>
+                      )}
+                      <code className="mt-3 block break-all rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                        {API_URL}
+                        {source.webhookPath}
+                      </code>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <CopyButton value={`${API_URL}${source.webhookPath}`} testId={`copy-source-${source.id}`} />
+                      <button
+                        type="button"
+                        data-testid={`test-source-${source.id}`}
+                        onClick={() => void handleTestSource(source.id)}
+                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Test
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`sync-source-${source.id}`}
+                        onClick={() => void handleSyncSource(source.id)}
+                        className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                      >
+                        Sync now
+                      </button>
+                    </div>
+                  </div>
+
+                  {previewSourceId === source.id && preview.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                      <h4 className="text-sm font-semibold text-indigo-900">Test connection preview</h4>
+                      <div className="mt-3 space-y-3">
+                        {preview.map((item) => (
+                          <div key={item.externalId} className="rounded-lg border border-indigo-100 bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-medium text-indigo-700">{item.externalId}</span>
+                              {item.rating != null && (
+                                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                                  rating {item.rating}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-sm text-gray-700">{item.body}</p>
+                            {item.topics.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {item.topics.map((topic) => (
+                                  <span key={topic} className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                                    {topic}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900">Add Source</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Use sample payloads in `scopeConfig` for preview and manual sync during the initial rollout.
+          </p>
+
+          <ExternalSignalSourceForm
+            form={form}
+            formHint={formHint}
+            submitting={submitting}
+            setForm={setForm}
+            onSubmit={handleCreateSource}
+          />
+        </div>
+      </section>
     </div>
   )
 }

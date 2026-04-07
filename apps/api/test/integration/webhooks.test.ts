@@ -6,6 +6,7 @@ import {
   createBrand,
   createProgram,
   createConsentedMember,
+  createExternalSignalSource,
   authenticatedRequest,
   unauthenticatedRequest,
   InMemoryQueue,
@@ -167,6 +168,45 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         .send(body)
 
       // Missing signature headers should result in 401
+      expect(res.status).toBe(401)
+    })
+  })
+
+  describe('POST /v1/integrations/webhooks/external-signals/:sourceId', () => {
+    it('accepts a valid external signal webhook and queues ingestion', async () => {
+      const brand = await createBrand()
+      const source = await createExternalSignalSource({
+        brandId: brand.id,
+        credentialRef: 'shared-secret',
+      })
+      const request = unauthenticatedRequest()
+
+      const res = await request
+        .post(`/v1/integrations/webhooks/external-signals/${source.id}`)
+        .set('X-Source-Secret', 'shared-secret')
+        .send({
+          externalId: 'ext-1',
+          body: 'Store visit was great.',
+          rating: 5,
+        })
+
+      expect(res.status).toBe(202)
+      expect(InMemoryQueue.getJobs('external-signal-ingestion')).toHaveLength(1)
+    })
+
+    it('returns 401 when the source secret is invalid', async () => {
+      const brand = await createBrand()
+      const source = await createExternalSignalSource({
+        brandId: brand.id,
+        credentialRef: 'expected-secret',
+      })
+      const request = unauthenticatedRequest()
+
+      const res = await request
+        .post(`/v1/integrations/webhooks/external-signals/${source.id}`)
+        .set('X-Source-Secret', 'wrong-secret')
+        .send({ externalId: 'ext-2', body: 'Bad secret attempt.' })
+
       expect(res.status).toBe(401)
     })
   })

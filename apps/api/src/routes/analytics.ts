@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { computeTrend, processSentimentForResponse } from '@customerEQ/ai'
-import { SENTIMENT, NPS } from '@customerEQ/shared'
+import { SENTIMENT, NPS, ExternalSignalsQuerySchema } from '@customerEQ/shared'
 import { enqueueFeedbackClustering } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
@@ -94,6 +95,78 @@ function computeCxStats(responses: ResponseRow[]) {
       totalAnalyzed: withSentiment.length,
     },
     topTopics,
+  }
+}
+
+function buildExternalSignalWhere(
+  brandId: string,
+  query: ReturnType<typeof ExternalSignalsQuerySchema.parse>,
+): Prisma.ExternalSignalWhereInput {
+  const where: Prisma.ExternalSignalWhereInput = { brandId }
+
+  if (query.sourceType) where.sourceType = query.sourceType
+  if (query.matchStatus) where.matchStatus = query.matchStatus
+  if (query.resolved === 'true') where.memberId = { not: null }
+  if (query.resolved === 'false') where.memberId = null
+  if (query.ratingMin !== undefined || query.ratingMax !== undefined) {
+    where.rating = {
+      gte: query.ratingMin,
+      lte: query.ratingMax,
+    }
+  }
+  if (query.sentimentMin !== undefined || query.sentimentMax !== undefined) {
+    where.sentiment = {
+      gte: query.sentimentMin,
+      lte: query.sentimentMax,
+    }
+  }
+  if (query.subjectKey) where.subjectKey = query.subjectKey
+  if (query.search) {
+    where.OR = [
+      { body: { contains: query.search, mode: 'insensitive' } },
+      { summary: { contains: query.search, mode: 'insensitive' } },
+      { externalAuthorLabel: { contains: query.search, mode: 'insensitive' } },
+      { subjectLabel: { contains: query.search, mode: 'insensitive' } },
+    ]
+  }
+  if (query.startDate || query.endDate) {
+    const startDate = query.startDate ? new Date(query.startDate) : undefined
+    const endDate = query.endDate ? new Date(query.endDate) : undefined
+    const dateClause: Prisma.ExternalSignalWhereInput = {
+      OR: [
+        { postedAt: { gte: startDate, lte: endDate } },
+        { postedAt: null, ingestedAt: { gte: startDate, lte: endDate } },
+      ],
+    }
+    const existingAnd = where.AND
+      ? (Array.isArray(where.AND) ? where.AND : [where.AND])
+      : []
+    where.AND = [...existingAnd, dateClause]
+  }
+
+  return where
+}
+
+function computeExternalSignalStats(
+  signals: Array<{ sourceType: string; sentiment: number | null; memberId: string | null }>,
+) {
+  const bySourceType = signals.reduce<Record<string, number>>((acc, signal) => {
+    acc[signal.sourceType] = (acc[signal.sourceType] ?? 0) + 1
+    return acc
+  }, {})
+
+  const withSentiment = signals.filter((signal) => signal.sentiment !== null)
+
+  return {
+    total: signals.length,
+    matched: signals.filter((signal) => signal.memberId !== null).length,
+    unmatched: signals.filter((signal) => signal.memberId === null).length,
+    bySourceType,
+    sentimentDistribution: {
+      positive: withSentiment.filter((signal) => signal.sentiment! > SENTIMENT.POSITIVE_THRESHOLD).length,
+      neutral: withSentiment.filter((signal) => signal.sentiment! >= SENTIMENT.NEGATIVE_THRESHOLD && signal.sentiment! <= SENTIMENT.POSITIVE_THRESHOLD).length,
+      negative: withSentiment.filter((signal) => signal.sentiment! < SENTIMENT.NEGATIVE_THRESHOLD).length,
+    },
   }
 }
 
@@ -278,9 +351,23 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         survey: { select: { type: true, name: true } },
       },
     })
+    const externalSignals = await fastify.prisma.externalSignal.findMany({
+      where: buildExternalSignalWhere(brandId, {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        page: 1,
+        pageSize: 1000,
+      }),
+      select: {
+        sourceType: true,
+        sentiment: true,
+        memberId: true,
+      },
+    })
 
     // Aggregate stats (respects surveyId filter if present)
     const aggregate = computeCxStats(responses)
+    const externalSignalStats = computeExternalSignalStats(externalSignals)
 
     // Per-survey breakdown — always return all surveys with stats
     const allSurveys = await fastify.prisma.survey.findMany({
@@ -437,6 +524,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply.status(200).send({
       ...aggregate,
+      externalSignals: externalSignalStats,
       surveys,
       clusters,
       anomalies: anomalies.map((a) => ({
@@ -448,6 +536,47 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         detectedAt: a.detectedAt.toISOString(),
       })),
       dateRange: { startDate: startDateStr, endDate: endDateStr },
+    })
+  })
+
+  fastify.get('/analytics/cx/external-signals', async (request, reply) => {
+    const query = ExternalSignalsQuerySchema.parse(request.query)
+    const where = buildExternalSignalWhere(request.brandId, query)
+
+    const [signals, total] = await Promise.all([
+      fastify.prisma.externalSignal.findMany({
+        where,
+        include: {
+          source: { select: { id: true, name: true } },
+        },
+        orderBy: [{ postedAt: 'desc' }, { ingestedAt: 'desc' }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      fastify.prisma.externalSignal.count({ where }),
+    ])
+
+    return reply.status(200).send({
+      data: signals.map((signal) => ({
+        id: signal.id,
+        sourceId: signal.sourceId,
+        sourceName: signal.source.name,
+        sourceType: signal.sourceType,
+        body: signal.body,
+        summary: signal.summary,
+        rating: signal.rating,
+        sentiment: signal.sentiment,
+        topics: signal.topics,
+        canonicalUrl: signal.canonicalUrl,
+        externalAuthorLabel: signal.externalAuthorLabel,
+        subjectLabel: signal.subjectLabel,
+        matchStatus: signal.matchStatus,
+        postedAt: signal.postedAt ?? signal.ingestedAt,
+      })),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+      totalPages: Math.ceil(total / query.pageSize),
     })
   })
 

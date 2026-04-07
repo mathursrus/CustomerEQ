@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import crypto from 'node:crypto'
-import { enqueueEvent } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueExternalSignalIngestion } from '../queues/bullmq.js'
 import type { InternalCxEvent } from '@customerEQ/shared'
 
 interface SalesforceNPSPayload {
@@ -57,6 +57,17 @@ export function verifyHubSpotSignature(
     const expectedBuf = Buffer.from(expected)
     if (sigBuf.length !== expectedBuf.length) return false
     return crypto.timingSafeEqual(sigBuf, expectedBuf)
+  } catch {
+    return false
+  }
+}
+
+function safeSecretEquals(actual: string, expected: string): boolean {
+  try {
+    const actualBuffer = Buffer.from(actual)
+    const expectedBuffer = Buffer.from(expected)
+    if (actualBuffer.length !== expectedBuffer.length) return false
+    return crypto.timingSafeEqual(actualBuffer, expectedBuffer)
   } catch {
     return false
   }
@@ -255,6 +266,45 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       return reply.status(200).send({ message: 'Webhook processed successfully' })
+    },
+  )
+
+  fastify.post<{ Params: { sourceId: string } }>(
+    '/integrations/webhooks/external-signals/:sourceId',
+    { config: { public: true } },
+    async (request, reply) => {
+      const source = await fastify.prisma.externalSignalSource.findUnique({
+        where: { id: request.params.sourceId },
+        select: {
+          id: true,
+          brandId: true,
+          enabled: true,
+          credentialRef: true,
+        },
+      })
+
+      if (!source || !source.enabled) {
+        return reply.status(404).send({ error: 'External signal source not found' })
+      }
+
+      if (source.credentialRef) {
+        const providedSecret = request.headers['x-source-secret'] as string | undefined
+        if (!providedSecret || !safeSecretEquals(providedSecret, source.credentialRef)) {
+          return reply.status(401).send({ error: 'Invalid source secret' })
+        }
+      }
+
+      await enqueueExternalSignalIngestion({
+        brandId: source.brandId,
+        sourceId: source.id,
+        deliveries: Array.isArray(request.body)
+          ? (request.body as Record<string, unknown>[])
+          : [request.body as Record<string, unknown>],
+        receivedAt: new Date().toISOString(),
+        deliveryType: 'webhook',
+      })
+
+      return reply.status(202).send({ message: 'External signal delivery accepted' })
     },
   )
 }

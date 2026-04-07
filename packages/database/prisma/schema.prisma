@@ -105,52 +105,82 @@ enum KBArticleStatus {
   PUBLISHED
 }
 
+enum ExternalSourceType {
+  GOOGLE_BUSINESS_PROFILE
+  LINKEDIN_ORG
+  REDDIT
+  X
+  GENERIC_WEBHOOK
+  GENERIC_API
+}
+
+enum ExternalSyncMode {
+  WEBHOOK
+  POLL
+  MANUAL
+}
+
+enum ExternalSignalStatus {
+  ACTIVE
+  HIDDEN
+  DELETED
+}
+
+enum ExternalMatchStatus {
+  UNMATCHED
+  CANDIDATE
+  MATCHED
+  REJECTED
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
-  id                String              @id @default(cuid())
-  clerkOrgId        String              @unique // Clerk organization ID → brandId mapping
-  name              String
-  programs          Program[]
-  members           Member[]
-  surveys           Survey[]
-  surveyThemes      SurveyTheme[]
-  questionTemplates QuestionTemplate[]
-  alertRules        AlertRule[]
-  caseFollowUps     CaseFollowUp[]
-  conversations     Conversation[]
-  supportRules      SupportRule[]
-  createdAt         DateTime            @default(now())
+  id                    String                 @id @default(cuid())
+  clerkOrgId            String                 @unique // Clerk organization ID → brandId mapping
+  name                  String
+  programs              Program[]
+  members               Member[]
+  surveys               Survey[]
+  surveyThemes          SurveyTheme[]
+  questionTemplates     QuestionTemplate[]
+  alertRules            AlertRule[]
+  caseFollowUps         CaseFollowUp[]
+  conversations         Conversation[]
+  supportRules          SupportRule[]
+  externalSignalSources ExternalSignalSource[]
+  externalSignals       ExternalSignal[]
+  createdAt             DateTime               @default(now())
 
   @@map("brands")
 }
 
 model Program {
-  id                   String        @id @default(cuid())
-  brandId              String
-  brand                Brand         @relation(fields: [brandId], references: [id])
-  name                 String
-  slug                 String?       @unique // human-readable enrollment URL segment (e.g. "acme-rewards-us")
-  description          String?
-  pointCurrencyName    String        @default("Points")
-  pointToCurrencyRatio Float         @default(0.01) // $0.01 per point
-  status               ProgramStatus @default(DRAFT)
-  type                 ProgramType   @default(POINTS)
-  startDate            DateTime?
-  endDate              DateTime?
-  budgetUsdCents       Int?
+  id                    String           @id @default(cuid())
+  brandId               String
+  brand                 Brand            @relation(fields: [brandId], references: [id])
+  name                  String
+  slug                  String?          @unique // human-readable enrollment URL segment (e.g. "acme-rewards-us")
+  description           String?
+  pointCurrencyName     String           @default("Points")
+  pointToCurrencyRatio  Float            @default(0.01) // $0.01 per point
+  status                ProgramStatus    @default(DRAFT)
+  type                  ProgramType      @default(POINTS)
+  startDate             DateTime?
+  endDate               DateTime?
+  budgetUsdCents        Int?
   monthlyBudgetUsdCents Int?
-  budgetSpentCents     Int           @default(0)
-  alertThresholdPct    Float?
-  haltBehavior         HaltBehavior?
-  deletedAt            DateTime? // soft delete
-  earningRules         EarningRule[]
-  campaigns            Campaign[]
-  rewards              Reward[]
-  tiers                Tier[]
-  versions             ProgramVersion[]
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  budgetSpentCents      Int              @default(0)
+  alertThresholdPct     Float?
+  haltBehavior          HaltBehavior?
+  deletedAt             DateTime? // soft delete
+  earningRules          EarningRule[]
+  campaigns             Campaign[]
+  rewards               Reward[]
+  tiers                 Tier[]
+  versions              ProgramVersion[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@index([brandId])
   @@map("programs")
@@ -182,35 +212,36 @@ model EarningRule {
 }
 
 model Member {
-  id             String         @id @default(cuid())
-  brandId        String
-  brand          Brand          @relation(fields: [brandId], references: [id])
-  email          String
-  clerkUserId    String?
-  firstName      String?
-  lastName       String?
-  phone          String?
-  pointsBalance  Int            @default(0)
-  status         MemberStatus   @default(ACTIVE)
-  consentGivenAt DateTime?
-  consentVersion String?
-  emailOptIn     Boolean        @default(false)
-  smsOptIn       Boolean        @default(false)
-  deletedAt      DateTime? // soft delete (C-02)
-  currentTierId  String?
-  currentTier    Tier?          @relation(fields: [currentTierId], references: [id])
-  erased         Boolean        @default(false) // GDPR erasure flag (C-03)
-  healthScore          Int?       // 0-100 computed health score (null = never computed)
-  healthScoreUpdatedAt DateTime?  // timestamp of last health score computation
-  healthScoreBreakdown Json?      // full HealthScoreBreakdown (sub-scores + note modifier + inconsistency)
-  loyaltyEvents   LoyaltyEvent[]
-  redemptions     Redemption[]
-  campaignEvents  CampaignEvent[]
-  surveyResponses SurveyResponse[]
-  conversations   Conversation[]
-  notes           MemberNote[]
-  createdAt       DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                   String           @id @default(cuid())
+  brandId              String
+  brand                Brand            @relation(fields: [brandId], references: [id])
+  email                String
+  clerkUserId          String?
+  firstName            String?
+  lastName             String?
+  phone                String?
+  pointsBalance        Int              @default(0)
+  status               MemberStatus     @default(ACTIVE)
+  consentGivenAt       DateTime?
+  consentVersion       String?
+  emailOptIn           Boolean          @default(false)
+  smsOptIn             Boolean          @default(false)
+  deletedAt            DateTime? // soft delete (C-02)
+  currentTierId        String?
+  currentTier          Tier?            @relation(fields: [currentTierId], references: [id])
+  erased               Boolean          @default(false) // GDPR erasure flag (C-03)
+  healthScore          Int? // 0-100 computed health score (null = never computed)
+  healthScoreUpdatedAt DateTime? // timestamp of last health score computation
+  healthScoreBreakdown Json? // full HealthScoreBreakdown (sub-scores + note modifier + inconsistency)
+  loyaltyEvents        LoyaltyEvent[]
+  redemptions          Redemption[]
+  campaignEvents       CampaignEvent[]
+  surveyResponses      SurveyResponse[]
+  conversations        Conversation[]
+  notes                MemberNote[]
+  externalSignals      ExternalSignal[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   @@unique([brandId, email])
   @@index([brandId])
@@ -235,6 +266,76 @@ model MemberNote {
   @@map("member_notes")
 }
 
+model ExternalSignalSource {
+  id               String             @id @default(cuid())
+  brandId          String
+  brand            Brand              @relation(fields: [brandId], references: [id])
+  name             String
+  sourceType       ExternalSourceType
+  connectionMethod String
+  syncMode         ExternalSyncMode
+  enabled          Boolean            @default(false)
+  scopeConfig      Json
+  filterConfig     Json?
+  matchingConfig   Json?
+  credentialRef    String?
+  healthStatus     String             @default("never_synced")
+  lastCursor       Json?
+  lastSyncAt       DateTime?
+  lastSuccessAt    DateTime?
+  lastImportCount  Int?
+  lastError        String?
+  lastErrorAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  signals          ExternalSignal[]
+
+  @@index([brandId, enabled])
+  @@index([brandId, sourceType])
+  @@map("external_signal_sources")
+}
+
+model ExternalSignal {
+  id                   String               @id @default(cuid())
+  brandId              String
+  brand                Brand                @relation(fields: [brandId], references: [id])
+  sourceId             String
+  source               ExternalSignalSource @relation(fields: [sourceId], references: [id])
+  memberId             String?
+  member               Member?              @relation(fields: [memberId], references: [id])
+  sourceType           ExternalSourceType
+  externalId           String
+  status               ExternalSignalStatus @default(ACTIVE)
+  matchStatus          ExternalMatchStatus  @default(UNMATCHED)
+  matchConfidence      Float?
+  matchMethod          String?
+  body                 String
+  summary              String?
+  rating               Float?
+  sentiment            Float?
+  confidence           Float?
+  topics               String[]
+  canonicalUrl         String?
+  externalAuthorHandle String?
+  externalAuthorLabel  String?
+  subjectType          String?
+  subjectKey           String?
+  subjectLabel         String?
+  providerStatus       String?
+  statusHistory        Json                 @default("[]")
+  providerMetadata     Json?
+  rawPayload           Json
+  postedAt             DateTime?
+  ingestedAt           DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([brandId, postedAt])
+  @@index([brandId, matchStatus, postedAt])
+  @@index([brandId, memberId, postedAt])
+  @@map("external_signals")
+}
+
 model LoyaltyEvent {
   id             String   @id @default(cuid())
   brandId        String
@@ -256,14 +357,14 @@ model LoyaltyEvent {
 }
 
 model Reward {
-  id          String       @id @default(cuid())
-  brandId     String
-  programId   String
-  program     Program      @relation(fields: [programId], references: [id])
-  name        String
-  description String?
-  pointsCost  Int
-  stock       Int? // null = unlimited
+  id              String       @id @default(cuid())
+  brandId         String
+  programId       String
+  program         Program      @relation(fields: [programId], references: [id])
+  name            String
+  description     String?
+  pointsCost      Int
+  stock           Int? // null = unlimited
   isAvailable     Boolean      @default(true)
   type            RewardType?
   availableFrom   DateTime?
@@ -285,7 +386,7 @@ model Tier {
   brandId       String
   name          String
   rank          Int
-  icon          String?   // emoji preset
+  icon          String? // emoji preset
   minPoints     Int?
   minSpendCents Int?
   benefits      String[]
@@ -305,7 +406,7 @@ model ProgramVersion {
   programId String
   program   Program  @relation(fields: [programId], references: [id])
   brandId   String
-  snapshot  Json     // full program snapshot including tiers, rules, rewards
+  snapshot  Json // full program snapshot including tiers, rules, rewards
   source    String   @default("explicit_save") // "explicit_save" | "auto_save"
   createdAt DateTime @default(now())
 
@@ -371,63 +472,63 @@ model CampaignEvent {
 }
 
 model Survey {
-  id              String           @id @default(cuid())
+  id              String       @id @default(cuid())
   brandId         String
-  brand           Brand            @relation(fields: [brandId], references: [id])
+  brand           Brand        @relation(fields: [brandId], references: [id])
   programId       String
   name            String
-  type            SurveyType       @default(NPS)
-  questions       Json             // Question definitions (array of question objects)
-  settings        Json?            // Distribution settings, branding, etc.
-  status          SurveyStatus     @default(DRAFT)
-  responsesCount  Int              @default(0)
-  incentivePoints Int?             // Points awarded for completing the survey
+  type            SurveyType   @default(NPS)
+  questions       Json // Question definitions (array of question objects)
+  settings        Json? // Distribution settings, branding, etc.
+  status          SurveyStatus @default(DRAFT)
+  responsesCount  Int          @default(0)
+  incentivePoints Int? // Points awarded for completing the survey
   themeId         String?
-  theme           SurveyTheme?     @relation(fields: [themeId], references: [id])
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  theme           SurveyTheme? @relation(fields: [themeId], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  responses       SurveyResponse[]
+  responses SurveyResponse[]
 
   @@index([brandId, status])
   @@map("surveys")
 }
 
 model SurveyTheme {
-  id                  String   @id @default(cuid())
-  brandId             String
-  brand               Brand    @relation(fields: [brandId], references: [id])
-  name                String
-  isDefault           Boolean  @default(false)
+  id        String  @id @default(cuid())
+  brandId   String
+  brand     Brand   @relation(fields: [brandId], references: [id])
+  name      String
+  isDefault Boolean @default(false)
 
-  logoUrl             String?
-  brandName           String?
+  logoUrl   String?
+  brandName String?
 
-  primaryColor        String   @default("#6366f1")
-  secondaryColor      String   @default("#818cf8")
-  backgroundColor     String   @default("#ffffff")
-  textColor           String   @default("#111827")
-  buttonColor         String   @default("#6366f1")
-  buttonTextColor     String   @default("#ffffff")
-  accentColor         String   @default("#6366f1")
+  primaryColor    String @default("#6366f1")
+  secondaryColor  String @default("#818cf8")
+  backgroundColor String @default("#ffffff")
+  textColor       String @default("#111827")
+  buttonColor     String @default("#6366f1")
+  buttonTextColor String @default("#ffffff")
+  accentColor     String @default("#6366f1")
 
-  fontFamily          String   @default("system-ui")
-  headingSize         String   @default("md")
-  bodySize            String   @default("md")
+  fontFamily  String @default("system-ui")
+  headingSize String @default("md")
+  bodySize    String @default("md")
 
-  backgroundImageUrl  String?
-  cardStyle           String   @default("shadow")
-  borderRadius        String   @default("md")
-  maxWidth            String   @default("md")
+  backgroundImageUrl String?
+  cardStyle          String  @default("shadow")
+  borderRadius       String  @default("md")
+  maxWidth           String  @default("md")
 
-  thankYouMessage     String   @default("Thank you for your feedback!")
+  thankYouMessage     String  @default("Thank you for your feedback!")
   thankYouRedirectUrl String?
-  showIncentivePoints Boolean  @default(true)
+  showIncentivePoints Boolean @default(true)
 
-  surveys             Survey[]
+  surveys Survey[]
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([brandId])
   @@map("survey_themes")
@@ -438,7 +539,7 @@ model QuestionTemplate {
   brandId   String
   brand     Brand    @relation(fields: [brandId], references: [id])
   name      String
-  question  Json     // Full SurveyQuestion object
+  question  Json // Full SurveyQuestion object
   tags      String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -448,23 +549,23 @@ model QuestionTemplate {
 }
 
 model SurveyResponse {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   surveyId    String
-  survey      Survey   @relation(fields: [surveyId], references: [id])
+  survey      Survey           @relation(fields: [surveyId], references: [id])
   memberId    String
-  member      Member   @relation(fields: [memberId], references: [id])
+  member      Member           @relation(fields: [memberId], references: [id])
   brandId     String
-  answers     Json     // { questionId: answer }
-  score       Float?   // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
-  sentiment   Float?   // -1.0 to 1.0 (AI-analyzed from open-ended text)
-  confidence  Float?   // AI confidence in sentiment score, 0.0 to 1.0
+  answers     Json // { questionId: answer }
+  score       Float? // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
+  sentiment   Float? // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  confidence  Float? // AI confidence in sentiment score, 0.0 to 1.0
   topics      String[] // AI-extracted topics from open-ended responses
-  summary     String?  // AI-generated one-line summary
-  clusterId   String?  // FK to FeedbackCluster
+  summary     String? // AI-generated one-line summary
+  clusterId   String? // FK to FeedbackCluster
   cluster     FeedbackCluster? @relation(fields: [clusterId], references: [id])
-  channel     String   @default("link") // email, in_app, link, sms
-  completedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
+  channel     String           @default("link") // email, in_app, link, sms
+  completedAt DateTime         @default(now())
+  createdAt   DateTime         @default(now())
 
   @@unique([surveyId, memberId]) // One response per member per survey
   @@index([brandId, completedAt])
@@ -484,8 +585,8 @@ model FeedbackCluster {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  responses     SurveyResponse[]
-  snapshots     ClusterSnapshot[]
+  responses SurveyResponse[]
+  snapshots ClusterSnapshot[]
 
   @@unique([brandId, label])
   @@index([brandId, isActive])
@@ -493,16 +594,16 @@ model FeedbackCluster {
 }
 
 model ClusterSnapshot {
-  id           String   @id @default(cuid())
+  id           String          @id @default(cuid())
   clusterId    String
   cluster      FeedbackCluster @relation(fields: [clusterId], references: [id])
   brandId      String
   bucketDate   DateTime // Start of the day bucket
-  volume       Int      // Number of responses in this bucket
+  volume       Int // Number of responses in this bucket
   avgSentiment Float?
-  isAnomaly    Boolean  @default(false)
+  isAnomaly    Boolean         @default(false)
   zScore       Float?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime        @default(now())
 
   @@unique([clusterId, bucketDate])
   @@index([brandId, bucketDate])
@@ -513,8 +614,8 @@ model FeedbackAnomaly {
   id         String    @id @default(cuid())
   brandId    String
   clusterId  String?
-  type       String    // volume_spike, sentiment_drop, new_theme, volume_decline
-  severity   String    // low, medium, high
+  type       String // volume_spike, sentiment_drop, new_theme, volume_decline
+  severity   String // low, medium, high
   summary    String
   detectedAt DateTime  @default(now())
   resolvedAt DateTime?
@@ -525,36 +626,36 @@ model FeedbackAnomaly {
 }
 
 model AlertRule {
-  id                 String   @id @default(cuid())
-  brandId            String
-  brand              Brand    @relation(fields: [brandId], references: [id])
-  name               String
-  status             String   @default("ACTIVE") // ACTIVE, PAUSED
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id])
+  name    String
+  status  String @default("ACTIVE") // ACTIVE, PAUSED
 
   // Trigger conditions
   surveyTypes        String[] // ['NPS', 'CSAT'] or empty = all
   scoreMin           Float?
   scoreMax           Float?
-  sentimentThreshold Float?   // alert if sentiment below this
+  sentimentThreshold Float? // alert if sentiment below this
   topicFilters       String[] // ['shipping', 'billing'] or empty = all
 
   // Alert channels
-  slackWebhookUrl    String?
-  slackChannelName   String?
-  emailRecipients    String[]
-  teamsWebhookUrl    String?
+  slackWebhookUrl  String?
+  slackChannelName String?
+  emailRecipients  String[]
+  teamsWebhookUrl  String?
 
   // Assignment
-  defaultAssignee    String
-  assignmentRules    Json     @default("[]") // [{ topic, assignee }]
+  defaultAssignee String
+  assignmentRules Json   @default("[]") // [{ topic, assignee }]
 
   // SLA
-  slaHours           Float?
+  slaHours Float?
 
-  cases              CaseFollowUp[]
+  cases CaseFollowUp[]
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([brandId, status])
   @@map("alert_rules")
@@ -569,25 +670,25 @@ model CaseFollowUp {
   surveyResponseId String
   memberId         String
 
-  status           String    @default("OPEN") // OPEN, CONTACTED, RESOLVED, CLOSED
-  assignee         String
-  priority         String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status   String @default("OPEN") // OPEN, CONTACTED, RESOLVED, CLOSED
+  assignee String
+  priority String @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
 
   // SLA
-  slaDeadline      DateTime?
-  slaBreachedAt    DateTime?
+  slaDeadline   DateTime?
+  slaBreachedAt DateTime?
 
   // External references
-  slackMessageTs   String?
+  slackMessageTs String?
 
   // Notes / timeline
-  notes            Json      @default("[]") // [{ text, author, timestamp, statusChange? }]
+  notes Json @default("[]") // [{ text, author, timestamp, statusChange? }]
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  contactedAt      DateTime?
-  resolvedAt       DateTime?
-  closedAt         DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contactedAt DateTime?
+  resolvedAt  DateTime?
+  closedAt    DateTime?
 
   @@index([brandId, status])
   @@index([alertRuleId])
@@ -625,32 +726,32 @@ model AuditEvent {
 // ─── Support Chat Models ─────────────────────────────────────────────────────
 
 model Conversation {
-  id             String             @id @default(cuid())
-  brandId        String
-  brand          Brand              @relation(fields: [brandId], references: [id])
-  memberId       String
-  member         Member             @relation(fields: [memberId], references: [id])
+  id       String @id @default(cuid())
+  brandId  String
+  brand    Brand  @relation(fields: [brandId], references: [id])
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
 
-  status         ConversationStatus @default(ACTIVE)
-  intent         String?            // classified intent (billing, shipping, etc.)
-  confidence     Float?             // intent classification confidence
-  topic          String?            // extracted topic
-  summary        String?            // AI-generated conversation summary
+  status     ConversationStatus @default(ACTIVE)
+  intent     String? // classified intent (billing, shipping, etc.)
+  confidence Float? // intent classification confidence
+  topic      String? // extracted topic
+  summary    String? // AI-generated conversation summary
 
   // Escalation
-  assignee       String?            // human agent email
-  caseFollowUpId String?            // FK to CaseFollowUp if escalated
+  assignee       String? // human agent email
+  caseFollowUpId String? // FK to CaseFollowUp if escalated
   escalatedAt    DateTime?
 
   // Rules matched
-  rulesMatched   String[]           // SupportRule IDs that fired
+  rulesMatched String[] // SupportRule IDs that fired
 
-  messages       Message[]
+  messages Message[]
 
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  resolvedAt     DateTime?
-  closedAt       DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+  closedAt   DateTime?
 
   @@index([brandId, status])
   @@index([memberId])
@@ -659,62 +760,62 @@ model Conversation {
 }
 
 model Message {
-  id              String       @id @default(cuid())
-  conversationId  String
-  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
 
-  role            MessageRole  // CUSTOMER, AI, AGENT
-  content         String       // message text
-  metadata        Json?        // { kbArticleIds, customer360Snapshot, intentResult, confidence }
+  role     MessageRole // CUSTOMER, AI, AGENT
+  content  String // message text
+  metadata Json? // { kbArticleIds, customer360Snapshot, intentResult, confidence }
 
-  createdAt       DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   @@index([conversationId, createdAt])
   @@map("messages")
 }
 
 model SupportRule {
-  id              String   @id @default(cuid())
-  brandId         String
-  brand           Brand    @relation(fields: [brandId], references: [id])
-  name            String
-  description     String?
-  status          String   @default("ACTIVE") // ACTIVE, PAUSED
-  priority        Int      @default(0)        // lower = evaluated first
+  id          String  @id @default(cuid())
+  brandId     String
+  brand       Brand   @relation(fields: [brandId], references: [id])
+  name        String
+  description String?
+  status      String  @default("ACTIVE") // ACTIVE, PAUSED
+  priority    Int     @default(0) // lower = evaluated first
 
   // Match conditions
-  intentFilters   String[] // ["billing", "shipping"] or empty = all
-  tierFilters     String[] // ["Gold", "Platinum"] or empty = all
-  healthScoreMin  Float?   // match if health score >= this
-  healthScoreMax  Float?   // match if health score <= this
-  topicFilters    String[] // ["refund", "overcharge"] or empty = all
-  conditions      Json     @default("{}") // ConditionGroup for additional field/op/value matching
+  intentFilters  String[] // ["billing", "shipping"] or empty = all
+  tierFilters    String[] // ["Gold", "Platinum"] or empty = all
+  healthScoreMin Float? // match if health score >= this
+  healthScoreMax Float? // match if health score <= this
+  topicFilters   String[] // ["refund", "overcharge"] or empty = all
+  conditions     Json     @default("{}") // ConditionGroup for additional field/op/value matching
 
   // Actions (multiple can fire)
-  autoRespondArticleId String?  // KB article ID to auto-respond with
-  escalateToAssignee   String?  // human agent email for escalation
-  awardPoints          Int?     // compensatory points to award
-  triggerSurveyId      String?  // post-resolution survey to trigger
+  autoRespondArticleId String? // KB article ID to auto-respond with
+  escalateToAssignee   String? // human agent email for escalation
+  awardPoints          Int? // compensatory points to award
+  triggerSurveyId      String? // post-resolution survey to trigger
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([brandId, status])
   @@map("support_rules")
 }
 
 model KBArticle {
-  id          String            @id @default(cuid())
-  brandId     String
-  title       String
-  body        String            // Markdown content
-  category    KBArticleCategory @default(FAQ)
-  tags        String[]
-  status      KBArticleStatus   @default(DRAFT)
-  embedding   Unsupported("vector(1536)")? // pgvector -- nullable until generated
-  deletedAt   DateTime?         // soft delete (GDPR/CCPA, project rule #13)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id        String                       @id @default(cuid())
+  brandId   String
+  title     String
+  body      String // Markdown content
+  category  KBArticleCategory            @default(FAQ)
+  tags      String[]
+  status    KBArticleStatus              @default(DRAFT)
+  embedding Unsupported("vector(1536)")? // pgvector -- nullable until generated
+  deletedAt DateTime? // soft delete (GDPR/CCPA, project rule #13)
+  createdAt DateTime                     @default(now())
+  updatedAt DateTime                     @updatedAt
 
   @@index([brandId, status])
   @@index([brandId, category])

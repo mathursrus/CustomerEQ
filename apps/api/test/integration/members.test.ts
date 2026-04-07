@@ -15,6 +15,8 @@ import {
   createCampaignEvent,
   createConversation,
   createTier,
+  createExternalSignalSource,
+  createExternalSignal,
   authenticatedRequest,
   unauthenticatedRequest,
   getTestPrisma,
@@ -391,6 +393,16 @@ describe('Members API — /v1/members', () => {
 
       const campaign = await createCampaign({ brandId: brand.id, programId: program.id })
       await createCampaignEvent({ brandId: brand.id, campaignId: campaign.id, memberId: member.id })
+      const source = await createExternalSignalSource({ brandId: brand.id, name: 'Flagship Reviews' })
+      await createExternalSignal({
+        brandId: brand.id,
+        sourceId: source.id,
+        memberId: member.id,
+        sourceType: 'GENERIC_WEBHOOK',
+        body: 'Packaging arrived damaged.',
+        subjectLabel: 'Starter Kit',
+        externalAuthorLabel: 'reviewer-1',
+      })
 
       const request = authenticatedRequest(brand.id)
       const res = await request.get(`/v1/members/${member.id}/360`)
@@ -412,6 +424,8 @@ describe('Members API — /v1/members', () => {
       expect(res.body.redemptions.items[0].pointsSpent).toBe(200)
 
       expect(res.body.campaignEvents.items).toHaveLength(1)
+      expect(res.body.externalSignals.items).toHaveLength(1)
+      expect(res.body.externalSignals.items[0].sourceName).toBe('Flagship Reviews')
 
       // Stats
       expect(res.body.stats.totalEvents).toBe(2)
@@ -434,6 +448,7 @@ describe('Members API — /v1/members', () => {
       expect(res.body.surveyResponses.items).toHaveLength(0)
       expect(res.body.redemptions.items).toHaveLength(0)
       expect(res.body.campaignEvents.items).toHaveLength(0)
+      expect(res.body.externalSignals.items).toHaveLength(0)
       expect(res.body.openCases).toHaveLength(0)
       expect(res.body.openConversations).toHaveLength(0)
       expect(res.body.stats.totalEvents).toBe(0)
@@ -544,6 +559,28 @@ describe('Members API — /v1/members', () => {
       expect(res.body.recentEvents.items).toHaveLength(3)
       expect(res.body.recentEvents.hasMore).toBe(true)
       expect(res.body.recentEvents.total).toBe(5)
+    })
+
+    it('excludes unmatched external signals from customer 360', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const source = await createExternalSignalSource({ brandId: brand.id, name: 'Public Reviews' })
+
+      await createExternalSignal({
+        brandId: brand.id,
+        sourceId: source.id,
+        memberId: null,
+        matchStatus: 'UNMATCHED',
+        body: 'Public comment with no known member.',
+      })
+
+      const request = authenticatedRequest(brand.id)
+      const res = await request.get(`/v1/members/${member.id}/360`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.externalSignals.items).toHaveLength(0)
+      expect(res.body.externalSignals.total).toBe(0)
     })
   })
 

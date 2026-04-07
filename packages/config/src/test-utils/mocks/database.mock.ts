@@ -46,6 +46,21 @@ export function createMockPrisma() {
     brand: {
       findUnique: vi.fn(),
     },
+    externalSignalSource: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+    },
+    externalSignal: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+    },
     feedbackCluster: {
       findMany: vi.fn(),
       create: vi.fn(),
