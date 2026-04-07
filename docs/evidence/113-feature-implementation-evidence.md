@@ -1,7 +1,7 @@
 # Feature Implementation Evidence - Issue #113: Social Review Ingestion and External Signal Hub
 
 Issue: `113`
-Branch: `feature/issue-113-social-review-ingestion-implementation`
+Branch: `feature/issue-113-social-review-ingestion-spec`
 Spec: `docs/feature-specs/113-social-review-ingestion.md`
 RFC: `docs/rfcs/113-social-review-ingestion.md`
 PR: `#114` (`https://github.com/mathursrus/CustomerEQ/pull/114`)
@@ -17,7 +17,7 @@ Implemented a brand-scoped external signal platform that adds:
 - matched external signals in Customer 360
 - admin and operator UI for integrations, analytics, and member context
 
-The implementation intentionally keeps provider realism within repo-feasible boundaries for v1: source testing and sync use configured `samplePayloads` / `seedSignals`, the generic webhook path supports real inbound deliveries, and the shared model remains extensible for future native connectors.
+The implementation intentionally keeps provider realism within repo-feasible boundaries for v1: source testing and sync use configured `samplePayloads` / `seedSignals`, the generic webhook path supports real inbound deliveries, and the shared model remains extensible for future native connectors. The completed implementation was folded into the existing canonical review branch for PR `#114` instead of opening a second implementation PR.
 
 ## Files Changed
 

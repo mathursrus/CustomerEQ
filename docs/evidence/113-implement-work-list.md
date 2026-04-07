@@ -1,7 +1,7 @@
 # Implementation Work List - Issue #113 Social Review Ingestion
 
 **Issue type**: feature
-**Branch**: `feature/issue-113-social-review-ingestion-implementation`
+**Branch**: `feature/issue-113-social-review-ingestion-spec`
 **RFC**: `docs/rfcs/113-social-review-ingestion.md`
 **Spec**: `docs/feature-specs/113-social-review-ingestion.md`
 
