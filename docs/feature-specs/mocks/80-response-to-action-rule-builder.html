@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Issue #80 — Response-to-Action Rule Builder & Loop Monitor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f4f4f5; color: #18181b; font-size: 14px; line-height: 1.5; }
+
+  /* Scenario switcher */
+  .scenario-bar { background: #18181b; padding: 10px 0; position: sticky; top: 0; z-index: 100; }
+  .scenario-bar-inner { max-width: 820px; margin: 0 auto; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .scenario-bar-inner span { color: #a1a1aa; font-size: 12px; margin-right: 4px; }
+  .sc-btn { background: #3f3f46; color: #d4d4d8; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .sc-btn:hover { background: #52525b; }
+  .sc-btn.active { background: #6366f1; color: #fff; }
+
+  /* Layout */
+  .page { max-width: 820px; margin: 0 auto; padding: 28px 20px 60px; }
+  .scenario { display: none; }
+  .scenario.active { display: block; }
+
+  /* Wizard chrome */
+  .wizard-header { margin-bottom: 24px; }
+  .wizard-title { font-size: 20px; font-weight: 700; color: #18181b; }
+  .wizard-sub { color: #71717a; font-size: 13px; margin-top: 4px; }
+
+  /* Step indicator */
+  .step-bar { display: flex; align-items: center; gap: 0; margin-bottom: 28px; }
+  .step-item { display: flex; align-items: center; gap: 8px; }
+  .step-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .step-circle.done { background: #22c55e; color: #fff; }
+  .step-circle.active { background: #6366f1; color: #fff; }
+  .step-circle.pending { background: #fff; border: 2px solid #d4d4d8; color: #a1a1aa; }
+  .step-label { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .step-label.done { color: #22c55e; }
+  .step-label.active { color: #6366f1; }
+  .step-label.pending { color: #a1a1aa; }
+  .step-connector { flex: 1; height: 2px; background: #e4e4e7; margin: 0 8px; min-width: 20px; }
+  .step-connector.done { background: #22c55e; }
+
+  /* Cards */
+  .card { border-radius: 12px; border: 1px solid #e4e4e7; background: #fff; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 15px; font-weight: 700; color: #18181b; margin-bottom: 4px; }
+  .card-sub { font-size: 12px; color: #71717a; }
+
+  /* Buttons */
+  .btn-primary { background: #6366f1; color: #fff; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-ghost { background: #fff; border: 1px solid #d4d4d8; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #3f3f46; font-weight: 500; transition: background 0.15s; }
+  .btn-ghost:hover { background: #f4f4f5; }
+  .btn-danger { background: #fff; border: 1px solid #fca5a5; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #ef4444; font-weight: 500; }
+  .btn-success { background: #22c55e; color: #fff; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  /* Score pills */
+  .pill { display: inline-block; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .pill-red { background: #fee2e2; color: #dc2626; }
+  .pill-amber { background: #fef3c7; color: #d97706; }
+  .pill-green { background: #dcfce7; color: #16a34a; }
+  .pill-blue { background: #dbeafe; color: #1d4ed8; }
+
+  /* Rule row card */
+  .rule-row { border-radius: 10px; border: 1px solid #e4e4e7; background: #fff; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: opacity 0.2s; }
+  .rule-row.dimmed { opacity: 0.35; pointer-events: none; }
+  .rule-row-arrow { color: #a1a1aa; font-size: 16px; }
+  .rule-row-action { flex: 1; }
+  .rule-row-action strong { font-size: 13px; font-weight: 600; color: #18181b; }
+  .rule-row-action .rule-detail { font-size: 11px; color: #71717a; margin-top: 1px; }
+  .rule-row-meta { font-size: 11px; color: #a1a1aa; white-space: nowrap; }
+
+  /* Inline editor */
+  .inline-editor { background: #f9f9fb; border: 1px solid #c7d2fe; border-radius: 10px; padding: 16px; margin: 8px 0 10px; }
+  .inline-editor h4 { font-size: 13px; font-weight: 700; color: #4f46e5; margin-bottom: 14px; }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 11px; font-weight: 600; color: #52525b; text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-group input, .form-group select { border: 1px solid #d4d4d8; border-radius: 6px; padding: 7px 10px; font-size: 13px; color: #18181b; background: #fff; outline: none; }
+  .form-group input:focus, .form-group select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px #e0e7ff; }
+  .form-group input[type=number] { width: 80px; }
+  .editor-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+  /* Playbook panel */
+  .playbook-panel { background: #f0f0fe; border: 1px solid #c7d2fe; border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .playbook-panel h4 { font-size: 13px; font-weight: 700; color: #4f46e5; margin-bottom: 14px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #3f3f46; margin-bottom: 14px; }
+  .checkbox-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #6366f1; }
+
+  /* Footer toolbar */
+  .step-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e4e4e7; flex-wrap: wrap; gap: 10px; }
+  .footer-budget { font-size: 12px; color: #52525b; }
+  .footer-budget strong { color: #18181b; }
+
+  /* Add rule */
+  .add-rule-btn { display: flex; align-items: center; gap: 6px; color: #6366f1; font-size: 13px; font-weight: 600; background: none; border: 1px dashed #a5b4fc; border-radius: 8px; padding: 8px 14px; cursor: pointer; margin-top: 4px; width: 100%; justify-content: center; }
+  .add-rule-btn:hover { background: #f0f0fe; }
+
+  /* Success banner */
+  .banner-success { background: #dcfce7; border: 1px solid #86efac; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #15803d; font-weight: 600; margin-bottom: 16px; }
+  .banner-warning { background: #fef9c3; border: 1px solid #fde047; border-radius: 10px; padding: 12px 16px; display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #854d0e; margin-bottom: 16px; }
+  .banner-warning strong { font-weight: 700; }
+
+  /* Loop monitor pipeline */
+  .pipeline { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; }
+  .pipeline-node { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 110px; }
+  .pipeline-count { font-size: 22px; font-weight: 800; color: #18181b; }
+  .pipeline-count.zero { color: #d4d4d8; }
+  .pipeline-label { font-size: 11px; color: #71717a; text-align: center; }
+  .pipeline-meta { font-size: 10px; color: #a1a1aa; font-style: italic; text-align: center; }
+  .pipeline-arrow { color: #d4d4d8; font-size: 20px; padding: 0 4px; align-self: center; flex-shrink: 0; padding-bottom: 14px; }
+
+  /* Response table */
+  .resp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .resp-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e4e4e7; }
+  .resp-table td { padding: 10px 12px; border-bottom: 1px solid #f4f4f5; }
+  .resp-table tr:last-child td { border-bottom: none; }
+
+  /* Summary list */
+  .summary-rule { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f4f4f5; }
+  .summary-rule:last-child { border-bottom: none; }
+  .summary-rule-body { flex: 1; }
+  .summary-rule-body .rule-name { font-size: 13px; font-weight: 600; color: #18181b; }
+  .summary-rule-body .rule-desc { font-size: 12px; color: #71717a; margin-top: 1px; }
+
+  /* Dropdown row */
+  .playbook-load-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .playbook-load-row label { font-size: 12px; font-weight: 600; color: #52525b; white-space: nowrap; }
+  .playbook-load-row select { border: 1px solid #d4d4d8; border-radius: 8px; padding: 7px 12px; font-size: 13px; color: #18181b; background: #fff; outline: none; cursor: pointer; }
+
+  /* Section heading */
+  .section-heading { font-size: 18px; font-weight: 700; color: #18181b; margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: #71717a; margin-bottom: 20px; }
+
+  /* Tag strip */
+  .tag-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tag { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 9px; font-size: 11px; color: #52525b; }
+  .tag strong { color: #18181b; }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid #e4e4e7; margin: 20px 0; }
+
+  /* Hidden util */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Scenario switcher -->
+<div class="scenario-bar">
+  <div class="scenario-bar-inner">
+    <span>Scenario:</span>
+    <button class="sc-btn active" onclick="showScenario(1)">1 — Happy Path</button>
+    <button class="sc-btn" onclick="showScenario(2)">2 — Inline Rule Editor</button>
+    <button class="sc-btn" onclick="showScenario(3)">3 — Save as Playbook</button>
+    <button class="sc-btn" onclick="showScenario(4)">4 — 48h Warning</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO 1: Happy Path
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario active" id="sc1">
+
+  <!-- Step bar -->
+  <div class="step-bar">
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Trigger</span>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Survey Content</span>
+    </div>
+    <div class="step-connector done" id="sc1-conn2"></div>
+    <div class="step-item">
+      <div class="step-circle active" id="sc1-step3-circle">3</div>
+      <span class="step-label active" id="sc1-step3-label">Response Rules</span>
+    </div>
+    <div class="step-connector" id="sc1-conn3"></div>
+    <div class="step-item">
+      <div class="step-circle pending" id="sc1-step4-circle">4</div>
+      <span class="step-label pending" id="sc1-step4-label">Review &amp; Launch</span>
+    </div>
+  </div>
+
+  <!-- STEP 3 panel -->
+  <div id="sc1-step3">
+    <div class="wizard-header">
+      <div class="wizard-title">What happens next?</div>
+      <div class="wizard-sub">Define how the system responds to each score range.</div>
+    </div>
+
+    <div class="tag-strip">
+      <span class="tag"><strong>Survey:</strong> Post Tier-Upgrade CSAT</span>
+      <span class="tag"><strong>Trigger:</strong> tier_upgrade</span>
+    </div>
+
+    <!-- Playbook loader -->
+    <div class="playbook-load-row">
+      <label>Load Playbook:</label>
+      <select>
+        <option>Standard CSAT Playbook</option>
+        <option>Win-back Playbook</option>
+        <option>Custom…</option>
+      </select>
+      <button class="btn-ghost btn-sm">Apply</button>
+    </div>
+
+    <!-- Rule rows -->
+    <div id="sc1-rules">
+      <div class="rule-row">
+        <span class="pill pill-red">CSAT 1–2</span>
+        <span class="rule-row-arrow">→</span>
+        <div class="rule-row-action">
+          <strong>Win-back Campaign</strong>
+          <div class="rule-detail">100 bonus points + apology message</div>
+        </div>
+        <span class="rule-row-meta">~8 members/mo</span>
+        <button class="btn-ghost btn-sm">Edit</button>
+      </div>
+
+      <div class="rule-row">
+        <span class="pill pill-amber">CSAT 3</span>
+        <span class="rule-row-arrow">→</span>
+        <div class="rule-row-action">
+          <strong>Recovery Nudge</strong>
+          <div class="rule-detail">50 points + follow-up</div>
+        </div>
+        <span class="rule-row-meta">~14 members/mo</span>
+        <button class="btn-ghost btn-sm">Edit</button>
+      </div>
+
+      <div class="rule-row">
+        <span class="pill pill-green">CSAT 4–5</span>
+        <span class="rule-row-arrow">→</span>
+        <div class="rule-row-action">
+          <strong>Referral Campaign</strong>
+          <div class="rule-detail">200 points invite-a-friend</div>
+        </div>
+        <span class="rule-row-meta">~25 members/mo</span>
+        <button class="btn-ghost btn-sm">Edit</button>
+      </div>
+    </div>
+
+    <button class="add-rule-btn">+ Add another rule</button>
+
+    <div class="step-footer">
+      <div class="footer-budget">Total estimated budget: <strong>~4,700 points/month</strong> ($47 equivalent)</div>
+      <button class="btn-primary" onclick="sc1GoToStep4()">Continue to Review →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 panel (hidden until Continue clicked) -->
+  <div id="sc1-step4" class="hidden">
+    <div class="wizard-header">
+      <div class="wizard-title">Review &amp; Launch</div>
+      <div class="wizard-sub">Confirm your survey and response rules before going live.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:12px;">Survey Details</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
+        <div><span style="color:#71717a;">Survey</span><br/><strong>Post Tier-Upgrade CSAT</strong></div>
+        <div><span style="color:#71717a;">Trigger</span><br/><strong>tier_upgrade</strong></div>
+        <div><span style="color:#71717a;">Delivery</span><br/><strong>In-app + Email</strong></div>
+        <div><span style="color:#71717a;">Audience</span><br/><strong>All tier-upgraded members</strong></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:2px;">Response Rules (3)</div>
+      <div class="card-sub" style="margin-bottom:14px;">Applied automatically when a response arrives.</div>
+
+      <div class="summary-rule">
+        <span class="pill pill-red">CSAT 1–2</span>
+        <div class="summary-rule-body">
+          <div class="rule-name">Win-back Campaign</div>
+          <div class="rule-desc">100 bonus points + apology message · ~8 members/mo</div>
+        </div>
+      </div>
+      <div class="summary-rule">
+        <span class="pill pill-amber">CSAT 3</span>
+        <div class="summary-rule-body">
+          <div class="rule-name">Recovery Nudge</div>
+          <div class="rule-desc">50 points + follow-up · ~14 members/mo</div>
+        </div>
+      </div>
+      <div class="summary-rule">
+        <span class="pill pill-green">CSAT 4–5</span>
+        <div class="summary-rule-body">
+          <div class="rule-name">Referral Campaign</div>
+          <div class="rule-desc">200 points invite-a-friend · ~25 members/mo</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid #f4f4f5; font-size:12px; color:#52525b;">
+        Total estimated budget: <strong style="color:#18181b;">~4,700 points/month</strong> ($47 equivalent)
+      </div>
+    </div>
+
+    <!-- Launch -->
+    <div id="sc1-launch-area">
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn-primary" style="font-size:14px; padding:10px 24px;" onclick="sc1Launch()">Launch Survey + Rules</button>
+      </div>
+    </div>
+
+    <!-- Post-launch state (hidden) -->
+    <div id="sc1-post-launch" class="hidden">
+      <div class="banner-success">
+        <span style="font-size:20px;">✅</span>
+        Survey is live — monitoring the loop
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Loop Monitor</div>
+
+        <!-- Pipeline -->
+        <div class="pipeline">
+          <div class="pipeline-node">
+            <div class="pipeline-count">47</div>
+            <div class="pipeline-label">Surveys Sent</div>
+          </div>
+          <div class="pipeline-arrow">→</div>
+          <div class="pipeline-node">
+            <div class="pipeline-count">31</div>
+            <div class="pipeline-label">Responses</div>
+          </div>
+          <div class="pipeline-arrow">→</div>
+          <div class="pipeline-node">
+            <div class="pipeline-count">31</div>
+            <div class="pipeline-label">Rules Matched</div>
+          </div>
+          <div class="pipeline-arrow">→</div>
+          <div class="pipeline-node">
+            <div class="pipeline-count">31</div>
+            <div class="pipeline-label">Campaigns Triggered</div>
+            <div class="pipeline-meta">avg 4.2 min latency</div>
+          </div>
+          <div class="pipeline-arrow">→</div>
+          <div class="pipeline-node">
+            <div class="pipeline-count">18</div>
+            <div class="pipeline-label">Rewards Redeemed</div>
+          </div>
+        </div>
+
+        <!-- Breakdown table -->
+        <table class="resp-table">
+          <thead>
+            <tr>
+              <th>Score Range</th>
+              <th>Responses</th>
+              <th>Campaign</th>
+              <th>Triggered</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pill pill-red">CSAT 1–2</span></td>
+              <td>4</td>
+              <td>Win-back Campaign</td>
+              <td>4</td>
+              <td>2 redeemed</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-amber">CSAT 3</span></td>
+              <td>9</td>
+              <td>Recovery Nudge</td>
+              <td>9</td>
+              <td>5 redeemed</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-green">CSAT 4–5</span></td>
+              <td>18</td>
+              <td>Referral Campaign</td>
+              <td>18</td>
+              <td>11 redeemed</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /sc1 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO 2: Inline Rule Editor
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario" id="sc2">
+
+  <div class="step-bar">
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Trigger</span>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Survey Content</span>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item">
+      <div class="step-circle active">3</div>
+      <span class="step-label active">Response Rules</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item">
+      <div class="step-circle pending">4</div>
+      <span class="step-label pending">Review &amp; Launch</span>
+    </div>
+  </div>
+
+  <div class="wizard-header">
+    <div class="wizard-title">What happens next?</div>
+    <div class="wizard-sub">Define how the system responds to each score range.</div>
+  </div>
+
+  <div class="tag-strip">
+    <span class="tag"><strong>Survey:</strong> Post Tier-Upgrade CSAT</span>
+    <span class="tag"><strong>Trigger:</strong> tier_upgrade</span>
+  </div>
+
+  <div class="playbook-load-row">
+    <label>Load Playbook:</label>
+    <select>
+      <option>Standard CSAT Playbook</option>
+      <option>Win-back Playbook</option>
+      <option>Custom…</option>
+    </select>
+    <button class="btn-ghost btn-sm">Apply</button>
+  </div>
+
+  <!-- Row 1 — expanded editor -->
+  <div style="margin-bottom:10px;">
+    <div class="rule-row" style="background:#f0f0fe; border-color:#a5b4fc;">
+      <span class="pill pill-red">CSAT 1–2</span>
+      <span class="rule-row-arrow">→</span>
+      <div class="rule-row-action">
+        <strong>Win-back Campaign</strong>
+        <div class="rule-detail">Editing…</div>
+      </div>
+      <span class="rule-row-meta">~8 members/mo</span>
+      <button class="btn-ghost btn-sm" style="border-color:#a5b4fc; color:#4f46e5;">Collapse</button>
+    </div>
+
+    <!-- Inline editor panel -->
+    <div class="inline-editor">
+      <h4>Edit Rule — Score Range</h4>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Min Score</label>
+          <input type="number" value="1" min="1" max="5" />
+        </div>
+        <div class="form-group">
+          <label>Max Score</label>
+          <input type="number" value="2" min="1" max="5" />
+        </div>
+        <div class="form-group" style="flex:1; min-width:180px;">
+          <label>Action Type</label>
+          <select id="sc2-action-type" onchange="sc2TogglePoints()">
+            <option value="award">Award Points</option>
+            <option value="message">Send Message</option>
+            <option value="referral">Referral Campaign</option>
+            <option value="winback" selected>Win-back Campaign</option>
+          </select>
+        </div>
+        <div class="form-group" id="sc2-points-group" style="display:none;">
+          <label>Points</label>
+          <input type="number" value="100" min="0" />
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-primary btn-sm" onclick="sc2SaveRule()">Save Rule</button>
+        <button class="btn-ghost btn-sm" onclick="sc2Cancel()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2 & 3 — dimmed -->
+  <div class="rule-row dimmed">
+    <span class="pill pill-amber">CSAT 3</span>
+    <span class="rule-row-arrow">→</span>
+    <div class="rule-row-action">
+      <strong>Recovery Nudge</strong>
+      <div class="rule-detail">50 points + follow-up</div>
+    </div>
+    <span class="rule-row-meta">~14 members/mo</span>
+    <button class="btn-ghost btn-sm">Edit</button>
+  </div>
+
+  <div class="rule-row dimmed">
+    <span class="pill pill-green">CSAT 4–5</span>
+    <span class="rule-row-arrow">→</span>
+    <div class="rule-row-action">
+      <strong>Referral Campaign</strong>
+      <div class="rule-detail">200 points invite-a-friend</div>
+    </div>
+    <span class="rule-row-meta">~25 members/mo</span>
+    <button class="btn-ghost btn-sm">Edit</button>
+  </div>
+
+  <div id="sc2-saved-banner" class="banner-success hidden" style="margin-top:14px;">
+    <span style="font-size:18px;">✅</span> Rule saved successfully.
+  </div>
+
+  <button class="add-rule-btn" style="margin-top:10px;">+ Add another rule</button>
+
+  <div class="step-footer">
+    <div class="footer-budget">Total estimated budget: <strong>~4,700 points/month</strong> ($47 equivalent)</div>
+    <button class="btn-primary">Continue to Review →</button>
+  </div>
+</div><!-- /sc2 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO 3: Save as Playbook
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario" id="sc3">
+
+  <div class="step-bar">
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Trigger</span>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item">
+      <div class="step-circle done">✓</div>
+      <span class="step-label done">Survey Content</span>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item">
+      <div class="step-circle active">3</div>
+      <span class="step-label active">Response Rules</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item">
+      <div class="step-circle pending">4</div>
+      <span class="step-label pending">Review &amp; Launch</span>
+    </div>
+  </div>
+
+  <div class="wizard-header">
+    <div class="wizard-title">What happens next?</div>
+    <div class="wizard-sub">Define how the system responds to each score range.</div>
+  </div>
+
+  <div class="tag-strip">
+    <span class="tag"><strong>Survey:</strong> Post Tier-Upgrade CSAT</span>
+    <span class="tag"><strong>Trigger:</strong> tier_upgrade</span>
+  </div>
+
+  <div class="playbook-load-row">
+    <label>Load Playbook:</label>
+    <select>
+      <option>Standard CSAT Playbook</option>
+      <option>Win-back Playbook</option>
+      <option>Custom…</option>
+    </select>
+    <button class="btn-ghost btn-sm">Apply</button>
+  </div>
+
+  <!-- Rules -->
+  <div class="rule-row">
+    <span class="pill pill-red">CSAT 1–2</span>
+    <span class="rule-row-arrow">→</span>
+    <div class="rule-row-action">
+      <strong>Win-back Campaign</strong>
+      <div class="rule-detail">100 bonus points + apology message</div>
+    </div>
+    <span class="rule-row-meta">~8 members/mo</span>
+    <button class="btn-ghost btn-sm">Edit</button>
+  </div>
+  <div class="rule-row">
+    <span class="pill pill-amber">CSAT 3</span>
+    <span class="rule-row-arrow">→</span>
+    <div class="rule-row-action">
+      <strong>Recovery Nudge</strong>
+      <div class="rule-detail">50 points + follow-up</div>
+    </div>
+    <span class="rule-row-meta">~14 members/mo</span>
+    <button class="btn-ghost btn-sm">Edit</button>
+  </div>
+  <div class="rule-row">
+    <span class="pill pill-green">CSAT 4–5</span>
+    <span class="rule-row-arrow">→</span>
+    <div class="rule-row-action">
+      <strong>Referral Campaign</strong>
+      <div class="rule-detail">200 points invite-a-friend</div>
+    </div>
+    <span class="rule-row-meta">~25 members/mo</span>
+    <button class="btn-ghost btn-sm">Edit</button>
+  </div>
+
+  <button class="add-rule-btn" style="margin-top:4px;">+ Add another rule</button>
+
+  <!-- Save as Playbook panel -->
+  <div class="playbook-panel" id="sc3-playbook-panel">
+    <h4>Save as Playbook</h4>
+
+    <div class="form-group" style="margin-bottom:14px; max-width:400px;">
+      <label>Playbook Name</label>
+      <input type="text" value="Post-Tier Upgrade CSAT Playbook" style="font-size:13px; border:1px solid #d4d4d8; border-radius:6px; padding:7px 10px; width:100%;" />
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="sc3-filter-type" checked />
+      <label for="sc3-filter-type">Filter by survey type: <strong>CSAT</strong></label>
+    </div>
+
+    <div id="sc3-save-row">
+      <button class="btn-primary" onclick="sc3SavePlaybook()">Save Playbook</button>
+    </div>
+
+    <div id="sc3-saved" class="banner-success hidden" style="margin-top:0;">
+      <span style="font-size:18px;">✅</span> Playbook saved — available on future CSAT surveys
+    </div>
+  </div>
+
+  <div class="step-footer">
+    <div class="footer-budget">Total estimated budget: <strong>~4,700 points/month</strong> ($47 equivalent)</div>
+    <button class="btn-primary">Continue to Review →</button>
+  </div>
+</div><!-- /sc3 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO 4: 48-hour Warning / Loop Monitor
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario" id="sc4">
+
+  <!-- Survey detail header -->
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <div style="font-size:11px; color:#71717a; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Survey · Launched 51 hours ago</div>
+      <div class="wizard-title">Post Tier-Upgrade CSAT</div>
+      <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="tag"><strong>Trigger:</strong> tier_upgrade</span>
+        <span class="tag"><strong>Audience:</strong> All tier-upgraded members</span>
+        <span class="pill pill-green" style="font-size:11px; padding:3px 10px;">Live</span>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn-ghost btn-sm">View Responses</button>
+      <button class="btn-ghost btn-sm">Edit Survey</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="margin-bottom:4px;">Loop Monitor</div>
+    <div class="card-sub" style="margin-bottom:20px;">Real-time pipeline from survey send to reward outcome.</div>
+
+    <!-- Pipeline -->
+    <div class="pipeline">
+      <div class="pipeline-node">
+        <div class="pipeline-count">47</div>
+        <div class="pipeline-label">Surveys Sent</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-node">
+        <div class="pipeline-count">12</div>
+        <div class="pipeline-label">Responses</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-node">
+        <div class="pipeline-count">12</div>
+        <div class="pipeline-label">Rules Matched</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-node">
+        <div class="pipeline-count zero">0</div>
+        <div class="pipeline-label">Campaigns Triggered</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-node">
+        <div class="pipeline-count zero">0</div>
+        <div class="pipeline-label">Outcomes</div>
+      </div>
+    </div>
+
+    <!-- Warning banner -->
+    <div class="banner-warning">
+      <span style="font-size:18px; flex-shrink:0;">⚠️</span>
+      <div>
+        <strong>No campaigns triggered yet</strong> — check your rule conditions or member consent settings.
+        <span style="color:#a16207;">(Rule active for 51 hours)</span>
+        <br/>
+        <button class="btn-ghost btn-sm" style="margin-top:8px; border-color:#fde047; color:#854d0e;" onclick="sc4EditRules()">Edit Rules</button>
+      </div>
+    </div>
+
+    <!-- Breakdown table -->
+    <table class="resp-table">
+      <thead>
+        <tr>
+          <th>Score Range</th>
+          <th>Responses</th>
+          <th>Campaign</th>
+          <th>Triggered</th>
+          <th>Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="pill pill-red">CSAT 1–2</span></td>
+          <td>0</td>
+          <td>Win-back Campaign</td>
+          <td>0</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-amber">CSAT 3</span></td>
+          <td style="font-weight:600; color:#d97706;">12</td>
+          <td>Recovery Nudge</td>
+          <td style="font-weight:600; color:#dc2626;">0 / 12</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-green">CSAT 4–5</span></td>
+          <td>0</td>
+          <td>Referral Campaign</td>
+          <td>0</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Edit rules panel (hidden until Edit Rules clicked) -->
+  <div id="sc4-edit-panel" class="hidden">
+    <div class="card" style="border-color:#fde047;">
+      <div class="card-title" style="margin-bottom:4px;">Edit Response Rules</div>
+      <div class="card-sub" style="margin-bottom:16px;">Adjust rule conditions. All 12 CSAT 3 responses are awaiting a triggered action.</div>
+
+      <div class="rule-row" style="background:#fef9c3; border-color:#fde047;">
+        <span class="pill pill-amber">CSAT 3</span>
+        <span class="rule-row-arrow">→</span>
+        <div class="rule-row-action">
+          <strong>Recovery Nudge</strong>
+          <div class="rule-detail" style="color:#d97706;">⚠️ 0 triggered — possible consent block</div>
+        </div>
+        <span class="rule-row-meta">12 awaiting</span>
+        <button class="btn-ghost btn-sm" style="border-color:#fde047; color:#854d0e;">Fix &amp; Retry</button>
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button class="btn-ghost btn-sm" onclick="sc4CloseEdit()">Cancel</button>
+        <button class="btn-primary btn-sm">Save &amp; Retry Triggers</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /sc4 -->
+
+
+<script>
+// ── Scenario switching ──────────────────────────────────────
+function showScenario(n) {
+  document.querySelectorAll('.scenario').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.sc-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('sc' + n).classList.add('active');
+  document.querySelectorAll('.sc-btn')[n - 1].classList.add('active');
+}
+
+// ── Scenario 1 ──────────────────────────────────────────────
+function sc1GoToStep4() {
+  // Update step indicator
+  var c3 = document.getElementById('sc1-step3-circle');
+  var l3 = document.getElementById('sc1-step3-label');
+  var c4 = document.getElementById('sc1-step4-circle');
+  var l4 = document.getElementById('sc1-step4-label');
+  var conn3 = document.getElementById('sc1-conn3');
+  var conn2 = document.getElementById('sc1-conn2');
+
+  c3.className = 'step-circle done';
+  c3.textContent = '✓';
+  l3.className = 'step-label done';
+
+  c4.className = 'step-circle active';
+  c4.textContent = '4';
+  l4.className = 'step-label active';
+
+  conn3.classList.add('done');
+
+  // Swap panels
+  document.getElementById('sc1-step3').classList.add('hidden');
+  document.getElementById('sc1-step4').classList.remove('hidden');
+}
+
+function sc1Launch() {
+  document.getElementById('sc1-launch-area').classList.add('hidden');
+  document.getElementById('sc1-post-launch').classList.remove('hidden');
+  // Animate step 4 to done
+  var c4 = document.getElementById('sc1-step4-circle');
+  var l4 = document.getElementById('sc1-step4-label');
+  c4.className = 'step-circle done';
+  c4.textContent = '✓';
+  l4.className = 'step-label done';
+}
+
+// ── Scenario 2 ──────────────────────────────────────────────
+function sc2TogglePoints() {
+  var at = document.getElementById('sc2-action-type').value;
+  var pg = document.getElementById('sc2-points-group');
+  pg.style.display = (at === 'award') ? 'flex' : 'none';
+}
+// initialise
+(function() {
+  var at = document.getElementById('sc2-action-type');
+  if (at) sc2TogglePoints();
+})();
+
+function sc2SaveRule() {
+  document.getElementById('sc2-saved-banner').classList.remove('hidden');
+}
+
+function sc2Cancel() {
+  // Just show a quick cancel feedback — nothing to undo in static demo
+  var b = document.getElementById('sc2-saved-banner');
+  b.classList.remove('hidden');
+  b.querySelector('span').textContent = '↩';
+  b.style.background = '#f4f4f5';
+  b.style.borderColor = '#d4d4d8';
+  b.style.color = '#52525b';
+  b.childNodes[1].textContent = ' Edit cancelled.';
+}
+
+// ── Scenario 3 ──────────────────────────────────────────────
+function sc3SavePlaybook() {
+  document.getElementById('sc3-save-row').classList.add('hidden');
+  document.getElementById('sc3-saved').classList.remove('hidden');
+}
+
+// ── Scenario 4 ──────────────────────────────────────────────
+function sc4EditRules() {
+  document.getElementById('sc4-edit-panel').classList.remove('hidden');
+  // Smooth scroll to panel
+  setTimeout(function() {
+    document.getElementById('sc4-edit-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
+}
+
+function sc4CloseEdit() {
+  document.getElementById('sc4-edit-panel').classList.add('hidden');
+}
+</script>
+</body>
+</html>
