@@ -22,6 +22,26 @@ const CxQuerySchema = z.object({
   surveyId: z.string().optional(),
 })
 
+// ── Reach estimate constants (Issue #79) ─────────────────────────────────────
+
+const REACH_ESTIMATE_WINDOW_DAYS = 30
+const REACH_ESTIMATE_HISTORY_THRESHOLD_DAYS = 7
+
+// Keys that map to scheduled cadence (no event to count → active member fallback)
+const SCHEDULED_TRIGGER_KEYS = new Set(['quarterly_pulse', 'monthly_csat', 'annual_program'])
+
+// Maps survey triggerKey → LoyaltyEvent.eventType for reach-estimate query
+const TRIGGER_EVENT_MAP: Record<string, string> = {
+  tier_upgrade: 'tier.upgraded',
+  enrollment: 'member.enrolled',
+  first_redemption: 'member.first_redemption',
+  '5th_purchase': 'purchase',
+  anniversary: 'member.anniversary',
+  inactive_30d: 'member.inactive',
+  after_support: 'cx.ticket_resolved',
+  nps_drop: 'cx.nps_response',
+}
+
 /* ── Shared helper: compute CX stats from a set of responses ── */
 
 interface ResponseRow {
@@ -895,6 +915,96 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       errors: errors.slice(0, 10),
       remaining,
     })
+  })
+
+  // GET /v1/analytics/reach-estimate?triggerKey=...&programId=... — reach estimate for survey trigger wizard (Issue #79)
+  // Graceful-degradation contract: always returns 200 (never 5xx). Returns estimatedCount=null + reason on failure.
+  fastify.get('/analytics/reach-estimate', async (request, reply) => {
+    const brandId = request.brandId
+    const query = request.query as Record<string, string | undefined>
+    const { triggerKey, programId } = query
+
+    if (!triggerKey) {
+      return reply.status(400).send({ error: 'triggerKey is required' })
+    }
+    if (!programId) {
+      return reply.status(400).send({ error: 'programId is required' })
+    }
+
+    // Verify program belongs to this brand
+    const program = await fastify.prisma.program.findFirst({
+      where: { id: programId, brandId, deletedAt: null },
+      select: { id: true },
+    })
+    if (!program) {
+      return reply.status(404).send({ error: 'Program not found' })
+    }
+
+    const windowStart = new Date(Date.now() - REACH_ESTIMATE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+    const historyThreshold = new Date(Date.now() - REACH_ESTIMATE_HISTORY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
+
+    // Scheduled triggers have no event to count — fall back to active member count
+    if (SCHEDULED_TRIGGER_KEYS.has(triggerKey)) {
+      const activeCount = await fastify.prisma.member.count({
+        where: { brandId, status: 'ACTIVE', deletedAt: null },
+      })
+      const channels = {
+        email: Math.round(activeCount * 0.85),
+        inApp: Math.round(activeCount * 0.70),
+        sms: Math.round(activeCount * 0.25),
+      }
+      return reply.status(200).send({ estimatedCount: activeCount, channels, windowDays: REACH_ESTIMATE_WINDOW_DAYS })
+    }
+
+    const eventType = TRIGGER_EVENT_MAP[triggerKey]
+    if (!eventType) {
+      // Unknown trigger key — return null with reason rather than failing
+      return reply.status(200).send({ estimatedCount: null, reason: 'unknown_trigger_key', channels: null, windowDays: REACH_ESTIMATE_WINDOW_DAYS })
+    }
+
+    // Check if we have at least HISTORY_THRESHOLD_DAYS of history
+    const oldestEvent = await fastify.prisma.loyaltyEvent.findFirst({
+      where: { brandId, eventType },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    })
+
+    if (!oldestEvent || oldestEvent.createdAt > historyThreshold) {
+      return reply.status(200).send({ estimatedCount: null, reason: 'insufficient_history', channels: null, windowDays: WINDOW_DAYS })
+    }
+
+    // Count distinct members who triggered this event in the past 30 days
+    type CountRow = { count: number }
+    const rows = await fastify.prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(DISTINCT le."memberId")::int AS count
+      FROM loyalty_events le
+      WHERE le."brandId" = ${brandId}
+        AND le."eventType" = ${eventType}
+        AND le."createdAt" >= ${windowStart}
+    `
+    const estimatedCount = rows[0]?.count ?? 0
+
+    // Channel breakdown based on member opt-ins for those members
+    type ChannelRow = { email: number; inApp: number; sms: number }
+    const channelRows = await fastify.prisma.$queryRaw<ChannelRow[]>`
+      SELECT
+        COUNT(DISTINCT CASE WHEN m."emailOptIn" = true THEN m.id END)::int AS email,
+        COUNT(DISTINCT m.id)::int AS "inApp",
+        COUNT(DISTINCT CASE WHEN m."smsOptIn" = true THEN m.id END)::int AS sms
+      FROM loyalty_events le
+      JOIN members m ON le."memberId" = m.id
+      WHERE le."brandId" = ${brandId}
+        AND le."eventType" = ${eventType}
+        AND le."createdAt" >= ${windowStart}
+        AND m."deletedAt" IS NULL
+    `
+    const channels = {
+      email: channelRows[0]?.email ?? 0,
+      inApp: channelRows[0]?.inApp ?? estimatedCount,
+      sms: channelRows[0]?.sms ?? 0,
+    }
+
+    return reply.status(200).send({ estimatedCount, channels, windowDays: REACH_ESTIMATE_WINDOW_DAYS })
   })
 
   // POST /v1/analytics/cx/backfill-snapshots — generate historical daily cluster snapshots for demo

@@ -250,6 +250,7 @@ model LoyaltyEvent {
   createdAt      DateTime @default(now())
 
   @@index([brandId, createdAt]) // critical for analytics queries (R7.1, R7.5)
+  @@index([brandId, eventType, createdAt]) // reach-estimate query (Issue #79)
   @@index([memberId])
   @@index([idempotencyKey])
   @@map("loyalty_events")
@@ -371,21 +372,24 @@ model CampaignEvent {
 }
 
 model Survey {
-  id              String           @id @default(cuid())
-  brandId         String
-  brand           Brand            @relation(fields: [brandId], references: [id])
-  programId       String
-  name            String
-  type            SurveyType       @default(NPS)
-  questions       Json             // Question definitions (array of question objects)
-  settings        Json?            // Distribution settings, branding, etc.
-  status          SurveyStatus     @default(DRAFT)
-  responsesCount  Int              @default(0)
-  incentivePoints Int?             // Points awarded for completing the survey
-  themeId         String?
-  theme           SurveyTheme?     @relation(fields: [themeId], references: [id])
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                 String           @id @default(cuid())
+  brandId            String
+  brand              Brand            @relation(fields: [brandId], references: [id])
+  programId          String
+  name               String
+  type               SurveyType       @default(NPS)
+  questions          Json             // Question definitions (array of question objects)
+  settings           Json?            // Distribution settings, branding, etc.
+  status             SurveyStatus     @default(DRAFT)
+  responsesCount     Int              @default(0)
+  incentivePoints    Int?             // Points awarded for completing the survey
+  themeId            String?
+  theme              SurveyTheme?     @relation(fields: [themeId], references: [id])
+  triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
+  triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
+  surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   responses       SurveyResponse[]
 

@@ -305,4 +305,113 @@ describe('Analytics API — /v1/analytics', () => {
       expect(elapsed).toBeLessThan(3000)
     })
   })
+
+  // -------------------------------------------------------------------------
+  // GET /v1/analytics/reach-estimate (Issue #79)
+  // -------------------------------------------------------------------------
+
+  describe('GET /v1/analytics/reach-estimate', () => {
+    it('returns 400 when triggerKey is missing', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({ programId: program.id })
+
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 400 when programId is missing', async () => {
+      const brand = await createBrand()
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({ triggerKey: 'tier_upgrade' })
+
+      expect(res.status).toBe(400)
+    })
+
+    it('returns insufficient_history for a new program with no events', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({
+        triggerKey: 'tier_upgrade',
+        programId: program.id,
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.body.estimatedCount).toBeNull()
+      expect(res.body.reason).toBe('insufficient_history')
+      expect(res.body.channels).toBeNull()
+    })
+
+    it('returns estimated count for event-based trigger with history', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
+
+      // Seed events older than 7 days to satisfy history check
+      const prisma = (await import('@customerEQ/database')).getPrisma()
+      const oldDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+      await prisma.loyaltyEvent.create({
+        data: {
+          brandId: brand.id,
+          memberId: member.id,
+          eventType: 'tier.upgraded',
+          pointsEarned: 0,
+          createdAt: oldDate,
+        },
+      })
+      // Add 2 more recent tier.upgraded events
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'tier.upgraded', pointsEarned: 0 })
+      await createLoyaltyEvent({ brandId: brand.id, memberId: member.id, eventType: 'tier.upgraded', pointsEarned: 0 })
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({
+        triggerKey: 'tier_upgrade',
+        programId: program.id,
+      })
+
+      expect(res.status).toBe(200)
+      expect(typeof res.body.estimatedCount).toBe('number')
+      expect(res.body.estimatedCount).toBeGreaterThan(0)
+      expect(res.body.channels).toBeDefined()
+      expect(res.body.channels).toHaveProperty('email')
+      expect(res.body.channels).toHaveProperty('inApp')
+      expect(res.body.channels).toHaveProperty('sms')
+      expect(res.body.windowDays).toBe(30)
+    })
+
+    it('returns active member count for scheduled trigger', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+      await createConsentedMember({ brandId: brand.id, programId: program.id })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({
+        triggerKey: 'quarterly_pulse',
+        programId: program.id,
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.body.estimatedCount).toBe(2)
+      expect(res.body.channels).toBeDefined()
+    })
+
+    it('returns 404 when programId does not belong to brand', async () => {
+      const brand = await createBrand()
+      const otherBrand = await createBrand()
+      const otherProgram = await createProgram({ brandId: otherBrand.id })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.get('/v1/analytics/reach-estimate').query({
+        triggerKey: 'tier_upgrade',
+        programId: otherProgram.id,
+      })
+
+      expect(res.status).toBe(404)
+    })
+  })
 })

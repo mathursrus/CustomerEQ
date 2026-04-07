@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
+import TriggerStep from '@/components/surveys/TriggerStep'
+import { getTriggerRecommendation } from '@/utils/triggerRecommendation'
 
 interface Program {
   id: string
@@ -13,8 +15,13 @@ interface Program {
 interface FormData {
   name: string
   programId: string
-  type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
   incentivePoints: string
+}
+
+interface TriggerData {
+  category: string
+  key: string
+  surveyTypeOverride?: string
 }
 
 interface SurveyQuestion {
@@ -46,10 +53,11 @@ export default function NewSurveyPage() {
   const router = useRouter()
   const { getToken } = useAuth()
   const [programs, setPrograms] = useState<Program[]>([])
+  const [step, setStep] = useState<1 | 2>(1)
+  const [triggerData, setTriggerData] = useState<TriggerData | null>(null)
   const [form, setForm] = useState<FormData>({
     name: '',
     programId: '',
-    type: 'NPS',
     incentivePoints: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -73,6 +81,11 @@ export default function NewSurveyPage() {
     fetchPrograms()
   }, [getToken])
 
+  function handleTriggerContinue(data: TriggerData) {
+    setTriggerData(data)
+    setStep(2)
+  }
+
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {}
     if (!form.name.trim()) errs.name = 'Survey name is required'
@@ -89,14 +102,25 @@ export default function NewSurveyPage() {
     setSubmitting(true)
 
     try {
+      // Determine survey type: override → recommendation from trigger key → NPS default
+      const recommendation = triggerData ? getTriggerRecommendation(triggerData.key) : null
+      const surveyType = triggerData?.surveyTypeOverride ?? recommendation?.type ?? 'NPS'
+
       const payload: Record<string, unknown> = {
         name: form.name,
         programId: form.programId,
-        type: form.type,
-        questions: DEFAULT_QUESTIONS[form.type],
+        type: surveyType,
+        questions: DEFAULT_QUESTIONS[surveyType] ?? DEFAULT_QUESTIONS.NPS,
       }
       if (form.incentivePoints.trim()) {
         payload.incentivePoints = Number(form.incentivePoints)
+      }
+      if (triggerData) {
+        payload.triggerCategory = triggerData.category
+        payload.triggerKey = triggerData.key
+        if (triggerData.surveyTypeOverride) {
+          payload.surveyTypeOverride = triggerData.surveyTypeOverride
+        }
       }
 
       const token = await getAuthToken(getToken)
@@ -120,8 +144,6 @@ export default function NewSurveyPage() {
     }
   }
 
-  const questions = DEFAULT_QUESTIONS[form.type] ?? []
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
@@ -129,115 +151,119 @@ export default function NewSurveyPage() {
         <p className="mt-1 text-sm text-gray-500">Set up a new customer feedback survey</p>
       </div>
 
+      {/* Step indicator */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className={`flex items-center gap-1.5 text-sm font-medium ${step === 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
+          <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${step === 1 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>1</span>
+          Trigger
+        </div>
+        <div className="h-px flex-1 bg-gray-200" />
+        <div className={`flex items-center gap-1.5 text-sm font-medium ${step === 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
+          <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${step === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>2</span>
+          Survey Details
+        </div>
+      </div>
+
       <div className="rounded-xl border border-gray-200 bg-white p-8">
-        {serverError && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {serverError}
-          </div>
+        {/* Step 1: Trigger wizard */}
+        {step === 1 && (
+          <TriggerStep
+            programs={programs}
+            getToken={getToken}
+            onContinue={handleTriggerContinue}
+          />
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label htmlFor="surveyName" className="block text-sm font-medium text-gray-700 mb-1">
-              Survey Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="surveyName"
-              type="text"
-              data-testid="survey-name-input"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
-              placeholder="e.g. Post-Purchase NPS Survey"
-            />
-            {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="programId" className="block text-sm font-medium text-gray-700 mb-1">
-              Program <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="programId"
-              data-testid="survey-program-select"
-              value={form.programId}
-              onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
-            >
-              <option value="">Select a program...</option>
-              {programs.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            {errors.programId && <p className="mt-1 text-xs text-red-600">{errors.programId}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="surveyType" className="block text-sm font-medium text-gray-700 mb-1">
-              Survey Type
-            </label>
-            <select
-              id="surveyType"
-              data-testid="survey-type-select"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as FormData['type'] }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="NPS">NPS - Net Promoter Score</option>
-              <option value="CSAT">CSAT - Customer Satisfaction</option>
-              <option value="CES">CES - Customer Effort Score</option>
-              <option value="CUSTOM">Custom Survey</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="incentivePoints" className="block text-sm font-medium text-gray-700 mb-1">
-              Incentive Points <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              id="incentivePoints"
-              type="number"
-              data-testid="survey-incentive-input"
-              value={form.incentivePoints}
-              min={0}
-              onChange={(e) => setForm((f) => ({ ...f, incentivePoints: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Points awarded for completing the survey"
-            />
-          </div>
-
-          {/* Question Preview */}
-          {questions.length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Default Questions Preview</p>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
-                {questions.map((q, i) => (
-                  <div key={q.id} className="flex items-start gap-2">
-                    <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm text-gray-700">{q.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{q.type === 'rating' ? 'Rating' : 'Open text'}{q.required ? '' : ' (optional)'}</p>
-                    </div>
-                  </div>
-                ))}
+        {/* Step 2: Survey content form */}
+        {step === 2 && (
+          <div data-testid="survey-content-step">
+            {serverError && (
+              <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                {serverError}
               </div>
-              <p className="mt-1.5 text-xs text-gray-400">You can customize questions after creation.</p>
-            </div>
-          )}
+            )}
 
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              data-testid="survey-submit-btn"
-              disabled={submitting}
-              className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting ? 'Creating...' : 'Create Survey'}
-            </button>
+            {/* Trigger summary pill */}
+            {triggerData && (
+              <div className="mb-5 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-700">
+                  {triggerData.category} / {triggerData.key}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs text-gray-400 underline hover:text-gray-600"
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="surveyName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Survey Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="surveyName"
+                  type="text"
+                  data-testid="survey-name-input"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+                  placeholder="e.g. Post-Purchase NPS Survey"
+                />
+                {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="programId" className="block text-sm font-medium text-gray-700 mb-1">
+                  Program <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="programId"
+                  data-testid="survey-program-select"
+                  value={form.programId}
+                  onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.programId ? 'border-red-400' : 'border-gray-300'}`}
+                >
+                  <option value="">Select a program...</option>
+                  {programs.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {errors.programId && <p className="mt-1 text-xs text-red-600">{errors.programId}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="incentivePoints" className="block text-sm font-medium text-gray-700 mb-1">
+                  Incentive Points <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="incentivePoints"
+                  type="number"
+                  data-testid="survey-incentive-input"
+                  value={form.incentivePoints}
+                  min={0}
+                  onChange={(e) => setForm((f) => ({ ...f, incentivePoints: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Points awarded for completing the survey"
+                />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  data-testid="survey-submit-btn"
+                  disabled={submitting}
+                  className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {submitting ? 'Creating...' : 'Create Survey'}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        )}
       </div>
     </div>
   )

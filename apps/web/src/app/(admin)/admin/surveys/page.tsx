@@ -12,6 +12,8 @@ interface Survey {
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
   _count?: { responses: number }
   incentivePoints: number | null
+  triggerCategory: string | null
+  triggerKey: string | null
   createdAt: string
 }
 
@@ -92,6 +94,7 @@ export default function SurveysPage() {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Trigger</th>
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Responses</th>
               <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Incentive Points</th>
@@ -102,7 +105,7 @@ export default function SurveysPage() {
           <tbody className="divide-y divide-gray-100">
             {surveys.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
                   No surveys yet.{' '}
                   <Link href="/admin/surveys/new" className="text-indigo-600 hover:underline">
                     Create your first survey
@@ -121,6 +124,18 @@ export default function SurveysPage() {
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${typeColors[survey.type] ?? 'bg-gray-100 text-gray-700'}`}>
                       {survey.type}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {survey.triggerKey ? (
+                      <span
+                        data-testid={`trigger-badge-${survey.id}`}
+                        className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700"
+                      >
+                        {survey.triggerKey.replace(/_/g, ' ')}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[survey.status] ?? 'bg-gray-100 text-gray-700'}`}>
