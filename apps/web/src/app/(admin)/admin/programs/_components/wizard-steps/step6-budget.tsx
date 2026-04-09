@@ -33,6 +33,10 @@ export function Step6Budget({
   const totalBudgetDisplay = totalBudgetNum > 0 ? `$${totalBudgetNum.toLocaleString()}` : '—'
 
   function handleNext() {
+    if (isViewOnly) {
+      onNext()
+      return
+    }
     if (!state.totalBudget || totalBudgetNum <= 0) {
       setNoBudgetError(true)
       return

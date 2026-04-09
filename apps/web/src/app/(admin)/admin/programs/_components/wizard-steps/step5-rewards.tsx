@@ -31,6 +31,10 @@ export function Step5Rewards({
   const [noRewardError, setNoRewardError] = useState(false)
 
   function handleNext() {
+    if (isViewOnly) {
+      onNext()
+      return
+    }
     if (state.rewards.length === 0) {
       setNoRewardError(true)
       return

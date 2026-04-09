@@ -97,6 +97,10 @@ export function Step3EarningRules({
   }
 
   function handleNext() {
+    if (isViewOnly) {
+      onNext()
+      return
+    }
     if (state.earningRules.length === 0) {
       setNoRuleError(true)
       return
