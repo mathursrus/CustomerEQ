@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import {
   CreateCxPlaybookSchema,
   UpdateCxPlaybookSchema,
@@ -36,7 +37,7 @@ const cxPlaybooksRoutes: FastifyPluginAsync = async (fastify) => {
           brandId,
           name,
           surveyType,
-          rules,
+          rules: rules as unknown as Prisma.InputJsonValue,
         },
       })
       return reply.status(201).send(playbook)
@@ -111,7 +112,7 @@ const cxPlaybooksRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id },
         data: {
           ...(name !== undefined && { name }),
-          ...(rules !== undefined && { rules }),
+          ...(rules !== undefined && { rules: rules as unknown as Prisma.InputJsonValue }),
         },
       })
       return reply.status(200).send(updated)
