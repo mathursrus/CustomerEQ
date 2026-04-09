@@ -30,6 +30,10 @@ export function Step2BasicInfo({
     state.startDate && state.endDate && state.endDate < state.startDate
 
   function handleNext() {
+    if (isViewOnly) {
+      onNext()
+      return
+    }
     const newErrors: Record<string, string> = {}
     if (!state.name.trim()) newErrors.name = 'Program name is required.'
     if (!state.startDate) newErrors.startDate = 'Start date is required.'

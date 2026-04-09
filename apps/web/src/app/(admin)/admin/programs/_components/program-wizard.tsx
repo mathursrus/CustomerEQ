@@ -479,7 +479,7 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
 
       {/* Stepper */}
       <div className="mb-8 overflow-x-auto pb-2">
-        <WizardStepper steps={STEP_LABELS} currentStep={state.step} onStepClick={isViewOnly ? undefined : goToStep} />
+        <WizardStepper steps={STEP_LABELS} currentStep={state.step} onStepClick={goToStep} allStepsClickable={isViewOnly} />
       </div>
 
       {/* Step panels */}
