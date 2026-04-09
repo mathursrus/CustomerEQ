@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { CreateAlertRuleSchema, UpdateAlertRuleStatusSchema, UpdateCaseStatusSchema, AddCaseNoteSchema } from '@customerEQ/shared'
+import { CreateAlertRuleSchema, UpdateAlertRuleSchema, UpdateAlertRuleStatusSchema, UpdateCaseStatusSchema, AddCaseNoteSchema } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
 // Alert rule and case schema validation
@@ -50,6 +50,27 @@ describe('Alert rule schema validation', () => {
 
     it('rejects scoreMax above 10', () => {
       expect(CreateAlertRuleSchema.safeParse({ ...valid, scoreMax: 11 }).success).toBe(false)
+    })
+  })
+
+  // Issue #120: The GET /v1/alert-rules/:id endpoint masks webhook URLs as
+  // '****{last8chars}'. The edit page must never round-trip these masked values
+  // back to PATCH because they fail URL validation. This test documents that constraint.
+  describe('UpdateAlertRuleSchema — masked webhook URL rejection', () => {
+    it('rejects a masked slackWebhookUrl (****) as an invalid URL', () => {
+      expect(UpdateAlertRuleSchema.safeParse({ slackWebhookUrl: '****abcd1234' }).success).toBe(false)
+    })
+
+    it('rejects a masked teamsWebhookUrl (****) as an invalid URL', () => {
+      expect(UpdateAlertRuleSchema.safeParse({ teamsWebhookUrl: '****abcd1234' }).success).toBe(false)
+    })
+
+    it('accepts null to clear a webhook URL', () => {
+      expect(UpdateAlertRuleSchema.safeParse({ slackWebhookUrl: null }).success).toBe(true)
+    })
+
+    it('accepts a real URL to replace a webhook URL', () => {
+      expect(UpdateAlertRuleSchema.safeParse({ slackWebhookUrl: 'https://hooks.slack.com/new' }).success).toBe(true)
     })
   })
 
