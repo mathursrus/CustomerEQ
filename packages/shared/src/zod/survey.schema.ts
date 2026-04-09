@@ -145,6 +145,80 @@ export const CreateQuestionTemplateSchema = z.object({
   tags: z.array(z.string()).default([]),
 })
 
+// ─── Issue #80: Response-to-Action Rule Builder ──────────────────────────────
+
+const SURVEY_ACTION_TYPES = [
+  'award_points',
+  'award_reward',
+  'send_message',
+  'spin_wheel',
+  'scratch_card',
+  'mystery_box',
+] as const
+
+export type SurveyActionType = (typeof SURVEY_ACTION_TYPES)[number]
+
+export const SurveyRuleInputSchema = z.object({
+  scoreMin: z.number().min(0).max(10),
+  scoreMax: z.number().min(0).max(10),
+  actionType: z.enum(SURVEY_ACTION_TYPES),
+  actionConfig: z.record(z.unknown()),
+  ruleLabel: z.string().max(100).optional(),
+}).refine((r) => r.scoreMin <= r.scoreMax, {
+  message: 'scoreMin must be <= scoreMax',
+  path: ['scoreMin'],
+})
+
+export const LaunchSurveySchema = z.object({
+  rules: z.array(SurveyRuleInputSchema),
+})
+
+export const CreateCxPlaybookSchema = z.object({
+  name: z.string().min(1, 'Playbook name is required').max(200),
+  surveyType: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']),
+  rules: z.array(SurveyRuleInputSchema).min(1, 'At least one rule is required'),
+})
+
+export const UpdateCxPlaybookSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  rules: z.array(SurveyRuleInputSchema).min(1).optional(),
+})
+
+/**
+ * Returns true if the given score falls within [scoreMin, scoreMax] (inclusive).
+ * Used by the response submission handler to determine which rules fire.
+ */
+export function evaluateSurveyRule(
+  rule: { scoreMin: number; scoreMax: number },
+  score: number,
+): boolean {
+  return score >= rule.scoreMin && score <= rule.scoreMax
+}
+
+export type OverlapError = { ruleIndexA: number; ruleIndexB: number }
+
+/**
+ * Returns overlap errors for the given set of rules.
+ * Two rules overlap if their score ranges intersect.
+ * Exact adjacency (e.g. 0–6 and 7–10) is NOT an overlap.
+ */
+export function validateRuleOverlap(
+  rules: Array<{ scoreMin: number; scoreMax: number }>,
+): OverlapError[] {
+  const errors: OverlapError[] = []
+  for (let i = 0; i < rules.length; i++) {
+    for (let j = i + 1; j < rules.length; j++) {
+      const a = rules[i]
+      const b = rules[j]
+      // Overlap: a.min <= b.max AND b.min <= a.max
+      if (a.scoreMin <= b.scoreMax && b.scoreMin <= a.scoreMax) {
+        errors.push({ ruleIndexA: i, ruleIndexB: j })
+      }
+    }
+  }
+  return errors
+}
+
 // ─── Type Exports ────────────────────────────────────────────────────────────
 
 export type CreateSurveyInput = z.infer<typeof CreateSurveySchema>
@@ -158,3 +232,7 @@ export type QuestionConfig = z.infer<typeof QuestionConfigSchema>
 export type CreateSurveyThemeInput = z.infer<typeof CreateSurveyThemeSchema>
 export type UpdateSurveyThemeInput = z.infer<typeof UpdateSurveyThemeSchema>
 export type CreateQuestionTemplateInput = z.infer<typeof CreateQuestionTemplateSchema>
+export type SurveyRuleInput = z.infer<typeof SurveyRuleInputSchema>
+export type LaunchSurveyInput = z.infer<typeof LaunchSurveySchema>
+export type CreateCxPlaybookInput = z.infer<typeof CreateCxPlaybookSchema>
+export type UpdateCxPlaybookInput = z.infer<typeof UpdateCxPlaybookSchema>

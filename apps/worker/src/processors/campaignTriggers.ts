@@ -65,7 +65,7 @@ export function createCampaignTriggerProcessor(redis: Redis) {
   return async function processCampaignTrigger(
     job: Job<CampaignTriggerPayload>,
   ): Promise<{ executed?: boolean; skipped?: boolean; reason?: string; points?: number; latencyMs?: number }> {
-    const { campaignId, memberId, brandId, eventIngestedAt } = job.data
+    const { campaignId, memberId, brandId, eventIngestedAt, surveyResponseId } = job.data
 
     // 1. Redis dedup SET NX
     const dedupKey = `campaign:dedup:${campaignId}:${memberId}`
@@ -83,7 +83,7 @@ export function createCampaignTriggerProcessor(redis: Redis) {
 
     // 3. Route by action type
     if (campaign.actionType === 'spin_wheel' || campaign.actionType === 'scratch_card' || campaign.actionType === 'mystery_box') {
-      return await executeInteractiveCampaign(campaign, memberId, brandId, latencyMs, redis)
+      return await executeInteractiveCampaign(campaign, memberId, brandId, latencyMs, redis, surveyResponseId)
     }
 
     // 3b. Check budget cap (standard action types)
@@ -122,6 +122,7 @@ export function createCampaignTriggerProcessor(redis: Redis) {
           executedAt: new Date(),
           latencyMs,
           status: 'executed',
+          surveyResponseId: surveyResponseId ?? null,
         },
       })
       const costUsd = points * campaign.program.pointToCurrencyRatio
@@ -158,6 +159,7 @@ async function executeInteractiveCampaign(
   brandId: string,
   latencyMs: number,
   redis: Redis,
+  surveyResponseId?: string,
 ): Promise<{ executed?: boolean; skipped?: boolean; reason?: string; points?: number; latencyMs?: number }> {
   // Get the prize/segment array based on campaign type
   const items = campaign.actionType === 'spin_wheel'
@@ -196,6 +198,7 @@ async function executeInteractiveCampaign(
         latencyMs,
         status: 'executed',
         result,
+        surveyResponseId: surveyResponseId ?? null,
       },
     })
 

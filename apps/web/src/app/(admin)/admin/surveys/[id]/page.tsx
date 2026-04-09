@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { SENTIMENT } from '@customerEQ/shared'
+import LoopMonitor from '@/components/surveys/LoopMonitor'
 const FRONTEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
 interface SurveyResponse {
@@ -282,6 +283,15 @@ export default function SurveyDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <CopyButton text={shareLink} label="Share Link" />
         <CopyButton text={widgetSnippet} label="Embed Widget" />
+      </div>
+
+      {/* Loop Monitor — feedback-to-loyalty pipeline view (Issue #80) */}
+      <div className="mb-6">
+        <LoopMonitor
+          surveyId={survey.id}
+          surveyStatus={survey.status}
+          getToken={getToken}
+        />
       </div>
 
       {/* Response List */}
