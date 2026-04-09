@@ -94,7 +94,7 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [surveyId, surveyStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [surveyId, surveyStatus]) // eslint-disable-line
 
   if (surveyStatus !== 'ACTIVE') {
     return (

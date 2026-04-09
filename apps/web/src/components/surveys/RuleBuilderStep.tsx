@@ -60,7 +60,7 @@ interface Props {
   onSkip: () => void
 }
 
-export default function RuleBuilderStep({ surveyType, programId, surveyId, getToken, onContinue, onSkip }: Props) {
+export default function RuleBuilderStep({ surveyType, programId, surveyId: _surveyId, getToken, onContinue, onSkip }: Props) {
   const [rules, setRules] = useState<SurveyRuleInput[]>([defaultRule(surveyType)])
   const [playbooks, setPlaybooks] = useState<CxPlaybook[]>([])
   const [playbookName, setPlaybookName] = useState('')
