@@ -314,3 +314,228 @@ describe('Public Survey Flow — unauthenticated survey submission', () => {
     expect(res.status).toBe(404)
   })
 })
+
+// =============================================================================
+// Issue #80: Response-to-Action Rule Wiring
+// =============================================================================
+
+describe('Response-to-Action Rule Wiring — survey rule evaluation on submission', () => {
+  beforeEach(async () => {
+    await seedTestDb()
+    InMemoryQueue.clear()
+  })
+
+  it('matching rule enqueues a campaign trigger', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const member = await createConsentedMember({ brandId: brand.id, email: 'respondent@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
+    const prisma = getTestPrisma()
+
+    // Create a campaign and survey rule that matches score 3 (detractor range 0–6)
+    const campaign = await prisma.campaign.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Detractor Recovery',
+        triggerType: 'cx.survey_response',
+        triggerCondition: { surveyId: survey.id, scoreMin: 0, scoreMax: 6 },
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+        status: 'ACTIVE',
+        startDate: new Date(),
+        surveyId: survey.id,
+      },
+    })
+    await prisma.surveyRule.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        campaignId: campaign.id,
+        scoreMin: 0,
+        scoreMax: 6,
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+        ruleLabel: 'Detractors',
+      },
+    })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberEmail: 'respondent@example.com', answers: { q1: 3 }, score: 3 })
+
+    expect(res.status).toBe(201)
+
+    // Allow the non-blocking rule evaluation to run
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
+    expect(triggerJobs.length).toBeGreaterThanOrEqual(1)
+    const job = triggerJobs.find(
+      (j) => (j.data as { campaignId?: string }).campaignId === campaign.id,
+    )
+    expect(job).toBeDefined()
+    expect((job!.data as { surveyResponseId?: string }).surveyResponseId).toBe(res.body.responseId)
+  })
+
+  it('non-matching rule does NOT enqueue a campaign trigger', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'promoter@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
+    const prisma = getTestPrisma()
+
+    // Rule only matches detractors (0–6), but score is 9 (promoter)
+    const campaign = await prisma.campaign.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Detractor Only',
+        triggerType: 'cx.survey_response',
+        triggerCondition: { surveyId: survey.id, scoreMin: 0, scoreMax: 6 },
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+        status: 'ACTIVE',
+        startDate: new Date(),
+        surveyId: survey.id,
+      },
+    })
+    await prisma.surveyRule.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        campaignId: campaign.id,
+        scoreMin: 0,
+        scoreMax: 6,
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+      },
+    })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberEmail: 'promoter@example.com', answers: { q1: 9 }, score: 9 })
+
+    expect(res.status).toBe(201)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
+    const matchedJob = triggerJobs.find(
+      (j) => (j.data as { campaignId?: string }).campaignId === campaign.id,
+    )
+    expect(matchedJob).toBeUndefined()
+  })
+
+  it('boundary score (scoreMax exact match) IS matched', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'boundary@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
+    const prisma = getTestPrisma()
+
+    const campaign = await prisma.campaign.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Boundary Test',
+        triggerType: 'cx.survey_response',
+        triggerCondition: { surveyId: survey.id, scoreMin: 0, scoreMax: 6 },
+        actionType: 'award_points',
+        actionConfig: { points: 50 },
+        status: 'ACTIVE',
+        startDate: new Date(),
+        surveyId: survey.id,
+      },
+    })
+    await prisma.surveyRule.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        campaignId: campaign.id,
+        scoreMin: 0,
+        scoreMax: 6,
+        actionType: 'award_points',
+        actionConfig: { points: 50 },
+      },
+    })
+
+    // Score exactly at scoreMax boundary (6)
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberEmail: 'boundary@example.com', answers: { q1: 6 }, score: 6 })
+
+    expect(res.status).toBe(201)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
+    const matched = triggerJobs.find((j) => (j.data as { campaignId?: string }).campaignId === campaign.id)
+    expect(matched).toBeDefined()
+  })
+
+  it('no rules seeded → no campaign trigger enqueued', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'norules@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberEmail: 'norules@example.com', answers: { q1: 5 }, score: 5 })
+
+    expect(res.status).toBe(201)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
+    expect(triggerJobs.length).toBe(0)
+  })
+
+  it('INACTIVE campaign rule is skipped even when score matches', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'inactive@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
+    const prisma = getTestPrisma()
+
+    // Campaign is PAUSED — rule should not trigger
+    const campaign = await prisma.campaign.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Paused Campaign',
+        triggerType: 'cx.survey_response',
+        triggerCondition: { surveyId: survey.id, scoreMin: 0, scoreMax: 10 },
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+        status: 'PAUSED',
+        startDate: new Date(),
+        surveyId: survey.id,
+      },
+    })
+    await prisma.surveyRule.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        campaignId: campaign.id,
+        scoreMin: 0,
+        scoreMax: 10,
+        actionType: 'award_points',
+        actionConfig: { points: 100 },
+      },
+    })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberEmail: 'inactive@example.com', answers: { q1: 4 }, score: 4 })
+
+    expect(res.status).toBe(201)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
+    const matched = triggerJobs.find((j) => (j.data as { campaignId?: string }).campaignId === campaign.id)
+    expect(matched).toBeUndefined()
+  })
+})
