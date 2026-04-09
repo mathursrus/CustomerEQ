@@ -8,16 +8,17 @@ interface WizardStepperProps {
   steps: Step[]
   currentStep: number // 1-based
   onStepClick?: (step: number) => void
+  allStepsClickable?: boolean
 }
 
-export function WizardStepper({ steps, currentStep, onStepClick }: WizardStepperProps) {
+export function WizardStepper({ steps, currentStep, onStepClick, allStepsClickable }: WizardStepperProps) {
   return (
     <div className="flex items-start">
       {steps.map((step, idx) => {
         const stepNum = idx + 1
         const isCompleted = stepNum < currentStep
         const isCurrent = stepNum === currentStep
-        const isClickable = isCompleted && !!onStepClick
+        const isClickable = !!onStepClick && (isCompleted || !!allStepsClickable)
         return (
           <div key={idx} className="flex items-start">
             <div className="flex flex-col items-center">
