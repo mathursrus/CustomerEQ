@@ -293,7 +293,14 @@ export default function NewSurveyPage() {
                 />
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  ← Back
+                </button>
                 <button
                   type="submit"
                   data-testid="survey-submit-btn"
@@ -316,6 +323,7 @@ export default function NewSurveyPage() {
             getToken={getToken}
             onContinue={handleRulesContinue}
             onSkip={handleSkipRules}
+            onBack={() => setStep(2)}
           />
         )}
 
