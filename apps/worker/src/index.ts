@@ -15,6 +15,16 @@ import { processExternalSignalIngestion } from './processors/externalSignalInges
 
 const logger = pino({ name: 'worker' })
 
+// QUEUE_MODE=inline means the API runs every processor in-process via
+// apps/api/src/queues/bullmq.ts + inlineRuntime.ts. The worker process is
+// not needed and would crash trying to connect to a Redis instance that
+// the deployment intentionally doesn't provide. Exit cleanly so container
+// orchestrators don't restart-loop us.
+if (process.env.QUEUE_MODE === 'inline') {
+  logger.info({ queueMode: 'inline' }, 'Worker not needed in inline mode — exiting cleanly')
+  process.exit(0)
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
 import { Prisma } from '@prisma/client'
 import pino from 'pino'
+import { scheduleInline } from './inlineRuntime.js'
 
 // QUEUE_MODE=inline  → skip Redis, run processor logic synchronously
 // QUEUE_MODE=redis   → use BullMQ queues (default)
@@ -171,10 +172,6 @@ async function inlineLoyaltyEvent(p: LoyaltyEventPayload) {
 async function inlineCampaignTrigger(p: CampaignTriggerPayload) {
   const { campaignId, memberId, brandId, eventIngestedAt } = p
 
-  // DB-based dedup
-  const existing = await prisma.campaignEvent.findFirst({ where: { campaignId, memberId } })
-  if (existing) return
-
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: { program: { select: { pointToCurrencyRatio: true } } },
@@ -191,13 +188,24 @@ async function inlineCampaignTrigger(p: CampaignTriggerPayload) {
   }
 
   const latencyMs = Date.now() - new Date(eventIngestedAt).getTime()
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.loyaltyEvent.create({ data: { memberId, brandId, eventType: 'campaign_award', pointsEarned: points, campaignId, rulesApplied: [] } })
-    await tx.member.update({ where: { id: memberId }, data: { pointsBalance: { increment: points } } })
-    await tx.campaignEvent.create({ data: { campaignId, memberId, brandId, executedAt: new Date(), latencyMs, status: 'executed' } })
-    const costUsd = points * campaign.program.pointToCurrencyRatio
-    await tx.campaign.update({ where: { id: campaignId }, data: { budgetSpent: { increment: costUsd } } })
-  })
+  // Race-safe dedup: rely on the @@unique([campaignId, memberId]) constraint
+  // on CampaignEvent. Two concurrent triggers for the same (campaign, member)
+  // will both attempt the create; one wins, the loser raises P2002 and we
+  // treat that as a silent dedup — same outcome as Redis SET NX.
+  try {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.campaignEvent.create({ data: { campaignId, memberId, brandId, executedAt: new Date(), latencyMs, status: 'executed' } })
+      await tx.loyaltyEvent.create({ data: { memberId, brandId, eventType: 'campaign_award', pointsEarned: points, campaignId, rulesApplied: [] } })
+      await tx.member.update({ where: { id: memberId }, data: { pointsBalance: { increment: points } } })
+      const costUsd = points * campaign.program.pointToCurrencyRatio
+      await tx.campaign.update({ where: { id: campaignId }, data: { budgetSpent: { increment: costUsd } } })
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return { points: 0, latencyMs, deduped: true }
+    }
+    throw err
+  }
   return { points, latencyMs }
 }
 
@@ -576,20 +584,40 @@ async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
       )
     }
   } catch (err) {
-    // Auth errors need human intervention (reconnect OAuth) — mark distinctly so the
-    // UI can surface the right call-to-action. Rate-limit errors are transient.
-    const isAuthError = err instanceof Error && err.name === 'ConnectorAuthError'
+    // Mirror worker semantics so inline mode is functionally equivalent:
+    //   - Auth errors: mark `auth_error`, swallow (human must reconnect OAuth)
+    //   - Rate-limit errors: rethrow so the inline runtime applies backoff retry
+    //   - Other errors: mark `error`, rethrow for retry
+    const errName = err instanceof Error ? err.name : ''
+    if (errName === 'ConnectorAuthError') {
+      await prisma.externalSignalSource.update({
+        where: { id: source.id },
+        data: {
+          healthStatus: 'auth_error',
+          lastError: err instanceof Error ? err.message : 'Sync failed',
+          lastErrorAt: new Date(),
+          lastSyncAt: new Date(),
+        },
+      })
+      log.error({ sourceId: source.id, err }, 'Inline external signal sync auth error')
+      return { importedCount: 0, queued: 0, error: err instanceof Error ? err.message : 'Auth failed' }
+    }
+
+    if (errName === 'ConnectorRateLimitError') {
+      log.warn({ sourceId: source.id, err }, 'Inline external signal sync rate limited — will retry')
+      throw err
+    }
+
     await prisma.externalSignalSource.update({
       where: { id: source.id },
       data: {
-        healthStatus: isAuthError ? 'auth_error' : 'error',
+        healthStatus: 'error',
         lastError: err instanceof Error ? err.message : 'Sync failed',
         lastErrorAt: new Date(),
         lastSyncAt: new Date(),
       },
     })
-    log.error({ sourceId: source.id, err }, 'Inline external signal sync connector error')
-    return { importedCount: 0, queued: 0, error: err instanceof Error ? err.message : 'Sync failed' }
+    throw err
   }
 
   if (deliveries.length === 0) {
@@ -630,9 +658,7 @@ async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
 
 export async function enqueueEvent(payload: LoyaltyEventPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineLoyaltyEvent(payload).then((r) => {
-      log.info({ eventType: payload.eventType, points: r.pointsAwarded }, 'Inline loyalty event')
-    }).catch((err) => { log.error({ err, eventType: payload.eventType }, 'Inline loyalty event failed') })
+    scheduleInline('loyalty-event', payload, inlineLoyaltyEvent)
     return INLINE_STUB
   }
   return getLoyaltyEventsQueue().add('process', payload)
@@ -640,15 +666,27 @@ export async function enqueueEvent(payload: LoyaltyEventPayload): Promise<Job> {
 
 export async function enqueueCampaignTrigger(payload: CampaignTriggerPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineCampaignTrigger(payload).catch((err) => { log.error({ err, campaignId: payload.campaignId }, 'Inline campaign trigger failed') })
+    scheduleInline('campaign-trigger', payload, inlineCampaignTrigger)
     return INLINE_STUB
   }
   return getCampaignTriggersQueue().add('trigger', payload, { priority: 10 })
 }
 
+async function inlineNotification(payload: NotificationPayload): Promise<{ sent: boolean; reason?: string }> {
+  // Mirrors apps/worker/src/processors/notifications.ts processNotification
+  // exactly so both modes follow the same code path. Today both are stubs;
+  // when EMAIL_PROVIDER is wired up to a real provider, both modes pick up
+  // the change with no further refactor.
+  if (process.env.EMAIL_PROVIDER === 'stub' || !process.env.EMAIL_PROVIDER) {
+    log.info({ memberId: payload.memberId, channel: payload.channel }, 'Notification (stub provider)')
+    return { sent: false, reason: 'stub_provider' }
+  }
+  return { sent: true }
+}
+
 export async function enqueueNotification(payload: NotificationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    log.info({ memberId: payload.memberId, channel: payload.channel }, 'Inline notification (stub)')
+    scheduleInline('notification', payload, inlineNotification)
     return INLINE_STUB
   }
   return getNotificationsQueue().add('send', payload)
@@ -656,11 +694,12 @@ export async function enqueueNotification(payload: NotificationPayload): Promise
 
 export async function enqueueSentimentAnalysis(payload: SentimentAnalysisPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    processSentimentForResponse(
-      { surveyResponseId: payload.surveyResponseId, brandId: payload.brandId, memberId: payload.memberId, text: payload.text, eventType: payload.eventType, score: payload.score },
-      prisma,
-    ).then((r) => { log.info({ surveyResponseId: payload.surveyResponseId, sentiment: r.sentiment }, 'Inline sentiment') })
-      .catch((err) => { log.error({ err, surveyResponseId: payload.surveyResponseId }, 'Inline sentiment failed') })
+    scheduleInline('sentiment-analysis', payload, async (p) => {
+      return processSentimentForResponse(
+        { surveyResponseId: p.surveyResponseId, brandId: p.brandId, memberId: p.memberId, text: p.text, eventType: p.eventType, score: p.score },
+        prisma,
+      )
+    })
     return INLINE_STUB
   }
   return getSentimentAnalysisQueue().add('analyze', payload)
@@ -668,8 +707,7 @@ export async function enqueueSentimentAnalysis(payload: SentimentAnalysisPayload
 
 export async function enqueueFeedbackClustering(payload: FeedbackClusteringPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineFeedbackClustering(payload).then((r) => { log.info({ brandId: payload.brandId, ...r }, 'Inline clustering') })
-      .catch((err) => { log.error({ err, brandId: payload.brandId }, 'Inline clustering failed') })
+    scheduleInline('feedback-clustering', payload, inlineFeedbackClustering)
     return INLINE_STUB
   }
   return getFeedbackClusteringQueue().add('cluster', payload)
@@ -705,9 +743,7 @@ async function inlineEmbeddingGeneration(p: EmbeddingGenerationPayload) {
 
 export async function enqueueEmbeddingGeneration(payload: EmbeddingGenerationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineEmbeddingGeneration(payload).catch((err) => {
-      log.error({ err, articleId: payload.articleId }, 'Inline embedding generation failed')
-    })
+    scheduleInline('embedding-generation', payload, inlineEmbeddingGeneration, { attempts: 3, backoffMs: 1000 })
     return INLINE_STUB
   }
   return getEmbeddingGenerationQueue().add('generate', payload, {
@@ -718,9 +754,7 @@ export async function enqueueEmbeddingGeneration(payload: EmbeddingGenerationPay
 
 export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineAlertEvaluation(payload).then((r) => {
-      if (r.casesCreated > 0) log.info({ surveyResponseId: payload.surveyResponseId, ...r }, 'Inline alert evaluation')
-    }).catch((err) => { log.error({ err, surveyResponseId: payload.surveyResponseId }, 'Inline alert failed') })
+    scheduleInline('alert-evaluation', payload, inlineAlertEvaluation)
     return INLINE_STUB
   }
   return getAlertEvaluationQueue().add('evaluate', payload, { priority: 10 })
@@ -928,9 +962,7 @@ function generateFallbackResponse(intent: string, firstName: string, brandName: 
 
 export async function enqueueSupportOrchestration(payload: SupportOrchestrationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineSupportOrchestration(payload).then((r) => {
-      log.info({ conversationId: payload.conversationId, ...r }, 'Inline support orchestration')
-    }).catch((err) => { log.error({ err, conversationId: payload.conversationId }, 'Inline support orchestration failed') })
+    scheduleInline('support-orchestration', payload, inlineSupportOrchestration)
     return INLINE_STUB
   }
   return getSupportOrchestrationQueue().add('orchestrate', payload)
@@ -938,9 +970,7 @@ export async function enqueueSupportOrchestration(payload: SupportOrchestrationP
 
 export async function enqueueHealthScoreComputation(payload: HealthScoreComputationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    processHealthScoreComputation(payload).then((r) => {
-      log.info({ brandId: payload.brandId, ...r }, 'Inline health score computation')
-    }).catch((err) => { log.error({ err, brandId: payload.brandId }, 'Inline health score computation failed') })
+    scheduleInline('health-score-computation', payload, processHealthScoreComputation)
     return INLINE_STUB
   }
   return getHealthScoreQueue().add('compute', payload)
@@ -948,11 +978,7 @@ export async function enqueueHealthScoreComputation(payload: HealthScoreComputat
 
 export async function enqueueExternalSignalSync(payload: ExternalSignalSyncPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineExternalSignalSync(payload).then((r) => {
-      log.info({ sourceId: payload.sourceId, ...r }, 'Inline external signal sync')
-    }).catch((err) => {
-      log.error({ err, sourceId: payload.sourceId }, 'Inline external signal sync failed')
-    })
+    scheduleInline('external-signal-sync', payload, inlineExternalSignalSync)
     return INLINE_STUB
   }
   return getExternalSignalSyncQueue().add('sync', payload)
@@ -960,11 +986,7 @@ export async function enqueueExternalSignalSync(payload: ExternalSignalSyncPaylo
 
 export async function enqueueExternalSignalIngestion(payload: ExternalSignalIngestionPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineExternalSignalIngestion(payload).then((r) => {
-      log.info({ sourceId: payload.sourceId, ...r }, 'Inline external signal ingestion')
-    }).catch((err) => {
-      log.error({ err, sourceId: payload.sourceId }, 'Inline external signal ingestion failed')
-    })
+    scheduleInline('external-signal-ingestion', payload, inlineExternalSignalIngestion)
     return INLINE_STUB
   }
   return getExternalSignalIngestionQueue().add('ingest', payload)
