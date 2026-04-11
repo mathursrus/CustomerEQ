@@ -1099,7 +1099,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     })
 
     if (!oldestEvent || oldestEvent.createdAt > historyThreshold) {
-      return reply.status(200).send({ estimatedCount: null, reason: 'insufficient_history', channels: null, windowDays: WINDOW_DAYS })
+      return reply.status(200).send({ estimatedCount: null, reason: 'insufficient_history', channels: null, windowDays: REACH_ESTIMATE_WINDOW_DAYS })
     }
 
     // Count distinct members who triggered this event in the past 30 days

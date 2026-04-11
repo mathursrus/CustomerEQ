@@ -64,10 +64,12 @@ export function verifyHubSpotSignature(
 
 function safeSecretEquals(actual: string, expected: string): boolean {
   try {
-    const actualBuffer = Buffer.from(actual)
-    const expectedBuffer = Buffer.from(expected)
-    if (actualBuffer.length !== expectedBuffer.length) return false
-    return crypto.timingSafeEqual(actualBuffer, expectedBuffer)
+    // Use HMAC to normalize both values to the same length,
+    // preventing length-timing leaks in the comparison.
+    const key = 'constant-length-comparison-key'
+    const actualHmac = crypto.createHmac('sha256', key).update(actual).digest()
+    const expectedHmac = crypto.createHmac('sha256', key).update(expected).digest()
+    return crypto.timingSafeEqual(actualHmac, expectedHmac)
   } catch {
     return false
   }
@@ -111,7 +113,12 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
     { config: { public: true } },
     async (request, reply) => {
       const sig = request.headers['x-sfdc-signature'] as string | undefined
-      const secret = process.env.SALESFORCE_WEBHOOK_SECRET ?? ''
+      const secret = process.env.CEQ_SALESFORCE_WEBHOOK_SECRET ?? ''
+
+      if (!secret) {
+        fastify.log.error('CEQ_SALESFORCE_WEBHOOK_SECRET is not configured')
+        return reply.status(500).send({ error: 'Webhook endpoint not configured' })
+      }
 
       if (!sig) {
         return reply.status(401).send({ error: 'Missing X-SFDC-Signature header' })
@@ -138,15 +145,16 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Missing contactEmail in payload' })
       }
 
-      // Look up brand via SALESFORCE_BRAND_ID env or header (webhook routes are
+      // Look up brand via CEQ_SALESFORCE_BRAND_ID env or header (webhook routes are
       // not authenticated via JWT — brand is determined by the webhook endpoint
       // registration. For MVP, we use a per-brand webhook secret scoped by brandId
-      // stored as SALESFORCE_BRAND_ID).
-      const brandId = process.env.SALESFORCE_BRAND_ID ?? (request.headers['x-brand-id'] as string | undefined)
+      // stored as CEQ_SALESFORCE_BRAND_ID).
+      const brandId = process.env.CEQ_SALESFORCE_BRAND_ID
       if (!brandId) {
+        fastify.log.error('CEQ_SALESFORCE_BRAND_ID is not configured')
         return reply
-          .status(400)
-          .send({ error: 'Cannot determine brand from webhook request' })
+          .status(500)
+          .send({ error: 'Webhook endpoint not configured' })
       }
 
       // Look up member by email within the brand
@@ -194,7 +202,12 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const sig = request.headers['x-hubspot-signature-v3'] as string | undefined
       const ts = request.headers['x-hubspot-request-timestamp'] as string | undefined
-      const secret = process.env.HUBSPOT_WEBHOOK_SECRET ?? ''
+      const secret = process.env.CEQ_HUBSPOT_WEBHOOK_SECRET ?? ''
+
+      if (!secret) {
+        fastify.log.error('CEQ_HUBSPOT_WEBHOOK_SECRET is not configured')
+        return reply.status(500).send({ error: 'Webhook endpoint not configured' })
+      }
 
       if (!sig || !ts) {
         return reply.status(401).send({
@@ -225,10 +238,11 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Cannot determine member email from payload' })
       }
 
-      const brandId = process.env.HUBSPOT_BRAND_ID ?? (request.headers['x-brand-id'] as string | undefined)
+      const brandId = process.env.CEQ_HUBSPOT_BRAND_ID
       if (!brandId) {
+        fastify.log.error('CEQ_HUBSPOT_BRAND_ID is not configured')
         return reply
-          .status(400)
+          .status(500)
           .send({ error: 'Cannot determine brand from webhook request' })
       }
 

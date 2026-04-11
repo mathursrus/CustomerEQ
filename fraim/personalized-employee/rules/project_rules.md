@@ -123,3 +123,11 @@ Before starting any significant feature work, replication analysis, or architect
 - `docs/replicate/IMPLEMENTATION_ROADMAP.md` (scope and priority)
 - `docs/architecture/architecture.md` (tech decisions and rationale)
 - `docs/business-development/business-validation-report-cx-loyalty-platform-2026-03-24.md` (ICP, differentiator, risks)
+
+## 18. Validate User Flows End-to-End — Not API Shortcuts
+
+Never claim a user-facing feature is "validated" based solely on API-level tests (curl with test headers, Playwright without auth). For any flow the user initiates from the browser:
+1. Trace the exact user path: what does the click trigger, what URL does the browser hit, how does auth get there?
+2. Browser redirects (`window.location.href`, OAuth callbacks, email links) cannot carry Bearer tokens — endpoints must be public or auth must be passed via query param/cookie/signed state.
+3. If you cannot test the real flow (e.g., Playwright can't auth with Clerk), say so honestly. Partial validation is not validation.
+4. When Playwright fails to authenticate, treat it as a signal about the real user flow — don't dismiss it as a "Playwright limitation."

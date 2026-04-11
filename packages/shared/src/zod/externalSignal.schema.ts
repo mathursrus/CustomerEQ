@@ -31,7 +31,7 @@ export const UpdateExternalSignalSourceSchema = CreateExternalSignalSourceSchema
 )
 
 export const TestExternalSignalSourceSchema = z.object({
-  samplePayloads: z.array(JsonRecordSchema).optional(),
+  samplePayloads: z.array(JsonRecordSchema).max(50).optional(),
 })
 
 export const ExternalSignalSourceListQuerySchema = z.object({
@@ -51,7 +51,7 @@ export const ExternalSignalsQuerySchema = z.object({
   ratingMax: z.coerce.number().min(0).max(5).optional(),
   sentimentMin: z.coerce.number().min(-1).max(1).optional(),
   sentimentMax: z.coerce.number().min(-1).max(1).optional(),
-  search: z.string().trim().optional(),
+  search: z.string().trim().max(200).optional(),
   subjectKey: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),

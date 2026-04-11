@@ -59,6 +59,7 @@ export function createMockPrisma() {
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      upsert: vi.fn(),
       count: vi.fn(),
     },
     feedbackCluster: {

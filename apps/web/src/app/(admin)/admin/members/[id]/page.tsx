@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { HealthScoreBadge } from '@/components/health-score/HealthScoreBadge'
+import { SENTIMENT } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
 // Types matching the GET /v1/members/:id/360 response
@@ -951,7 +952,7 @@ export default function MemberDetailPage() {
                         </span>
                       )}
                       {signal.sentiment != null && (
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${signal.sentiment >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${signal.sentiment > SENTIMENT.POSITIVE_THRESHOLD ? 'bg-green-50 text-green-700' : signal.sentiment < SENTIMENT.NEGATIVE_THRESHOLD ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
                           {signal.sentiment > 0 ? '+' : ''}
                           {signal.sentiment.toFixed(2)}
                         </span>

@@ -75,6 +75,39 @@ export async function processExternalSignalIngestion(
       candidate.memberEmail,
     )
 
+    const nextStatus = deriveExternalSignalStatus(candidate.providerStatus)
+    const postedAt = candidate.postedAt ? new Date(candidate.postedAt) : null
+
+    const sharedData = {
+      memberId: match.memberId,
+      status: nextStatus,
+      matchStatus: match.matchStatus,
+      matchConfidence: match.matchConfidence,
+      matchMethod: match.matchMethod,
+      body,
+      summary: candidate.summary,
+      rating: candidate.rating,
+      sentiment: candidate.sentiment,
+      confidence: candidate.confidence,
+      topics: candidate.topics,
+      canonicalUrl: candidate.canonicalUrl,
+      externalAuthorHandle: candidate.externalAuthorHandle,
+      externalAuthorLabel: candidate.externalAuthorLabel,
+      subjectType: candidate.subjectType,
+      subjectKey: candidate.subjectKey,
+      subjectLabel: candidate.subjectLabel,
+      providerStatus: candidate.providerStatus,
+      providerMetadata:
+        candidate.providerMetadata == null
+          ? Prisma.JsonNull
+          : (candidate.providerMetadata as Prisma.InputJsonValue),
+      rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
+      postedAt,
+    }
+
+    const MAX_STATUS_HISTORY = 50
+
+    // Look up existing record for status history computation
     const existing = await prisma.externalSignal.findUnique({
       where: {
         sourceId_externalId: {
@@ -82,92 +115,43 @@ export async function processExternalSignalIngestion(
           externalId: candidate.externalId,
         },
       },
-      select: {
-        id: true,
-        providerStatus: true,
-        statusHistory: true,
-      },
+      select: { providerStatus: true, statusHistory: true },
     })
 
-    const nextStatus = deriveExternalSignalStatus(candidate.providerStatus)
     const nextStatusHistory = Array.isArray(existing?.statusHistory)
       ? [...existing.statusHistory]
       : []
-
     if (candidate.providerStatus && existing?.providerStatus !== candidate.providerStatus) {
       nextStatusHistory.push({
         providerStatus: candidate.providerStatus,
         changedAt: new Date(job.data.receivedAt).toISOString(),
       })
     }
+    // Cap status history to prevent unbounded growth
+    const cappedHistory = nextStatusHistory.slice(-MAX_STATUS_HISTORY)
 
-    if (existing) {
-      await prisma.externalSignal.update({
-        where: { id: existing.id },
-        data: {
-          memberId: match.memberId,
-          status: nextStatus,
-          matchStatus: match.matchStatus,
-          matchConfidence: match.matchConfidence,
-          matchMethod: match.matchMethod,
-          body,
-          summary: candidate.summary,
-          rating: candidate.rating,
-          sentiment: candidate.sentiment,
-          confidence: candidate.confidence,
-          topics: candidate.topics,
-          canonicalUrl: candidate.canonicalUrl,
-          externalAuthorHandle: candidate.externalAuthorHandle,
-          externalAuthorLabel: candidate.externalAuthorLabel,
-          subjectType: candidate.subjectType,
-          subjectKey: candidate.subjectKey,
-          subjectLabel: candidate.subjectLabel,
-          providerStatus: candidate.providerStatus,
-          providerMetadata:
-            candidate.providerMetadata == null
-              ? Prisma.JsonNull
-              : (candidate.providerMetadata as Prisma.InputJsonValue),
-          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
-          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
-          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
-        },
-      })
-    } else {
-      await prisma.externalSignal.create({
-        data: {
-          brandId: job.data.brandId,
+    // Use upsert for atomic dedupe — avoids P2002 race under concurrent syncs
+    await prisma.externalSignal.upsert({
+      where: {
+        sourceId_externalId: {
           sourceId: source.id,
-          memberId: match.memberId,
-          sourceType: source.sourceType,
           externalId: candidate.externalId,
-          status: nextStatus,
-          matchStatus: match.matchStatus,
-          matchConfidence: match.matchConfidence,
-          matchMethod: match.matchMethod,
-          body,
-          summary: candidate.summary,
-          rating: candidate.rating,
-          sentiment: candidate.sentiment,
-          confidence: candidate.confidence,
-          topics: candidate.topics,
-          canonicalUrl: candidate.canonicalUrl,
-          externalAuthorHandle: candidate.externalAuthorHandle,
-          externalAuthorLabel: candidate.externalAuthorLabel,
-          subjectType: candidate.subjectType,
-          subjectKey: candidate.subjectKey,
-          subjectLabel: candidate.subjectLabel,
-          providerStatus: candidate.providerStatus,
-          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
-          providerMetadata:
-            candidate.providerMetadata == null
-              ? Prisma.JsonNull
-              : (candidate.providerMetadata as Prisma.InputJsonValue),
-          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
-          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
-          ingestedAt: new Date(job.data.receivedAt),
         },
-      })
-    }
+      },
+      update: {
+        ...sharedData,
+        statusHistory: cappedHistory as Prisma.InputJsonValue[],
+      },
+      create: {
+        brandId: job.data.brandId,
+        sourceId: source.id,
+        sourceType: source.sourceType,
+        externalId: candidate.externalId,
+        ingestedAt: new Date(job.data.receivedAt),
+        statusHistory: cappedHistory as unknown as Prisma.InputJsonValue,
+        ...sharedData,
+      },
+    })
 
     importedCount += 1
   }

@@ -51,3 +51,32 @@
 
 - Canonical PR: https://github.com/mathursrus/CustomerEQ/pull/114
 - Closed corrective PR: https://github.com/mathursrus/CustomerEQ/pull/115
+
+---
+
+# Coaching Session 2: OAuth Flow False Validation (2026-04-08)
+
+## Failure
+
+OAuth authorize endpoint required Clerk JWT auth but was called via browser redirect (`window.location.href`), which cannot attach auth headers. Result: `401 "Authorization header is required"` when user clicked "Connect Google Account." Agent repeatedly claimed "validated" based on API-level curl tests that bypass Clerk auth.
+
+## Root Causes
+
+1. OAuth authorize route behind Clerk auth but accessed via browser redirect — architecturally impossible.
+2. Validated via `curl` with `X-Test-Brand-Id` headers instead of actual browser user flow.
+3. Playwright Clerk auth failures dismissed as "limitation" instead of signal about the real flow.
+
+## Fix Applied
+
+- Changed authorize endpoint to return `{ authorizationUrl }` JSON instead of 302 redirect.
+- Frontend calls it via authenticated `fetch()`, gets URL, then redirects via `window.location.href`.
+- Verified: API returns correct Google authorization URL with `client_id`, `access_type=offline`, signed state.
+
+## Preventive Controls
+
+- Added project rule #18: "Validate User Flows End-to-End — Not API Shortcuts."
+- Coaching moment: `fraim/personalized-employee/learnings/raw/sid.mathur@gmail.com-2026-04-08T19-55-00-validate-real-user-flow-not-api-shortcuts.md`
+
+## Honest Disclosure
+
+The full browser OAuth flow (user clicks → Google consent → callback → tokens stored) has NOT been tested end-to-end because it requires manual browser interaction with Clerk auth. The API-level flow is verified. The browser redirect to Google is verified. The callback token exchange logic is implemented but untested against a real Google account.

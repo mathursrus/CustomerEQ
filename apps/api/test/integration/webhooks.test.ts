@@ -24,8 +24,8 @@ function signSalesforcePayload(body: unknown, secret: string): string {
 
 describe('Webhooks API — /v1/integrations/webhooks', () => {
   // These must match env vars (or defaults) in the API
-  const SALESFORCE_WEBHOOK_SECRET = process.env.SALESFORCE_WEBHOOK_SECRET ?? ''
-  const HUBSPOT_WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET ?? ''
+  const CEQ_SALESFORCE_WEBHOOK_SECRET = process.env.CEQ_SALESFORCE_WEBHOOK_SECRET ?? ''
+  const CEQ_HUBSPOT_WEBHOOK_SECRET = process.env.CEQ_HUBSPOT_WEBHOOK_SECRET ?? ''
 
   beforeEach(async () => {
     await seedTestDb()
@@ -49,7 +49,7 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         npsScore: 8,
         comment: 'Very happy',
       }
-      const signature = signSalesforcePayload(body, SALESFORCE_WEBHOOK_SECRET)
+      const signature = signSalesforcePayload(body, CEQ_SALESFORCE_WEBHOOK_SECRET)
 
       const res = await request
         .post('/v1/integrations/webhooks/salesforce')
@@ -90,7 +90,7 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         contactEmail: 'unknown-member@example.com',
         npsScore: 6,
       }
-      const signature = signSalesforcePayload(body, SALESFORCE_WEBHOOK_SECRET)
+      const signature = signSalesforcePayload(body, CEQ_SALESFORCE_WEBHOOK_SECRET)
 
       const res = await request
         .post('/v1/integrations/webhooks/salesforce')

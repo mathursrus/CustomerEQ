@@ -45,7 +45,7 @@ describe('processExternalSignalIngestion', () => {
       consentGivenAt: new Date('2026-04-01T00:00:00.000Z'),
     })
     mockPrisma.externalSignal.findUnique.mockResolvedValue(null)
-    mockPrisma.externalSignal.create.mockResolvedValue({})
+    mockPrisma.externalSignal.upsert.mockResolvedValue({})
   })
 
   it('creates a new matched external signal from an incoming delivery', async () => {
@@ -61,8 +61,20 @@ describe('processExternalSignalIngestion', () => {
       ],
     }) as never)
 
-    expect(mockPrisma.externalSignal.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockPrisma.externalSignal.upsert).toHaveBeenCalledWith({
+      where: {
+        sourceId_externalId: {
+          sourceId: 'source-001',
+          externalId: 'ext-1',
+        },
+      },
+      update: expect.objectContaining({
+        memberId: 'member-001',
+        matchStatus: 'MATCHED',
+        matchMethod: 'email_exact',
+        body: 'Public review mentioning the member.',
+      }),
+      create: expect.objectContaining({
         brandId: 'brand-001',
         sourceId: 'source-001',
         memberId: 'member-001',
@@ -81,7 +93,6 @@ describe('processExternalSignalIngestion', () => {
       providerStatus: 'visible',
       statusHistory: [],
     })
-    mockPrisma.externalSignal.update.mockResolvedValue({})
 
     await processExternalSignalIngestion(makeJob({
       deliveries: [
@@ -93,10 +104,23 @@ describe('processExternalSignalIngestion', () => {
       ],
     }) as never)
 
-    expect(mockPrisma.externalSignal.update).toHaveBeenCalledWith({
-      where: { id: 'signal-001' },
-      data: expect.objectContaining({
+    expect(mockPrisma.externalSignal.upsert).toHaveBeenCalledWith({
+      where: {
+        sourceId_externalId: {
+          sourceId: 'source-001',
+          externalId: 'ext-1',
+        },
+      },
+      update: expect.objectContaining({
         status: 'DELETED',
+        providerStatus: 'deleted',
+        statusHistory: [
+          expect.objectContaining({
+            providerStatus: 'deleted',
+          }),
+        ],
+      }),
+      create: expect.objectContaining({
         providerStatus: 'deleted',
         statusHistory: [
           expect.objectContaining({

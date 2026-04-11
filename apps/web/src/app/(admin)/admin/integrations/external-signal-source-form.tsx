@@ -61,7 +61,7 @@ export function ExternalSignalSourceForm({
           data-testid="external-source-name"
           value={form.name}
           onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           placeholder="Acme flagship reviews"
           required
         />
@@ -81,7 +81,7 @@ export function ExternalSignalSourceForm({
                 sourceType: event.target.value as SourceType,
               }))
             }
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="GOOGLE_BUSINESS_PROFILE">Google Business Profile</option>
             <option value="LINKEDIN_ORG">LinkedIn Org</option>
@@ -105,7 +105,7 @@ export function ExternalSignalSourceForm({
                 syncMode: event.target.value as SyncMode,
               }))
             }
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="WEBHOOK">Webhook</option>
             <option value="POLL">Poll</option>
@@ -178,7 +178,7 @@ export function ExternalSignalSourceForm({
             }))
           }
           rows={7}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </div>
 
@@ -196,7 +196,7 @@ export function ExternalSignalSourceForm({
               }))
             }
             rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
         <div>
@@ -212,7 +212,7 @@ export function ExternalSignalSourceForm({
               }))
             }
             rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
       </div>

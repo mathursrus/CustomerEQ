@@ -135,8 +135,9 @@ const severityColors: Record<string, string> = {
 
 function Spinner() {
   return (
-    <div className="flex items-center justify-center py-12">
+    <div className="flex items-center justify-center py-12" role="status">
       <div className="h-8 w-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
+      <span className="sr-only">Loading...</span>
     </div>
   )
 }
@@ -200,9 +201,10 @@ export default function CXInsightsPage() {
   // Responses detail
   const [responses, setResponses] = useState<ResponsesPage | null>(null)
   const [responsesLoading, setResponsesLoading] = useState(false)
-  const [responsesPage, setResponsesPage] = useState(1)
+  const [_responsesPage, setResponsesPage] = useState(1)
   const [externalSignals, setExternalSignals] = useState<ExternalSignalsPage | null>(null)
   const [externalSignalsLoading, setExternalSignalsLoading] = useState(false)
+  const [externalSignalsError, setExternalSignalsError] = useState<string | null>(null)
 
   const getHeaders = useCallback(async () => {
     const token = await getAuthToken(getToken)
@@ -255,6 +257,7 @@ export default function CXInsightsPage() {
 
   const fetchExternalSignals = useCallback(async () => {
     setExternalSignalsLoading(true)
+    setExternalSignalsError(null)
     try {
       const headers = await getHeaders()
       const params = getDateParams()
@@ -265,8 +268,9 @@ export default function CXInsightsPage() {
       if (!res.ok) throw new Error('Failed to load external signals')
       const json = await res.json()
       setExternalSignals(json)
-    } catch {
+    } catch (err) {
       setExternalSignals(null)
+      setExternalSignalsError(err instanceof Error ? err.message : 'Failed to load external signals')
     } finally {
       setExternalSignalsLoading(false)
     }
@@ -295,7 +299,7 @@ export default function CXInsightsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">CX Insights</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -303,20 +307,20 @@ export default function CXInsightsPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-        <select
-          value={selectedSurveyId}
-          onChange={(e) => setSelectedSurveyId(e.target.value)}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">All Surveys</option>
-          {data.surveys
-            .filter((s) => s.totalResponses > 0)
-            .map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.type} — {s.totalResponses})
-              </option>
-            ))}
-        </select>
+          <select
+            value={selectedSurveyId}
+            onChange={(e) => setSelectedSurveyId(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">All Surveys</option>
+            {data.surveys
+              .filter((s) => s.totalResponses > 0)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.type} — {s.totalResponses})
+                </option>
+              ))}
+          </select>
           <select
             value={signalOrigin}
             onChange={(e) => setSignalOrigin(e.target.value as 'all' | 'survey' | 'external')}
@@ -380,7 +384,7 @@ export default function CXInsightsPage() {
               <p className="mt-2 text-2xl font-semibold text-gray-900">{data.externalSignals.matched}</p>
             </div>
             <div className="rounded-lg bg-gray-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Brand or product scope</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500" title="Signals not yet matched to a specific member">Unmatched (brand-level)</p>
               <p className="mt-2 text-2xl font-semibold text-gray-900">{data.externalSignals.unmatched}</p>
             </div>
             <div className="rounded-lg bg-gray-50 p-4">
@@ -602,14 +606,14 @@ export default function CXInsightsPage() {
                 <div className="flex gap-2">
                   <button
                     disabled={responses.page <= 1}
-                    onClick={() => { setResponsesPage(responsesPage - 1); fetchResponses(responsesPage - 1) }}
+                    onClick={() => { const next = responses.page - 1; setResponsesPage(next); fetchResponses(next) }}
                     className="rounded px-3 py-1 border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
                   >
                     Previous
                   </button>
                   <button
                     disabled={responses.page >= responses.totalPages}
-                    onClick={() => { setResponsesPage(responsesPage + 1); fetchResponses(responsesPage + 1) }}
+                    onClick={() => { const next = responses.page + 1; setResponsesPage(next); fetchResponses(next) }}
                     className="rounded px-3 py-1 border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
                   >
                     Next
@@ -641,7 +645,11 @@ export default function CXInsightsPage() {
               </button>
             )}
           </div>
-          {externalSignalsLoading ? (
+          {externalSignalsError ? (
+            <div className="px-6 py-4 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700 m-4">
+              {externalSignalsError}
+            </div>
+          ) : externalSignalsLoading ? (
             <Spinner />
           ) : externalSignals && externalSignals.data.length > 0 ? (
             <div className="divide-y divide-gray-100">

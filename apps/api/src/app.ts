@@ -17,6 +17,7 @@ import campaignsRoutes from './routes/campaigns.js'
 import analyticsRoutes from './routes/analytics.js'
 import externalSignalsRoutes from './routes/externalSignals.js'
 import webhooksRoutes from './routes/webhooks.js'
+import oauthRoutes from './routes/oauth.js'
 import publicRoutes from './routes/public.js'
 import surveysRoutes from './routes/surveys.js'
 import themesRoutes from './routes/themes.js'
@@ -113,6 +114,7 @@ export async function buildApp() {
   await fastify.register(analyticsRoutes, { prefix: '/v1' })
   await fastify.register(externalSignalsRoutes, { prefix: '/v1' })
   await fastify.register(webhooksRoutes, { prefix: '/v1' })
+  await fastify.register(oauthRoutes, { prefix: '/v1' })
   await fastify.register(surveysRoutes, { prefix: '/v1' })
   await fastify.register(themesRoutes, { prefix: '/v1' })
   await fastify.register(templatesRoutes, { prefix: '/v1' })

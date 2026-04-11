@@ -376,10 +376,10 @@ Located at `fraim/config.json`. Architecture doc pointer: `customizations.archit
 | `API_PORT` | `4000` | Fastify server port |
 | `API_HOST` | `0.0.0.0` | Fastify server host |
 | `API_BASE_URL` | `https://api.customerEQ.io` | Used in admin integration endpoint URLs |
-| `SALESFORCE_WEBHOOK_SECRET` | — | HMAC secret for Salesforce webhook verification |
-| `SALESFORCE_BRAND_ID` | — | Brand ID for Salesforce webhook events |
-| `HUBSPOT_WEBHOOK_SECRET` | — | HMAC secret for HubSpot webhook verification |
-| `HUBSPOT_BRAND_ID` | — | Brand ID for HubSpot webhook events |
+| `CEQ_SALESFORCE_WEBHOOK_SECRET` | — | HMAC secret for Salesforce webhook verification |
+| `CEQ_SALESFORCE_BRAND_ID` | — | Brand ID for Salesforce webhook events |
+| `CEQ_HUBSPOT_WEBHOOK_SECRET` | — | HMAC secret for HubSpot webhook verification |
+| `CEQ_HUBSPOT_BRAND_ID` | — | Brand ID for HubSpot webhook events |
 | `EMAIL_PROVIDER` | `stub` | Email provider (`stub` for MVP, `sendgrid` or `resend` for production) |
 | `AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING` | — | Azure observability |
 | `NODE_ENV` | — | `test` enables header-based auth bypass for integration tests |

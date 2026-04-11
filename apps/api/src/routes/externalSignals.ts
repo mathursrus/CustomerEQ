@@ -89,22 +89,24 @@ function buildSignalWhere(
   if (query.startDate || query.endDate) {
     const startDate = query.startDate ? new Date(query.startDate) : undefined
     const endDate = query.endDate ? new Date(query.endDate) : undefined
-    where.OR = [
-      ...(where.OR ?? []),
-      {
-        postedAt: {
-          gte: startDate,
-          lte: endDate,
+    if (!where.AND) where.AND = []
+    ;(where.AND as Prisma.ExternalSignalWhereInput[]).push({
+      OR: [
+        {
+          postedAt: {
+            gte: startDate,
+            lte: endDate,
+          },
         },
-      },
-      {
-        postedAt: null,
-        ingestedAt: {
-          gte: startDate,
-          lte: endDate,
+        {
+          postedAt: null,
+          ingestedAt: {
+            gte: startDate,
+            lte: endDate,
+          },
         },
-      },
-    ]
+      ],
+    })
   }
 
   return where
@@ -220,6 +222,34 @@ const externalSignalsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  fastify.delete<{ Params: { id: string } }>(
+    '/admin/external-signal-sources/:id',
+    async (request, reply) => {
+      const existing = await fastify.prisma.externalSignalSource.findFirst({
+        where: { id: request.params.id, brandId: request.brandId },
+        select: { id: true },
+      })
+
+      if (!existing) {
+        return reply.status(404).send({ error: 'External signal source not found' })
+      }
+
+      await fastify.prisma.externalSignal.deleteMany({
+        where: { sourceId: request.params.id },
+      })
+      await fastify.prisma.externalSignalSource.delete({
+        where: { id: request.params.id },
+      })
+
+      fastify.log.info(
+        { brandId: request.brandId, sourceId: request.params.id },
+        'external_source.deleted',
+      )
+
+      return reply.status(200).send({ message: 'Source deleted' })
+    },
+  )
+
   fastify.post<{ Params: { id: string } }>(
     '/admin/external-signal-sources/:id/test',
     async (request, reply) => {
@@ -233,6 +263,46 @@ const externalSignalsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const scopeConfig = (source.scopeConfig ?? {}) as Record<string, unknown>
+
+      // If a native connector is registered for this sourceType and no override samples
+      // were provided, call the real connector for a live preview (without persisting).
+      if (!input.samplePayloads || input.samplePayloads.length === 0) {
+        try {
+          const { CONNECTORS } = await import('@customerEQ/connectors')
+          const connector = CONNECTORS[source.sourceType]
+          if (connector) {
+            const result = await connector({
+              sourceId: source.id,
+              brandId: request.brandId,
+              scopeConfig,
+              lastCursor: null, // always start fresh for preview
+              credentialRef: source.credentialRef,
+            })
+            const samples = result.deliveries
+              .slice(0, 5)
+              .map((record) => normalizeExternalSignalCandidate(record))
+
+            fastify.log.info(
+              { brandId: request.brandId, sourceId: source.id, sampleCount: samples.length, live: true },
+              'external_source.tested',
+            )
+
+            return reply.status(200).send({ success: true, samples, live: true })
+          }
+        } catch (err) {
+          fastify.log.warn(
+            { sourceId: source.id, err: err instanceof Error ? err.message : String(err) },
+            'external_source.test_connector_failed',
+          )
+          return reply.status(200).send({
+            success: false,
+            error: err instanceof Error ? err.message : 'Connector test failed',
+            samples: [],
+          })
+        }
+      }
+
+      // Fallback for generic webhook/API sources: use configured samplePayloads or hardcoded preview
       const configuredSamples = Array.isArray(scopeConfig.samplePayloads)
         ? scopeConfig.samplePayloads
         : Array.isArray(scopeConfig.seedSignals)

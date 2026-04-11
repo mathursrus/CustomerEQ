@@ -541,26 +541,63 @@ async function inlineExternalSignalIngestion(p: ExternalSignalIngestionPayload) 
 async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
   const source = await prisma.externalSignalSource.findFirst({
     where: { id: p.sourceId, brandId: p.brandId },
-    select: { id: true, scopeConfig: true },
+    select: { id: true, sourceType: true, scopeConfig: true, credentialRef: true, lastCursor: true },
   })
   if (!source) {
     throw new Error(`External signal source ${p.sourceId} not found`)
   }
 
   const scopeConfig = (source.scopeConfig ?? {}) as Record<string, unknown>
-  const deliveries = extractExternalSignalDeliveries(
-    scopeConfig.samplePayloads ?? scopeConfig.seedSignals ?? [],
-  )
 
-  if (deliveries.length === 0) {
+  // Try native connector first (Google, Reddit, X, LinkedIn)
+  let deliveries: Record<string, unknown>[]
+  let nextCursor: Record<string, unknown> | null = null
+  let updatedCredentials: Record<string, unknown> | undefined
+
+  try {
+    const { CONNECTORS } = await import('@customerEQ/connectors')
+    const connector = CONNECTORS[source.sourceType]
+
+    if (connector) {
+      const result = await connector({
+        sourceId: source.id,
+        brandId: p.brandId,
+        scopeConfig,
+        lastCursor: (source.lastCursor ?? null) as Record<string, unknown> | null,
+        credentialRef: source.credentialRef,
+      })
+      deliveries = result.deliveries
+      nextCursor = result.nextCursor
+      updatedCredentials = result.updatedCredentials
+    } else {
+      // Fallback: samplePayloads for generic sources
+      deliveries = extractExternalSignalDeliveries(
+        scopeConfig.samplePayloads ?? scopeConfig.seedSignals ?? [],
+      )
+    }
+  } catch (err) {
+    // Auth errors need human intervention (reconnect OAuth) — mark distinctly so the
+    // UI can surface the right call-to-action. Rate-limit errors are transient.
+    const isAuthError = err instanceof Error && err.name === 'ConnectorAuthError'
     await prisma.externalSignalSource.update({
       where: { id: source.id },
       data: {
-        healthStatus: 'error',
-        lastError: 'No sample payloads configured for this source sync.',
+        healthStatus: isAuthError ? 'auth_error' : 'error',
+        lastError: err instanceof Error ? err.message : 'Sync failed',
         lastErrorAt: new Date(),
         lastSyncAt: new Date(),
       },
+    })
+    log.error({ sourceId: source.id, err }, 'Inline external signal sync connector error')
+    return { importedCount: 0, queued: 0, error: err instanceof Error ? err.message : 'Sync failed' }
+  }
+
+  if (deliveries.length === 0) {
+    const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+    if (nextCursor) updateData.lastCursor = nextCursor
+    await prisma.externalSignalSource.update({
+      where: { id: source.id },
+      data: updateData,
     })
     return { importedCount: 0, queued: 0 }
   }
@@ -571,6 +608,17 @@ async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
     deliveries,
     receivedAt: new Date().toISOString(),
     deliveryType: 'sync',
+  })
+
+  // Persist cursor and refreshed credentials
+  const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+  if (nextCursor) updateData.lastCursor = nextCursor
+  if (updatedCredentials) {
+    updateData.scopeConfig = { ...scopeConfig, credentials: updatedCredentials }
+  }
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: updateData,
   })
 
   return { ...result, queued: deliveries.length }
