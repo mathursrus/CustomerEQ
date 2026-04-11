@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import crypto from 'node:crypto'
-import { enqueueEvent } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueExternalSignalIngestion } from '../queues/bullmq.js'
 import type { InternalCxEvent } from '@customerEQ/shared'
 
 interface SalesforceNPSPayload {
@@ -62,6 +62,19 @@ export function verifyHubSpotSignature(
   }
 }
 
+function safeSecretEquals(actual: string, expected: string): boolean {
+  try {
+    // Use HMAC to normalize both values to the same length,
+    // preventing length-timing leaks in the comparison.
+    const key = 'constant-length-comparison-key'
+    const actualHmac = crypto.createHmac('sha256', key).update(actual).digest()
+    const expectedHmac = crypto.createHmac('sha256', key).update(expected).digest()
+    return crypto.timingSafeEqual(actualHmac, expectedHmac)
+  } catch {
+    return false
+  }
+}
+
 export function normalizeSalesforcePayload(body: SalesforceNPSPayload): InternalCxEvent {
   return {
     type: 'cx.nps_submitted',
@@ -100,7 +113,12 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
     { config: { public: true } },
     async (request, reply) => {
       const sig = request.headers['x-sfdc-signature'] as string | undefined
-      const secret = process.env.SALESFORCE_WEBHOOK_SECRET ?? ''
+      const secret = process.env.CEQ_SALESFORCE_WEBHOOK_SECRET ?? ''
+
+      if (!secret) {
+        fastify.log.error('CEQ_SALESFORCE_WEBHOOK_SECRET is not configured')
+        return reply.status(500).send({ error: 'Webhook endpoint not configured' })
+      }
 
       if (!sig) {
         return reply.status(401).send({ error: 'Missing X-SFDC-Signature header' })
@@ -127,15 +145,16 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Missing contactEmail in payload' })
       }
 
-      // Look up brand via SALESFORCE_BRAND_ID env or header (webhook routes are
+      // Look up brand via CEQ_SALESFORCE_BRAND_ID env or header (webhook routes are
       // not authenticated via JWT — brand is determined by the webhook endpoint
       // registration. For MVP, we use a per-brand webhook secret scoped by brandId
-      // stored as SALESFORCE_BRAND_ID).
-      const brandId = process.env.SALESFORCE_BRAND_ID ?? (request.headers['x-brand-id'] as string | undefined)
+      // stored as CEQ_SALESFORCE_BRAND_ID).
+      const brandId = process.env.CEQ_SALESFORCE_BRAND_ID
       if (!brandId) {
+        fastify.log.error('CEQ_SALESFORCE_BRAND_ID is not configured')
         return reply
-          .status(400)
-          .send({ error: 'Cannot determine brand from webhook request' })
+          .status(500)
+          .send({ error: 'Webhook endpoint not configured' })
       }
 
       // Look up member by email within the brand
@@ -183,7 +202,12 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const sig = request.headers['x-hubspot-signature-v3'] as string | undefined
       const ts = request.headers['x-hubspot-request-timestamp'] as string | undefined
-      const secret = process.env.HUBSPOT_WEBHOOK_SECRET ?? ''
+      const secret = process.env.CEQ_HUBSPOT_WEBHOOK_SECRET ?? ''
+
+      if (!secret) {
+        fastify.log.error('CEQ_HUBSPOT_WEBHOOK_SECRET is not configured')
+        return reply.status(500).send({ error: 'Webhook endpoint not configured' })
+      }
 
       if (!sig || !ts) {
         return reply.status(401).send({
@@ -214,10 +238,11 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Cannot determine member email from payload' })
       }
 
-      const brandId = process.env.HUBSPOT_BRAND_ID ?? (request.headers['x-brand-id'] as string | undefined)
+      const brandId = process.env.CEQ_HUBSPOT_BRAND_ID
       if (!brandId) {
+        fastify.log.error('CEQ_HUBSPOT_BRAND_ID is not configured')
         return reply
-          .status(400)
+          .status(500)
           .send({ error: 'Cannot determine brand from webhook request' })
       }
 
@@ -255,6 +280,45 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       return reply.status(200).send({ message: 'Webhook processed successfully' })
+    },
+  )
+
+  fastify.post<{ Params: { sourceId: string } }>(
+    '/integrations/webhooks/external-signals/:sourceId',
+    { config: { public: true } },
+    async (request, reply) => {
+      const source = await fastify.prisma.externalSignalSource.findUnique({
+        where: { id: request.params.sourceId },
+        select: {
+          id: true,
+          brandId: true,
+          enabled: true,
+          credentialRef: true,
+        },
+      })
+
+      if (!source || !source.enabled) {
+        return reply.status(404).send({ error: 'External signal source not found' })
+      }
+
+      if (source.credentialRef) {
+        const providedSecret = request.headers['x-source-secret'] as string | undefined
+        if (!providedSecret || !safeSecretEquals(providedSecret, source.credentialRef)) {
+          return reply.status(401).send({ error: 'Invalid source secret' })
+        }
+      }
+
+      await enqueueExternalSignalIngestion({
+        brandId: source.brandId,
+        sourceId: source.id,
+        deliveries: Array.isArray(request.body)
+          ? (request.body as Record<string, unknown>[])
+          : [request.body as Record<string, unknown>],
+        receivedAt: new Date().toISOString(),
+        deliveryType: 'webhook',
+      })
+
+      return reply.status(202).send({ message: 'External signal delivery accepted' })
     },
   )
 }

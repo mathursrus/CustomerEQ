@@ -9,6 +9,11 @@ import {
   type SupportOrchestrationPayload,
   type EmbeddingGenerationPayload,
   type HealthScoreComputationPayload,
+  type ExternalSignalSyncPayload,
+  type ExternalSignalIngestionPayload,
+  extractExternalSignalDeliveries,
+  normalizeExternalSignalCandidate,
+  deriveExternalSignalStatus,
   evaluateConditions,
   evaluateSupportRules,
 } from '@customerEQ/shared'
@@ -18,7 +23,7 @@ import { processSentimentForResponse, discoverClusters, detectAnomalies, generat
 import { processHealthScoreComputation } from './healthScore.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import pino from 'pino'
 
 // QUEUE_MODE=inline  → skip Redis, run processor logic synchronously
@@ -35,6 +40,8 @@ let _alertEvaluationQueue: Queue | null = null
 let _supportOrchestrationQueue: Queue | null = null
 let _embeddingGenerationQueue: Queue | null = null
 let _healthScoreQueue: Queue | null = null
+let _externalSignalSyncQueue: Queue | null = null
+let _externalSignalIngestionQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -49,6 +56,8 @@ export function initQueues(redis: ConnectionOptions): void {
   _supportOrchestrationQueue = new Queue(QUEUES.SUPPORT_ORCHESTRATION, { connection })
   _embeddingGenerationQueue = new Queue(QUEUES.EMBEDDING_GENERATION, { connection })
   _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
+  _externalSignalSyncQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_SYNC, { connection })
+  _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -88,6 +97,14 @@ function getEmbeddingGenerationQueue(): Queue {
 function getHealthScoreQueue(): Queue {
   if (!_healthScoreQueue) throw new Error('Queues not initialized.')
   return _healthScoreQueue
+}
+function getExternalSignalSyncQueue(): Queue {
+  if (!_externalSignalSyncQueue) throw new Error('Queues not initialized.')
+  return _externalSignalSyncQueue
+}
+function getExternalSignalIngestionQueue(): Queue {
+  if (!_externalSignalIngestionQueue) throw new Error('Queues not initialized.')
+  return _externalSignalIngestionQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,6 +363,265 @@ async function inlineFeedbackClustering(p: FeedbackClusteringPayload) {
   }
 
   return { newClustersCreated, responsesAssigned, snapshotsCreated, anomaliesDetected }
+}
+
+async function resolveExternalSignalMember(
+  brandId: string,
+  sourceMatchingConfig: Prisma.JsonValue | null | undefined,
+  memberEmail: string | null,
+) {
+  const matchingConfig = (sourceMatchingConfig ?? {}) as Record<string, unknown>
+  if (matchingConfig.memberResolutionEnabled === false || !memberEmail) {
+    return {
+      memberId: null,
+      matchStatus: 'UNMATCHED' as const,
+      matchConfidence: null,
+      matchMethod: null,
+    }
+  }
+
+  const member = await prisma.member.findUnique({
+    where: { brandId_email: { brandId, email: memberEmail } },
+    select: { id: true, consentGivenAt: true },
+  })
+
+  if (!member || !member.consentGivenAt) {
+    return {
+      memberId: null,
+      matchStatus: 'UNMATCHED' as const,
+      matchConfidence: null,
+      matchMethod: null,
+    }
+  }
+
+  return {
+    memberId: member.id,
+    matchStatus: 'MATCHED' as const,
+    matchConfidence: 1,
+    matchMethod: 'email_exact',
+  }
+}
+
+async function inlineExternalSignalIngestion(p: ExternalSignalIngestionPayload) {
+  const source = await prisma.externalSignalSource.findFirst({
+    where: { id: p.sourceId, brandId: p.brandId },
+  })
+  if (!source) {
+    throw new Error(`External signal source ${p.sourceId} not found`)
+  }
+
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: { lastSyncAt: new Date(p.receivedAt) },
+  })
+
+  const deliveries = extractExternalSignalDeliveries(p.deliveries)
+  let importedCount = 0
+
+  for (const record of deliveries) {
+    const candidate = normalizeExternalSignalCandidate(record)
+    const body = candidate.body || candidate.summary || '[No body provided]'
+    const match = await resolveExternalSignalMember(
+      p.brandId,
+      source.matchingConfig,
+      candidate.memberEmail,
+    )
+
+    const existing = await prisma.externalSignal.findUnique({
+      where: {
+        sourceId_externalId: {
+          sourceId: source.id,
+          externalId: candidate.externalId,
+        },
+      },
+      select: {
+        id: true,
+        providerStatus: true,
+        statusHistory: true,
+      },
+    })
+
+    const nextStatus = deriveExternalSignalStatus(candidate.providerStatus)
+    const nextStatusHistory = Array.isArray(existing?.statusHistory)
+      ? [...existing.statusHistory]
+      : []
+
+    if (candidate.providerStatus && existing?.providerStatus !== candidate.providerStatus) {
+      nextStatusHistory.push({
+        providerStatus: candidate.providerStatus,
+        changedAt: new Date(p.receivedAt).toISOString(),
+      })
+    }
+
+    if (existing) {
+      await prisma.externalSignal.update({
+        where: { id: existing.id },
+        data: {
+          memberId: match.memberId,
+          status: nextStatus,
+          matchStatus: match.matchStatus,
+          matchConfidence: match.matchConfidence,
+          matchMethod: match.matchMethod,
+          body,
+          summary: candidate.summary,
+          rating: candidate.rating,
+          sentiment: candidate.sentiment,
+          confidence: candidate.confidence,
+          topics: candidate.topics,
+          canonicalUrl: candidate.canonicalUrl,
+          externalAuthorHandle: candidate.externalAuthorHandle,
+          externalAuthorLabel: candidate.externalAuthorLabel,
+          subjectType: candidate.subjectType,
+          subjectKey: candidate.subjectKey,
+          subjectLabel: candidate.subjectLabel,
+          providerStatus: candidate.providerStatus,
+          providerMetadata:
+            candidate.providerMetadata == null
+              ? Prisma.JsonNull
+              : (candidate.providerMetadata as Prisma.InputJsonValue),
+          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
+          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
+          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
+        },
+      })
+    } else {
+      await prisma.externalSignal.create({
+        data: {
+          brandId: p.brandId,
+          sourceId: source.id,
+          memberId: match.memberId,
+          sourceType: source.sourceType,
+          externalId: candidate.externalId,
+          status: nextStatus,
+          matchStatus: match.matchStatus,
+          matchConfidence: match.matchConfidence,
+          matchMethod: match.matchMethod,
+          body,
+          summary: candidate.summary,
+          rating: candidate.rating,
+          sentiment: candidate.sentiment,
+          confidence: candidate.confidence,
+          topics: candidate.topics,
+          canonicalUrl: candidate.canonicalUrl,
+          externalAuthorHandle: candidate.externalAuthorHandle,
+          externalAuthorLabel: candidate.externalAuthorLabel,
+          subjectType: candidate.subjectType,
+          subjectKey: candidate.subjectKey,
+          subjectLabel: candidate.subjectLabel,
+          providerStatus: candidate.providerStatus,
+          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
+          providerMetadata:
+            candidate.providerMetadata == null
+              ? Prisma.JsonNull
+              : (candidate.providerMetadata as Prisma.InputJsonValue),
+          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
+          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
+          ingestedAt: new Date(p.receivedAt),
+        },
+      })
+    }
+
+    importedCount += 1
+  }
+
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: {
+      healthStatus: 'healthy',
+      lastSuccessAt: new Date(p.receivedAt),
+      lastImportCount: importedCount,
+      lastError: null,
+      lastErrorAt: null,
+    },
+  })
+
+  return { importedCount }
+}
+
+async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
+  const source = await prisma.externalSignalSource.findFirst({
+    where: { id: p.sourceId, brandId: p.brandId },
+    select: { id: true, sourceType: true, scopeConfig: true, credentialRef: true, lastCursor: true },
+  })
+  if (!source) {
+    throw new Error(`External signal source ${p.sourceId} not found`)
+  }
+
+  const scopeConfig = (source.scopeConfig ?? {}) as Record<string, unknown>
+
+  // Try native connector first (Google, Reddit, X, LinkedIn)
+  let deliveries: Record<string, unknown>[]
+  let nextCursor: Record<string, unknown> | null = null
+  let updatedCredentials: Record<string, unknown> | undefined
+
+  try {
+    const { CONNECTORS } = await import('@customerEQ/connectors')
+    const connector = CONNECTORS[source.sourceType]
+
+    if (connector) {
+      const result = await connector({
+        sourceId: source.id,
+        brandId: p.brandId,
+        scopeConfig,
+        lastCursor: (source.lastCursor ?? null) as Record<string, unknown> | null,
+        credentialRef: source.credentialRef,
+      })
+      deliveries = result.deliveries
+      nextCursor = result.nextCursor
+      updatedCredentials = result.updatedCredentials
+    } else {
+      // Fallback: samplePayloads for generic sources
+      deliveries = extractExternalSignalDeliveries(
+        scopeConfig.samplePayloads ?? scopeConfig.seedSignals ?? [],
+      )
+    }
+  } catch (err) {
+    // Auth errors need human intervention (reconnect OAuth) — mark distinctly so the
+    // UI can surface the right call-to-action. Rate-limit errors are transient.
+    const isAuthError = err instanceof Error && err.name === 'ConnectorAuthError'
+    await prisma.externalSignalSource.update({
+      where: { id: source.id },
+      data: {
+        healthStatus: isAuthError ? 'auth_error' : 'error',
+        lastError: err instanceof Error ? err.message : 'Sync failed',
+        lastErrorAt: new Date(),
+        lastSyncAt: new Date(),
+      },
+    })
+    log.error({ sourceId: source.id, err }, 'Inline external signal sync connector error')
+    return { importedCount: 0, queued: 0, error: err instanceof Error ? err.message : 'Sync failed' }
+  }
+
+  if (deliveries.length === 0) {
+    const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+    if (nextCursor) updateData.lastCursor = nextCursor
+    await prisma.externalSignalSource.update({
+      where: { id: source.id },
+      data: updateData,
+    })
+    return { importedCount: 0, queued: 0 }
+  }
+
+  const result = await inlineExternalSignalIngestion({
+    brandId: p.brandId,
+    sourceId: p.sourceId,
+    deliveries,
+    receivedAt: new Date().toISOString(),
+    deliveryType: 'sync',
+  })
+
+  // Persist cursor and refreshed credentials
+  const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+  if (nextCursor) updateData.lastCursor = nextCursor
+  if (updatedCredentials) {
+    updateData.scopeConfig = { ...scopeConfig, credentials: updatedCredentials }
+  }
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: updateData,
+  })
+
+  return { ...result, queued: deliveries.length }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -668,4 +944,28 @@ export async function enqueueHealthScoreComputation(payload: HealthScoreComputat
     return INLINE_STUB
   }
   return getHealthScoreQueue().add('compute', payload)
+}
+
+export async function enqueueExternalSignalSync(payload: ExternalSignalSyncPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    inlineExternalSignalSync(payload).then((r) => {
+      log.info({ sourceId: payload.sourceId, ...r }, 'Inline external signal sync')
+    }).catch((err) => {
+      log.error({ err, sourceId: payload.sourceId }, 'Inline external signal sync failed')
+    })
+    return INLINE_STUB
+  }
+  return getExternalSignalSyncQueue().add('sync', payload)
+}
+
+export async function enqueueExternalSignalIngestion(payload: ExternalSignalIngestionPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    inlineExternalSignalIngestion(payload).then((r) => {
+      log.info({ sourceId: payload.sourceId, ...r }, 'Inline external signal ingestion')
+    }).catch((err) => {
+      log.error({ err, sourceId: payload.sourceId }, 'Inline external signal ingestion failed')
+    })
+    return INLINE_STUB
+  }
+  return getExternalSignalIngestionQueue().add('ingest', payload)
 }

@@ -13,6 +13,7 @@ export { createCampaign, createCampaignEvent, createNpsCampaign } from './factor
 export { createRedemption } from './factories/redemption.factory.js'
 export { createSurvey, createNpsSurvey, createSurveyResponse } from './factories/survey.factory.js'
 export { createConversation, createMessage, createSupportRule } from './factories/support.factory.js'
+export { createExternalSignalSource, createExternalSignal } from './factories/externalSignals.factory.js'
 
 // Mocks
 export { mockClerkAuth, mockClerkVerifyToken } from './mocks/clerk.mock.js'

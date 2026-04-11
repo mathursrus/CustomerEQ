@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Issue 113 Mock - Integrations + Customer 360</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --ok: #166534;
+      --ok-soft: #dcfce7;
+      --warn: #92400e;
+      --warn-soft: #fef3c7;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .page-title {
+      margin-bottom: 18px;
+    }
+
+    .page-title h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    .page-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .panel-head h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+
+    .panel-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .panel-body {
+      padding: 18px 20px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: default;
+    }
+
+    .button.primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .button.secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .source-card,
+    .signal-card,
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fff;
+      margin-bottom: 12px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .pill.ok { background: var(--ok-soft); color: var(--ok); }
+    .pill.warn { background: var(--warn-soft); color: var(--warn); }
+    .pill.blue { background: var(--accent-soft); color: var(--accent); }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .mini-stat {
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid var(--line);
+      padding: 11px;
+    }
+
+    .mini-stat span {
+      display: block;
+    }
+
+    .mini-stat .k {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .mini-stat .v {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .stack-title {
+      margin: 18px 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    .signal-card .signal-text {
+      font-size: 14px;
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+
+    .signal-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .member-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .member-name {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .member-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .timeline {
+      border-top: 1px solid var(--line);
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+
+    .note {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f9fafb;
+      color: #4b5563;
+      font-size: 12px;
+      line-height: 1.5;
+      border: 1px dashed #cbd5e1;
+    }
+
+    @media (max-width: 1120px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .shell {
+        padding: 16px;
+      }
+
+      .toolbar,
+      .member-header,
+      .row {
+        flex-direction: column;
+      }
+
+      .mini-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="page-title">
+      <h1>Issue 113 mock</h1>
+      <p>Simple integrated view: what the admin sees in Integrations, and what the matched result looks like in Customer 360.</p>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">Integrations view</div>
+          <h2>Review and social sources</h2>
+          <p>Admins define which external channels CustomerEQ should ingest, how to connect them, and whether signals can match to known customers.</p>
+        </div>
+        <div class="panel-body">
+          <div class="toolbar">
+            <div class="meta">`/admin/integrations`</div>
+            <div>
+              <button class="button secondary">Test source</button>
+              <button class="button primary">Add source</button>
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="row">
+              <div>
+                <div class="title">Google Reviews - Portland + Seattle</div>
+                <div class="meta">Google Business Profile reviews for 2 locations. Matching enabled for known customer email/name overlap only.</div>
+              </div>
+              <span class="pill ok">Active</span>
+            </div>
+            <div class="mini-grid">
+              <div class="mini-stat"><span class="k">Last sync</span><span class="v">2 min ago</span></div>
+              <div class="mini-stat"><span class="k">Imported 7d</span><span class="v">182 signals</span></div>
+              <div class="mini-stat"><span class="k">Mode</span><span class="v">Real-time</span></div>
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="row">
+              <div>
+                <div class="title">LinkedIn - company page comments</div>
+                <div class="meta">Owned page comments and mentions only. Product tags enabled. No member auto-match by default.</div>
+              </div>
+              <span class="pill warn">Owned only</span>
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="row">
+              <div>
+                <div class="title">Reddit - product chatter</div>
+                <div class="meta">Subreddits `r/restauranttech` and `r/marketing`. Keywords: CustomerEQ, rewards app, loyalty offers.</div>
+              </div>
+              <span class="pill blue">Monitored</span>
+            </div>
+          </div>
+
+          <div class="note">
+            The integrations view stays simple: source, scope, sync health, and matching policy. The operator does not need to understand the entire normalization pipeline here.
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="eyebrow">Customer 360 view</div>
+          <h2>Matched external signals inside the member profile</h2>
+          <p>When a public review can be confidently associated to a known member, it appears next to surveys, loyalty events, and support history.</p>
+        </div>
+        <div class="panel-body">
+          <div class="member-header">
+            <div>
+              <div class="member-name">Emma Roberts</div>
+              <div class="member-meta">`/admin/members/:id` · Gold tier · 1,280 points · health score 74</div>
+            </div>
+            <span class="pill ok">Customer 360</span>
+          </div>
+
+          <div class="summary-card">
+            <div class="title">New section: External Signals</div>
+            <div class="meta">Only matched items appear here. Unmatched public content remains available at the brand/product level instead of forcing it into a member profile.</div>
+          </div>
+
+          <div class="signal-card">
+            <div class="row">
+              <div>
+                <div class="title">Google review</div>
+                <div class="signal-text">"Great staff, but the rewards app still feels confusing."</div>
+              </div>
+              <span class="pill warn">4 stars</span>
+            </div>
+            <div class="signal-footer">
+              <span>Sentiment: mixed</span>
+              <span>Topics: onboarding, mobile UX</span>
+              <span>Location: Portland flagship</span>
+              <span>Posted: Apr 6</span>
+            </div>
+          </div>
+
+          <div class="signal-card">
+            <div class="row">
+              <div>
+                <div class="title">Webhook-delivered app review</div>
+                <div class="signal-text">"Love the offers, but I couldn't tell whether my survey reward was applied."</div>
+              </div>
+              <span class="pill blue">Matched</span>
+            </div>
+            <div class="signal-footer">
+              <span>Sentiment: neutral</span>
+              <span>Product: rewards app</span>
+              <span>Source: app marketplace partner</span>
+              <span>Posted: Apr 5</span>
+            </div>
+          </div>
+
+          <div class="stack-title">Why this matters in 360</div>
+
+          <div class="timeline">
+            <div class="meta">The operator can now see survey feedback and public voice together before taking action:</div>
+            <div class="signal-card" style="margin-top:10px;">
+              <div class="title">Existing survey signal already on the profile</div>
+              <div class="signal-text">NPS 6 with summary: "Checkout was easy, but post-purchase rewards messaging was unclear."</div>
+              <div class="signal-footer">
+                <span>Source: survey</span>
+                <span>Sentiment: negative</span>
+                <span>Completed: Apr 4</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="note">
+            This is the integrated outcome the feature is aiming for: setup happens in Integrations, but the real value shows up in Customer 360 where external voice sits beside first-party CX and loyalty context.
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

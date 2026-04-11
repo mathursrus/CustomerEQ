@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@customerEQ/ai": "workspace:*",
+    "@customerEQ/connectors": "workspace:*",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/shared": "workspace:*",
     "bullmq": "^5.7.0",

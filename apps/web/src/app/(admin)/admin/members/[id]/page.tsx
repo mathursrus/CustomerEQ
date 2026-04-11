@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { HealthScoreBadge } from '@/components/health-score/HealthScoreBadge'
+import { SENTIMENT } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
 // Types matching the GET /v1/members/:id/360 response
@@ -87,6 +88,23 @@ interface CampaignEvent {
   result: unknown
 }
 
+interface ExternalSignal {
+  id: string
+  sourceId: string
+  sourceType: string
+  sourceName: string
+  body: string
+  summary: string | null
+  rating: number | null
+  sentiment: number | null
+  topics: string[]
+  canonicalUrl: string | null
+  externalAuthorLabel: string | null
+  subjectLabel: string | null
+  postedAt: string | null
+  matchConfidence: number | null
+}
+
 interface OpenCase {
   id: string
   status: string
@@ -102,6 +120,7 @@ interface Customer360 {
   surveyResponses: { items: SurveyResponse[]; hasMore: boolean; total: number }
   redemptions: { items: Redemption[]; hasMore: boolean; total: number }
   campaignEvents: { items: CampaignEvent[]; hasMore: boolean; total: number }
+  externalSignals: { items: ExternalSignal[]; hasMore: boolean; total: number }
   openCases: OpenCase[]
   stats: {
     totalEvents: number
@@ -367,7 +386,7 @@ export default function MemberDetailPage() {
     )
   }
 
-  const { member, recentEvents, surveyResponses, redemptions, campaignEvents, openCases, stats } =
+  const { member, recentEvents, surveyResponses, redemptions, campaignEvents, externalSignals, openCases, stats } =
     data
 
   const displayName =
@@ -881,6 +900,78 @@ export default function MemberDetailPage() {
                   <span className="text-gray-400 text-xs">
                     {formatRelativeTime(ce.triggeredAt)}
                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* External Signals */}
+      {externalSignals.total > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">
+            External Signals ({externalSignals.total})
+          </h2>
+          <div className="space-y-3 text-sm">
+            {externalSignals.items.map((signal) => (
+              <div key={signal.id} className="rounded-lg border border-gray-100 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                        {signal.sourceType.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-xs font-medium text-gray-700">{signal.sourceName}</span>
+                      {signal.subjectLabel && (
+                        <span className="text-xs text-gray-400">{signal.subjectLabel}</span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-800">{signal.body}</p>
+                    {signal.summary && (
+                      <p className="mt-1 text-xs text-gray-500">{signal.summary}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {signal.externalAuthorLabel && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                          {signal.externalAuthorLabel}
+                        </span>
+                      )}
+                      {signal.topics.map((topic) => (
+                        <span key={topic} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex flex-col items-end gap-2">
+                      {signal.rating != null && (
+                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                          Rating {signal.rating}
+                        </span>
+                      )}
+                      {signal.sentiment != null && (
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${signal.sentiment > SENTIMENT.POSITIVE_THRESHOLD ? 'bg-green-50 text-green-700' : signal.sentiment < SENTIMENT.NEGATIVE_THRESHOLD ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                          {signal.sentiment > 0 ? '+' : ''}
+                          {signal.sentiment.toFixed(2)}
+                        </span>
+                      )}
+                      {signal.postedAt && (
+                        <span className="text-xs text-gray-400">{formatRelativeTime(signal.postedAt)}</span>
+                      )}
+                      {signal.canonicalUrl && (
+                        <a
+                          href={signal.canonicalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          Open source
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

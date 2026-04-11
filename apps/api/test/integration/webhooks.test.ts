@@ -6,6 +6,7 @@ import {
   createBrand,
   createProgram,
   createConsentedMember,
+  createExternalSignalSource,
   authenticatedRequest,
   unauthenticatedRequest,
   InMemoryQueue,
@@ -23,8 +24,8 @@ function signSalesforcePayload(body: unknown, secret: string): string {
 
 describe('Webhooks API — /v1/integrations/webhooks', () => {
   // These must match env vars (or defaults) in the API
-  const SALESFORCE_WEBHOOK_SECRET = process.env.SALESFORCE_WEBHOOK_SECRET ?? ''
-  const HUBSPOT_WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET ?? ''
+  const CEQ_SALESFORCE_WEBHOOK_SECRET = process.env.CEQ_SALESFORCE_WEBHOOK_SECRET ?? ''
+  const CEQ_HUBSPOT_WEBHOOK_SECRET = process.env.CEQ_HUBSPOT_WEBHOOK_SECRET ?? ''
 
   beforeEach(async () => {
     await seedTestDb()
@@ -48,7 +49,7 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         npsScore: 8,
         comment: 'Very happy',
       }
-      const signature = signSalesforcePayload(body, SALESFORCE_WEBHOOK_SECRET)
+      const signature = signSalesforcePayload(body, CEQ_SALESFORCE_WEBHOOK_SECRET)
 
       const res = await request
         .post('/v1/integrations/webhooks/salesforce')
@@ -89,7 +90,7 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         contactEmail: 'unknown-member@example.com',
         npsScore: 6,
       }
-      const signature = signSalesforcePayload(body, SALESFORCE_WEBHOOK_SECRET)
+      const signature = signSalesforcePayload(body, CEQ_SALESFORCE_WEBHOOK_SECRET)
 
       const res = await request
         .post('/v1/integrations/webhooks/salesforce')
@@ -167,6 +168,45 @@ describe('Webhooks API — /v1/integrations/webhooks', () => {
         .send(body)
 
       // Missing signature headers should result in 401
+      expect(res.status).toBe(401)
+    })
+  })
+
+  describe('POST /v1/integrations/webhooks/external-signals/:sourceId', () => {
+    it('accepts a valid external signal webhook and queues ingestion', async () => {
+      const brand = await createBrand()
+      const source = await createExternalSignalSource({
+        brandId: brand.id,
+        credentialRef: 'shared-secret',
+      })
+      const request = unauthenticatedRequest()
+
+      const res = await request
+        .post(`/v1/integrations/webhooks/external-signals/${source.id}`)
+        .set('X-Source-Secret', 'shared-secret')
+        .send({
+          externalId: 'ext-1',
+          body: 'Store visit was great.',
+          rating: 5,
+        })
+
+      expect(res.status).toBe(202)
+      expect(InMemoryQueue.getJobs('external-signal-ingestion')).toHaveLength(1)
+    })
+
+    it('returns 401 when the source secret is invalid', async () => {
+      const brand = await createBrand()
+      const source = await createExternalSignalSource({
+        brandId: brand.id,
+        credentialRef: 'expected-secret',
+      })
+      const request = unauthenticatedRequest()
+
+      const res = await request
+        .post(`/v1/integrations/webhooks/external-signals/${source.id}`)
+        .set('X-Source-Secret', 'wrong-secret')
+        .send({ externalId: 'ext-2', body: 'Bad secret attempt.' })
+
       expect(res.status).toBe(401)
     })
   })
