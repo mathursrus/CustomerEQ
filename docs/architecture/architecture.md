@@ -31,7 +31,7 @@ The platform is a multi-tenant loyalty engine with:
 | **Backend** | Fastify v5 | Schema-first routes with auto-validation, ~2x Express throughput, clean plugin architecture |
 | **ORM** | Prisma 5.13 | Type-safe queries, migration management, middleware for multi-tenant `brandId` scoping |
 | **Database** | PostgreSQL 16 | ACID transactions for loyalty ledger integrity; JSONB for flexible rule conditions/event payloads |
-| **Cache/Queue (optional)** | Redis 7 + BullMQ v5 | Optional optimization for async job queues, idempotency keys, and campaign deduplication. When `QUEUE_MODE=inline` (default fallback), all queued work runs synchronously in-process with no Redis dependency — suitable for single-instance deployments, demos, and development. Redis becomes required only when scaling horizontally or when idempotency guarantees must survive process restarts. |
+| **Cache/Queue (optional)** | Redis 7 + BullMQ v5 | **Performance optimization, not a correctness dependency.** Every queued workflow has two interchangeable execution paths controlled by `QUEUE_MODE`: `redis` (BullMQ + Upstash, used in prod for throughput, retry/backoff, and cross-instance dedup) and `inline` (in-process execution against Postgres, used for single-instance deploys, dev, test, and CI). Both paths must produce the **same functional outcome** — same DB writes, same side effects, same idempotency guarantees, same observable behavior. Redis only changes *when* and *how fast* work happens, never *whether* it happens or *what* it does. The system must continue to work end-to-end with Redis absent (`QUEUE_MODE=inline`). When adding a new queued workflow, both branches in `apps/api/src/queues/bullmq.ts` must be implemented and kept at parity. |
 | **Auth** | Clerk | Native Next.js support, multi-tenant organizations (Clerk org = brand), JWT verification |
 | **Testing** | Vitest + Supertest + Playwright | Unit/integration (Vitest), HTTP testing (Supertest), E2E browser (Playwright) |
 | **Build** | Turborepo + pnpm 9 | Monorepo task orchestration with caching; pnpm for strict dependency isolation |
@@ -64,6 +64,7 @@ The platform is a multi-tenant loyalty engine with:
 - **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, embeddingGeneration, healthScore, externalSignalSync, externalSignalIngestion), `apps/worker/src/queues/` (Redis connection, producers)
 - **Entry Point**: `apps/worker/src/index.ts` (bootstraps 9 BullMQ workers)
 - **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), embedding-generation (5), health-score-computation (3), external-signal-sync (2), external-signal-ingestion (3)
+- **Queue mode**: The worker process exists to drain BullMQ queues and is only deployed when `QUEUE_MODE=redis`. In `QUEUE_MODE=inline`, the same processor logic is invoked in-process from the API via `apps/api/src/queues/bullmq.ts` — the worker is not needed and is not run. Both modes execute the **same** processor functions and produce the **same** outcomes; Redis only changes scheduling and concurrency.
 
 ### 3.4. Data Layer (packages/database)
 - **Responsibility**: Schema definition (Prisma), migrations, database client singleton.
@@ -188,7 +189,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **multiTenant** | `preValidation` | Rejects any request body containing `brandId` — must come from JWT only |
 | **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
-| **redis** | decorator | IORedis client for queues and idempotency, graceful quit on shutdown |
+| **redis** | decorator | IORedis client for queues and idempotency, graceful quit on shutdown. Decorates `fastify.redis` as `null` when `QUEUE_MODE=inline`; all callers must null-guard. |
 | **memberAuth** | helper | Lightweight member JWT verification for public endpoints. Uses `Authorization: Bearer <token>` header with Clerk `verifyToken()`. Returns member email/sub claims. Unlike org-level auth plugin, does not require Clerk organization context. Used by `/v1/public/campaigns/:id/play`. |
 
 ### 4.3 BullMQ Workers
@@ -348,7 +349,7 @@ sequenceDiagram
 
 - **Append-Only Loyalty Ledger**: `LoyaltyEvent` is the source of truth for points. `Member.pointsBalance` is a materialized counter updated atomically within the same transaction as the ledger write. This prevents balance drift and preserves full audit history.
 
-- **Idempotency**: When Redis is available, 24-hour TTL keys on event ingestion and SET NX for campaign trigger deduplication (one trigger per member per campaign). When running in `QUEUE_MODE=inline`, idempotency falls back to the database-level `idempotencyKey` column on `LoyaltyEvent` and the `@@unique([campaignId, memberId])` constraint on `CampaignEvent` — correct but without the fast-path cache. Redis is an optimization for write-heavy traffic, not a correctness requirement.
+- **Idempotency**: Same correctness guarantee in both queue modes. `QUEUE_MODE=redis` uses 24-hour TTL keys on event ingestion and SET NX for campaign trigger deduplication (one trigger per member per campaign) — fast path, served from cache. `QUEUE_MODE=inline` uses the database-level `idempotencyKey` unique index on `LoyaltyEvent` and the `@@unique([campaignId, memberId])` constraint on `CampaignEvent` — slower path, served from Postgres. Outcome is identical in both modes; Redis is purely a write-heavy traffic optimization.
 
 - **Transactional Integrity**: All point mutations (earn and burn) use Prisma `$transaction` to atomically write the `LoyaltyEvent` and update `pointsBalance`. Redemptions atomically debit points, decrement stock, and create the redemption record.
 
@@ -374,7 +375,8 @@ Located at `fraim/config.json`. Architecture doc pointer: `customizations.archit
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://customerEQ:customerEQ@localhost:5432/customerEQ` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection for BullMQ + idempotency |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection for BullMQ + idempotency (only used when `QUEUE_MODE=redis`) |
+| `QUEUE_MODE` | `redis` | Queue execution mode. `redis` runs work asynchronously through BullMQ + Redis (prod default, optimized for throughput and cross-instance dedup). `inline` runs the same workflows synchronously in-process against Postgres only — no Redis required. Both modes are functionally equivalent; Redis is a perf optimization, not a correctness dependency. |
 | `CLERK_SECRET_KEY` | — | Clerk JWT verification key |
 | `CLERK_PUBLISHABLE_KEY` | — | Clerk frontend key |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | — | Clerk key exposed to browser |
@@ -423,7 +425,7 @@ Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
 | API | Azure Container Apps | Serverless containers, scale-to-zero, built-in ingress |
 | Worker | Azure Container Apps | Same image as API, separate app, scales independently |
 | Database | Azure Database for PostgreSQL Flexible Server | Managed PostgreSQL 16, HA, automated backups, encryption at rest |
-| Cache/Queue | Azure Cache for Redis | Managed Redis 7, supports BullMQ, zone-redundant in production |
+| Cache/Queue (optional) | Upstash Redis (managed) | Managed Redis used by BullMQ when `QUEUE_MODE=redis`. Optional — the system runs end-to-end without it under `QUEUE_MODE=inline`. |
 | Frontend | Vercel | Zero-ops Next.js deploys, first-party App Router support, edge CDN |
 | Object Storage | Azure Blob Storage | Receipt images, export files |
 | CDN | Azure Front Door | Global CDN + WAF + load balancing |
