@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { DemoRequestSchema, NPS } from '@customerEQ/shared'
-import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation } from '../queues/bullmq.js'
+import { DemoRequestSchema, NPS, evaluateSurveyRule } from '@customerEQ/shared'
+import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueCampaignTrigger } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 
 const API_BASE_URL =
@@ -308,6 +308,41 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       }).catch((err: unknown) => {
         fastify.log.error({ err }, 'Failed to enqueue alert evaluation')
       })
+
+      // ── Response-to-action rule evaluation (Issue #80) ──
+      // Non-blocking: trigger failures do not block the response submission 201
+      if (score !== null && score !== undefined) {
+        fastify.prisma.surveyRule.findMany({
+          where: { surveyId, brandId: survey.brandId },
+          include: { campaign: { select: { id: true, status: true } } },
+        }).then(async (surveyRules: Array<{ id: string; campaignId: string; scoreMin: number; scoreMax: number; campaign: { id: string; status: string } }>) => {
+          const matchingRules = surveyRules.filter(
+            (rule) => rule.campaign.status === 'ACTIVE' && evaluateSurveyRule(rule, score),
+          )
+          fastify.log.info(
+            { surveyId, memberId: member.id, score, rulesMatched: matchingRules.length, triggersEnqueued: matchingRules.length },
+            'survey.rules_evaluated',
+          )
+          for (const rule of matchingRules) {
+            try {
+              await enqueueCampaignTrigger({
+                campaignId: rule.campaignId,
+                memberId: member.id,
+                brandId: survey.brandId,
+                eventIngestedAt: new Date().toISOString(),
+                surveyResponseId: response.id,
+              })
+            } catch (err: unknown) {
+              fastify.log.error(
+                { err, surveyId, ruleId: rule.id, memberId: member.id },
+                'campaign_trigger.enqueue_failed',
+              )
+            }
+          }
+        }).catch((err: unknown) => {
+          fastify.log.error({ err, surveyId, memberId: member.id }, 'Failed to evaluate survey rules')
+        })
+      }
 
       return reply.status(201).send({
         responseId: response.id,

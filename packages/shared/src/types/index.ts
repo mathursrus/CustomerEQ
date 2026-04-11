@@ -20,6 +20,7 @@ export interface CampaignTriggerPayload {
   memberId: string
   eventIngestedAt: string // ISO timestamp — latencyMs = Date.now() - eventIngestedAt
   sourceEventId?: string
+  surveyResponseId?: string // set when triggered by a survey response (Issue #80)
 }
 
 export interface NotificationPayload {

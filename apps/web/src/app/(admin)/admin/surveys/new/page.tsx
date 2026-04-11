@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import TriggerStep from '@/components/surveys/TriggerStep'
+import RuleBuilderStep, { type SurveyRuleInput } from '@/components/surveys/RuleBuilderStep'
+import ReviewLaunchStep from '@/components/surveys/ReviewLaunchStep'
 import { getTriggerRecommendation } from '@/utils/triggerRecommendation'
 
 interface Program {
   id: string
   name: string
+  budgetUsdCents?: number | null
+  monthlyBudgetUsdCents?: number | null
 }
 
 interface FormData {
@@ -49,11 +53,13 @@ const DEFAULT_QUESTIONS: Record<string, SurveyQuestion[]> = {
   ],
 }
 
+const STEP_LABELS = ['Trigger', 'Survey Details', 'What Happens Next?', 'Review & Launch']
+
 export default function NewSurveyPage() {
   const router = useRouter()
   const { getToken } = useAuth()
   const [programs, setPrograms] = useState<Program[]>([])
-  const [step, setStep] = useState<1 | 2>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [triggerData, setTriggerData] = useState<TriggerData | null>(null)
   const [form, setForm] = useState<FormData>({
     name: '',
@@ -63,6 +69,10 @@ export default function NewSurveyPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  // Step 2 → 3 transition: survey created in DB, then rules built on top
+  const [createdSurveyId, setCreatedSurveyId] = useState<string | null>(null)
+  // Step 3 rules state — preserved on Back
+  const [rules, setRules] = useState<SurveyRuleInput[]>([])
 
   useEffect(() => {
     async function fetchPrograms() {
@@ -81,6 +91,8 @@ export default function NewSurveyPage() {
     fetchPrograms()
   }, [getToken])
 
+  const selectedProgram = programs.find((p) => p.id === form.programId) ?? null
+
   function handleTriggerContinue(data: TriggerData) {
     setTriggerData(data)
     setStep(2)
@@ -93,7 +105,8 @@ export default function NewSurveyPage() {
     return errs
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Step 2 submit: create survey in DRAFT state, then advance to Step 3
+  async function handleSurveyDetailsSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
@@ -102,7 +115,6 @@ export default function NewSurveyPage() {
     setSubmitting(true)
 
     try {
-      // Determine survey type: override → recommendation from trigger key → NPS default
       const recommendation = triggerData ? getTriggerRecommendation(triggerData.key) : null
       const surveyType = triggerData?.surveyTypeOverride ?? recommendation?.type ?? 'NPS'
 
@@ -136,13 +148,34 @@ export default function NewSurveyPage() {
         throw new Error(data?.message ?? `Failed with status ${res.status}`)
       }
       const created = await res.json()
-      router.push(`/admin/surveys/${created.id}`)
+      setCreatedSurveyId(created.id)
+      setStep(3)
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSubmitting(false)
     }
   }
+
+  function handleRulesContinue(confirmedRules: SurveyRuleInput[]) {
+    setRules(confirmedRules)
+    setStep(4)
+  }
+
+  function handleSkipRules() {
+    setRules([])
+    setStep(4)
+  }
+
+  function handleLaunched() {
+    if (createdSurveyId) {
+      router.push(`/admin/surveys/${createdSurveyId}`)
+    }
+  }
+
+  const surveyType = (triggerData?.surveyTypeOverride ??
+    (triggerData ? getTriggerRecommendation(triggerData.key)?.type : undefined) ??
+    'NPS') as 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -151,17 +184,26 @@ export default function NewSurveyPage() {
         <p className="mt-1 text-sm text-gray-500">Set up a new customer feedback survey</p>
       </div>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className={`flex items-center gap-1.5 text-sm font-medium ${step === 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${step === 1 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>1</span>
-          Trigger
-        </div>
-        <div className="h-px flex-1 bg-gray-200" />
-        <div className={`flex items-center gap-1.5 text-sm font-medium ${step === 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${step === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>2</span>
-          Survey Details
-        </div>
+      {/* Step indicator — 4 steps */}
+      <div className="flex items-center gap-2 mb-6" data-testid="step-indicator">
+        {STEP_LABELS.map((label, idx) => {
+          const stepNum = (idx + 1) as 1 | 2 | 3 | 4
+          const active = step === stepNum
+          const done = step > stepNum
+          return (
+            <div key={stepNum} className="flex items-center gap-2 flex-1">
+              <div className={`flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${active ? 'text-indigo-600' : done ? 'text-green-600' : 'text-gray-400'}`}>
+                <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-indigo-600 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                  {done ? '✓' : stepNum}
+                </span>
+                {label}
+              </div>
+              {idx < STEP_LABELS.length - 1 && (
+                <div className="h-px flex-1 bg-gray-200" />
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-8">
@@ -199,7 +241,7 @@ export default function NewSurveyPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSurveyDetailsSubmit} className="space-y-5">
               <div>
                 <label htmlFor="surveyName" className="block text-sm font-medium text-gray-700 mb-1">
                   Survey Name <span className="text-red-500">*</span>
@@ -251,18 +293,53 @@ export default function NewSurveyPage() {
                 />
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  ← Back
+                </button>
                 <button
                   type="submit"
                   data-testid="survey-submit-btn"
                   disabled={submitting}
                   className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? 'Creating...' : 'Create Survey'}
+                  {submitting ? 'Creating...' : 'Continue: Set Up Rules →'}
                 </button>
               </div>
             </form>
           </div>
+        )}
+
+        {/* Step 3: Rule Builder */}
+        {step === 3 && createdSurveyId && (
+          <RuleBuilderStep
+            surveyType={surveyType}
+            programId={form.programId}
+            surveyId={createdSurveyId}
+            getToken={getToken}
+            onContinue={handleRulesContinue}
+            onSkip={handleSkipRules}
+            onBack={() => setStep(2)}
+          />
+        )}
+
+        {/* Step 4: Review & Launch */}
+        {step === 4 && createdSurveyId && (
+          <ReviewLaunchStep
+            surveyId={createdSurveyId}
+            surveyName={form.name}
+            surveyType={surveyType}
+            triggerData={triggerData}
+            rules={rules}
+            program={selectedProgram}
+            getToken={getToken}
+            onLaunch={handleLaunched}
+            onBack={() => setStep(3)}
+          />
         )}
       </div>
     </div>

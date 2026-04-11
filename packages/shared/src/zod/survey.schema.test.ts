@@ -12,6 +12,12 @@ import {
   UpdateSurveyThemeSchema,
   CreateQuestionTemplateSchema,
   QUESTION_TYPES,
+  SurveyRuleInputSchema,
+  LaunchSurveySchema,
+  CreateCxPlaybookSchema,
+  UpdateCxPlaybookSchema,
+  evaluateSurveyRule,
+  validateRuleOverlap,
 } from './survey.schema.js'
 
 // ─── SurveyQuestionSchema ───────────────────────────────────────────────────
@@ -573,5 +579,214 @@ describe('CreateQuestionTemplateSchema', () => {
       question: { id: 'q1', text: 'Test', type: 'text' },
     })
     expect(result.success).toBe(false)
+  })
+})
+
+// ─── Issue #80: SurveyRuleInputSchema ────────────────────────────────────────
+
+describe('SurveyRuleInputSchema', () => {
+  const validRule = {
+    scoreMin: 0,
+    scoreMax: 6,
+    actionType: 'award_points',
+    actionConfig: { points: 100 },
+  }
+
+  it('accepts a valid rule', () => {
+    expect(SurveyRuleInputSchema.safeParse(validRule).success).toBe(true)
+  })
+
+  it('accepts all action types', () => {
+    const types = ['award_points', 'award_reward', 'send_message', 'spin_wheel', 'scratch_card', 'mystery_box']
+    for (const actionType of types) {
+      const result = SurveyRuleInputSchema.safeParse({ ...validRule, actionType })
+      expect(result.success, `Expected actionType "${actionType}" to be valid`).toBe(true)
+    }
+  })
+
+  it('rejects scoreMin > scoreMax', () => {
+    const result = SurveyRuleInputSchema.safeParse({ ...validRule, scoreMin: 7, scoreMax: 6 })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts scoreMin === scoreMax (single-score rule)', () => {
+    const result = SurveyRuleInputSchema.safeParse({ ...validRule, scoreMin: 5, scoreMax: 5 })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts boundary values 0 and 10', () => {
+    const result = SurveyRuleInputSchema.safeParse({ ...validRule, scoreMin: 0, scoreMax: 10 })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects score out of range', () => {
+    expect(SurveyRuleInputSchema.safeParse({ ...validRule, scoreMin: -1, scoreMax: 6 }).success).toBe(false)
+    expect(SurveyRuleInputSchema.safeParse({ ...validRule, scoreMin: 0, scoreMax: 11 }).success).toBe(false)
+  })
+
+  it('accepts optional ruleLabel', () => {
+    const result = SurveyRuleInputSchema.safeParse({ ...validRule, ruleLabel: 'Detractors' })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects invalid actionType', () => {
+    expect(SurveyRuleInputSchema.safeParse({ ...validRule, actionType: 'teleport_points' }).success).toBe(false)
+  })
+})
+
+// ─── Issue #80: LaunchSurveySchema ───────────────────────────────────────────
+
+describe('LaunchSurveySchema', () => {
+  it('accepts empty rules (launch without rules)', () => {
+    expect(LaunchSurveySchema.safeParse({ rules: [] }).success).toBe(true)
+  })
+
+  it('accepts rules array with one rule', () => {
+    const result = LaunchSurveySchema.safeParse({
+      rules: [{ scoreMin: 0, scoreMax: 6, actionType: 'award_points', actionConfig: { points: 100 } }],
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
+// ─── Issue #80: CreateCxPlaybookSchema ───────────────────────────────────────
+
+describe('CreateCxPlaybookSchema', () => {
+  it('accepts valid playbook', () => {
+    const result = CreateCxPlaybookSchema.safeParse({
+      name: 'Detractor Rescue',
+      surveyType: 'NPS',
+      rules: [{ scoreMin: 0, scoreMax: 6, actionType: 'award_points', actionConfig: { points: 100 } }],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects empty name', () => {
+    expect(CreateCxPlaybookSchema.safeParse({
+      name: '',
+      surveyType: 'NPS',
+      rules: [{ scoreMin: 0, scoreMax: 6, actionType: 'award_points', actionConfig: {} }],
+    }).success).toBe(false)
+  })
+
+  it('rejects empty rules', () => {
+    expect(CreateCxPlaybookSchema.safeParse({
+      name: 'Test',
+      surveyType: 'NPS',
+      rules: [],
+    }).success).toBe(false)
+  })
+
+  it('accepts all survey types', () => {
+    for (const surveyType of ['NPS', 'CSAT', 'CES', 'CUSTOM'] as const) {
+      const result = CreateCxPlaybookSchema.safeParse({
+        name: `${surveyType} Playbook`,
+        surveyType,
+        rules: [{ scoreMin: 0, scoreMax: 5, actionType: 'award_points', actionConfig: {} }],
+      })
+      expect(result.success, `Expected surveyType "${surveyType}" to be valid`).toBe(true)
+    }
+  })
+})
+
+describe('UpdateCxPlaybookSchema', () => {
+  it('accepts partial update with name only', () => {
+    expect(UpdateCxPlaybookSchema.safeParse({ name: 'New Name' }).success).toBe(true)
+  })
+
+  it('accepts partial update with rules only', () => {
+    expect(UpdateCxPlaybookSchema.safeParse({
+      rules: [{ scoreMin: 7, scoreMax: 10, actionType: 'award_points', actionConfig: { points: 50 } }],
+    }).success).toBe(true)
+  })
+})
+
+// ─── Issue #80: evaluateSurveyRule pure function ──────────────────────────────
+
+describe('evaluateSurveyRule', () => {
+  const rule = { scoreMin: 0, scoreMax: 6 }
+
+  it('returns true for score within range', () => {
+    expect(evaluateSurveyRule(rule, 3)).toBe(true)
+  })
+
+  it('returns true for score at lower boundary (scoreMin)', () => {
+    expect(evaluateSurveyRule(rule, 0)).toBe(true)
+  })
+
+  it('returns true for score at upper boundary (scoreMax)', () => {
+    expect(evaluateSurveyRule(rule, 6)).toBe(true)
+  })
+
+  it('returns false for score below range', () => {
+    expect(evaluateSurveyRule(rule, -1)).toBe(false)
+  })
+
+  it('returns false for score above range', () => {
+    expect(evaluateSurveyRule(rule, 7)).toBe(false)
+  })
+
+  it('handles single-score rule (scoreMin === scoreMax)', () => {
+    const singleRule = { scoreMin: 9, scoreMax: 9 }
+    expect(evaluateSurveyRule(singleRule, 9)).toBe(true)
+    expect(evaluateSurveyRule(singleRule, 8)).toBe(false)
+    expect(evaluateSurveyRule(singleRule, 10)).toBe(false)
+  })
+})
+
+// ─── Issue #80: validateRuleOverlap pure function ────────────────────────────
+
+describe('validateRuleOverlap', () => {
+  it('returns no errors for non-overlapping rules', () => {
+    const rules = [
+      { scoreMin: 0, scoreMax: 6 },
+      { scoreMin: 7, scoreMax: 8 },
+      { scoreMin: 9, scoreMax: 10 },
+    ]
+    expect(validateRuleOverlap(rules)).toHaveLength(0)
+  })
+
+  it('returns no errors for single rule', () => {
+    expect(validateRuleOverlap([{ scoreMin: 0, scoreMax: 6 }])).toHaveLength(0)
+  })
+
+  it('returns no errors for empty array', () => {
+    expect(validateRuleOverlap([])).toHaveLength(0)
+  })
+
+  it('returns error for overlapping rules', () => {
+    const rules = [
+      { scoreMin: 0, scoreMax: 6 },
+      { scoreMin: 5, scoreMax: 8 }, // overlaps with first (5 <= 6 AND 0 <= 8)
+    ]
+    const errors = validateRuleOverlap(rules)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toEqual({ ruleIndexA: 0, ruleIndexB: 1 })
+  })
+
+  it('returns multiple errors when multiple pairs overlap', () => {
+    const rules = [
+      { scoreMin: 0, scoreMax: 7 },
+      { scoreMin: 5, scoreMax: 10 },
+      { scoreMin: 3, scoreMax: 6 },
+    ]
+    const errors = validateRuleOverlap(rules)
+    expect(errors.length).toBeGreaterThan(0)
+  })
+
+  it('treats exact adjacency as non-overlapping (0–6 and 7–10)', () => {
+    const rules = [
+      { scoreMin: 0, scoreMax: 6 },
+      { scoreMin: 7, scoreMax: 10 },
+    ]
+    expect(validateRuleOverlap(rules)).toHaveLength(0)
+  })
+
+  it('treats single-point overlap as overlapping (0–6 and 6–10)', () => {
+    const rules = [
+      { scoreMin: 0, scoreMax: 6 },
+      { scoreMin: 6, scoreMax: 10 },
+    ]
+    expect(validateRuleOverlap(rules)).toHaveLength(1)
   })
 })

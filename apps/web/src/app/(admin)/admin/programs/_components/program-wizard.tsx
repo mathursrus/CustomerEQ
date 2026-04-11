@@ -445,14 +445,6 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
                   : 'Edit your loyalty program configuration.'}
             </p>
           </div>
-          {mode === 'view' && programId && (
-            <Link
-              href={`/admin/programs/${programId}/edit`}
-              className="ml-4 shrink-0 rounded-lg border border-indigo-600 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
-            >
-              ✏️ Edit Program
-            </Link>
-          )}
         </div>
       </div>
 
@@ -479,7 +471,7 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
 
       {/* Stepper */}
       <div className="mb-8 overflow-x-auto pb-2">
-        <WizardStepper steps={STEP_LABELS} currentStep={state.step} onStepClick={isViewOnly ? undefined : goToStep} />
+        <WizardStepper steps={STEP_LABELS} currentStep={state.step} onStepClick={goToStep} allStepsClickable={isViewOnly} />
       </div>
 
       {/* Step panels */}
