@@ -58,9 +58,10 @@ interface Props {
   getToken: () => Promise<string | null>
   onContinue: (rules: SurveyRuleInput[]) => void
   onSkip: () => void
+  onBack?: () => void
 }
 
-export default function RuleBuilderStep({ surveyType, programId, surveyId: _surveyId, getToken, onContinue, onSkip }: Props) {
+export default function RuleBuilderStep({ surveyType, programId, surveyId: _surveyId, getToken, onContinue, onSkip, onBack }: Props) {
   const [rules, setRules] = useState<SurveyRuleInput[]>([defaultRule(surveyType)])
   const [playbooks, setPlaybooks] = useState<CxPlaybook[]>([])
   const [playbookName, setPlaybookName] = useState('')
@@ -303,14 +304,26 @@ export default function RuleBuilderStep({ surveyType, programId, surveyId: _surv
 
       {/* Footer actions */}
       <div className="mt-8 flex justify-between">
-        <button
-          type="button"
-          onClick={onSkip}
-          className="text-sm text-gray-500 hover:text-gray-700"
-          data-testid="skip-rules-btn"
-        >
-          Skip — launch without rules
-        </button>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              data-testid="rules-back-btn"
+            >
+              ← Back
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onSkip}
+            className="text-sm text-gray-500 hover:text-gray-700"
+            data-testid="skip-rules-btn"
+          >
+            Skip — launch without rules
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => onContinue(rules)}

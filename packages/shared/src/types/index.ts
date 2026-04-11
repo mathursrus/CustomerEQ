@@ -59,6 +59,15 @@ export interface EmbeddingGenerationPayload {
   text: string // concatenation of title + body for embedding
 }
 
+export interface SurveyDistributePayload {
+  surveyId: string
+  memberId: string
+  brandId: string
+  triggerKey: string // e.g. 'tier_upgrade' — for logging/analytics
+  surveyLink: string // public URL for the survey
+  cooldownDays: number // default 30
+}
+
 export type {
   HealthScoreComputationPayload,
   HealthScoreWeights,

@@ -8,6 +8,7 @@ export const QUEUES = {
   SUPPORT_ORCHESTRATION: 'support-orchestration',
   EMBEDDING_GENERATION: 'embedding-generation',
   HEALTH_SCORE_COMPUTATION: 'health-score-computation',
+  SURVEY_DISTRIBUTE: 'survey-distribute', // Issue #117 — triggered survey distribution
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

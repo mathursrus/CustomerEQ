@@ -1,6 +1,6 @@
 import { Queue, type Job, type ConnectionOptions } from 'bullmq'
 import { QUEUES } from '@customerEQ/shared'
-import type { LoyaltyEventPayload, CampaignTriggerPayload, NotificationPayload } from '@customerEQ/shared'
+import type { LoyaltyEventPayload, CampaignTriggerPayload, NotificationPayload, SurveyDistributePayload } from '@customerEQ/shared'
 import { createQueue } from './definitions.js'
 
 export async function enqueueEvent(
@@ -25,4 +25,12 @@ export async function enqueueNotification(
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.NOTIFICATIONS, connection)
   return queue.add(QUEUES.NOTIFICATIONS, payload)
+}
+
+export async function enqueueSurveyDistribute(
+  connection: ConnectionOptions,
+  payload: SurveyDistributePayload,
+): Promise<Job> {
+  const queue: Queue = createQueue(QUEUES.SURVEY_DISTRIBUTE, connection)
+  return queue.add(QUEUES.SURVEY_DISTRIBUTE, payload)
 }

@@ -61,9 +61,9 @@ The platform is a multi-tenant loyalty engine with:
 
 ### 3.3. Event Processing Layer (apps/worker)
 - **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation.
-- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, healthScore), `apps/worker/src/queues/` (Redis connection, producers)
-- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 7 BullMQ workers)
-- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), health-score-computation (3)
+- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, healthScore, surveyDistribute), `apps/worker/src/queues/` (Redis connection, producers)
+- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 8 BullMQ workers)
+- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), health-score-computation (3), survey-distribute (5)
 
 ### 3.4. Data Layer (packages/database)
 - **Responsibility**: Schema definition (Prisma), migrations, database client singleton.
@@ -186,13 +186,14 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 
 | Queue | Processor | Concurrency | Key Logic |
 |---|---|---|---|
-| `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
+| `loyalty-events` | `createLoyaltyEventProcessor` (factory) | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) -> fire-and-forget `enqueueSurveyDistributionsForEvent` (Issue #117) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
 | `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o |
 | `feedback-clustering` | `processFeedbackClustering` | 1 | AI-powered feedback clustering with anomaly detection |
 | `alert-evaluation` | `processAlertEvaluation` | 10 | Rule-based alert evaluation creating case follow-ups |
 | `health-score-computation` | `processHealthScore` | 3 | Batch health score computation for members (weighted formula: recency 25%, frequency 20%, sentiment 25%, NPS 15%, engagement 15%) |
+| `survey-distribute` | `processSurveyDistribute` | 5 | *New (Issue #117).* ACTIVE guard -> 30-day cooldown check via `SurveyDistribution` -> upsert distribution record -> increment `distributionCount`. Enqueued fire-and-forget from loyalty-events processor when matching triggerKey found. |
 
 ### 4.4 Database Models
 
@@ -209,7 +210,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
 | **Campaign** | Rule-based automation. `triggerType` + `triggerCondition` (JSON) -> `actionType` + `actionConfig` (JSON). Budget cap tracking. |
 | **CampaignEvent** | Campaign trigger execution record. Unique per `campaignId + memberId`. Tracks `latencyMs`. |
-| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. New (Issue #79): `triggerCategory` (loyalty/cx_risk/scheduled), `triggerKey` (e.g. tier_upgrade), `surveyTypeOverride` (non-null when manager deviated from recommendation) — all nullable, backwards-compatible. New (Issue #80): `distributionCount` (incremented on each automated distribution), `surveyRules` relation. |
+| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. New (Issue #79): `triggerCategory` (loyalty/cx_risk/scheduled), `triggerKey` (e.g. tier_upgrade), `surveyTypeOverride` (non-null when manager deviated from recommendation) — all nullable, backwards-compatible. New (Issue #80): `distributionCount` (incremented on each automated distribution), `surveyRules` relation. New (Issue #117): `distributions` relation to `SurveyDistribution`. Index on `(brandId, triggerKey, status)` for fast triggered-survey lookup. |
+| **SurveyDistribution** | *New (Issue #117).* Cooldown deduplication record for triggered survey sends. `@@unique([surveyId, memberId])` — upserted (not inserted) on each distribution to prevent duplicates under race conditions. `sentAt` tracks last send time for 30-day cooldown window. |
 | **SurveyRule** | *New (Issue #80).* Per-survey response-to-action rule. Each row maps a score range (scoreMin/scoreMax) to a `Campaign` (1:1 via `campaignId` unique FK). Created atomically with the campaign in `POST /v1/surveys/:id/launch`. Evaluated against `SurveyResponse.score` on each response submission to enqueue campaign triggers. |
 | **CxPlaybook** | *New (Issue #80).* Brand-scoped named rule set for reuse across surveys of the same type. Stores an ordered `rules` JSON array (scoreMin, scoreMax, actionType, actionConfig, ruleLabel). Soft-deleted via `deletedAt`. `@@unique([brandId, name])` prevents duplicate names per brand. Brand-scoped (not program-scoped) so playbooks survive program lifecycle changes and are reusable across programs. |
 | **SurveyResponse** | Individual feedback with AI-analyzed sentiment, topics, confidence, cluster assignment. |

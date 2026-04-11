@@ -207,11 +207,12 @@ model Member {
   loyaltyEvents   LoyaltyEvent[]
   redemptions     Redemption[]
   campaignEvents  CampaignEvent[]
-  surveyResponses SurveyResponse[]
-  conversations   Conversation[]
-  notes           MemberNote[]
-  createdAt       DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  surveyResponses     SurveyResponse[]
+  conversations       Conversation[]
+  notes               MemberNote[]
+  surveyDistributions SurveyDistribution[] // Issue #117
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@unique([brandId, email])
   @@index([brandId])
@@ -400,12 +401,30 @@ model Survey {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  responses       SurveyResponse[]
-  surveyRules     SurveyRule[]     // response-to-action rules (Issue #80)
-  campaigns       Campaign[]       // campaigns linked to this survey (Issue #80)
+  responses           SurveyResponse[]
+  surveyRules         SurveyRule[]         // response-to-action rules (Issue #80)
+  campaigns           Campaign[]           // campaigns linked to this survey (Issue #80)
+  distributions       SurveyDistribution[] // triggered distribution records (Issue #117)
 
   @@index([brandId, status])
+  @@index([brandId, triggerKey, status]) // survey distribution lookup (Issue #117)
   @@map("surveys")
+}
+
+// ─── Issue #117: Survey Trigger Distribution ──────────────────────────────────
+
+model SurveyDistribution {
+  id        String   @id @default(cuid())
+  surveyId  String
+  survey    Survey   @relation(fields: [surveyId], references: [id])
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id])
+  brandId   String
+  sentAt    DateTime @default(now())
+
+  @@unique([surveyId, memberId]) // one active distribution record per member per survey
+  @@index([surveyId, memberId, sentAt]) // cooldown window query (Issue #117)
+  @@map("survey_distributions")
 }
 
 // ─── Issue #80: Response-to-Action Rule Builder ───────────────────────────────

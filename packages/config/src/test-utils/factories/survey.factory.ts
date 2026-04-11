@@ -12,6 +12,10 @@ export async function createSurvey(opts: {
   status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
   incentivePoints?: number | null
   settings?: Record<string, unknown>
+  // Issue #79/#117 trigger fields
+  triggerCategory?: string | null
+  triggerKey?: string | null
+  surveyTypeOverride?: string | null
 }) {
   const prisma = getTestPrisma()
   counter++
@@ -45,6 +49,9 @@ export async function createSurvey(opts: {
       settings: opts.settings as Prisma.InputJsonValue ?? undefined,
       status: opts.status ?? 'ACTIVE',
       incentivePoints: opts.incentivePoints !== undefined ? opts.incentivePoints : null,
+      triggerCategory: opts.triggerCategory ?? null,
+      triggerKey: opts.triggerKey ?? null,
+      surveyTypeOverride: opts.surveyTypeOverride ?? null,
     },
   })
 }
