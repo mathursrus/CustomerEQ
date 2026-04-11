@@ -31,7 +31,7 @@ The platform is a multi-tenant loyalty engine with:
 | **Backend** | Fastify v5 | Schema-first routes with auto-validation, ~2x Express throughput, clean plugin architecture |
 | **ORM** | Prisma 5.13 | Type-safe queries, migration management, middleware for multi-tenant `brandId` scoping |
 | **Database** | PostgreSQL 16 | ACID transactions for loyalty ledger integrity; JSONB for flexible rule conditions/event payloads |
-| **Cache/Queue (optional)** | Redis 7 + BullMQ v5 | Optional optimization for async job queues, idempotency keys, and campaign deduplication. When `QUEUE_MODE=inline` (default fallback), all queued work runs synchronously in-process with no Redis dependency — suitable for single-instance deployments, demos, and development. Redis becomes required only when scaling horizontally or when idempotency guarantees must survive process restarts. |
+| **Cache/Queue** | Redis 7 + BullMQ v5 | Production runs on Redis + BullMQ for async job queues, idempotency keys, and campaign deduplication. Default is `QUEUE_MODE=redis`. Setting `QUEUE_MODE=inline` runs all queued work synchronously in-process and disables the Redis plugin — intended for dev/test/CI only. Prod deploys enforce `QUEUE_MODE=redis` via the Azure deploy workflow so the BullMQ retry/backoff path (e.g. `ConnectorRateLimitError` rethrow) stays functional. |
 | **Auth** | Clerk | Native Next.js support, multi-tenant organizations (Clerk org = brand), JWT verification |
 | **Testing** | Vitest + Supertest + Playwright | Unit/integration (Vitest), HTTP testing (Supertest), E2E browser (Playwright) |
 | **Build** | Turborepo + pnpm 9 | Monorepo task orchestration with caching; pnpm for strict dependency isolation |
@@ -348,7 +348,7 @@ sequenceDiagram
 
 - **Append-Only Loyalty Ledger**: `LoyaltyEvent` is the source of truth for points. `Member.pointsBalance` is a materialized counter updated atomically within the same transaction as the ledger write. This prevents balance drift and preserves full audit history.
 
-- **Idempotency**: When Redis is available, 24-hour TTL keys on event ingestion and SET NX for campaign trigger deduplication (one trigger per member per campaign). When running in `QUEUE_MODE=inline`, idempotency falls back to the database-level `idempotencyKey` column on `LoyaltyEvent` and the `@@unique([campaignId, memberId])` constraint on `CampaignEvent` — correct but without the fast-path cache. Redis is an optimization for write-heavy traffic, not a correctness requirement.
+- **Idempotency**: Production runs on Redis (`QUEUE_MODE=redis`, enforced by the deploy workflow): 24-hour TTL keys on event ingestion and SET NX for campaign trigger deduplication (one trigger per member per campaign). The dev/test fallback `QUEUE_MODE=inline` relies on the database-level `idempotencyKey` column on `LoyaltyEvent` and the `@@unique([campaignId, memberId])` constraint on `CampaignEvent` — correct but without the fast-path cache and without BullMQ-driven retry/backoff. Inline mode is not supported in prod.
 
 - **Transactional Integrity**: All point mutations (earn and burn) use Prisma `$transaction` to atomically write the `LoyaltyEvent` and update `pointsBalance`. Redemptions atomically debit points, decrement stock, and create the redemption record.
 

@@ -61,14 +61,16 @@ jobs:
           az containerapp update \
             --name customereq-api \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/customereq-api:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/customereq-api:${{ github.sha }} \
+            --set-env-vars QUEUE_MODE=redis
 
       - name: Deploy Worker
         run: |
           az containerapp update \
             --name customereq-worker \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/customereq-worker:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/customereq-worker:${{ github.sha }} \
+            --set-env-vars QUEUE_MODE=redis
 
       - name: Deploy Web
         run: |
@@ -81,13 +83,13 @@ jobs:
         run: |
           API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
           for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$API_FQDN/healthz" || true)
-            if [ "$STATUS" = "200" ]; then
-              echo "API health check passed"
+            BODY=$(curl -sf "https://$API_FQDN/healthz" || echo "")
+            if echo "$BODY" | grep -q '"redis":"ok"'; then
+              echo "API health check passed (redis ok): $BODY"
               exit 0
             fi
-            echo "Attempt $i: got $STATUS, retrying in 10s..."
+            echo "Attempt $i: body='$BODY', retrying in 10s..."
             sleep 10
           done
-          echo "API health check failed"
+          echo "API health check failed — /healthz did not report redis:ok"
           exit 1
