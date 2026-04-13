@@ -173,7 +173,8 @@ interface Note {
 
 const NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
 const NOTE_SENTIMENTS: { value: NoteSentiment | ''; label: string; chip: string }[] = [
-  { value: '', label: 'Not tagged', chip: 'bg-gray-100 text-gray-600' },
+  // Empty string = let the server auto-compute from the note body (Issue #141).
+  { value: '', label: 'Auto — AI reads the note', chip: 'bg-indigo-50 text-indigo-700' },
   { value: 'very_negative', label: 'Very negative · churn risk', chip: 'bg-red-100 text-red-800' },
   { value: 'negative', label: 'Negative · frustrated', chip: 'bg-orange-100 text-orange-800' },
   { value: 'neutral', label: 'Neutral', chip: 'bg-gray-100 text-gray-700' },
@@ -198,9 +199,14 @@ export default function MemberDetailPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [noteBody, setNoteBody] = useState('')
   const [noteCategory, setNoteCategory] = useState<string>('note')
+  // Empty string = let the server auto-compute from the note body.
+  // Any other value = manual override, respected by the server as-is.
   const [noteSentiment, setNoteSentiment] = useState<NoteSentiment | ''>('')
   const [noteSubmitting, setNoteSubmitting] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  // Surface the auto-computed sentiment for the last note so the rep can
+  // see what the AI picked and click to override if they disagree.
+  const [lastAutoSentiment, setLastAutoSentiment] = useState<{ noteId: string; sentiment: NoteSentiment } | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editBody, setEditBody] = useState('')
   const [editCategory, setEditCategory] = useState<string>('note')
@@ -266,14 +272,25 @@ export default function MemberDetailPage() {
         setNoteError(err.message || 'Failed to add note')
         return
       }
+      // Response now carries `sentimentAuto: true` when the server
+      // auto-computed from the note body (Issue #141). Capture it so
+      // we can show the rep what the AI picked and offer a one-click
+      // override via the existing edit flow.
+      const createdNote: { id: string; sentiment: NoteSentiment | null; sentimentAuto: boolean } = await res.json().catch(() => ({ id: '', sentiment: null, sentimentAuto: false }))
+      if (createdNote.sentimentAuto && createdNote.sentiment) {
+        setLastAutoSentiment({ noteId: createdNote.id, sentiment: createdNote.sentiment })
+      } else {
+        setLastAutoSentiment(null)
+      }
       setNoteBody('')
       setNoteCategory('note')
       setNoteSentiment('')
       await fetchNotes()
-      // Sentiment-tagged notes trigger health score recompute on the server;
-      // refetch the 360 after a short delay so the updated score + inconsistency
-      // flag show up.
-      if (noteSentiment) {
+      // Any note that lands with a non-null sentiment (manual or auto)
+      // triggers a health-score recompute on the server. Refetch the 360
+      // after a short delay so the updated score + inconsistency flag
+      // show up.
+      if (noteSentiment || createdNote.sentiment) {
         setTimeout(() => void fetchData(), 2500)
       }
     } catch {
@@ -669,8 +686,43 @@ export default function MemberDetailPage() {
           </div>
           {noteSentiment && (
             <p className="text-xs text-gray-500 italic">
-              Tagging sentiment will trigger a health-score recompute for this customer.
+              Manual override: this sentiment will be saved as-is and will trigger a health-score recompute.
             </p>
+          )}
+          {!noteSentiment && (
+            <p className="text-xs text-gray-500 italic">
+              AI will read the note body and tag sentiment automatically. You can override here or edit the note afterwards.
+            </p>
+          )}
+          {lastAutoSentiment && (
+            <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">
+              <span className="text-xs text-indigo-700">
+                ✨ Last note tagged{' '}
+                <span className={`inline-flex px-2 py-0.5 rounded-full font-medium uppercase tracking-wide text-[10px] ${sentimentChip(lastAutoSentiment.sentiment)}`}>
+                  {sentimentLabel(lastAutoSentiment.sentiment)}
+                </span>
+                {' '}by the AI.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const note = notes.find((n) => n.id === lastAutoSentiment.noteId)
+                  if (note) beginEdit(note)
+                  setLastAutoSentiment(null)
+                }}
+                className="ml-auto text-xs text-indigo-700 hover:text-indigo-900 underline"
+              >
+                Disagree? Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setLastAutoSentiment(null)}
+                className="text-xs text-indigo-400 hover:text-indigo-600"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           )}
           {noteError && <p className="text-xs text-red-600">{noteError}</p>}
         </form>

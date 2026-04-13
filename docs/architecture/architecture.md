@@ -199,7 +199,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
-| `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o |
+| `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o. Also called synchronously (not queued) from `POST /v1/members/:id/notes` on the CRM note write path so the auto-tagged bucket is returned to the admin UI in the same response — see §6 "Synchronous AI on note creation". |
 | `feedback-clustering` | `processFeedbackClustering` | 1 | AI-powered feedback clustering with anomaly detection |
 | `alert-evaluation` | `processAlertEvaluation` | 10 | Rule-based alert evaluation creating case follow-ups |
 | `health-score-computation` | `processHealthScore` | 3 | Batch health score computation for members (weighted formula: recency 25%, frequency 20%, sentiment 25%, NPS 15%, engagement 15%) |
@@ -344,6 +344,8 @@ sequenceDiagram
 ## 6. Design Patterns & Principles
 
 - **Event-Driven Processing**: Synchronous ingestion decoupled from asynchronous processing. API returns 202 immediately; workers handle point calculation and campaign execution. Preserves the <15-minute SLA by processing campaign triggers at high priority (concurrency 10).
+
+- **Synchronous AI on note creation (exception to event-driven default)**: `POST /v1/members/:id/notes` calls `@customerEQ/ai` `analyzeResponse` *synchronously* inside the request handler when the caller doesn't provide an explicit sentiment tag. The auto-computed bucket must be returned in the same response so the admin UI can immediately show the rep what the AI picked and offer a one-click override. A queued/async path would force the UI to poll or render an "analyzing…" placeholder for every note. AI failures degrade gracefully: the note is still saved with `sentiment: null` and a warn log. The ~400-1200ms added latency is acceptable for CRM note writes (low frequency, human-operated).
 
 - **Multi-Tenant Isolation**: `brandId` is injected from verified JWT at the auth layer. The multiTenant plugin rejects `brandId` in request bodies. All Prisma queries are scoped to `brandId`. Defense in depth: DB-level foreign key constraints prevent cross-tenant references.
 
