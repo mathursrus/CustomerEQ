@@ -38,10 +38,29 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const apiKey = (request.headers['x-api-key'] as string | undefined)?.trim()
     if (apiKey) {
       const keyHash = createHash('sha256').update(apiKey).digest('hex')
-      const dbKey = await fastify.prisma.apiKey.findUnique({
-        where: { keyHash },
-        select: { id: true, brandId: true, revokedAt: true },
-      })
+      // Guard: the api_keys table was added in #141 but the migration has
+      // not yet run in every environment. If Prisma throws P2021 ("table
+      // does not exist"), treat it as "no DB-backed key found" and fall
+      // through to the legacy env-var check — same behavior the route had
+      // before the DB-backed keys feature shipped. Without this guard the
+      // entire X-Api-Key auth path (including the MCP server) would 500
+      // on any DB that hasn't been migrated yet.
+      let dbKey: { id: string; brandId: string; revokedAt: Date | null } | null = null
+      try {
+        dbKey = await fastify.prisma.apiKey.findUnique({
+          where: { keyHash },
+          select: { id: true, brandId: true, revokedAt: true },
+        })
+      } catch (err) {
+        const code = (err as { code?: string } | null)?.code
+        if (code !== 'P2021') {
+          // Unexpected DB error — log and continue to the legacy fallback
+          // so a transient Prisma issue doesn't take down the whole auth
+          // path. The fallback is cheap and safe.
+          fastify.log.warn({ err }, 'api_keys lookup failed, falling through to env fallback')
+        }
+        dbKey = null
+      }
       if (dbKey && dbKey.revokedAt === null) {
         request.brandId = dbKey.brandId
         request.clerkUserId = 'api-key'
