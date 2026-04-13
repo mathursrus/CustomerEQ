@@ -14,8 +14,18 @@ import authPlugin from './auth.js'
 
 const mockedVerify = vi.mocked(verifyToken)
 
-function buildApp(brandLookup: Record<string, string> = {}) {
+interface ApiKeyRow {
+  id: string
+  brandId: string
+  revokedAt: Date | null
+}
+
+function buildApp(
+  brandLookup: Record<string, string> = {},
+  apiKeyLookup: Record<string, ApiKeyRow> = {},
+) {
   const app = Fastify()
+  const apiKeyUpdate = vi.fn(async () => ({}))
 
   // Register a fake prisma plugin so the auth plugin's dependency is satisfied
   app.register(
@@ -28,13 +38,19 @@ function buildApp(brandLookup: Record<string, string> = {}) {
               return id ? { id } : null
             }),
           },
+          apiKey: {
+            findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) => {
+              return apiKeyLookup[where.keyHash] ?? null
+            }),
+            update: apiKeyUpdate,
+          },
         } as never)
       },
       { name: 'prisma' },
     ),
   )
 
-  return app
+  return Object.assign(app, { _apiKeyUpdate: apiKeyUpdate })
 }
 
 describe('authPlugin', () => {
@@ -225,6 +241,129 @@ describe('authPlugin', () => {
       // so the error comes from brand-not-found rather than missing org ID.
       expect(res.statusCode).toBe(401)
       expect(JSON.parse(res.body).error).toBe('Brand not found for the provided organization')
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // X-Api-Key auth (developer-provisioned keys)
+  // ---------------------------------------------------------------------------
+
+  describe('X-Api-Key auth', () => {
+    it('accepts a valid DB-backed key and sets brandId', async () => {
+      const { createHash } = await import('node:crypto')
+      const plaintext = 'ceq_testkey_abcdef123456'
+      const keyHash = createHash('sha256').update(plaintext).digest('hex')
+
+      app = buildApp(
+        {},
+        { [keyHash]: { id: 'key_1', brandId: 'brand_acme', revokedAt: null } },
+      )
+      await app.register(authPlugin)
+      app.get('/test', async (req) => ({ brandId: req.brandId, userId: req.clerkUserId }))
+      await app.ready()
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/test',
+        headers: { 'x-api-key': plaintext },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(JSON.parse(res.body)).toEqual({ brandId: 'brand_acme', userId: 'api-key' })
+    })
+
+    it('rejects a revoked key', async () => {
+      const { createHash } = await import('node:crypto')
+      const plaintext = 'ceq_revoked_key'
+      const keyHash = createHash('sha256').update(plaintext).digest('hex')
+
+      app = buildApp(
+        {},
+        {
+          [keyHash]: {
+            id: 'key_revoked',
+            brandId: 'brand_acme',
+            revokedAt: new Date('2026-01-01'),
+          },
+        },
+      )
+      await app.register(authPlugin)
+      app.get('/test', async () => ({ ok: true }))
+      await app.ready()
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/test',
+        headers: { 'x-api-key': plaintext },
+      })
+
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('rejects an unknown key (not in table)', async () => {
+      app = buildApp({}, {})
+      await app.register(authPlugin)
+      app.get('/test', async () => ({ ok: true }))
+      await app.ready()
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/test',
+        headers: { 'x-api-key': 'ceq_totally_bogus' },
+      })
+
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('falls back to MCP_API_KEY env var for back-compat', async () => {
+      const prevKey = process.env.MCP_API_KEY
+      const prevBrand = process.env.MCP_BRAND_ID
+      process.env.MCP_API_KEY = 'legacy-mcp-key'
+      process.env.MCP_BRAND_ID = 'brand_legacy'
+      try {
+        app = buildApp({}, {})
+        await app.register(authPlugin)
+        app.get('/test', async (req) => ({ brandId: req.brandId, userId: req.clerkUserId }))
+        await app.ready()
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/test',
+          headers: { 'x-api-key': 'legacy-mcp-key' },
+        })
+
+        expect(res.statusCode).toBe(200)
+        expect(JSON.parse(res.body)).toEqual({ brandId: 'brand_legacy', userId: 'mcp-server' })
+      } finally {
+        if (prevKey === undefined) delete process.env.MCP_API_KEY
+        else process.env.MCP_API_KEY = prevKey
+        if (prevBrand === undefined) delete process.env.MCP_BRAND_ID
+        else process.env.MCP_BRAND_ID = prevBrand
+      }
+    })
+
+    it('updates lastUsedAt on successful auth (fire-and-forget)', async () => {
+      const { createHash } = await import('node:crypto')
+      const plaintext = 'ceq_lastused_key'
+      const keyHash = createHash('sha256').update(plaintext).digest('hex')
+
+      app = buildApp(
+        {},
+        { [keyHash]: { id: 'key_used', brandId: 'brand_acme', revokedAt: null } },
+      )
+      await app.register(authPlugin)
+      app.get('/test', async () => ({ ok: true }))
+      await app.ready()
+
+      await app.inject({
+        method: 'GET',
+        url: '/test',
+        headers: { 'x-api-key': plaintext },
+      })
+
+      // Fire-and-forget — give the microtask a beat to flush
+      await new Promise((r) => setImmediate(r))
+      expect((app as unknown as { _apiKeyUpdate: ReturnType<typeof vi.fn> })._apiKeyUpdate).toHaveBeenCalledOnce()
     })
   })
 

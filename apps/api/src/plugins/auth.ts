@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin'
 import { verifyToken } from '@clerk/backend'
+import { createHash } from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
 
 declare module 'fastify' {
@@ -24,19 +25,43 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
-    // API key auth — for MCP server and service-to-service calls
-    // Set MCP_API_KEY env var to enable. Header: X-Api-Key
+    // API key auth via X-Api-Key header.
+    //
+    //   1. Admin-provisioned keys (preferred): look up in the `api_keys`
+    //      table by SHA-256 hash. Each key maps to a specific brand and is
+    //      revocable from /admin/developer. `lastUsedAt` is updated so the
+    //      admin can see activity.
+    //   2. Legacy env-var fallback: `MCP_API_KEY` + `MCP_BRAND_ID`. This is
+    //      how the MCP server authenticates today and how demos/CI jobs run
+    //      without a DB-backed key. Kept for back-compat; the admin UX
+    //      should encourage real keys.
     const apiKey = (request.headers['x-api-key'] as string | undefined)?.trim()
-    const mcpApiKey = process.env.MCP_API_KEY?.trim()
-    if (apiKey && mcpApiKey && apiKey === mcpApiKey) {
-      // API key maps to a specific brand via MCP_BRAND_ID env var
-      const mcpBrandId = process.env.MCP_BRAND_ID
-      if (!mcpBrandId) {
-        return reply.status(500).send({ error: 'MCP_BRAND_ID not configured' })
+    if (apiKey) {
+      const keyHash = createHash('sha256').update(apiKey).digest('hex')
+      const dbKey = await fastify.prisma.apiKey.findUnique({
+        where: { keyHash },
+        select: { id: true, brandId: true, revokedAt: true },
+      })
+      if (dbKey && dbKey.revokedAt === null) {
+        request.brandId = dbKey.brandId
+        request.clerkUserId = 'api-key'
+        // Fire-and-forget lastUsedAt update — don't block the request.
+        void fastify.prisma.apiKey
+          .update({ where: { id: dbKey.id }, data: { lastUsedAt: new Date() } })
+          .catch(() => { /* best-effort */ })
+        return
       }
-      request.brandId = mcpBrandId
-      request.clerkUserId = 'mcp-server'
-      return
+      // Legacy env-var fallback
+      const mcpApiKey = process.env.MCP_API_KEY?.trim()
+      if (mcpApiKey && apiKey === mcpApiKey) {
+        const mcpBrandId = process.env.MCP_BRAND_ID
+        if (!mcpBrandId) {
+          return reply.status(500).send({ error: 'MCP_BRAND_ID not configured' })
+        }
+        request.brandId = mcpBrandId
+        request.clerkUserId = 'mcp-server'
+        return
+      }
     }
 
     // Skip auth for public routes — they handle their own auth if needed

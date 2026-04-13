@@ -151,9 +151,30 @@ model Brand {
   cxPlaybooks           CxPlaybook[]
   externalSignalSources ExternalSignalSource[]
   externalSignals       ExternalSignal[]
+  apiKeys               ApiKey[]
   createdAt             DateTime               @default(now())
 
   @@map("brands")
+}
+
+// Developer API key — admin-generated, stored as SHA-256 hash. The plaintext
+// is only ever shown once (at creation time). Used via the X-Api-Key header
+// for server-to-server integration by the brand's own product (e.g. Acme
+// Coffee's backend calling /v1/events).
+model ApiKey {
+  id         String    @id @default(cuid())
+  brandId    String
+  brand      Brand     @relation(fields: [brandId], references: [id])
+  name       String // human label: "Production", "Staging", "Acme backend"
+  keyPrefix  String // first 8 chars of plaintext (for display — not a secret)
+  keyHash    String    @unique // SHA-256 hex of plaintext
+  createdBy  String // clerk user ID that created it
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime? // soft revoke — null = active
+
+  @@index([brandId, revokedAt])
+  @@map("api_keys")
 }
 
 model Program {

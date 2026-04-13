@@ -31,6 +31,8 @@ import kbRoutes from './routes/kb.js'
 import intentRoutes from './routes/intent.js'
 import healthScoresRoutes from './routes/healthScores.js'
 import cxPlaybooksRoutes from './routes/cxPlaybooks.js'
+import apiKeysRoutes from './routes/apiKeys.js'
+import developerRoutes from './routes/developer.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -129,6 +131,8 @@ export async function buildApp() {
   await fastify.register(intentRoutes, { prefix: '/v1' })
   await fastify.register(healthScoresRoutes, { prefix: '/v1' })
   await fastify.register(cxPlaybooksRoutes, { prefix: '/v1' })
+  await fastify.register(apiKeysRoutes, { prefix: '/v1' })
+  await fastify.register(developerRoutes, { prefix: '/v1' })
 
   return fastify
 }
