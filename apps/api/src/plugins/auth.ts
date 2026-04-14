@@ -59,7 +59,8 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
           // path. The fallback is cheap and safe.
           fastify.log.warn({ err }, 'api_keys lookup failed, falling through to env fallback')
         }
-        dbKey = null
+        // dbKey stays null (its initial value) and the code below falls
+        // through to the MCP_API_KEY env-var check.
       }
       if (dbKey && dbKey.revokedAt === null) {
         request.brandId = dbKey.brandId
