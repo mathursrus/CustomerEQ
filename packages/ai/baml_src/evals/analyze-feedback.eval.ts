@@ -90,6 +90,70 @@ describe('[baml] AnalyzeFeedback — real LLM', () => {
     expect(hasCluster).toBeTruthy()
     expect(result.topics.length).toBeGreaterThan(0)
   }, LLM_TIMEOUT)
+
+  // ─── Regression: CRM note inputs (#141 follow-up) ────────────────────────
+  //
+  // These cases are the EXACT inputs reported as failing in the admin UI
+  // after #141 shipped. Before the fix, analyzeResponse routed through
+  // getAiClient().analyzeFeedback() (keyword mock) regardless of environment,
+  // and single-keyword notes like "excellent call" landed in the neutral
+  // bucket. The fix wired analyzeResponse to call b.AnalyzeFeedback
+  // directly — these evals prove the real LLM produces the right buckets
+  // for short, natural, CRM-note-style input with no numeric score.
+  //
+  // Notes are `surveyType: 'note'` with no numeric_score — that combination
+  // was never evaluated before. Cluster assignment is not meaningful for
+  // notes and is not asserted here.
+
+  it('CRM note: "excellent call with customer" is positive', async () => {
+    const result = await b.AnalyzeFeedback(
+      'excellent call with customer',
+      'note',
+      null,
+      [],
+    )
+    // Expect a clearly positive signal (> 0.2 threshold for our "positive" bucket)
+    expect(result.sentiment).toBeGreaterThan(0.2)
+    expect(result.confidence).toBeGreaterThan(0.4)
+  }, LLM_TIMEOUT)
+
+  it('CRM note: "very very bad call with customer" is negative', async () => {
+    const result = await b.AnalyzeFeedback(
+      'very very bad call with customer',
+      'note',
+      null,
+      [],
+    )
+    // Expect a clearly negative signal (< -0.2 threshold for "negative" bucket)
+    expect(result.sentiment).toBeLessThan(-0.2)
+    expect(result.confidence).toBeGreaterThan(0.4)
+  }, LLM_TIMEOUT)
+
+  it('CRM note with churn signal is strongly negative', async () => {
+    const result = await b.AnalyzeFeedback(
+      'very bad call with the customer. they are ready to churn!',
+      'note',
+      null,
+      [],
+    )
+    // Churn signal is an unambiguous very-negative escalation. LLM should
+    // recognize the urgency and return a strong negative score.
+    expect(result.sentiment).toBeLessThan(-0.4)
+    expect(result.confidence).toBeGreaterThan(0.4)
+  }, LLM_TIMEOUT)
+
+  it('CRM note with only praise word gets above-neutral positive', async () => {
+    // Defensive guard: the old keyword-mock path mapped any 1-word hit
+    // to exactly ±0.15 which is inside the neutral bucket. Short natural
+    // notes with a single strong emotion word must cross into positive.
+    const result = await b.AnalyzeFeedback(
+      'great meeting, customer was pleased',
+      'note',
+      null,
+      [],
+    )
+    expect(result.sentiment).toBeGreaterThan(0.2)
+  }, LLM_TIMEOUT)
 })
 
 // ─── DiscoverClusters ────────────────────────────────────────────────────────
