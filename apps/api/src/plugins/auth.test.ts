@@ -315,6 +315,45 @@ describe('authPlugin', () => {
       expect(res.statusCode).toBe(401)
     })
 
+    it('falls back to env var when api_keys table is missing (P2021)', async () => {
+      // Regression guard: the api_keys table was introduced in #141 but
+      // migrations may not have run yet in every environment. When
+      // Prisma throws P2021 the auth plugin must swallow it and fall
+      // through to the legacy env-var check instead of 500ing out.
+      const prevKey = process.env.MCP_API_KEY
+      const prevBrand = process.env.MCP_BRAND_ID
+      process.env.MCP_API_KEY = 'legacy-mcp-key'
+      process.env.MCP_BRAND_ID = 'brand_legacy'
+      try {
+        const p2021 = Object.assign(new Error('Table does not exist'), { code: 'P2021' })
+        // Override the findUnique mock to throw P2021 like Prisma would
+        // against a DB missing the api_keys table.
+        app = buildApp({}, {})
+        // Replace the apiKey.findUnique mock with a thrower
+        const prisma = (app as unknown as { prisma: { apiKey: { findUnique: ReturnType<typeof vi.fn> } } }).prisma
+        if (prisma?.apiKey?.findUnique) {
+          prisma.apiKey.findUnique.mockRejectedValueOnce(p2021)
+        }
+        await app.register(authPlugin)
+        app.get('/test', async (req) => ({ brandId: req.brandId, userId: req.clerkUserId }))
+        await app.ready()
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/test',
+          headers: { 'x-api-key': 'legacy-mcp-key' },
+        })
+
+        expect(res.statusCode).toBe(200)
+        expect(JSON.parse(res.body)).toEqual({ brandId: 'brand_legacy', userId: 'mcp-server' })
+      } finally {
+        if (prevKey === undefined) delete process.env.MCP_API_KEY
+        else process.env.MCP_API_KEY = prevKey
+        if (prevBrand === undefined) delete process.env.MCP_BRAND_ID
+        else process.env.MCP_BRAND_ID = prevBrand
+      }
+    })
+
     it('falls back to MCP_API_KEY env var for back-compat', async () => {
       const prevKey = process.env.MCP_API_KEY
       const prevBrand = process.env.MCP_BRAND_ID
