@@ -68,8 +68,8 @@ function withCors(response: Response): Response {
  * GET   /api/mcp  — SSE stream (long-running responses)
  * DELETE /api/mcp — terminate a session
  */
-async function handleMcp(req: NextRequest): Promise<Response> {
-  const key = await resolveApiKey(req)
+async function handleMcp(nextReq: NextRequest): Promise<Response> {
+  const key = await resolveApiKey(nextReq)
   if (!key) {
     return NextResponse.json(
       { error: 'Missing or invalid Bearer token' },
@@ -92,7 +92,20 @@ async function handleMcp(req: NextRequest): Promise<Response> {
   const server = createMcpServer(brandFetch)
   await server.connect(transport)
 
-  const response = await transport.handleRequest(req)
+  // ⚠️ Next.js 15 guards NextRequest.headers iteration behind an async check.
+  // The MCP SDK calls `req.headers.entries()` synchronously (line 389 of
+  // webStandardStreamableHttp.js) which triggers the "should be awaited" error.
+  // Fix: convert to a plain Web API Request — same body + headers, no Next.js
+  // async restrictions.
+  const plainReq = new Request(nextReq.url, {
+    method: nextReq.method,
+    headers: new Headers(nextReq.headers),
+    body: nextReq.method === 'GET' || nextReq.method === 'HEAD' ? undefined : nextReq.body,
+    // @ts-expect-error – duplex is needed for streaming body in Node.js 18+
+    duplex: 'half',
+  })
+
+  const response = await transport.handleRequest(plainReq)
   await server.close()
 
   return withCors(response)
