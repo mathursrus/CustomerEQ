@@ -896,3 +896,25 @@ model KBArticle {
   @@index([brandId, category])
   @@map("kb_articles")
 }
+
+// ─── MCP OAuth ────────────────────────────────────────────────────────────────
+
+// Short-lived authorization code issued during the MCP OAuth flow.
+// Exchanged (once) for a bearer token in POST /mcp/token.
+model McpOAuthCode {
+  id                  String    @id @default(cuid())
+  code                String    @unique
+  brandId             String
+  clerkUserId         String
+  clientId            String
+  redirectUri         String
+  codeChallenge       String    // PKCE S256 challenge (base64url SHA-256 of verifier)
+  codeChallengeMethod String    @default("S256")
+  expiresAt           DateTime
+  usedAt              DateTime? // set when exchanged — prevents replay
+  createdAt           DateTime  @default(now())
+
+  @@index([code])
+  @@map("mcp_oauth_codes")
+}
+

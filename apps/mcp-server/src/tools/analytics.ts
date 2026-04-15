@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
 function defaultDateRange() {
   const end = new Date()
@@ -9,7 +10,7 @@ function defaultDateRange() {
   return { startDate: start.toISOString(), endDate: end.toISOString() }
 }
 
-export function registerAnalyticsTools(server: McpServer) {
+export function registerAnalyticsTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // CX Analytics
   server.tool(
     'get_cx_analytics',
@@ -20,7 +21,7 @@ export function registerAnalyticsTools(server: McpServer) {
     }).shape,
     async (params) => {
       const dates = { ...defaultDateRange(), ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
-      const res = await apiFetch('/v1/analytics/cx', { params: dates })
+      const res = await fetch('/v1/analytics/cx', { params: dates })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -36,7 +37,7 @@ export function registerAnalyticsTools(server: McpServer) {
     }).shape,
     async (params) => {
       const dates = { ...defaultDateRange(), ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
-      const res = await apiFetch('/v1/analytics/overview', { params: dates })
+      const res = await fetch('/v1/analytics/overview', { params: dates })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -52,7 +53,7 @@ export function registerAnalyticsTools(server: McpServer) {
     }).shape,
     async (params) => {
       const dates = { ...defaultDateRange(), ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
-      const res = await apiFetch('/v1/analytics/cx/clusters', { params: dates })
+      const res = await fetch('/v1/analytics/cx/clusters', { params: dates })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -69,7 +70,7 @@ export function registerAnalyticsTools(server: McpServer) {
     }).shape,
     async ({ clusterId, ...params }) => {
       const dates = { ...defaultDateRange(), ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
-      const res = await apiFetch(`/v1/analytics/cx/clusters/${clusterId}/trend`, { params: dates })
+      const res = await fetch(`/v1/analytics/cx/clusters/${clusterId}/trend`, { params: dates })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -87,7 +88,7 @@ export function registerAnalyticsTools(server: McpServer) {
     async ({ severity, ...params }) => {
       const dates: Record<string, string> = { ...defaultDateRange(), ...Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
       if (severity) dates.severity = severity
-      const res = await apiFetch('/v1/analytics/cx/anomalies', { params: dates })
+      const res = await fetch('/v1/analytics/cx/anomalies', { params: dates })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -99,7 +100,7 @@ export function registerAnalyticsTools(server: McpServer) {
     'Manually trigger a feedback clustering batch job. Discovers new themes and detects anomalies.',
     {},
     async () => {
-      const res = await apiFetch('/v1/analytics/cx/clustering/trigger', { method: 'POST' })
+      const res = await fetch('/v1/analytics/cx/clustering/trigger', { method: 'POST' })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },

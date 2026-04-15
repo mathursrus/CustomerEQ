@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerEventTools(server: McpServer) {
+export function registerEventTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // Ingest event
   server.tool(
     'ingest_event',
@@ -14,7 +15,7 @@ export function registerEventTools(server: McpServer) {
       idempotencyKey: z.string().optional().describe('Unique key to prevent duplicate processing'),
     }).shape,
     async (params) => {
-      const res = await apiFetch('/v1/events', { method: 'POST', body: params })
+      const res = await fetch('/v1/events', { method: 'POST', body: params })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -26,7 +27,7 @@ export function registerEventTools(server: McpServer) {
     'List recent loyalty events (last 50). Shows event types, points earned, and timestamps.',
     {},
     async () => {
-      const res = await apiFetch('/v1/events')
+      const res = await fetch('/v1/events')
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },

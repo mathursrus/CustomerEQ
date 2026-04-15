@@ -12,7 +12,12 @@ const isPublicRoute = createRouteMatcher([
   '/spin(.*)',
   '/scratch(.*)',
   '/mystery(.*)',
+  // MCP OAuth — auth is handled inside route handlers via Bearer token
+  '/mcp(.*)',
+  '/.well-known(.*)',
+  '/api/mcp(.*)',
 ])
+
 
 // During Playwright E2E tests there are no real Clerk keys. Pass placeholders
 // so clerkMiddleware initialises without throwing; the PLAYWRIGHT_TEST guard
