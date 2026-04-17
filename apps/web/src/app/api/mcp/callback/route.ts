@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { createHmac, randomBytes } from 'node:crypto'
 import { prisma } from '@customerEQ/database'
 import { getAuthorizedMcpBrands } from '@/lib/mcp-oauth'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
     } else if (authorizedBrands.length === 1) {
       brand = { id: authorizedBrands[0].id }
     } else if (authorizedBrands.length > 1) {
-      const selectionUrl = new URL('/mcp/select-brand', req.nextUrl.origin)
+      const selectionUrl = new URL('/mcp/select-brand', getPublicBaseUrl(req))
       selectionUrl.searchParams.set('data', rawData)
       return NextResponse.redirect(selectionUrl)
     }

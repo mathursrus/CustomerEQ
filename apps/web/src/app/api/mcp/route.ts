@@ -16,6 +16,7 @@ import { prisma } from '@customerEQ/database'
 import { createApiClient } from '@customerEQ/mcp-server/api-client'
 import { createMcpServer } from '@customerEQ/mcp-server/server-factory'
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 
 // ─── CORS helpers ───────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function withCors(response: Response): Response {
 async function handleMcp(nextReq: NextRequest): Promise<Response> {
   // Always derive base from the incoming request origin so the MCP client
   // sees correct port/host in WWW-Authenticate challenges.
-  const base = nextReq.nextUrl.origin
+  const base = getPublicBaseUrl(nextReq)
   const key = await resolveApiKey(nextReq)
   if (!key) {
     return NextResponse.json(

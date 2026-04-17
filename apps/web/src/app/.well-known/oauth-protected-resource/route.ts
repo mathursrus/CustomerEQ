@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 
 /**
  * RFC 9728 — OAuth 2.0 Protected Resource Metadata
@@ -12,8 +13,8 @@ import { NextResponse } from 'next/server'
  *
  * Both return the same document — the catch-all [...path] route handles both.
  */
-export async function GET() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+export async function GET(req: NextRequest) {
+  const base = getPublicBaseUrl(req)
 
   return NextResponse.json(
     {

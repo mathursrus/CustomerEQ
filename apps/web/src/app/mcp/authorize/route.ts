@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 
 /**
  * GET /mcp/authorize
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   const signedData = `${payloadB64}.${sig}`
 
   // Derive base from incoming request origin so the callback stays on the same host/port.
-  const base    = req.nextUrl.origin
+  const base    = getPublicBaseUrl(req)
   const callbackUrl = `${base}/api/mcp/callback?data=${encodeURIComponent(signedData)}`
 
   // Redirect to Clerk sign-in.  After the user authenticates, Clerk will
