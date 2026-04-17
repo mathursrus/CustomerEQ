@@ -10,7 +10,7 @@ import { getPublicBaseUrl } from '@/lib/request-origin'
  * This route is public (see middleware.ts) — no Clerk guard.
  */
 export async function GET(req: NextRequest) {
-  const base = getPublicBaseUrl(req)
+  const base = await getPublicBaseUrl(req)
 
   const metadata = {
     issuer: base,

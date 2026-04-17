@@ -14,7 +14,7 @@ import { getPublicBaseUrl } from '@/lib/request-origin'
  * Both return the same document — the catch-all [...path] route handles both.
  */
 export async function GET(req: NextRequest) {
-  const base = getPublicBaseUrl(req)
+  const base = await getPublicBaseUrl(req)
 
   return NextResponse.json(
     {

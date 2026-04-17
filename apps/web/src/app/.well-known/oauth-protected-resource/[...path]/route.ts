@@ -7,7 +7,7 @@ import { getPublicBaseUrl } from '@/lib/request-origin'
  * The path suffix is the resource path — same metadata regardless of suffix.
  */
 export async function GET(req: NextRequest) {
-  const base = getPublicBaseUrl(req)
+  const base = await getPublicBaseUrl(req)
 
   return NextResponse.json(
     {

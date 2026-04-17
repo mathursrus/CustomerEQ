@@ -74,7 +74,7 @@ function withCors(response: Response): Response {
 async function handleMcp(nextReq: NextRequest): Promise<Response> {
   // Always derive base from the incoming request origin so the MCP client
   // sees correct port/host in WWW-Authenticate challenges.
-  const base = getPublicBaseUrl(nextReq)
+  const base = await getPublicBaseUrl(nextReq)
   const key = await resolveApiKey(nextReq)
   if (!key) {
     return NextResponse.json(

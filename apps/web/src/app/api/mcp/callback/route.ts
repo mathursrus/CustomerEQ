@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const session = testUserId ? null : await auth()
   const userId = testUserId ?? session?.userId ?? null
   if (!userId) {
-    const publicBaseUrl = getPublicBaseUrl(req)
+    const publicBaseUrl = await getPublicBaseUrl(req)
     const signInUrl = new URL('/sign-in', publicBaseUrl)
     const callbackUrl = new URL(req.nextUrl.pathname, publicBaseUrl)
     callbackUrl.search = req.nextUrl.search
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     } else if (authorizedBrands.length === 1) {
       brand = { id: authorizedBrands[0].id }
     } else if (authorizedBrands.length > 1) {
-      const selectionUrl = new URL('/mcp/select-brand', getPublicBaseUrl(req))
+      const selectionUrl = new URL('/mcp/select-brand', await getPublicBaseUrl(req))
       selectionUrl.searchParams.set('data', rawData)
       return NextResponse.redirect(selectionUrl)
     }
