@@ -42,6 +42,10 @@ ENV NODE_ENV=production
 # Copy Next.js standalone output
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+# The Next standalone bundle does not reliably carry Prisma's native engine
+# for linux-musl. Copy workspace node_modules so @prisma/client can locate
+# the generated .prisma payload at runtime inside the web container.
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 
