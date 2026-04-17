@@ -61,7 +61,7 @@ export default function TermsPage() {
             <p className="mt-3">
               To use the Service you must create an account. You agree to provide accurate information, keep your
               credentials confidential, and be responsible for all activity that occurs under your account. Notify
-              us promptly at <a className="text-indigo-600 underline" href="mailto:security@customereq.wellnessatwork.me">security@customereq.wellnessatwork.me</a> if
+              us promptly at <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">sid.mathur@gmail.com</a> if
               you suspect unauthorized use.
             </p>
             <p className="mt-3">
@@ -256,7 +256,7 @@ export default function TermsPage() {
               <li><strong>Severability.</strong> If any provision is held unenforceable, the rest remains in effect.</li>
               <li><strong>No waiver.</strong> A failure to enforce any provision is not a waiver of that provision.</li>
               <li><strong>Assignment.</strong> You may not assign these Terms without our prior written consent; we may assign these Terms in connection with a merger, acquisition, or sale of assets.</li>
-              <li><strong>Notices.</strong> Notices to us should be sent to <a className="text-indigo-600 underline" href="mailto:legal@customereq.wellnessatwork.me">legal@customereq.wellnessatwork.me</a>.</li>
+              <li><strong>Notices.</strong> Notices to us should be sent to <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">sid.mathur@gmail.com</a>.</li>
             </ul>
           </section>
 
@@ -264,8 +264,8 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-gray-900">17. Contact</h2>
             <p className="mt-3">
               Questions about these Terms can be sent to{' '}
-              <a className="text-indigo-600 underline" href="mailto:legal@customereq.wellnessatwork.me">
-                legal@customereq.wellnessatwork.me
+              <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">
+                sid.mathur@gmail.com
               </a>
               .
             </p>

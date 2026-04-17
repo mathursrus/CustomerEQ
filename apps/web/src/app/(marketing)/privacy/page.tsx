@@ -270,7 +270,7 @@ export default function PrivacyPage() {
               personal information (CustomerEQ does not sell personal information).
             </p>
             <p className="mt-3">
-              To exercise these rights, email <a className="text-indigo-600 underline" href="mailto:privacy@customereq.wellnessatwork.me">privacy@customereq.wellnessatwork.me</a>.
+              To exercise these rights, email <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">sid.mathur@gmail.com</a>.
               If you are an End user whose data was submitted by a CustomerEQ Customer, please contact that Customer
               directly; we will assist them in responding to verified requests.
             </p>
@@ -298,8 +298,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-gray-900">14. Contact us</h2>
             <p className="mt-3">
               Questions about this policy, or requests related to your information, can be sent to{' '}
-              <a className="text-indigo-600 underline" href="mailto:privacy@customereq.wellnessatwork.me">
-                privacy@customereq.wellnessatwork.me
+              <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">
+                sid.mathur@gmail.com
               </a>
               .
             </p>

@@ -151,8 +151,8 @@ export default function SecurityPage() {
             <h2 className="text-xl font-semibold text-gray-900">11. Responsible disclosure</h2>
             <p className="mt-3">
               If you believe you have discovered a security vulnerability in the Service, please email us at{' '}
-              <a className="text-indigo-600 underline" href="mailto:security@customereq.wellnessatwork.me">
-                security@customereq.wellnessatwork.me
+              <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">
+                sid.mathur@gmail.com
               </a>{' '}
               with details and any proof-of-concept. Please give us a reasonable opportunity to investigate and
               remediate before public disclosure. We will acknowledge valid reports and credit reporters where
@@ -177,8 +177,8 @@ export default function SecurityPage() {
             <h2 className="text-xl font-semibold text-gray-900">13. Contact</h2>
             <p className="mt-3">
               Security questions, due-diligence requests, or vulnerability reports can be sent to{' '}
-              <a className="text-indigo-600 underline" href="mailto:security@customereq.wellnessatwork.me">
-                security@customereq.wellnessatwork.me
+              <a className="text-indigo-600 underline" href="mailto:sid.mathur@gmail.com">
+                sid.mathur@gmail.com
               </a>
               .
             </p>
