@@ -109,10 +109,11 @@ export function Step3EarningRules({
     onNext()
   }
 
-  const nextLabel =
-    state.programType === 'TIERED' || state.programType === 'HYBRID'
-      ? 'Next: Tier Config →'
-      : 'Next: Rewards →'
+  // Step 3 (Earning Rules) always advances to Step 4 (Tier Configuration), regardless
+  // of programType. POINTS/CASHBACK programs render the Tiers step as a "not applicable"
+  // empty state — the step itself is still in the stepper and the label must reflect
+  // the actual destination (see step4-tiers.tsx).
+  const nextLabel = 'Next: Tier Config →'
 
   return (
     <div>
