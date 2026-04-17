@@ -109,7 +109,7 @@ importers:
   apps/mcp-server:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.12.1
+        specifier: ^1.28.0
         version: 1.28.0(zod@3.25.76)
       zod:
         specifier: ^3.23.0
@@ -130,12 +130,21 @@ importers:
       '@clerk/nextjs':
         specifier: ^5.1.0
         version: 5.7.5(next@15.5.15(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@customerEQ/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@customerEQ/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
       '@customerEQ/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@customerEQ/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.28.0
+        version: 1.28.0(zod@3.25.76)
       next:
         specifier: ^15.5.15
         version: 15.5.15(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

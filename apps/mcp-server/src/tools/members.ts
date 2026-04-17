@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerMemberTools(server: McpServer) {
+export function registerMemberTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // Enroll member
   server.tool(
     'enroll_member',
@@ -15,7 +16,7 @@ export function registerMemberTools(server: McpServer) {
       phone: z.string().optional().describe('Phone number'),
     }).shape,
     async (params) => {
-      const res = await apiFetch('/v1/members/enroll', {
+      const res = await fetch('/v1/members/enroll', {
         method: 'POST',
         body: { ...params, consentGiven: true, consentGivenAt: new Date().toISOString(), consentVersion: '1.0' },
       })
@@ -32,7 +33,7 @@ export function registerMemberTools(server: McpServer) {
       memberId: z.string().describe('Member ID'),
     }).shape,
     async ({ memberId }) => {
-      const res = await apiFetch(`/v1/members/${memberId}/balance`)
+      const res = await fetch(`/v1/members/${memberId}/balance`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -46,7 +47,7 @@ export function registerMemberTools(server: McpServer) {
       memberId: z.string().describe('Member ID'),
     }).shape,
     async ({ memberId }) => {
-      const res = await apiFetch(`/v1/members/${memberId}`)
+      const res = await fetch(`/v1/members/${memberId}`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -70,7 +71,7 @@ export function registerMemberTools(server: McpServer) {
       if (params.eventsLimit) queryParams.eventsLimit = String(params.eventsLimit)
       if (params.surveysLimit) queryParams.surveysLimit = String(params.surveysLimit)
 
-      const res = await apiFetch(`/v1/members/${params.memberId}/360`, { params: queryParams })
+      const res = await fetch(`/v1/members/${params.memberId}/360`, { params: queryParams })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
 
       const data = res.data as Record<string, unknown>
@@ -109,7 +110,7 @@ export function registerMemberTools(server: McpServer) {
         if (value !== undefined) queryParams[key] = String(value)
       }
 
-      const res = await apiFetch('/v1/members', { params: queryParams })
+      const res = await fetch('/v1/members', { params: queryParams })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -123,7 +124,7 @@ export function registerMemberTools(server: McpServer) {
       memberId: z.string().describe('Customer / member ID'),
     }).shape,
     async ({ memberId }) => {
-      const res = await apiFetch(`/v1/members/${memberId}/notes`)
+      const res = await fetch(`/v1/members/${memberId}/notes`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -143,7 +144,7 @@ export function registerMemberTools(server: McpServer) {
       author: z.string().optional().describe('Author name or email (defaults to the authenticated caller)'),
     }).shape,
     async (params) => {
-      const res = await apiFetch(`/v1/members/${params.memberId}/notes`, {
+      const res = await fetch(`/v1/members/${params.memberId}/notes`, {
         method: 'POST',
         body: {
           body: params.body,
@@ -175,7 +176,7 @@ export function registerMemberTools(server: McpServer) {
       if (params.body !== undefined) body.body = params.body
       if (params.category !== undefined) body.category = params.category
       if (params.sentiment !== undefined) body.sentiment = params.sentiment
-      const res = await apiFetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
+      const res = await fetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
         method: 'PATCH',
         body,
       })
@@ -193,7 +194,7 @@ export function registerMemberTools(server: McpServer) {
       noteId: z.string().describe('Note ID to delete'),
     }).shape,
     async (params) => {
-      const res = await apiFetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
+      const res = await fetch(`/v1/members/${params.memberId}/notes/${params.noteId}`, {
         method: 'DELETE',
       })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }

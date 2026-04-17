@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerSupportTools(server: McpServer) {
+export function registerSupportTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // List support conversations (tickets)
   server.tool(
     'list_support_conversations',
@@ -18,7 +19,7 @@ export function registerSupportTools(server: McpServer) {
       if (params.status) queryParams.status = params.status
       if (params.page) queryParams.page = String(params.page)
       if (params.pageSize) queryParams.pageSize = String(params.pageSize)
-      const res = await apiFetch('/v1/support/conversations', { params: queryParams })
+      const res = await fetch('/v1/support/conversations', { params: queryParams })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -32,7 +33,7 @@ export function registerSupportTools(server: McpServer) {
       conversationId: z.string().describe('Conversation ID'),
     }).shape,
     async ({ conversationId }) => {
-      const res = await apiFetch(`/v1/support/conversations/${conversationId}`)
+      const res = await fetch(`/v1/support/conversations/${conversationId}`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -49,7 +50,7 @@ export function registerSupportTools(server: McpServer) {
       assignee: z.string().optional().describe('Human agent email (for escalation/reassignment)'),
     }).shape,
     async ({ conversationId, status, assignee }) => {
-      const res = await apiFetch(`/v1/support/conversations/${conversationId}`, {
+      const res = await fetch(`/v1/support/conversations/${conversationId}`, {
         method: 'PATCH',
         body: { status, ...(assignee ? { assignee } : {}) },
       })
@@ -67,7 +68,7 @@ export function registerSupportTools(server: McpServer) {
       content: z.string().min(1).describe('Message text to send to the customer'),
     }).shape,
     async ({ conversationId, content }) => {
-      const res = await apiFetch(`/v1/support/conversations/${conversationId}/messages`, {
+      const res = await fetch(`/v1/support/conversations/${conversationId}/messages`, {
         method: 'POST',
         body: { content },
       })

@@ -1,15 +1,16 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerCampaignTools(server: McpServer) {
+export function registerCampaignTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // List campaigns
   server.tool(
     'list_campaigns',
     'List all campaigns for the brand with status, trigger type, and budget info.',
     {},
     async () => {
-      const res = await apiFetch('/v1/campaigns')
+      const res = await fetch('/v1/campaigns')
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -38,7 +39,7 @@ export function registerCampaignTools(server: McpServer) {
       endDate: z.string().optional().describe('Campaign end date (ISO)'),
     }).shape,
     async (params) => {
-      const res = await apiFetch('/v1/campaigns', { method: 'POST', body: params })
+      const res = await fetch('/v1/campaigns', { method: 'POST', body: params })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Campaign created: ${JSON.stringify(res.data, null, 2)}` }] }
     },
@@ -53,7 +54,7 @@ export function registerCampaignTools(server: McpServer) {
       status: z.enum(['ACTIVE', 'PAUSED', 'CLOSED']).describe('New status'),
     }).shape,
     async ({ campaignId, status }) => {
-      const res = await apiFetch(`/v1/campaigns/${campaignId}/status`, { method: 'PATCH', body: { status } })
+      const res = await fetch(`/v1/campaigns/${campaignId}/status`, { method: 'PATCH', body: { status } })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Campaign updated: ${JSON.stringify(res.data, null, 2)}` }] }
     },

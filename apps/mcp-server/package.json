@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server-factory": "./src/server-factory.ts",
+    "./api-client": "./src/api-client.ts"
+  },
   "bin": {
     "customereq-mcp": "./src/index.ts"
   },
@@ -16,7 +21,7 @@
     "test:smoke": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -25,3 +30,4 @@
     "vitest": "^1.6.0"
   }
 }
+
