@@ -22,8 +22,8 @@
 - Wrote the manual bug bash report to `docs/evidence/local-mcp-oauth-bug-bash-report.md`.
 
 ## Validation
-- `pnpm --filter @customerEQ/web typecheck` — passed
-- `pnpm --filter @customerEQ/web test:e2e -- test/e2e/mcp-oauth.spec.ts` — passed
+- `pnpm --filter @customerEQ/web typecheck` â€” passed
+- `pnpm --filter @customerEQ/web test:e2e -- test/e2e/mcp-oauth.spec.ts` â€” passed
 - Manual browser validation:
   - `/mcp/authorize` redirected to `/sign-in` with encoded callback payload
   - callback success page rendered with fallback guidance and client-return link
@@ -40,7 +40,7 @@
 - Work is ready for your review.
 
 ## Submission Status
-- Not committed
-- Not pushed
-- Not submitted for remote review
-- Waiting for explicit approval before any git sync actions
+- Committed on `feature/issue-144-mcp-oauth-local`
+- Pushed to `origin/feature/issue-144-mcp-oauth-local`
+- Opened for remote review as PR `#145`
+- Follow-up DB setup reliability bug filed as `#144`
