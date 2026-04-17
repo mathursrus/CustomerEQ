@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   if (record.clientId !== client_id) {
     return tokenError('invalid_grant', 'client_id mismatch')
   }
-  if (record.redirectUri !== redirect_uri) {
+  if (!redirectUrisMatch(record.redirectUri, redirect_uri)) {
     return tokenError('invalid_grant', 'redirect_uri mismatch')
   }
 
@@ -146,4 +146,40 @@ function tokenError(error: string, error_description: string) {
       },
     },
   )
+}
+
+function redirectUrisMatch(expected: string, actual: string) {
+  if (expected === actual) {
+    return true
+  }
+
+  try {
+    const expectedUrl = new URL(expected)
+    const actualUrl = new URL(actual)
+
+    if (isLoopbackHostname(expectedUrl.hostname) && isLoopbackHostname(actualUrl.hostname)) {
+      return (
+        expectedUrl.protocol === actualUrl.protocol &&
+        expectedUrl.port === actualUrl.port &&
+        normalizePathname(expectedUrl.pathname) === normalizePathname(actualUrl.pathname) &&
+        expectedUrl.search === actualUrl.search
+      )
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
+
+function isLoopbackHostname(hostname: string) {
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]' || hostname === '::1'
+}
+
+function normalizePathname(pathname: string) {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.slice(0, -1)
+  }
+
+  return pathname
 }

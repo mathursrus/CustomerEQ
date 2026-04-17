@@ -1,9 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { apiFetch } from './api-client.js'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { apiFetch, createApiClient } from './api-client.js'
 
 describe('apiFetch', () => {
+  const originalEnv = { ...process.env }
+
   beforeEach(() => {
     vi.restoreAllMocks()
+    process.env = { ...originalEnv }
+  })
+
+  afterEach(() => {
+    process.env = { ...originalEnv }
   })
 
   it('constructs the correct URL with path', async () => {
@@ -88,5 +95,25 @@ describe('apiFetch', () => {
     const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
     expect(options.method).toBe('POST')
     expect(options.body).toBe(JSON.stringify({ name: 'My Program' }))
+  })
+
+  it('falls back to a git-utils local API URL outside production', async () => {
+    delete process.env.CUSTOMEREQ_API_URL
+    delete process.env.NEXT_PUBLIC_API_URL
+    delete process.env.API_PORT
+    process.env.NODE_ENV = 'development'
+    process.env.GITHUB_HEAD_REF = 'feature/issue-144-mcp-oauth'
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const client = createApiClient()
+    await client('/healthz')
+
+    expect(mockFetch.mock.calls[0][0]).toBe('http://localhost:10144/healthz')
   })
 })

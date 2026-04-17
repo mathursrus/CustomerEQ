@@ -105,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </svg>
           </button>
           <div className="flex-1" />
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </header>
 
         {/* Page content */}

@@ -16,7 +16,7 @@ interface ProgramInfo {
 }
 
 export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
-  const { signUp, isLoaded } = useSignUp()
+  const { signUp } = useSignUp()
   const router = useRouter()
 
   const [step, setStep] = useState<'form' | 'welcome'>('form')
@@ -57,23 +57,18 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!validate() || !isLoaded) return
+    if (!validate() || !signUp) return
     setLoading(true)
     setError(null)
 
     try {
       // Step 1: Create Clerk user
-      const signUpResult = await signUp.create({
+      await signUp.create({
         emailAddress: form.email,
         password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
       })
-
-      // Get session token for the new user
-      const token = await signUpResult.createdSessionId
-        ? null  // session not created yet; token comes from prepareEmailAddressVerification path
-        : null
 
       // Step 2: Enroll member
       const res = await fetch(`${API_URL}/v1/members/enroll`, {
@@ -90,7 +85,6 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
           consentVersion: 'privacy-v1.0',
           emailOptIn: form.emailOptIn,
           smsOptIn: form.smsOptIn,
-          clerkToken: token ?? undefined,
         }),
       })
 
@@ -310,7 +304,7 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
         <button
           type="submit"
           data-testid="enroll-submit"
-          disabled={loading || !isLoaded}
+          disabled={loading || !signUp}
           className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 px-4 py-2.5 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
           {loading ? 'Creating account…' : 'Join the Program'}

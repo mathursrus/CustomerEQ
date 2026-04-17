@@ -13,6 +13,8 @@ const TEST_USER_ID = 'playwright-mcp-user'
 const TEST_BRAND_ID = process.env.PLAYWRIGHT_MCP_BRAND_ID ?? 'cmn689ibu000089tqad1g234t'
 const CLIENT_ID = 'antigravity-local'
 const REDIRECT_URI = 'cursor://anysphere.cursor-mcp/oauth/callback'
+const LOOPBACK_REDIRECT_URI = 'http://localhost:52678/callback'
+const LOOPBACK_REDIRECT_URI_EQUIVALENT = 'http://127.0.0.1:52678/callback'
 const STATE_SECRET = process.env.MCP_OAUTH_STATE_SECRET ?? 'dev-insecure-mcp-state-secret'
 
 let prismaModule: PrismaModule | null = null
@@ -226,6 +228,53 @@ test.describe('MCP OAuth flow', () => {
         }),
       ]),
     )
+  })
+
+  test('accepts equivalent loopback redirect URIs during token exchange', async ({ request }) => {
+    const state = randomUUID()
+    const verifier = `verifier-${randomUUID()}`
+    const challenge = createHash('sha256').update(verifier, 'ascii').digest('base64url')
+    const signedData = signCallbackData({
+      client_id: CLIENT_ID,
+      redirect_uri: LOOPBACK_REDIRECT_URI,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      ts: Date.now(),
+    })
+
+    const callbackResponse = await request.get(`/api/mcp/callback?data=${encodeURIComponent(signedData)}`, {
+      maxRedirects: 0,
+      headers: {
+        'x-playwright-test-user-id': TEST_USER_ID,
+        'x-playwright-test-brand-id': TEST_BRAND_ID,
+      },
+    })
+
+    expect(callbackResponse.status()).toBe(307)
+    const callbackUrl = callbackResponse.headers().location
+    expect(callbackUrl).toBeTruthy()
+    const parsedCallbackUrl = new URL(callbackUrl)
+    const code = parsedCallbackUrl.searchParams.get('code')
+
+    expect(`${parsedCallbackUrl.origin}${parsedCallbackUrl.pathname}`).toBe(LOOPBACK_REDIRECT_URI)
+    expect(code).toBeTruthy()
+
+    const tokenResponse = await request.post('/mcp/token', {
+      form: {
+        grant_type: 'authorization_code',
+        code: code!,
+        code_verifier: verifier,
+        client_id: CLIENT_ID,
+        redirect_uri: LOOPBACK_REDIRECT_URI_EQUIVALENT,
+      },
+    })
+
+    expect(tokenResponse.status()).toBe(200)
+    await expect(tokenResponse.json()).resolves.toMatchObject({
+      token_type: 'Bearer',
+      scope: 'mcp',
+    })
   })
 })
 

@@ -41,12 +41,8 @@ export default clerkMiddleware(
       if (!session.userId) {
         return NextResponse.redirect(new URL('/sign-in', request.url))
       }
-      // Org/role authorization is handled by the API via JWT org_id -> brand mapping
-    } else if (!isPublicRoute(request)) {
-      if (!session.userId) {
-        return NextResponse.redirect(new URL('/sign-in', request.url))
-      }
-      session.protect()
+    } else if (!isPublicRoute(request) && !session.userId) {
+      return NextResponse.redirect(new URL('/sign-in', request.url))
     }
   },
   { publishableKey: clerkPublishableKey, secretKey: clerkSecretKey },

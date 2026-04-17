@@ -1,4 +1,6 @@
-// Centralized API client — wraps auth + base URL for all tool calls
+import { getLocalApiBaseUrl } from './git-utils.js'
+
+// Centralized API client - wraps auth + base URL for all tool calls
 
 export type ApiFetch = <T = unknown>(
   path: string,
@@ -26,11 +28,19 @@ export interface ApiClientConfig {
  * OAuth bearer token) rather than reading from env vars.
  */
 export function createApiClient(config: ApiClientConfig = {}): ApiFetch {
-  const baseUrl = config.baseUrl ?? process.env.CUSTOMEREQ_API_URL ?? 'http://localhost:4000'
+  const baseUrl =
+    config.baseUrl ??
+    process.env.CUSTOMEREQ_API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    (process.env.NODE_ENV === 'production' ? undefined : getLocalApiBaseUrl())
   const apiKey = config.apiKey ?? process.env.CUSTOMEREQ_API_KEY ?? ''
   const token = config.token ?? process.env.CUSTOMEREQ_API_TOKEN ?? ''
   const testBrandId = config.testBrandId ?? process.env.CUSTOMEREQ_TEST_BRAND_ID ?? ''
   const testUserId = config.testUserId ?? process.env.CUSTOMEREQ_TEST_USER_ID ?? 'mcp-server'
+
+  if (!baseUrl) {
+    throw new Error('Missing API base URL. Set CUSTOMEREQ_API_URL or NEXT_PUBLIC_API_URL.')
+  }
 
   return async function apiFetch<T = unknown>(
     path: string,
@@ -86,6 +96,5 @@ export function createApiClient(config: ApiClientConfig = {}): ApiFetch {
   }
 }
 
-// Default singleton — reads from env vars. Used by the stdio MCP server.
+// Default singleton - reads from env vars. Used by the stdio MCP server.
 export const apiFetch: ApiFetch = createApiClient()
-
