@@ -135,6 +135,17 @@ test.describe('MCP OAuth flow', () => {
     expect(authorizeResponse.status()).toBe(307)
     expect(authorizeResponse.headers().location).toContain('/sign-in?redirect_url=')
 
+    const unauthenticatedCallbackResponse = await request.get(
+      `/api/mcp/callback?data=${encodeURIComponent(signedData)}`,
+      { maxRedirects: 0 },
+    )
+
+    expect(unauthenticatedCallbackResponse.status()).toBe(307)
+    expect(unauthenticatedCallbackResponse.headers().location).toContain('/sign-in?redirect_url=')
+    expect(unauthenticatedCallbackResponse.headers().location).toContain(
+      encodeURIComponent(`${baseURL}/api/mcp/callback?data=${signedData}`),
+    )
+
     const callbackResponse = await request.get(`/api/mcp/callback?data=${encodeURIComponent(signedData)}`, {
       headers: {
         'x-playwright-test-user-id': TEST_USER_ID,
