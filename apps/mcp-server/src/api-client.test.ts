@@ -116,4 +116,14 @@ describe('apiFetch', () => {
 
     expect(mockFetch.mock.calls[0][0]).toBe('http://localhost:10144/healthz')
   })
+
+  it('does not throw on module import when env base URL is absent in production', async () => {
+    delete process.env.CUSTOMEREQ_API_URL
+    delete process.env.NEXT_PUBLIC_API_URL
+    process.env.NODE_ENV = 'production'
+
+    vi.resetModules()
+
+    await expect(import('./api-client.js')).resolves.toBeTruthy()
+  })
 })

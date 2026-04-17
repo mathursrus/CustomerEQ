@@ -1,8 +1,7 @@
-import { headers } from 'next/headers'
 import type { NextRequest } from 'next/server'
 
 export async function getPublicBaseUrl(req: NextRequest): Promise<string> {
-  const requestHeaders = await headers()
+  const requestHeaders = req.headers
   const forwardedProto = firstHeaderValue(requestHeaders.get('x-forwarded-proto'))
   const forwardedHost = firstHeaderValue(requestHeaders.get('x-forwarded-host'))
   const host = forwardedHost ?? firstHeaderValue(requestHeaders.get('host'))

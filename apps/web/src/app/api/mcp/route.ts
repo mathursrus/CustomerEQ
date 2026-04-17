@@ -9,7 +9,6 @@
  * deployments and avoids in-memory session state.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { headers } from 'next/headers'
 import { createHash } from 'node:crypto'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { prisma } from '@customerEQ/database'
@@ -131,9 +130,8 @@ async function handleMcp(nextReq: NextRequest): Promise<Response> {
 
     await server.connect(transport)
 
-    const h = await headers()
     const safeHeaders = new Headers()
-    Array.from(h.entries()).forEach(([k, v]) => safeHeaders.append(k, v))
+    Array.from(nextReq.headers.entries()).forEach(([k, v]) => safeHeaders.append(k, v))
 
     console.log(`[MCP] ${nextReq.method} ${nextReq.url}`)
 
