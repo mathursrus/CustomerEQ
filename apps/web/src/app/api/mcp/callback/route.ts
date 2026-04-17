@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
   const session = testUserId ? null : await auth()
   const userId = testUserId ?? session?.userId ?? null
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const signInUrl = new URL('/sign-in', getPublicBaseUrl(req))
+    signInUrl.searchParams.set('redirect_url', req.nextUrl.toString())
+    return NextResponse.redirect(signInUrl)
   }
 
   const rawData = req.nextUrl.searchParams.get('data')
