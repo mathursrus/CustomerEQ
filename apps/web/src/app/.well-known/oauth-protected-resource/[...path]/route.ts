@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 
 /**
  * Catch-all for path-scoped RFC 9728 requests.
@@ -6,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * The path suffix is the resource path — same metadata regardless of suffix.
  */
 export async function GET(req: NextRequest) {
-  const base = req.nextUrl.origin
+  const base = getPublicBaseUrl(req)
 
   return NextResponse.json(
     {

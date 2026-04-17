@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPublicBaseUrl } from '@/lib/request-origin'
 
 /**
  * RFC 8414 — OAuth 2.0 Authorization Server Metadata
@@ -9,8 +10,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * This route is public (see middleware.ts) — no Clerk guard.
  */
 export async function GET(req: NextRequest) {
-  // Always derive base from the actual request origin to avoid port/env drift in dev
-  const base = req.nextUrl.origin
+  const base = getPublicBaseUrl(req)
 
   const metadata = {
     issuer: base,
