@@ -12,7 +12,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "@clerk/nextjs": "^5.1.0",
+    "@clerk/nextjs": "^5.7.6",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/mcp-server": "workspace:*",
     "@customerEQ/shared": "workspace:*",
@@ -23,7 +23,6 @@
     "react-dom": "^18.3.0",
     "zod": "^3.23.0"
   },
-
   "devDependencies": {
     "@customerEQ/config": "workspace:*",
     "@playwright/test": "^1.44.0",
