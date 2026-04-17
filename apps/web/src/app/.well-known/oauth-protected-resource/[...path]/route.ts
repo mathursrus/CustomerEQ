@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 /**
  * Catch-all for path-scoped RFC 9728 requests.
  * MCP SDK sends: GET /.well-known/oauth-protected-resource/api/mcp
  * The path suffix is the resource path — same metadata regardless of suffix.
  */
-export async function GET() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+export async function GET(req: NextRequest) {
+  const base = req.nextUrl.origin
 
   return NextResponse.json(
     {

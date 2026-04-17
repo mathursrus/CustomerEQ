@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 /**
  * RFC 8414 — OAuth 2.0 Authorization Server Metadata
@@ -8,21 +8,19 @@ import { NextResponse } from 'next/server'
  *
  * This route is public (see middleware.ts) — no Clerk guard.
  */
-export async function GET() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+export async function GET(req: NextRequest) {
+  // Always derive base from the actual request origin to avoid port/env drift in dev
+  const base = req.nextUrl.origin
 
   const metadata = {
     issuer: base,
     authorization_endpoint: `${base}/mcp/authorize`,
     token_endpoint: `${base}/mcp/token`,
-    // We deliberately do not advertise a registration endpoint —
-    // any client_id is accepted (see /mcp/authorize).
+    registration_endpoint: `${base}/mcp/register`,
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'],
-    // MCP clients use Bearer tokens returned from /mcp/token
-    // to authenticate calls to the SSE / HTTP MCP endpoint.
     scopes_supported: ['mcp'],
   }
 

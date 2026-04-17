@@ -24,11 +24,11 @@ import { NextResponse, type NextRequest } from 'next/server'
  */
 export async function POST(req: NextRequest) {
   // ── Parse body — accept both JSON and form-encoded ───────────────────────
-  let grant_type: string | null = null
-  let code: string | null = null
-  let code_verifier: string | null = null
-  let client_id: string | null = null
-  let redirect_uri: string | null = null
+  let grant_type: string | null
+  let code: string | null
+  let code_verifier: string | null
+  let client_id: string | null
+  let redirect_uri: string | null
 
   const ct = req.headers.get('content-type') ?? ''
   if (ct.includes('application/json')) {
@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
     {
       access_token: rawToken,
       token_type:   'Bearer',
+      expires_in: 60 * 60 * 24 * 30,
       scope: 'mcp',
     },
     {

@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
   const sig        = createHmac('sha256', secret).update(payloadB64).digest('base64url')
   const signedData = `${payloadB64}.${sig}`
 
-  const base    = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  // Derive base from incoming request origin so the callback stays on the same host/port.
+  const base    = req.nextUrl.origin
   const callbackUrl = `${base}/api/mcp/callback?data=${encodeURIComponent(signedData)}`
 
   // Redirect to Clerk sign-in.  After the user authenticates, Clerk will
