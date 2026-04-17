@@ -13,6 +13,7 @@ WORKDIR /app
 # Copy workspace config and lockfile first for layer caching
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
+COPY apps/mcp-server/package.json apps/mcp-server/
 COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
