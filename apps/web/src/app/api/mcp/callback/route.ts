@@ -27,8 +27,11 @@ export async function GET(req: NextRequest) {
   const session = testUserId ? null : await auth()
   const userId = testUserId ?? session?.userId ?? null
   if (!userId) {
-    const signInUrl = new URL('/sign-in', getPublicBaseUrl(req))
-    signInUrl.searchParams.set('redirect_url', req.nextUrl.toString())
+    const publicBaseUrl = getPublicBaseUrl(req)
+    const signInUrl = new URL('/sign-in', publicBaseUrl)
+    const callbackUrl = new URL(req.nextUrl.pathname, publicBaseUrl)
+    callbackUrl.search = req.nextUrl.search
+    signInUrl.searchParams.set('redirect_url', callbackUrl.toString())
     return NextResponse.redirect(signInUrl)
   }
 
