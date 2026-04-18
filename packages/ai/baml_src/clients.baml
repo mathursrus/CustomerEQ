@@ -1,7 +1,11 @@
 // LLM client configuration
-// Primary: GPT-4o (best cost/quality for structured extraction)
-// Fast: GPT-4o-mini (high-throughput, low-cost)
-// Fallback: Round-robin for resilience
+// Aligned to the local Codex Azure OpenAI profile:
+// - base_url: https://sid-mj8313v0-eastus2.openai.azure.com/openai/v1
+// - model: gpt-5.4
+//
+// The local Codex profile uses the Azure v1 endpoint and GPT-5.4.
+// For GPT-5-class models, try the Responses API provider so BAML can
+// serialize requests in the newer OpenAI/Azure wire shape.
 
 retry_policy ExponentialBackoff {
   max_retries 2
@@ -21,21 +25,27 @@ retry_policy ConstantRetry {
 }
 
 client<llm> GPT4o {
-  provider openai
+  provider openai-responses
   options {
-    model "gpt-4o"
-    api_key env.OPENAI_API_KEY
-    max_tokens 2048
+    base_url env.AZURE_OPENAI_BASE_URL
+    api_key env.AZURE_OPENAI_API_KEY
+    model "gpt-5.4"
+    reasoning {
+      effort "medium"
+    }
   }
 }
 
 client<llm> GPT4oMini {
-  provider openai
+  provider openai-responses
   retry_policy ExponentialBackoff
   options {
-    model "gpt-4o-mini"
-    api_key env.OPENAI_API_KEY
-    max_tokens 1024
+    base_url env.AZURE_OPENAI_BASE_URL
+    api_key env.AZURE_OPENAI_API_KEY
+    model "gpt-5.4"
+    reasoning {
+      effort "medium"
+    }
   }
 }
 

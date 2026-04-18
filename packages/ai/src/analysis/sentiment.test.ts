@@ -8,7 +8,7 @@ describe('analyzeResponse', () => {
 
   beforeEach(() => {
     // Force the legacy mock path so unit tests don't hit the real
-    // BAML+GPT-4o-mini client. Production default (AI_PROVIDER unset)
+    // BAML+Azure OpenAI gpt-5.4 client. Production default (AI_PROVIDER unset)
     // uses BAML; mock is for deterministic tests only.
     process.env.AI_PROVIDER = 'mock'
     setAiClient(createMockClient())

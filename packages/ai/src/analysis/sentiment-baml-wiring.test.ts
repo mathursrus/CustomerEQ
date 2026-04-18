@@ -20,10 +20,10 @@
 // all — it'd use the keyword mock from getAiClient() and return a
 // different shape with different values.
 //
-// This is a behavioral wiring test. Semantic "does GPT-4o-mini actually
+// This is a behavioral wiring test. Semantic "does Azure OpenAI gpt-5.4 actually
 // classify natural language correctly" tests live in the BAML evals
 // (packages/ai/baml_src/evals/analyze-feedback.eval.ts) and run via
-// `pnpm test:baml` with a real OPENAI_API_KEY.
+// `pnpm test:baml` with a real Azure OpenAI configuration.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 

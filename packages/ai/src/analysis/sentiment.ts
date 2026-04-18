@@ -1,4 +1,4 @@
-// Sentiment analysis using BAML-generated GPT-4o-mini client.
+// Sentiment analysis using a BAML-generated Azure OpenAI gpt-5.4 client.
 //
 // This used to go through `getAiClient().analyzeFeedback(...)` which
 // routed to a keyword-matching mock regardless of environment. That
@@ -27,7 +27,7 @@ export async function analyzeResponse(
 ): Promise<FeedbackAnalysisResult> {
   // Re-read per call so tests can flip AI_PROVIDER=mock in beforeEach.
   const useBaml = (process.env.AI_PROVIDER ?? 'baml') !== 'mock'
-  // Explicit mock path for tests + local dev without OPENAI_API_KEY.
+  // Explicit mock path for tests + local dev without Azure OpenAI config.
   if (!useBaml) {
     return getAiClient().analyzeFeedback(
       text,
@@ -37,7 +37,7 @@ export async function analyzeResponse(
     )
   }
 
-  // Production / default path: real BAML + GPT-4o-mini.
+  // Production / default path: real BAML + Azure OpenAI gpt-5.4.
   const raw = await b.AnalyzeFeedback(
     text,
     options.surveyType,

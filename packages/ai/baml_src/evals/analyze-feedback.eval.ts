@@ -1,7 +1,7 @@
 /**
  * BAML Eval Tests — Real LLM Assertions
  *
- * Calls real GPT-4o/GPT-4o-mini via the generated BAML client.
+ * Calls the real Azure OpenAI `gpt-5.4` deployment via the generated BAML client.
  * Run with: pnpm test:baml
  * NEVER SKIP: Fails hard if API key is missing.
  *
