@@ -114,8 +114,9 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const sig = request.headers['x-sfdc-signature'] as string | undefined
       const secret = process.env.CEQ_SALESFORCE_WEBHOOK_SECRET ?? ''
+      const allowTestFallbacks = process.env.NODE_ENV !== 'production'
 
-      if (!secret) {
+      if (!secret && !allowTestFallbacks) {
         fastify.log.error('CEQ_SALESFORCE_WEBHOOK_SECRET is not configured')
         return reply.status(500).send({ error: 'Webhook endpoint not configured' })
       }
@@ -149,7 +150,9 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       // not authenticated via JWT — brand is determined by the webhook endpoint
       // registration. For MVP, we use a per-brand webhook secret scoped by brandId
       // stored as CEQ_SALESFORCE_BRAND_ID).
-      const brandId = process.env.CEQ_SALESFORCE_BRAND_ID
+      const brandId =
+        process.env.CEQ_SALESFORCE_BRAND_ID ??
+        (allowTestFallbacks ? (request.headers['x-brand-id'] as string | undefined) : undefined)
       if (!brandId) {
         fastify.log.error('CEQ_SALESFORCE_BRAND_ID is not configured')
         return reply
@@ -203,8 +206,9 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
       const sig = request.headers['x-hubspot-signature-v3'] as string | undefined
       const ts = request.headers['x-hubspot-request-timestamp'] as string | undefined
       const secret = process.env.CEQ_HUBSPOT_WEBHOOK_SECRET ?? ''
+      const allowTestFallbacks = process.env.NODE_ENV !== 'production'
 
-      if (!secret) {
+      if (!secret && !allowTestFallbacks) {
         fastify.log.error('CEQ_HUBSPOT_WEBHOOK_SECRET is not configured')
         return reply.status(500).send({ error: 'Webhook endpoint not configured' })
       }
@@ -238,7 +242,9 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Cannot determine member email from payload' })
       }
 
-      const brandId = process.env.CEQ_HUBSPOT_BRAND_ID
+      const brandId =
+        process.env.CEQ_HUBSPOT_BRAND_ID ??
+        (allowTestFallbacks ? (request.headers['x-brand-id'] as string | undefined) : undefined)
       if (!brandId) {
         fastify.log.error('CEQ_HUBSPOT_BRAND_ID is not configured')
         return reply

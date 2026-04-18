@@ -353,7 +353,7 @@ describe('Analytics API — /v1/analytics', () => {
       const request = authenticatedRequest(brand.id)
 
       // Seed events older than 7 days to satisfy history check
-      const prisma = (await import('@customerEQ/database')).getPrisma()
+      const { prisma } = await import('@customerEQ/database')
       const oldDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
       await prisma.loyaltyEvent.create({
         data: {
