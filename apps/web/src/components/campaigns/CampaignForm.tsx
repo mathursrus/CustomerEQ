@@ -486,6 +486,36 @@ export default function CampaignForm({
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
 
+  // Sync form state when initialData arrives after mount (edit mode fetches async)
+  useEffect(() => {
+    if (!initialData) return
+    setForm({
+      name: initialData.name ?? '',
+      programId: initialData.programId ?? '',
+      triggerType: initialData.triggerType ?? '',
+      conditionField: initialData.conditionField ?? '',
+      conditionOperator: initialData.conditionOperator ?? '',
+      conditionValue: initialData.conditionValue ?? '',
+      actionType: initialData.actionType ?? '',
+      actionPoints: initialData.actionPoints ?? '',
+      actionMessage: initialData.actionMessage ?? '',
+      budgetCap: initialData.budgetCap ?? '',
+      startDate: initialData.startDate ?? '',
+      endDate: initialData.endDate ?? '',
+      segments: initialData.segments ?? [
+        { points: 500, probability: 40, label: '500 Points!', color: '#4F46E5' },
+        { points: 100, probability: 60, label: '100 Points', color: '#10B981' },
+      ],
+      wheelStyle: initialData.wheelStyle ?? 'classic' as const,
+      prizes: initialData.prizes ?? [
+        { points: 500, probability: 30, label: '500 Points!' },
+        { points: 50, probability: 70, label: '50 Points' },
+      ],
+      cardStyle: initialData.cardStyle ?? 'gold' as const,
+      scratchText: initialData.scratchText ?? 'Scratch to reveal!',
+    })
+  }, [initialData])
+
   useEffect(() => {
     const fetchPrograms = async () => {
       const token = await getAuthToken(getToken)
