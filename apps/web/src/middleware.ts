@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)'])
 const isPublicRoute = createRouteMatcher([
@@ -21,24 +21,26 @@ const isPublicRoute = createRouteMatcher([
   '/api/mcp(.*)',
 ])
 
-
-// During Playwright E2E tests there are no real Clerk keys. Pass placeholders
-// so clerkMiddleware initialises without throwing; the PLAYWRIGHT_TEST guard
-// inside the handler returns NextResponse.next() before any auth runs.
 const isE2E = process.env.PLAYWRIGHT_TEST === 'true'
-// During E2E tests, use a structurally valid but non-functional Clerk key.
-// Format: pk_test_<base64url(frontendApi + '$')>
-const clerkPublishableKey = (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-  (isE2E ? 'pk_test_Y2xlcmsudGVzdC5leGFtcGxlLmZha2Uk' : undefined)) as `pk_${'test' | 'live'}_${string}`
-const clerkSecretKey = process.env.CLERK_SECRET_KEY ?? (isE2E ? 'sk_test_placeholder000000000000000000000000000000' : undefined)
 
-export default clerkMiddleware(
+// During E2E tests, bypass clerkMiddleware entirely. clerkMiddleware reads
+// request headers synchronously during initialization, which throws under
+// Next.js 15's strict async API enforcement when Clerk 5.7.x is paired with
+// Next 15 dev mode — turning every request (including Playwright's webServer
+// readiness probe at `/`) into a 500. The tests already short-circuit auth
+// via the isE2E guard, so skipping clerkMiddleware is functionally equivalent
+// for test purposes.
+async function e2eMiddleware(_request: NextRequest) {
+  return NextResponse.next()
+}
+
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY as
+  | `pk_${'test' | 'live'}_${string}`
+  | undefined
+const clerkSecretKey = process.env.CLERK_SECRET_KEY
+
+const realMiddleware = clerkMiddleware(
   async (auth, request) => {
-    // Allow Playwright E2E tests to bypass Clerk auth
-    if (isE2E) {
-      return NextResponse.next()
-    }
-
     const session = await auth()
     if (isAdminRoute(request)) {
       if (!session.userId) {
@@ -50,6 +52,8 @@ export default clerkMiddleware(
   },
   { publishableKey: clerkPublishableKey, secretKey: clerkSecretKey },
 )
+
+export default isE2E ? e2eMiddleware : realMiddleware
 
 export const config = {
   matcher: [
