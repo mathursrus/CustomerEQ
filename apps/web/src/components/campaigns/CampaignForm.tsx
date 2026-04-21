@@ -435,12 +435,13 @@ export interface CampaignFormInitialData {
 
 interface CampaignFormProps {
   initialData?: CampaignFormInitialData
-  mode?: 'create' | 'edit'
-  onSubmit: (payload: Record<string, unknown>) => Promise<{ id?: string } | void>
+  mode?: 'create' | 'edit' | 'view'
+  /** Required when mode='edit' or mode='view' but not used for the submit path; submit is omitted by callers. */
+  onSubmit?: (payload: Record<string, unknown>) => Promise<{ id?: string } | void>
   title?: string
   subtitle?: string
   submitLabel?: string
-  /** If true, actionType is locked (read-only) */
+  /** If true, actionType is locked (read-only). Always true in view mode via fieldset wrap. */
   lockActionType?: boolean
 }
 
@@ -453,6 +454,7 @@ export default function CampaignForm({
   submitLabel,
   lockActionType = false,
 }: CampaignFormProps) {
+  const isViewOnly = mode === 'view'
   const router = useRouter()
   const { getToken } = useAuth()
   const [programs, setPrograms] = useState<Program[]>([])
@@ -559,6 +561,7 @@ export default function CampaignForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (isViewOnly || !onSubmit) return
     setServerError(null)
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
@@ -663,11 +666,28 @@ export default function CampaignForm({
     )
   }
 
+  const resolvedTitle =
+    title !== 'Create Campaign'
+      ? title
+      : mode === 'view'
+      ? 'Campaign'
+      : mode === 'edit'
+      ? 'Edit Campaign'
+      : 'Create Campaign'
+  const resolvedSubtitle =
+    subtitle !== 'Build a CX-triggered loyalty campaign'
+      ? subtitle
+      : mode === 'view'
+      ? 'Viewing campaign configuration'
+      : mode === 'edit'
+      ? 'Update the campaign configuration'
+      : 'Build a CX-triggered loyalty campaign'
+
   return (
     <div className={isInteractive ? 'max-w-5xl mx-auto' : 'max-w-2xl mx-auto'}>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+        <h1 className="text-2xl font-bold text-gray-900">{resolvedTitle}</h1>
+        <p className="mt-1 text-sm text-gray-500">{resolvedSubtitle}</p>
       </div>
 
       <div className={isInteractive ? 'grid grid-cols-[1fr_380px] gap-8' : ''}>
@@ -679,7 +699,8 @@ export default function CampaignForm({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} noValidate>
+            <fieldset disabled={isViewOnly} className="space-y-5 m-0 p-0 border-0 min-w-0 disabled:[&_input]:bg-gray-50 disabled:[&_select]:bg-gray-50 disabled:[&_textarea]:bg-gray-50">
             {/* Campaign Name */}
             <div>
               <label htmlFor="campaignName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -1048,24 +1069,28 @@ export default function CampaignForm({
               </div>
             )}
 
+            </fieldset>
+
             {/* Submit */}
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => router.push('/admin/campaigns')}
-                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                data-testid="campaign-submit-btn"
-                disabled={submitting}
-                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? 'Saving...' : submitLabel ?? (isInteractive ? 'Save as Draft' : mode === 'edit' ? 'Save Changes' : 'Create Campaign')}
-              </button>
-            </div>
+            {!isViewOnly && (
+              <div className="flex justify-end gap-3 pt-2 mt-5">
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin/campaigns')}
+                  className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  data-testid="campaign-submit-btn"
+                  disabled={submitting}
+                  className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {submitting ? 'Saving...' : submitLabel ?? (isInteractive ? 'Save as Draft' : mode === 'edit' ? 'Save Changes' : 'Create Campaign')}
+                </button>
+              </div>
+            )}
           </form>
         </div>
 

@@ -93,7 +93,12 @@ export default async function CampaignsPage() {
                 campaigns.map((campaign) => (
                   <tr key={campaign.id} className="hover:bg-gray-50 group">
                     <td className="px-6 py-4">
-                      <span className="font-medium text-gray-900">{campaign.name}</span>
+                      <Link
+                        href={`/admin/campaigns/${campaign.id}`}
+                        className="font-medium text-gray-900 hover:text-indigo-600"
+                      >
+                        {campaign.name}
+                      </Link>
                       {campaign.actionType === 'spin_wheel' && (
                         <span className="ml-2 text-xs text-indigo-500">&#127921;</span>
                       )}
