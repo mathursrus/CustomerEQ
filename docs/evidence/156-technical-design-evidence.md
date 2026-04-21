@@ -51,6 +51,19 @@ PR: (pending)
 | Credential encryption at rest not documented (dependency on #53) | Missing from architecture | Track as dependency; note in arch doc |
 | `/v1/webhooks` not in §4.1 route table | Route namespace ambiguity (low severity) | Add row to §4.1 during address-feedback |
 
+## Feedback History
+
+### Round 1 — 2026-04-21
+
+**Comment**: "update documentation and mark gap #3 for completion before customer onboarding"
+
+**Resolution (ADDRESSED)**:
+- RFC risks table: gap #3 elevated from deferred TODO to hard gate — "must be resolved before any customer is onboarded"
+- RFC Architecture Analysis section: same language added
+- `docs/architecture/architecture.md` §6: new "Credential Encryption at Rest" pattern entry explicitly marking #53 as a pre-onboarding requirement
+
+---
+
 ## Continuous Learning
 
 | Learning | Agent Rule Update |
