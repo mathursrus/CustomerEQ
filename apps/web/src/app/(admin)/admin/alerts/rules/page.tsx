@@ -119,7 +119,14 @@ export default function AlertRulesPage() {
             ) : (
               rules.map((rule) => (
                 <tr key={rule.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{rule.name}</td>
+                  <td className="px-6 py-4 font-medium">
+                    <Link
+                      href={`/admin/alerts/rules/${rule.id}`}
+                      className="text-gray-900 hover:text-indigo-600"
+                    >
+                      {rule.name}
+                    </Link>
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[rule.status] ?? 'bg-gray-100 text-gray-700'}`}>
                       {rule.status}

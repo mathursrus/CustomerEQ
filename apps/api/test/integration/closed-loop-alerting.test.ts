@@ -130,6 +130,74 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // 4a. Webhook-mask preservation (Issue #157)
+  //
+  // The admin UI loads masked webhook URLs and leaves them blank on the form.
+  // When the user saves without typing a new URL, the client omits the key
+  // from the PATCH body so the DB value is preserved. Verify the end-to-end
+  // contract: omitting the key does not null the column.
+  // ---------------------------------------------------------------------------
+
+  it('preserves slackWebhookUrl when PATCH omits the key (issue #157 mask-round-trip)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    // PATCH without slackWebhookUrl in the body — should preserve the existing value.
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      name: 'Renamed',
+    })
+    expect(patchRes.status).toBe(200)
+
+    // GET the rule again — masked URL should still be present (not null).
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    expect(getRes.body.slackWebhookUrl).not.toBeNull()
+    expect(getRes.body.slackWebhookUrl).toMatch(/\*+/)
+    // Last 8 chars of the original ('test/test') should still match the mask.
+    expect(getRes.body.slackWebhookUrl).toMatch(/est\/test$/)
+  })
+
+  it('clears slackWebhookUrl when PATCH sends null explicitly (issue #157)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      slackWebhookUrl: null,
+    })
+    expect(patchRes.status).toBe(200)
+
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    expect(getRes.body.slackWebhookUrl).toBeNull()
+  })
+
+  it('replaces slackWebhookUrl when PATCH sends a new URL (issue #157)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    const newUrl = 'https://hooks.slack.com/services/new/webhook/12345678'
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      slackWebhookUrl: newUrl,
+    })
+    expect(patchRes.status).toBe(200)
+
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    // Masked, but should reflect the NEW last-8 chars — not the original.
+    expect(getRes.body.slackWebhookUrl).toMatch(/\*+/)
+    expect(getRes.body.slackWebhookUrl).toMatch(/12345678$/)
+  })
+
+  // ---------------------------------------------------------------------------
   // 5. Activate / pause a rule
   // ---------------------------------------------------------------------------
 
