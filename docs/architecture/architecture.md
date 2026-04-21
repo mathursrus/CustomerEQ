@@ -1,6 +1,6 @@
 # Architecture Documentation: CustomerEQ
 
-**Date**: 2026-03-25
+**Date**: 2026-04-21
 **Status**: Approved — updated from codebase analysis
 **Audience**: Engineers, AI agents, technical reviewers
 
@@ -60,10 +60,11 @@ The platform is a multi-tenant loyalty engine with:
 - **Plugin Registration Order**: CORS -> Sensible -> Prisma -> Redis -> Auth -> MultiTenant -> Audit
 
 ### 3.3. Event Processing Layer (apps/worker)
-- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, and external signal sync/ingestion.
-- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, embeddingGeneration, healthScore, externalSignalSync, externalSignalIngestion), `apps/worker/src/queues/` (Redis connection, producers)
-- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 9 BullMQ workers)
-- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), embedding-generation (5), health-score-computation (3), external-signal-sync (2), external-signal-ingestion (3)
+- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, external signal sync/ingestion, and outbound webhook delivery.
+- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, embeddingGeneration, healthScore, externalSignalSync, externalSignalIngestion, webhookDelivery, slaBreachCheck), `apps/worker/src/queues/` (Redis connection, producers)
+- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 11 BullMQ workers, including 1 repeating job)
+- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), embedding-generation (5), health-score-computation (3), external-signal-sync (2), external-signal-ingestion (3), webhook-delivery (10), sla-breach-check (1)
+- **Repeating jobs**: `sla-breach-check` runs every 5 minutes (BullMQ `repeat: { every: 5 * 60 * 1000 }`, jobId `sla-breach-check-repeating` for idempotent scheduling). This is the first use of BullMQ's repeating job capability in the worker.
 - **Queue mode**: The worker process exists to drain BullMQ queues and is only deployed when `QUEUE_MODE=redis`. In `QUEUE_MODE=inline`, the same processor logic is invoked in-process from the API via `apps/api/src/queues/bullmq.ts` — the worker is not needed and is not run. Both modes execute the **same** processor functions and produce the **same** outcomes; Redis only changes scheduling and concurrency.
 
 ### 3.4. Data Layer (packages/database)
@@ -179,6 +180,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `/v1/question-templates` | Question template library CRUD (save/reuse questions across surveys) |
 | `/v1/public/*` | Demo request form, public survey fetch (with theme), survey response submission (no auth), campaign play endpoint (member JWT auth). `GET /v1/public/programs/by-slug/:slug` — resolves programId/brandId for member enrollment entry point (no auth). **Survey response → campaign trigger wiring**: `POST /v1/public/surveys/:id/respond` evaluates active `SurveyRule` records for the survey against the response score; for each matching rule, enqueues a job to the `campaign-triggers` BullMQ queue (same path as event ingestion). `surveyResponseId` is passed for loop monitor linkage. Non-blocking: trigger enqueue failure is logged but does not fail the response submission. (Issue #80) |
 | `/v1/surveys/:id/loop-monitor` | Pipeline view for a live survey: surveys sent → responses received → rules matched → campaigns triggered → loyalty outcomes, with P50/P95 latency. Follows graceful-degradation contract (all sub-queries in `Promise.all`; failures return null sub-fields, never 5xx). Consistent with `program-health` pattern. (Issue #80) |
+| `/v1/webhooks` | Outbound webhook endpoint management — GET list, POST create (returns signingSecret once), PATCH update, DELETE (cascade delivery logs), GET `:id/deliveries` (last 50 log entries), POST `:id/test` (synthetic test fire). All routes scoped by `brandId` from JWT. signingSecret never returned after creation. (Issue #156) |
 | `/v1/admin/*` | Demo request list, integration webhook URLs, health score recomputation trigger, external signal source registry (`/admin/external-signal-sources`) and admin external-signal feed (`/admin/external-signals`) (Issue #113) |
 
 ### 4.2 Fastify Plugins
@@ -206,6 +208,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | `embedding-generation` | `processEmbeddingGeneration` | 5 | Generates and stores KB embeddings for semantic search |
 | `external-signal-sync` | `createExternalSignalSyncProcessor` | 2 | Polls or simulates source deliveries from `samplePayloads` / `seedSignals`, updates source health, and enqueues normalized ingestion work |
 | `external-signal-ingestion` | `processExternalSignalIngestion` | 3 | Normalizes provider payloads, deduplicates by `sourceId + externalId`, persists `ExternalSignal`, and updates source health/status history |
+| `webhook-delivery` | `processWebhookDelivery` | 10 | Loads the target endpoint, HMAC-SHA256 signs the payload (`X-CustomerEQ-Signature: sha256=<hmac(timestamp.body)>`, `X-CustomerEQ-Timestamp`), POSTs with 10s AbortSignal timeout, writes `WebhookDeliveryLog` for every attempt. Throws on 4xx, 5xx, and network errors to trigger BullMQ retry (5 attempts, exponential backoff). Silently returns on deleted/inactive endpoints. (Issue #156) |
+| `sla-breach-check` | `createSlaBreachCheckProcessor` | 1 | **Repeating job — every 5 minutes.** Queries `CaseFollowUp` where `slaDeadline < NOW() AND slaBreachedAt IS NULL AND status IN (OPEN, CONTACTED)`, sets `slaBreachedAt` as a dedup guard (before enqueueing), then enqueues one `webhook-delivery` job per case per active endpoint subscribed to `case.overdue`. (Issue #156) |
 
 ### 4.4 Database Models
 
@@ -233,6 +237,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **FeedbackCluster** | AI-discovered feedback theme groupings with trend tracking. |
 | **DemoRequest** | Public demo signup captures (no auth). |
 | **AuditEvent** | System audit trail for admin mutations. |
+| **WebhookEndpoint** | *New (Issue #156).* Brand-scoped outbound webhook configuration. Stores `label`, `url`, `signingSecret` (32-byte random hex, shown once on creation, stored plaintext — hard gate: #53 must encrypt before customer onboarding), `events[]` (`case.created`, `case.status_changed`, `case.overdue`), `active` flag. Index on `(brandId, active)`. Cascade relation to `WebhookDeliveryLog`. |
+| **WebhookDeliveryLog** | *New (Issue #156).* Append-only delivery attempt record per webhook job. Stores `event`, `caseId`, `httpStatus`, `latencyMs`, `success`, `attempt` (1–5), `requestPayload` (JSON), `responseBody` (first ~500 chars), `deliveredAt`. Indexes on `(webhookEndpointId, deliveredAt DESC)` and `(brandId, deliveredAt DESC)`. Used by `GET /v1/webhooks/:id/deliveries` (last 50 entries) for operator debugging. |
 
 ---
 
@@ -338,6 +344,45 @@ sequenceDiagram
     Note over Admin,API: Providers can also push directly to\nPOST /v1/integrations/webhooks/external-signals/:sourceId
     API->>IQ: Enqueue webhook deliveries
 ```
+
+### 5.5 Outbound Webhook Delivery (Issue #156)
+
+CustomerEQ acts as the **sender** — the reverse of §5.3 (where it is the receiver). When alert cases are created, updated, or go overdue, CustomerEQ POSTs a signed JSON payload to all active webhook endpoints configured for the brand.
+
+```mermaid
+sequenceDiagram
+    participant API as Fastify API / Worker
+    participant WDQ as webhook-delivery Queue
+    participant WKR as Worker (webhookDelivery)
+    participant DB as PostgreSQL
+    participant EXT as External Receiver
+
+    Note over API: case.created → alertEvaluation.ts
+    Note over API: case.status_changed → cases.ts PATCH
+    Note over API: case.overdue → slaBreachCheck.ts (repeating every 5 min)
+
+    API->>DB: Query active endpoints for brand + event
+    loop Each active endpoint
+        API->>WDQ: enqueueWebhookDelivery({ endpointId, event, caseId })
+    end
+
+    WDQ->>WKR: processWebhookDelivery (concurrency 10)
+    WKR->>DB: Load endpoint (skip if deleted/inactive)
+    WKR->>WKR: Build payload JSON + HMAC-SHA256 sign\n(X-CustomerEQ-Signature: sha256=<hmac(ts.body)>)
+    WKR->>EXT: POST endpoint.url (10s timeout)
+    alt Success (2xx)
+        EXT-->>WKR: 200 OK
+        WKR->>DB: WebhookDeliveryLog { success: true }
+    else Failure (4xx / 5xx / timeout)
+        EXT-->>WKR: error or non-2xx
+        WKR->>DB: WebhookDeliveryLog { success: false, attempt: N }
+        WKR->>WDQ: throw → BullMQ retry (up to 5 attempts, exponential backoff)
+    end
+```
+
+**Dedup guard for `case.overdue`**: `slaBreachCheck` sets `CaseFollowUp.slaBreachedAt` *before* enqueueing deliveries. Concurrent checker runs query `slaBreachedAt IS NULL`, so each case fires at most once.
+
+**Admin UI** (Phase B — deferred to Issue #156 Phase B): `/admin/settings/webhooks` page with endpoint list, Add Endpoint modal, one-time secret banner, and delivery log drawer.
 
 ---
 

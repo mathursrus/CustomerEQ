@@ -11,6 +11,7 @@ import {
   type HealthScoreComputationPayload,
   type ExternalSignalSyncPayload,
   type ExternalSignalIngestionPayload,
+  type WebhookDeliveryPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -43,6 +44,7 @@ let _embeddingGenerationQueue: Queue | null = null
 let _healthScoreQueue: Queue | null = null
 let _externalSignalSyncQueue: Queue | null = null
 let _externalSignalIngestionQueue: Queue | null = null
+let _webhookDeliveryQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -59,6 +61,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
   _externalSignalSyncQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_SYNC, { connection })
   _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
+  _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -106,6 +109,10 @@ function getExternalSignalSyncQueue(): Queue {
 function getExternalSignalIngestionQueue(): Queue {
   if (!_externalSignalIngestionQueue) throw new Error('Queues not initialized.')
   return _externalSignalIngestionQueue
+}
+function getWebhookDeliveryQueue(): Queue {
+  if (!_webhookDeliveryQueue) throw new Error('Queues not initialized.')
+  return _webhookDeliveryQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -990,4 +997,66 @@ export async function enqueueExternalSignalIngestion(payload: ExternalSignalInge
     return INLINE_STUB
   }
   return getExternalSignalIngestionQueue().add('ingest', payload)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Webhook Delivery
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function inlineWebhookDelivery(p: WebhookDeliveryPayload) {
+  const { webhookEndpointId, brandId, event, caseId, data } = p
+
+  const endpoint = await prisma.webhookEndpoint.findFirst({ where: { id: webhookEndpointId, brandId } })
+  if (!endpoint || !endpoint.active) return { success: false, latencyMs: 0 }
+
+  const { createHmac } = await import('node:crypto')
+  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const requestPayload = { id: `inline-${Date.now()}`, event, timestamp, data: { caseId, brandId, ...data } }
+  const body = JSON.stringify(requestPayload)
+  const signedString = `${timestamp}.${body}`
+  const signature = `sha256=${createHmac('sha256', endpoint.signingSecret).update(signedString).digest('hex')}`
+
+  const startMs = Date.now()
+  let httpStatus: number | undefined
+  let responseBody: string | undefined
+  let success = false
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10_000)
+    let res: Response
+    try {
+      res = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CustomerEQ-Signature': signature, 'X-CustomerEQ-Timestamp': timestamp },
+        body,
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+    httpStatus = res.status
+    try { responseBody = await res.text() } catch { /* ignore */ }
+    success = res.ok
+  } catch (err) {
+    const latencyMs = Date.now() - startMs
+    await prisma.webhookDeliveryLog.create({ data: { webhookEndpointId, brandId, event, caseId, success: false, attempt: 1, requestPayload: requestPayload as never, responseBody: err instanceof Error ? err.message : String(err), latencyMs } })
+    throw err
+  }
+
+  const latencyMs = Date.now() - startMs
+  await prisma.webhookDeliveryLog.create({ data: { webhookEndpointId, brandId, event, caseId, httpStatus, latencyMs, success, attempt: 1, requestPayload: requestPayload as never, responseBody: responseBody ?? null } })
+  if (!success) throw new Error(`Webhook delivery failed: HTTP ${httpStatus}`)
+  return { success: true, httpStatus, latencyMs }
+}
+
+export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline('webhook-delivery', payload, inlineWebhookDelivery, { attempts: 5, backoffMs: 1000 })
+    return INLINE_STUB
+  }
+  return getWebhookDeliveryQueue().add('deliver', payload, {
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+  })
 }

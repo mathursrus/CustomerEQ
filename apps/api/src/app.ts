@@ -33,6 +33,7 @@ import healthScoresRoutes from './routes/healthScores.js'
 import cxPlaybooksRoutes from './routes/cxPlaybooks.js'
 import apiKeysRoutes from './routes/apiKeys.js'
 import developerRoutes from './routes/developer.js'
+import outboundWebhooksRoutes from './routes/outboundWebhooks.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -133,6 +134,7 @@ export async function buildApp() {
   await fastify.register(cxPlaybooksRoutes, { prefix: '/v1' })
   await fastify.register(apiKeysRoutes, { prefix: '/v1' })
   await fastify.register(developerRoutes, { prefix: '/v1' })
+  await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
 
   return fastify
 }

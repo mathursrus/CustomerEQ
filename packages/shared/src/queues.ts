@@ -10,6 +10,7 @@ export const QUEUES = {
   HEALTH_SCORE_COMPUTATION: 'health-score-computation',
   EXTERNAL_SIGNAL_SYNC: 'external-signal-sync',
   EXTERNAL_SIGNAL_INGESTION: 'external-signal-ingestion',
+  WEBHOOK_DELIVERY: 'webhook-delivery',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

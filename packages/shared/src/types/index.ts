@@ -74,6 +74,14 @@ export interface ExternalSignalIngestionPayload {
   deliveryType?: 'webhook' | 'sync'
 }
 
+export interface WebhookDeliveryPayload {
+  webhookEndpointId: string
+  brandId: string
+  event: 'case.created' | 'case.status_changed' | 'case.overdue'
+  caseId: string
+  data: Record<string, unknown>
+}
+
 export type {
   HealthScoreComputationPayload,
   HealthScoreWeights,
