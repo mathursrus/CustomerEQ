@@ -477,6 +477,7 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
       {isViewOnly && programId && (
         <div className="mb-4">
           <ViewOnlyBanner
+            entityLabel="Program"
             onEdit={() => router.push(`/admin/programs/${programId}/edit`)}
           />
         </div>
