@@ -23,7 +23,7 @@ export function ViewOnlyBanner({ entityLabel, onEdit }: ViewOnlyBannerProps) {
           />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        You are viewing this {entityLabel.toLowerCase()} in read-only mode. Changes are not saved.
+        You are viewing this {entityLabel.toLowerCase()} in read-only mode. Click Edit to make changes.
       </div>
       <button
         type="button"
