@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             }}
           />
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {navLinks.map(({ href, label, section }) => (
             <div key={href}>
               {section && (
