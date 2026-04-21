@@ -29,8 +29,38 @@ body {
   box-sizing: border-box;
 }
 
+/* Form inputs use an explicit dark text color regardless of
+ * prefers-color-scheme. The app is not yet dark-mode-ready — every card
+ * and input background is hardcoded to `bg-white` via Tailwind, so
+ * flipping the text color to `--foreground: #f8fafc` in dark mode produces
+ * white text on white backgrounds (invisible unless highlighted). Lock
+ * the text color here until full dark-mode styling ships.
+ */
 input,
 textarea,
 select {
-  color: var(--foreground);
+  color: #111827;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af; /* gray-400 — readable placeholder at ~4.5:1 on white */
+}
+
+/* Disabled form inputs — readable by default.
+ *
+ * Per-component uses of `disabled:opacity-60` (123 occurrences across
+ * ~40 files as of #157) make disabled text hard to read. Opacity is a
+ * poor accessibility signal because it dims the text. The WCAG-friendly
+ * alternative is: keep text full-contrast, signal disabled state via
+ * background + cursor. !important overrides Tailwind utilities without
+ * requiring every component to drop its per-file classes.
+ */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 1 !important;
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+  cursor: not-allowed;
 }
