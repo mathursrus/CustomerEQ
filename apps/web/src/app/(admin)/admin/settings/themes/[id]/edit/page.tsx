@@ -1,15 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 import { ThemeForm, type ThemeFormInitialData } from '@/components/themes/ThemeForm'
-import { ViewOnlyBanner } from '@/components/ui/view-only-banner'
 
-export default function ViewThemePage() {
+export default function EditThemePage() {
   const { getToken } = useAuth()
-  const router = useRouter()
   const params = useParams()
   const themeId = params.id as string
 
@@ -51,12 +49,5 @@ export default function ViewThemePage() {
     )
   }
 
-  return (
-    <div>
-      <div className="px-5 pt-4">
-        <ViewOnlyBanner entityLabel="Theme" onEdit={() => router.push(`/admin/settings/themes/${themeId}/edit`)} />
-      </div>
-      <ThemeForm mode="view" themeId={themeId} initialData={initialData} />
-    </div>
-  )
+  return <ThemeForm mode="edit" themeId={themeId} initialData={initialData} />
 }
