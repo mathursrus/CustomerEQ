@@ -7,8 +7,10 @@ import {
   SearchMembersQuerySchema,
   CreateMemberNoteSchema,
   UpdateMemberNoteSchema,
+  floatToSentimentBucket,
   type Customer360Query,
 } from '@customerEQ/shared'
+import { analyzeResponse } from '@customerEQ/ai'
 import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
@@ -255,8 +257,13 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { id: string }; Querystring: Customer360Query }>(
     '/members/:id/360',
     async (request, reply) => {
-      const { eventsLimit, surveysLimit, redemptionsLimit, campaignEventsLimit } =
-        Customer360QuerySchema.parse(request.query)
+      const {
+        eventsLimit,
+        surveysLimit,
+        redemptionsLimit,
+        campaignEventsLimit,
+        externalSignalsLimit,
+      } = Customer360QuerySchema.parse(request.query)
 
       // 1. Fetch member with tier
       const member = await fastify.prisma.member.findFirst({
@@ -276,7 +283,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 3. Parallel queries for sub-collections
       const [events, eventCount, surveys, surveyCount, redemptions, redemptionCount,
-             campaignEvents, ceCount, openCases, openConversations, stats, redemptionStats, sentimentStats] = await Promise.all([
+             campaignEvents, ceCount, externalSignals, externalSignalCount, openCases, openConversations, stats, redemptionStats, sentimentStats] = await Promise.all([
         // Recent events
         fastify.prisma.loyaltyEvent.findMany({
           where: { memberId: member.id, brandId: request.brandId },
@@ -317,6 +324,27 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           where: { memberId: member.id, brandId: request.brandId },
         }),
         // Open cases (all, no limit — typically small)
+        fastify.prisma.externalSignal.findMany({
+          where: {
+            memberId: member.id,
+            brandId: request.brandId,
+            matchStatus: 'MATCHED',
+            status: 'ACTIVE',
+          },
+          orderBy: [{ postedAt: 'desc' }, { ingestedAt: 'desc' }],
+          take: externalSignalsLimit + 1,
+          include: {
+            source: { select: { id: true, name: true } },
+          },
+        }),
+        fastify.prisma.externalSignal.count({
+          where: {
+            memberId: member.id,
+            brandId: request.brandId,
+            matchStatus: 'MATCHED',
+            status: 'ACTIVE',
+          },
+        }),
         fastify.prisma.caseFollowUp.findMany({
           where: { memberId: member.id, brandId: request.brandId, status: 'OPEN' },
           orderBy: { createdAt: 'desc' },
@@ -437,6 +465,26 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           })),
           hasMore: campaignEvents.length > campaignEventsLimit,
           total: ceCount,
+        },
+        externalSignals: {
+          items: externalSignals.slice(0, externalSignalsLimit).map((signal) => ({
+            id: signal.id,
+            sourceId: signal.sourceId,
+            sourceType: signal.sourceType,
+            sourceName: signal.source.name,
+            body: signal.body,
+            summary: signal.summary,
+            rating: signal.rating,
+            sentiment: signal.sentiment,
+            topics: signal.topics,
+            canonicalUrl: signal.canonicalUrl,
+            externalAuthorLabel: signal.externalAuthorLabel,
+            subjectLabel: signal.subjectLabel,
+            postedAt: signal.postedAt,
+            matchConfidence: signal.matchConfidence,
+          })),
+          hasMore: externalSignals.length > externalSignalsLimit,
+          total: externalSignalCount,
         },
         openCases: openCases.map((c) => ({
           id: c.id,
@@ -660,6 +708,33 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     if (!member) return reply.status(404).send({ error: 'Customer not found' })
 
     const author = input.author || request.clerkUserId || 'system'
+
+    // Issue #141: when the caller didn't pick a sentiment, run the note
+    // body through the existing AI sentiment analyzer and map the float
+    // score to our 5-bucket string enum. Manual selections always win.
+    // AI failures degrade silently to null — the note is still saved.
+    let resolvedSentiment = input.sentiment ?? null
+    let sentimentAuto = false
+    if (input.sentiment === undefined) {
+      try {
+        const analysis = await analyzeResponse(input.body, { surveyType: 'note' })
+        const bucket = floatToSentimentBucket(analysis.sentiment)
+        if (bucket !== null) {
+          resolvedSentiment = bucket
+          sentimentAuto = true
+          fastify.log.info(
+            { memberId: id, sentiment: bucket, score: analysis.sentiment },
+            'note sentiment auto-computed',
+          )
+        }
+      } catch (err) {
+        fastify.log.warn(
+          { err, memberId: id },
+          'note sentiment auto-compute failed, falling back to null',
+        )
+      }
+    }
+
     const note = await fastify.prisma.memberNote.create({
       data: {
         brandId: request.brandId,
@@ -667,7 +742,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         body: input.body,
         author,
         category: input.category ?? 'note',
-        sentiment: input.sentiment ?? null,
+        sentiment: resolvedSentiment,
       },
     })
 
@@ -678,20 +753,20 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'member_note.create',
         resourceType: 'MemberNote',
         resourceId: note.id,
-        metadata: { memberId: id, category: note.category, sentiment: note.sentiment },
+        metadata: { memberId: id, category: note.category, sentiment: note.sentiment, sentimentAuto },
       },
     })
 
-    // If the note carried a sentiment tag, trigger a health-score recompute
-    // for this member — reps expect the score to reflect their observation
-    // immediately, not wait for the next batch run.
+    // If the note carried a sentiment tag (manual or auto), trigger a
+    // health-score recompute for this member — reps expect the score to
+    // reflect their observation immediately, not wait for the next batch.
     if (note.sentiment) {
       enqueueHealthScoreComputation({ brandId: request.brandId, memberId: id }).catch((err) =>
         fastify.log.warn({ err, memberId: id }, 'health-score recompute after note failed'),
       )
     }
 
-    return reply.status(201).send(note)
+    return reply.status(201).send({ ...note, sentimentAuto })
   })
 
   // ---------------------------------------------------------------------------

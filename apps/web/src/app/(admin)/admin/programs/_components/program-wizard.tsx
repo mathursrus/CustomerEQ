@@ -1,6 +1,6 @@
 'use client'
 
-import { useReducer, useCallback, useState } from 'react'
+import { useReducer, useCallback, useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
@@ -198,6 +198,19 @@ export function ProgramWizard({ mode, programId, initialState }: ProgramWizardPr
     ...INITIAL_STATE,
     ...initialState,
   })
+
+  // Re-sync reducer state when initialState changes (e.g. server data arrives
+  // after mount, or React reuses the component across navigations).
+  const prevInitialJson = useRef<string>('')
+  useEffect(() => {
+    if (!initialState || Object.keys(initialState).length === 0) return
+    const json = JSON.stringify(initialState)
+    if (json !== prevInitialJson.current) {
+      prevInitialJson.current = json
+      dispatch({ type: 'LOAD', state: { ...INITIAL_STATE, ...initialState } })
+    }
+  }, [initialState])
+
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)

@@ -8,6 +8,8 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "generate": "pnpm generate:baml",
+    "generate:baml": "pnpm --filter @customerEQ/ai generate",
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",

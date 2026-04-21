@@ -59,6 +59,21 @@ export interface EmbeddingGenerationPayload {
   text: string // concatenation of title + body for embedding
 }
 
+export interface ExternalSignalSyncPayload {
+  brandId: string
+  sourceId: string
+  triggeredBy?: string
+  reason?: 'manual' | 'scheduled'
+}
+
+export interface ExternalSignalIngestionPayload {
+  brandId: string
+  sourceId: string
+  deliveries: Record<string, unknown>[]
+  receivedAt: string
+  deliveryType?: 'webhook' | 'sync'
+}
+
 export type {
   HealthScoreComputationPayload,
   HealthScoreWeights,

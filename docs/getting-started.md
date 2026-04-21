@@ -59,7 +59,7 @@ The defaults in `.env.example` work for local development. You will need to add 
 2. Create an application and an organization
 3. Copy `CLERK_SECRET_KEY` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` into `.env`
 
-For webhook testing (optional), set `SALESFORCE_WEBHOOK_SECRET` and/or `HUBSPOT_WEBHOOK_SECRET`.
+For webhook testing (optional), set `CEQ_SALESFORCE_WEBHOOK_SECRET` and/or `CEQ_HUBSPOT_WEBHOOK_SECRET`.
 
 ---
 

@@ -57,7 +57,7 @@ function MemberHeader() {
             {balance != null ? balance.toLocaleString() : '—'}
           </span>
         </div>
-        <UserButton afterSignOutUrl="/" />
+        <UserButton />
       </div>
     </header>
   )

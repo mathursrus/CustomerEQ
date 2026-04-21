@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Customer360ExternalSignalSchema } from './externalSignal.schema.js'
 
 // ---------------------------------------------------------------------------
 // Health Score Schemas
@@ -90,6 +91,7 @@ export const Customer360QuerySchema = z.object({
   surveysLimit: z.coerce.number().int().min(1).max(50).default(10),
   redemptionsLimit: z.coerce.number().int().min(1).max(50).default(10),
   campaignEventsLimit: z.coerce.number().int().min(1).max(50).default(10),
+  externalSignalsLimit: z.coerce.number().int().min(1).max(50).default(10),
 })
 
 export type Customer360Query = z.infer<typeof Customer360QuerySchema>
@@ -161,6 +163,11 @@ export interface Customer360Response {
       status: string
       result: unknown
     }>
+    hasMore: boolean
+    total: number
+  }
+  externalSignals: {
+    items: Array<z.infer<typeof Customer360ExternalSignalSchema>>
     hasMore: boolean
     total: number
   }

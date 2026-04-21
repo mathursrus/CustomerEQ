@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerKBTools(server: McpServer) {
+export function registerKBTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // search_kb — Search knowledge base articles by natural language query
   server.tool(
     'search_kb',
@@ -12,7 +13,7 @@ export function registerKBTools(server: McpServer) {
       limit: z.number().optional().default(5).describe('Max results (default 5)'),
     }).shape,
     async ({ query, limit }) => {
-      const res = await apiFetch('/v1/kb/search', {
+      const res = await fetch('/v1/kb/search', {
         params: { q: query, limit: String(limit ?? 5) },
       })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
@@ -32,7 +33,7 @@ export function registerKBTools(server: McpServer) {
       tags: z.array(z.string()).default([]).describe('Tags for the article'),
     }).shape,
     async (params) => {
-      const res = await apiFetch('/v1/kb/articles', { method: 'POST', body: params })
+      const res = await fetch('/v1/kb/articles', { method: 'POST', body: params })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Article created: ${JSON.stringify(res.data, null, 2)}` }] }
     },
@@ -46,7 +47,7 @@ export function registerKBTools(server: McpServer) {
       message: z.string().describe('Customer message to classify'),
     }).shape,
     async ({ message }) => {
-      const res = await apiFetch('/v1/classify-intent', {
+      const res = await fetch('/v1/classify-intent', {
         method: 'POST',
         body: { text: message },
       })

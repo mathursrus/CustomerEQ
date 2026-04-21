@@ -40,4 +40,4 @@ docs/evidence/**/*.mp4
 *.log
 npm-debug.log*
 coverage/
-# packages/ai/src/generated/ — COMMITTED (needed for Docker builds without BAML CLI)
+packages/ai/src/generated/baml_client/

@@ -109,10 +109,7 @@ export function Step3EarningRules({
     onNext()
   }
 
-  const nextLabel =
-    state.programType === 'TIERED' || state.programType === 'HYBRID'
-      ? 'Next: Tier Config →'
-      : 'Next: Rewards →'
+  const nextLabel = 'Next: Tiers →'
 
   return (
     <div>

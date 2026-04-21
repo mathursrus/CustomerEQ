@@ -21,6 +21,21 @@ const cxPlaybooksRoutes: FastifyPluginAsync = async (fastify) => {
     const { name, surveyType, rules } = parse.data
     const brandId = request.brandId
 
+    const duplicate = await fastify.prisma.cxPlaybook.findFirst({
+      where: {
+        brandId,
+        name,
+        deletedAt: null,
+      },
+      select: { id: true },
+    })
+    if (duplicate) {
+      return reply.status(422).send({
+        error: 'Conflict',
+        message: `A playbook named "${name}" already exists for this brand`,
+      })
+    }
+
     // Validate no overlapping score ranges
     const overlapErrors = validateRuleOverlap(rules)
     if (overlapErrors.length > 0) {
@@ -94,6 +109,24 @@ const cxPlaybooksRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const { name, rules } = parse.data
+
+    if (name !== undefined) {
+      const duplicate = await fastify.prisma.cxPlaybook.findFirst({
+        where: {
+          brandId,
+          name,
+          deletedAt: null,
+          id: { not: id },
+        },
+        select: { id: true },
+      })
+      if (duplicate) {
+        return reply.status(422).send({
+          error: 'Conflict',
+          message: `A playbook named "${name}" already exists for this brand`,
+        })
+      }
+    }
 
     // Validate rule overlap if rules are being updated
     if (rules) {
