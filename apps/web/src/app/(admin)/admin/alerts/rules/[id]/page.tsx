@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { AlertRuleForm, type AlertRuleFormInitialData } from '@/components/alert-rules/AlertRuleForm'
+import { ViewOnlyBanner } from '@/components/ui/view-only-banner'
 
-export default function EditAlertRulePage() {
+export default function ViewAlertRulePage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { getToken } = useAuth()
 
   const [loading, setLoading] = useState(true)
@@ -58,5 +60,12 @@ export default function EditAlertRulePage() {
     )
   }
 
-  return <AlertRuleForm mode="edit" ruleId={id} initialData={initialData} />
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-4">
+        <ViewOnlyBanner entityLabel="Alert Rule" onEdit={() => router.push(`/admin/alerts/rules/${id}/edit`)} />
+      </div>
+      <AlertRuleForm mode="view" ruleId={id} initialData={initialData} />
+    </div>
+  )
 }
