@@ -35,11 +35,15 @@ export default defineConfig({
     testTimeout: 15000,
     teardownTimeout: 10000,
     pool: 'forks',
+    // Standard dotenv precedence: shell env wins. `.env` only fills in
+    // values the shell didn't set, so contributors with an existing
+    // `export DATABASE_URL=…` workflow (direnv, .envrc, manual export)
+    // are not silently overridden by a stale `.env` value.
     env: {
       NODE_ENV: 'test',
-      ...(rootEnv.DATABASE_URL ? { DATABASE_URL: rootEnv.DATABASE_URL } : {}),
-      ...(rootEnv.REDIS_URL ? { REDIS_URL: rootEnv.REDIS_URL } : {}),
-      ...(rootEnv.CLERK_SECRET_KEY ? { CLERK_SECRET_KEY: rootEnv.CLERK_SECRET_KEY } : {}),
+      ...(!process.env.DATABASE_URL && rootEnv.DATABASE_URL ? { DATABASE_URL: rootEnv.DATABASE_URL } : {}),
+      ...(!process.env.REDIS_URL && rootEnv.REDIS_URL ? { REDIS_URL: rootEnv.REDIS_URL } : {}),
+      ...(!process.env.CLERK_SECRET_KEY && rootEnv.CLERK_SECRET_KEY ? { CLERK_SECRET_KEY: rootEnv.CLERK_SECRET_KEY } : {}),
     },
   },
 })
