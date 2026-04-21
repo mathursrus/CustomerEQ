@@ -378,7 +378,7 @@ All components (BullMQ queues, HMAC signing, Prisma models, Fastify routes) foll
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Signing secret stored in plaintext | High (not yet encrypted) | High | Note dependency on #53 (credential encryption). For MVP, store in plaintext with a TODO. |
+| Signing secret stored in plaintext | High (not yet encrypted) | High | **Hard gate: credential encryption (#53) must be completed before any customer is onboarded.** The `signingSecret` and `url` fields on `WebhookEndpoint` must be encrypted at rest. Implementation may proceed in a pre-production environment without encryption, but the feature must not be exposed to customers until #53 is resolved and encryption is verified. |
 | Receiver is slow / hangs | Medium | Medium | 10s `AbortSignal` timeout; does not block the worker's concurrency slot beyond that |
 | High-volume brands generate excessive delivery jobs | Low (mid-market ICP) | Medium | Rate-limit: max 20 webhook endpoints per brand; max 100 delivery jobs per minute per brand (BullMQ rate limiter) |
 | Replay attacks from stolen payloads | Low | Medium | Timestamp in signature; receivers should reject requests where `now - timestamp > 300s` |
@@ -427,7 +427,7 @@ These patterns are introduced by this RFC but not yet documented in `docs/archit
 |---|---|---|
 | **Outbound Webhook Delivery** | Architecture documents inbound HMAC webhooks (§5.3) but has no section on outbound delivery — the reverse flow where CustomerEQ is the sender. New data flow diagram needed. | §5 Data Flow → add §5.4 Outbound Webhook Delivery |
 | **BullMQ Repeating Jobs** | §4.3 lists workers and their concurrency but does not mention BullMQ's `repeat` (cron-style) capability. The SLA breach checker introduces the first repeating job. | §4.3 BullMQ Workers → add note on repeating jobs |
-| **Credential Encryption at Rest** | Neither the architecture doc nor the Prisma schema currently documents any encryption strategy for sensitive string fields (webhook URLs, signing secrets). This RFC notes a dependency on #53. | §6 Design Patterns → add Credential Encryption entry |
+| **Credential Encryption at Rest** | Neither the architecture doc nor the Prisma schema currently documents any encryption strategy for sensitive string fields (webhook URLs, signing secrets). **Hard gate: #53 must be resolved before any customer is onboarded to this feature.** The `signingSecret` and `url` fields must be encrypted at rest before production exposure. | §6 Design Patterns → add Credential Encryption entry; mark as pre-onboarding requirement |
 | **Delivery Log Pattern** | No existing pattern for recording outbound HTTP delivery attempts. `WebhookDeliveryLog` establishes a new convention for auditing external HTTP calls made by the worker. | §4.4 Database Models → add WebhookDeliveryLog description |
 
 ### Patterns Incorrectly Followed

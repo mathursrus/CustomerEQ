@@ -316,7 +316,9 @@ sequenceDiagram
 
 - **Budget-Capped Campaigns**: Campaign triggers calculate USD cost (`points * pointToCurrencyRatio`) and auto-pause campaigns when `budgetSpent` exceeds `budgetCap`.
 
-- **Signature-Verified Webhooks**: Salesforce and HubSpot webhooks are HMAC-SHA256 verified with timing-safe comparison before any processing.
+- **Signature-Verified Webhooks**: Salesforce and HubSpot webhooks are HMAC-SHA256 verified with timing-safe comparison before any processing. Outbound webhooks (issue #156) are signed using the same algorithm — `X-CustomerEQ-Signature: sha256=<hmac>` with a per-endpoint secret and timestamp, mirroring the Stripe webhook signature pattern.
+
+- **Credential Encryption at Rest** *(pre-onboarding gate — tracked in #53)*: Any sensitive string stored in PostgreSQL that could expose a customer system if leaked — webhook endpoint URLs, signing secrets, integration API tokens — must be encrypted at rest before the feature is exposed to customers. Encryption/decryption is the responsibility of the application layer (not the database). This is a **hard gate** for customer onboarding: features that store such credentials must not go to production until #53 is resolved.
 
 - **Centralized Test Infrastructure**: All mocks, factories, and test helpers live in `packages/config/src/test-utils/`. Tests import from `@customerEQ/config/test-utils` — never define inline mocks. This prevents mock drift across test files.
 
