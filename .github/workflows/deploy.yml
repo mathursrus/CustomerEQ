@@ -1,9 +1,22 @@
 name: Deploy to Azure Container Apps
 
+# Deploy runs only after CI succeeds on main — closes the gap where a
+# commit that broke typecheck / lint / smoke tests could still reach prod
+# because deploy ran in parallel with CI rather than downstream of it.
+# Manual workflow_dispatch is preserved for hotfix / recovery flows.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+
+# Serialize prod deploys so back-to-back merges queue instead of racing
+# each other on `az containerapp update`. `cancel-in-progress: false` is
+# deliberate — every merged commit should still ship, just in order.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
 
 env:
   REGISTRY: customereqcr.azurecr.io
@@ -13,6 +26,9 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Only deploy when CI succeeded. On workflow_dispatch there's no
+    # workflow_run event, so fall through to the manual path.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       id-token: write
@@ -20,6 +36,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Under workflow_run, github.sha points at the default branch
+          # tip when the run was dispatched, not the commit CI tested.
+          # head_sha is the CI-tested commit; fall back to github.sha
+          # for workflow_dispatch (no workflow_run event present).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -34,14 +56,14 @@ jobs:
       - name: Build and push API image
         run: |
           az acr build --registry customereqcr \
-            --image customereq-api:${{ github.sha }} \
+            --image customereq-api:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-api:latest \
             --file Dockerfile.api .
 
       - name: Build and push Worker image
         run: |
           az acr build --registry customereqcr \
-            --image customereq-worker:${{ github.sha }} \
+            --image customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-worker:latest \
             --file Dockerfile.worker .
 
@@ -49,7 +71,7 @@ jobs:
         run: |
           API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
           az acr build --registry customereqcr \
-            --image customereq-web:${{ github.sha }} \
+            --image customereq-web:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-web:latest \
             --file Dockerfile.web \
             --build-arg NEXT_PUBLIC_API_URL="https://$API_FQDN" \
@@ -61,21 +83,21 @@ jobs:
           az containerapp update \
             --name customereq-api \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/customereq-api:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/customereq-api:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Deploy Worker
         run: |
           az containerapp update \
             --name customereq-worker \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/customereq-worker:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Deploy Web
         run: |
           az containerapp update \
             --name customereq-web \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/customereq-web:${{ github.sha }}
+            --image ${{ env.REGISTRY }}/customereq-web:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify API health
         run: |
