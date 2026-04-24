@@ -23,6 +23,7 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/support/analytics', label: 'Analytics' },
   // ── Settings ──
   { href: '/admin/integrations', label: 'Integrations', section: 'Settings' },
+  { href: '/admin/settings/webhooks', label: 'Webhooks' },
   { href: '/admin/developer', label: 'Developer' },
   { href: '/admin/settings/themes', label: 'Themes' },
 ]
