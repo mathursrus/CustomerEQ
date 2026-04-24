@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
@@ -14,6 +15,7 @@ interface Campaign {
 export default function CampaignActions({ campaign }: { campaign: Campaign }) {
   const router = useRouter()
   const { getToken } = useAuth()
+  const [embedCopied, setEmbedCopied] = useState(false)
 
   async function updateStatus(newStatus: string) {
     const token = await getAuthToken(getToken)
@@ -71,12 +73,14 @@ export default function CampaignActions({ campaign }: { campaign: Campaign }) {
           onClick={() => {
             const code = `<script src="https://cdn.customereq.com/components/v1/ceq-components.js"></script>\n<ceq-spin-wheel campaign-id="${campaign.id}" token="{{MEMBER_TOKEN}}"></ceq-spin-wheel>`
             navigator.clipboard.writeText(code)
+            setEmbedCopied(true)
+            setTimeout(() => setEmbedCopied(false), 2000)
           }}
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+          className={`text-xs font-medium px-2 py-1 rounded transition-colors ${embedCopied ? 'text-green-700 bg-green-50 hover:bg-green-100' : 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50'}`}
           data-testid={`embed-code-${campaign.id}`}
           title="Copy embed code"
         >
-          Embed
+          {embedCopied ? 'Copied!' : 'Embed'}
         </button>
       )}
     </div>
