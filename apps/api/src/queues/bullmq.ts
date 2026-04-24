@@ -1019,7 +1019,7 @@ async function inlineWebhookDelivery(p: WebhookDeliveryPayload) {
   const startMs = Date.now()
   let httpStatus: number | undefined
   let responseBody: string | undefined
-  let success = false
+  let success!: boolean
 
   try {
     const controller = new AbortController()
