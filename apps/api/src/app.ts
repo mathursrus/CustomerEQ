@@ -76,7 +76,7 @@ export async function buildApp() {
 
   // Health-check endpoint — public, no auth required
   fastify.get('/healthz', { config: { public: true } }, async (_request, reply) => {
-    const services: { database: 'ok' | 'error'; redis: 'ok' | 'error' | 'skipped'; api: 'ok' } = {
+    const services: { database: 'ok' | 'error'; redis: 'ok' | 'error' | 'inline-mode'; api: 'ok' } = {
       database: 'ok',
       redis: 'ok',
       api: 'ok',
@@ -95,7 +95,7 @@ export async function buildApp() {
         services.redis = 'error'
       }
     } else {
-      services.redis = 'skipped'
+      services.redis = 'inline-mode'
     }
 
     const status = services.database === 'ok' && services.redis !== 'error' ? 'ok' : 'degraded'
