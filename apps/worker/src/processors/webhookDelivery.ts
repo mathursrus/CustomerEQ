@@ -52,7 +52,7 @@ export async function processWebhookDelivery(
   const startMs = Date.now()
   let httpStatus: number | undefined
   let responseBody: string | undefined
-  let success: boolean
+  let success!: boolean
 
   try {
     const controller = new AbortController()
@@ -167,7 +167,7 @@ export async function processWebhookDeliveryWithPrisma(
   const startMs = Date.now()
   let httpStatus: number | undefined
   let responseBody: string | undefined
-  let success: boolean
+  let success!: boolean
 
   try {
     const controller = new AbortController()
