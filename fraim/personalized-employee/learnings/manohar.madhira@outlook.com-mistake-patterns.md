@@ -8,44 +8,55 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 
 ### Proposed new entries
 
-#### [P-HIGH] Skipping FRAIM discovery and jumping into execution
+#### [P-HIGH] Symptom-level fix instead of systemic abstraction
 
-**Score**: 9.0
-**Last seen**: 2026-04-24
+**Score**: 8.0
+**Last seen**: 2026-03-31
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-When given a request in a FRAIM-equipped repo, dove directly into tool calls (`docker compose up`, `pnpm db:migrate`, git commit) without first reading `fraim/personalized-employee/rules/project_rules.md` or matching the request to a FRAIM job. The result: work committed to the wrong branch, without an issue filed, and with project rules silently violated. FRAIM's pre-act discovery flow is mandatory in this repo — see `CLAUDE.md` FRAIM override and preferences entry "FRAIM job flow before acting."
+When multiple files exhibit the same user-visible defect, mechanically replicating an existing "fix" across every file instead of solving the root cause at the shared layer. On issue #71, invisible form-input text was first "fixed" by adding `text-gray-900` to 50+ inputs across 7 files, mimicking the Programs page workaround. The real fix was a 5-line global CSS rule in `globals.css` setting `color: var(--foreground)` on `input, textarea, select`. Pattern: anchoring on a working reference implementation without asking whether that reference was itself correct or just "happened to work." This mistake directly motivated project rule #15.
 
 ---
 
-#### [P-HIGH] Committed an unrelated fix onto an active feature branch
+#### [P-HIGH] Used `github.sha` under `workflow_run` without `head_sha` fallback
 
-**Score**: 9.0
-**Last seen**: 2026-04-24
+**Score**: 8.0
+**Last seen**: 2026-04-21
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-Landed the pgvector `docker-compose.yml` fix directly on `feature/170-epic-onboarding-first-run-experience` even though the change had nothing to do with issue #170. This violated rule 10 (branch-issue linkage) and the yet-to-be-written R21 (branch scope hygiene). The correct sequence: (1) notice the fix is off-scope for the current branch, (2) file a new issue, (3) branch off `main`, (4) commit. All of that must happen before `git commit`, not after. The existing `swavak@gmail.com-check-branch-scope-before-committing` raw learning covers the same pattern from a different user.
+First instinct when adding a `workflow_run`-triggered job was to use `${{ github.sha }}` in `actions/checkout` and image tag expressions. Under `workflow_run`, `github.sha` resolves to the default-branch tip at dispatch time — not the CI-tested commit. Without the `github.event.workflow_run.head_sha || github.sha` fallback, the deploy would have checked out and tagged the wrong commit's image — a subtle correctness bug that presents as a "working" deploy. Caught by re-reading GitHub Actions docs once before committing, but the initial instinct was wrong.
 
 ---
 
-#### [P-MED] Claimed a file was missing without exhaustive search
+#### [P-MED] FRAIM session state lost across context compaction
 
 **Score**: 5.0
-**Last seen**: 2026-04-24
+**Last seen**: 2026-03-27
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-During discovery, asserted "no design system doc exists" after running a single narrow glob (`docs/**/*design-system*`). The user pushed back that `docs/` contains substantial design content, which surfaced `docs/architecture/architecture.md` (UI tech decisions) and `docs/replicate/screenshots/component-catalog.md` (visual reference). Absence claims must be based on at least one broad survey (`docs/**/*.md`) plus keyword grep, not a single pattern match. Frame as "I did not find X under pattern Y" rather than "X does not exist" when the search was narrow.
+Long phased jobs can have their conversation context compacted mid-phase, which drops the FRAIM session ID and any in-progress state. Recovery requires re-connecting via `fraim_connect`, re-reading the RFC/spec to reconstruct context, and re-running `seekMentoring` to locate the current phase — roughly 15 minutes of overhead. Mitigation: at session start, note the session ID in a scratchpad (a comment in the active work file, a TaskCreate metadata field, or similar) so it survives compaction without re-connection side effects.
 
 ---
 
-#### [P-MED] Overcorrected into wanting to generate unnecessary artifacts
+#### [P-MED] Wrote to gitignored `docs/evidence/` without checking `.gitignore` first
 
-**Score**: 4.0
-**Last seen**: 2026-04-24
+**Score**: 5.0
+**Last seen**: 2026-03-27
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-When the user said "add all the later items," nearly started hand-generating 120+ FRAIM job/skill/rule discovery stubs — which are redundant with the live MCP catalog — and a faked `docs/compliance/` bundle that is the output of a separate `compliance-review` job. Correct response was to push back, explain the scope issue, and propose narrower writes (AGENTS.md/CLAUDE.md pointer fix, 2 ADRs, learnings starter). Lesson: before accepting a broad "do everything" instruction, audit each item against (a) whether it is the current job's actual output and (b) whether it duplicates an upstream system of record.
+Created `docs/evidence/2-design-evidence.md` during issue #2 only to discover afterward that `docs/evidence/**/*.png` etc. patterns exist in `.gitignore` (and historically the whole directory was excluded). The file existed locally but could not be referenced from a PR, defeating its purpose. Before writing any evidence file, run a quick check of `.gitignore` for the target path. If the destination is gitignored, either change the destination or embed the summary directly in the PR body.
+
+---
+
+#### [P-LOW] Duplicate section numbering in RFC drafts
+
+**Score**: 3.0
+**Last seen**: 2026-03-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+RFC for issue #2 shipped with two sections both numbered "2a" (Member model + Program model). Cosmetic — the content was correct — but caused confusion during implementation reference. A single final-pass read-through of the section outline before submit catches this class of error cheaply.
