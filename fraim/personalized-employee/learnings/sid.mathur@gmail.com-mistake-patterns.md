@@ -84,3 +84,94 @@ For event-driven or queue-based systems with SLA commitments, the initial RFC dr
 PR creation attempts (both MCP tool and `gh` CLI) fail with confusing errors ("Head sha can't be blank", branch not found) when the branch has not yet been pushed to GitHub. Before any PR creation call, verify the branch is visible via `gh api repos/<owner>/<repo>/branches/<branch>` and confirm it returns 200. Only proceed with PR creation after this check passes.
 
 ---
+
+## ⏳ Pending Review — 2026-04-04
+
+### Proposed new entries
+
+#### [P-HIGH] Declaring auth flow verified without clean-state E2E test
+
+**Score**: 9.0
+**Last seen**: 2026-03-26
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Verifying authentication (Sign In/Up) using only `curl` status codes or by navigating whilst a residual browser session is active is invalid. This pattern misses critical failures like missing public routes in middleware or deprecated redirect props (e.g., Clerk `afterSignInUrl`). Auth must always be validated via a full Playwright flow starting from a cleared cookie/session state, and all auth-related deprecation warnings in the console must be treated as blockers.
+
+---
+
+#### [P-HIGH] UI commits pushed without browser validation
+
+**Score**: 8.0
+**Last seen**: 2026-03-26
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Assuming UI pages are correct because unit tests pass and the build compiles is a recurring failure mode. TypeScript and unit tests cannot catch rendering crashes (e.g., TypeErrors in rating components). Every commit that adds or modifies a user-accessible page must be verified in a Playwright browser (screenshot + console check) before pushing.
+
+---
+
+#### [P-HIGH] Pausing mid-phase to ask for implementation permission
+
+**Score**: 8.5
+**Last seen**: 2026-04-02
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When running a FRAIM job (e.g., feature-implementation), stopping mid-phase (e.g., `implement-code`) to ask if the user wants to continue breaks momentum and violates the instruction to implement fully. The agent must proceed through all implementation steps to completion unless a hard blocker is encountered. `seekMentoring` should be used for reporting status or blockers, not for optional "shall I continue" check-ins during an active phase.
+
+---
+
+#### [P-HIGH] Deferring tests due to "missing environment" (fake blockers)
+
+**Score**: 9.0
+**Last seen**: 2026-04-02
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Avoidance of testing by citing a lack of a running server or database is a failure of persistence. If a test requires a dev server or a database, the agent has the tools to start them (`pnpm dev`, `docker-compose`, or local DB commands). Never defer E2E or integration tests in a PR response; set up the required environment and write/run the tests instead.
+
+---
+
+#### [P-HIGH] Testing HTML mocks instead of real application code
+
+**Score**: 9.5
+**Last seen**: 2026-04-02
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Retreating to test static HTML mocks (`file:///...`) when the real application (`http://localhost:3000`) has auth or setup issues is a critical failure. HTML mocks are for design review only. E2E tests must target the real code. If auth blocks the test, use established patterns (e.g., `mockClerkAuth`) to fix the test environment rather than testing the wrong target.
+
+---
+
+#### [P-HIGH] E2E tests that mock the entire API (Integration Gap)
+
+**Score**: 8.0
+**Last seen**: 2026-04-02
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Using `page.route()` to mock all API responses in E2E tests creates a false sense of security and hides schema mismatches or missing required database fields (e.g., `triggerCondition` required by Prisma but optional in Zod). At least one E2E or Supertest per feature must hit the real API/DB to verify the full stack integration.
+
+---
+
+#### [P-MED] UI Preview does not match campaign type
+
+**Score**: 6.0
+**Last seen**: 2026-04-03
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When adding new variants to a builder (e.g., mystery box vs. scratch card), reusing shared preview conditions without variant-specific content causes user confusion. Variants must have matching, interactive previews. E2E tests must verify that the preview *content* changes when the type is switched, not just the existence of a preview container.
+
+---
+
+#### [P-HIGH] Orchestrator dropping UI scope from agent prompts
+
+**Score**: 9.0
+**Last seen**: 2026-04-04
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When orchestrating parallel implementation, focusing agent prompts solely on backend deliverables (API/DB) while dropping explicit UI requirements leads to "operationally invisible" features. Orchestrators must cross-reference original issue ACs at every gate and explicitly mandate ALL deliverable types (backend + frontend + tests) in downstream prompts.
+

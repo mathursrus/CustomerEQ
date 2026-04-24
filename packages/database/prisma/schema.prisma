@@ -152,6 +152,7 @@ model Brand {
   externalSignalSources ExternalSignalSource[]
   externalSignals       ExternalSignal[]
   apiKeys               ApiKey[]
+  webhookEndpoints      WebhookEndpoint[]
   createdAt             DateTime               @default(now())
 
   @@map("brands")
@@ -641,6 +642,7 @@ model SurveyResponse {
   completedAt    DateTime         @default(now())
   createdAt      DateTime         @default(now())
   campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
+  caseFollowUps  CaseFollowUp[]   // cases opened from this response
 
   @@unique([surveyId, memberId]) // One response per member per survey
   @@index([brandId, completedAt])
@@ -741,8 +743,9 @@ model CaseFollowUp {
   brandId          String
   brand            Brand     @relation(fields: [brandId], references: [id])
   alertRuleId      String
-  alertRule        AlertRule @relation(fields: [alertRuleId], references: [id])
-  surveyResponseId String
+  alertRule        AlertRule      @relation(fields: [alertRuleId], references: [id])
+  surveyResponseId String?        // nullable: cases can be created without a survey response
+  surveyResponse   SurveyResponse? @relation(fields: [surveyResponseId], references: [id])
   memberId         String
 
   status   String @default("OPEN") // OPEN, CONTACTED, RESOLVED, CLOSED
@@ -916,5 +919,46 @@ model McpOAuthCode {
 
   @@index([code])
   @@map("mcp_oauth_codes")
+}
+
+// ─── Outbound Webhooks ────────────────────────────────────────────────────────
+
+model WebhookEndpoint {
+  id            String               @id @default(cuid())
+  brandId       String
+  brand         Brand                @relation(fields: [brandId], references: [id])
+  label         String
+  // NOTE: url and signingSecret are stored plaintext. Encrypt at rest before
+  // enabling in production — hard dependency on issue #53.
+  url           String
+  signingSecret String
+  events        String[]
+  active        Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deliveries    WebhookDeliveryLog[]
+
+  @@index([brandId, active])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDeliveryLog {
+  id                String          @id @default(cuid())
+  webhookEndpointId String
+  endpoint          WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+  brandId           String
+  event             String
+  caseId            String
+  httpStatus        Int?
+  latencyMs         Int?
+  success           Boolean
+  attempt           Int             @default(1)
+  requestPayload    Json
+  responseBody      String?
+  deliveredAt       DateTime        @default(now())
+
+  @@index([webhookEndpointId, deliveredAt(sort: Desc)])
+  @@index([brandId, deliveredAt(sort: Desc)])
+  @@map("webhook_delivery_logs")
 }
 

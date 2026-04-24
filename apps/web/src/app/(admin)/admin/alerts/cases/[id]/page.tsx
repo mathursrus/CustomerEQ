@@ -7,11 +7,12 @@ import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 
 interface CaseNote {
-  id: string
+  id?: string
   text: string
   author: string
-  type: 'NOTE' | 'STATUS_CHANGE'
-  createdAt: string
+  type?: 'NOTE' | 'STATUS_CHANGE'
+  timestamp?: string
+  createdAt?: string
 }
 
 interface ChannelNotification {
@@ -22,20 +23,21 @@ interface ChannelNotification {
 
 interface CaseDetail {
   id: string
-  caseNumber: number
-  memberId: string
-  score: number
-  surveyName: string
-  sentiment: number | null
-  topics: string[]
-  feedback: string
+  caseNumber?: number | null
+  memberId?: string | null
+  score?: number | null
+  surveyName?: string | null
+  sentiment?: number | null
+  topics?: string[] | null
+  feedback?: string | null
   status: 'OPEN' | 'CONTACTED' | 'RESOLVED' | 'CLOSED' | 'OVERDUE'
-  assignee: string | null
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  slaTarget: string
-  alertRuleName: string
-  channelsNotified: ChannelNotification[]
-  notes: CaseNote[]
+  assignee?: string | null
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null
+  slaTarget?: string | null
+  slaStatus?: string | null
+  alertRuleName?: string | null
+  channelsNotified?: ChannelNotification[] | null
+  notes?: CaseNote[] | null
   createdAt: string
 }
 
@@ -54,14 +56,17 @@ const priorityColors: Record<string, string> = {
   CRITICAL: 'bg-red-100 text-red-700',
 }
 
-function scoreColor(score: number): string {
+function scoreColor(score: number | null | undefined): string {
+  if (score == null) return 'bg-gray-100 text-gray-500'
   if (score <= 3) return 'bg-red-100 text-red-700'
   if (score <= 6) return 'bg-yellow-100 text-yellow-700'
   return 'bg-green-100 text-green-700'
 }
 
-function slaStatus(slaTarget: string): { label: string; className: string } {
+function slaStatus(slaTarget: string | null | undefined): { label: string; className: string } {
+  if (!slaTarget) return { label: 'No SLA set', className: 'text-gray-400' }
   const target = new Date(slaTarget)
+  if (isNaN(target.getTime())) return { label: 'Invalid SLA Target', className: 'text-gray-400' }
   const now = new Date()
   const diffMs = target.getTime() - now.getTime()
   const diffH = Math.round(diffMs / (1000 * 60 * 60))
@@ -79,6 +84,20 @@ const channelLabels: Record<string, string> = {
   SLACK: 'Slack',
   EMAIL: 'Email',
   TEAMS: 'Teams',
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleString()
+}
+
+function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleTimeString()
 }
 
 export default function CaseDetailPage() {
@@ -186,7 +205,9 @@ export default function CaseDetailPage() {
         >
           &larr; Back to Cases
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Case #{caseData.caseNumber}</h1>
+        <h1 className="mt-2 text-2xl font-bold text-gray-900">
+          Case {caseData?.caseNumber != null ? `#${caseData.caseNumber}` : caseData?.id?.slice(0, 8) ?? 'Unknown'}
+        </h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -197,28 +218,28 @@ export default function CaseDetailPage() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Member ID</p>
-                <p className="mt-1 text-sm font-medium text-gray-900">{caseData.memberId}</p>
+                <p className="mt-1 text-sm font-medium text-gray-900">{caseData.memberId ?? '—'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Score</p>
                 <span className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${scoreColor(caseData.score)}`}>
-                  {caseData.score}
+                  {caseData.score ?? '—'}
                 </span>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Survey</p>
-                <p className="mt-1 text-sm text-gray-900">{caseData.surveyName}</p>
+                <p className="mt-1 text-sm text-gray-900">{caseData.surveyName ?? '—'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sentiment</p>
                 <p className="mt-1 text-sm text-gray-900">{caseData.sentiment ?? '—'}</p>
               </div>
             </div>
-            {caseData.topics.length > 0 && (
+            {(caseData.topics ?? []).length > 0 && (
               <div className="mb-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Topics</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {caseData.topics.map((topic) => (
+                  {(caseData.topics ?? []).map((topic) => (
                     <span key={topic} className="inline-flex rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                       {topic}
                     </span>
@@ -229,7 +250,7 @@ export default function CaseDetailPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Feedback</p>
               <div className="border-l-4 border-indigo-300 bg-gray-50 rounded-r-lg px-4 py-3">
-                <p className="text-sm text-gray-700 italic">{caseData.feedback}</p>
+                <p className="text-sm text-gray-700 italic">{caseData.feedback || <span className="text-gray-400 not-italic">No feedback recorded.</span>}</p>
               </div>
             </div>
           </div>
@@ -303,14 +324,14 @@ export default function CaseDetailPage() {
           {/* Timeline */}
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h2>
-            {caseData.notes.length === 0 ? (
+            {(caseData.notes ?? []).length === 0 ? (
               <p className="text-sm text-gray-400">No activity yet.</p>
             ) : (
               <div className="relative">
                 <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200" />
                 <div className="space-y-6">
-                  {caseData.notes.map((note) => (
-                    <div key={note.id} className="relative flex gap-4">
+                  {(caseData.notes ?? []).map((note, noteIdx) => (
+                    <div key={note.id ?? noteIdx} className="relative flex gap-4">
                       <div
                         className={`relative z-10 flex-shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center ${
                           note.type === 'STATUS_CHANGE'
@@ -328,7 +349,7 @@ export default function CaseDetailPage() {
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="text-sm font-medium text-gray-900">{note.author}</span>
                           <span className="text-xs text-gray-400">
-                            {new Date(note.createdAt).toLocaleString()}
+                            {formatDate(note.createdAt ?? note.timestamp)}
                           </span>
                         </div>
                         <p
@@ -357,8 +378,8 @@ export default function CaseDetailPage() {
               <div>
                 <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</dt>
                 <dd className="mt-1">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[caseData.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                    {caseData.status}
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[caseData?.status ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
+                    {caseData?.status ?? 'UNKNOWN'}
                   </span>
                 </dd>
               </div>
@@ -369,15 +390,15 @@ export default function CaseDetailPage() {
               <div>
                 <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority</dt>
                 <dd className="mt-1">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${priorityColors[caseData.priority] ?? 'bg-gray-100 text-gray-700'}`}>
-                    {caseData.priority}
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${priorityColors[caseData?.priority ?? ''] ?? 'bg-gray-100 text-gray-700'}`}>
+                    {caseData?.priority ?? 'None'}
                   </span>
                 </dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">SLA Target</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(caseData.slaTarget).toLocaleString()}
+                  {formatDate(caseData.slaTarget)}
                 </dd>
               </div>
               <div>
@@ -388,12 +409,12 @@ export default function CaseDetailPage() {
               </div>
               <div>
                 <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alert Rule</dt>
-                <dd className="mt-1 text-sm text-gray-900">{caseData.alertRuleName}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{caseData.alertRuleName ?? '—'}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(caseData.createdAt).toLocaleString()}
+                  {formatDate(caseData.createdAt)}
                 </dd>
               </div>
             </dl>
@@ -402,11 +423,11 @@ export default function CaseDetailPage() {
           {/* Channels Notified */}
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Channels Notified</h2>
-            {caseData.channelsNotified.length === 0 ? (
+            {(caseData.channelsNotified ?? []).length === 0 ? (
               <p className="text-sm text-gray-400">No notifications sent.</p>
             ) : (
               <ul className="space-y-2">
-                {caseData.channelsNotified.map((ch, i) => (
+                {(caseData.channelsNotified ?? []).map((ch, i) => (
                   <li key={i} className="flex items-center justify-between text-sm">
                     <span className="text-gray-900">{channelLabels[ch.channel] ?? ch.channel}</span>
                     <div className="flex items-center gap-2">
@@ -418,7 +439,7 @@ export default function CaseDetailPage() {
                         {ch.status}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {new Date(ch.sentAt).toLocaleTimeString()}
+                        {formatTime(ch.sentAt)}
                       </span>
                     </div>
                   </li>

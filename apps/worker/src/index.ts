@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq'
+import { Worker, Queue } from 'bullmq'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { QUEUES } from '@customerEQ/shared'
@@ -12,6 +12,8 @@ import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
 import { processHealthScore } from './processors/healthScore.js'
 import { createExternalSignalSyncProcessor } from './processors/externalSignalSync.js'
 import { processExternalSignalIngestion } from './processors/externalSignalIngestion.js'
+import { processWebhookDelivery } from './processors/webhookDelivery.js'
+import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -89,11 +91,33 @@ const externalSignalIngestionWorker = new Worker(
   { connection, concurrency: 3, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const webhookDeliveryWorker = new Worker(
+  QUEUES.WEBHOOK_DELIVERY,
+  processWebhookDelivery,
+  { connection, concurrency: 10, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// SLA breach check — repeating job every 5 minutes
+const SLA_BREACH_QUEUE = 'sla-breach-check'
+const slaBreachQueue = new Queue(SLA_BREACH_QUEUE, { connection })
+const slaBreachWorker = new Worker(
+  SLA_BREACH_QUEUE,
+  createSlaBreachCheckProcessor(connection),
+  { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// Schedule the repeating job (idempotent — BullMQ deduplicates by jobId)
+void slaBreachQueue.add(
+  'check',
+  {},
+  { repeat: { every: 5 * 60 * 1000 }, jobId: 'sla-breach-check-repeating' },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, externalSignalSyncWorker, externalSignalIngestionWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -118,6 +142,8 @@ logger.info(
       QUEUES.HEALTH_SCORE_COMPUTATION,
       QUEUES.EXTERNAL_SIGNAL_SYNC,
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
+      QUEUES.WEBHOOK_DELIVERY,
+      SLA_BREACH_QUEUE,
     ],
   },
   'Workers started',
@@ -139,6 +165,9 @@ async function shutdown(signal: string): Promise<void> {
     healthScoreWorker.close(),
     externalSignalSyncWorker.close(),
     externalSignalIngestionWorker.close(),
+    webhookDeliveryWorker.close(),
+    slaBreachWorker.close(),
+    slaBreachQueue.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

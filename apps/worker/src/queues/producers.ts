@@ -5,6 +5,7 @@ import type {
   CampaignTriggerPayload,
   NotificationPayload,
   ExternalSignalIngestionPayload,
+  WebhookDeliveryPayload,
 } from '@customerEQ/shared'
 import { createQueue } from './definitions.js'
 
@@ -38,4 +39,15 @@ export async function enqueueExternalSignalIngestion(
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.EXTERNAL_SIGNAL_INGESTION, connection)
   return queue.add(QUEUES.EXTERNAL_SIGNAL_INGESTION, payload)
+}
+
+export async function enqueueWebhookDelivery(
+  connection: ConnectionOptions,
+  payload: WebhookDeliveryPayload,
+): Promise<Job> {
+  const queue: Queue = createQueue(QUEUES.WEBHOOK_DELIVERY, connection)
+  return queue.add('deliver', payload, {
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+  })
 }

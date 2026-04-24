@@ -12,6 +12,7 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   enqueueAlertEvaluation: vi.fn(async (payload: unknown) => InMemoryQueue.add('alert-evaluation', payload)),
   enqueueExternalSignalSync: vi.fn(async (payload: unknown) => InMemoryQueue.add('external-signal-sync', payload)),
   enqueueExternalSignalIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('external-signal-ingestion', payload)),
+  enqueueWebhookDelivery: vi.fn(async (payload: unknown) => InMemoryQueue.add('webhook-delivery', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection
@@ -48,6 +49,8 @@ beforeAll(async () => {
   await app.ready()
   setTestApp(app)
 })
+
+
 
 afterAll(async () => {
   const app = getTestApp()
