@@ -1,7 +1,7 @@
 # Project Rules - CustomerEQ
 
 These rules are always-on constraints for all AI agents working in this repository.
-Last updated: 2026-04-07
+Last updated: 2026-04-24
 
 ---
 
@@ -49,10 +49,12 @@ All mocks, factories, fixtures, and test helpers live in `packages/config/src/te
 
 ## 10. Branch and PR Convention
 
-- Branch names: `feature/issue-{number}-{short-slug}` (e.g., `feature/issue-4-earn-points`)
-- PRs must reference the issue: "Closes #N" in the PR description
-- PRs merge to `develop`; `develop` merges to `main` for releases
-- Never commit directly to `main`
+- **Every branch must be tied to a GitHub issue.** File the issue first, then branch.
+- Branch names: `feature/issue-{number}-{short-slug}` (e.g., `feature/issue-4-earn-points`).
+- PRs must reference the issue: "Closes #N" in the PR description.
+- PRs merge to `main` via the feature branch. The repo does not use a `develop` branch.
+- Never commit directly to `main`.
+- One issue per branch. Unrelated fixes — even small ones — get their own issue and branch (see R21).
 
 ## 11. Validation Commands (CI Gate)
 
@@ -131,3 +133,15 @@ Never claim a user-facing feature is "validated" based solely on API-level tests
 2. Browser redirects (`window.location.href`, OAuth callbacks, email links) cannot carry Bearer tokens — endpoints must be public or auth must be passed via query param/cookie/signed state.
 3. If you cannot test the real flow (e.g., Playwright can't auth with Clerk), say so honestly. Partial validation is not validation.
 4. When Playwright fails to authenticate, treat it as a signal about the real user flow — don't dismiss it as a "Playwright limitation."
+
+## 19. Docker-First Local Development
+
+PostgreSQL and Redis run exclusively via `docker compose` for local development. Host-installed database services (e.g., Windows `postgresql-x64-16`) must be stopped and set to Manual startup so they do not contend for port 5432 with the compose container. The canonical bring-up sequence is `docker compose up -d && pnpm install && pnpm db:migrate`. See ADR 0003.
+
+## 20. pgvector Postgres Image Is Pinned
+
+The `postgres` service in `docker-compose.yml` uses `pgvector/pgvector:pg16` — never downgrade to `postgres:16-alpine` or a generic upstream Postgres image. Migration `20260403000000_add_kb_articles` runs `CREATE EXTENSION vector`, which requires pgvector to be installed on the server. See ADR 0002.
+
+## 21. Branch Scope Hygiene — One Issue Per Branch
+
+Unrelated fixes — dev-environment patches, infrastructure tweaks, small cross-cutting cleanups — get their own issue and branch. Do not bundle off-topic commits onto an active feature branch, even when the change is small or the branch is convenient. If a fix is discovered mid-feature and is not in the feature's acceptance criteria, file a new issue, branch off `main`, and PR it separately. This rule is a direct corollary of rule 10.

@@ -26,12 +26,19 @@
     "dataModelsDoc": "docs/replicate/analysis/data-models.md",
     "useCasesDoc": "docs/replicate/analysis/use-cases.md",
     "implementationRoadmap": "docs/replicate/IMPLEMENTATION_ROADMAP.md",
+    "designSystem": {
+      "path": "docs/architecture/architecture.md",
+      "brand": "CustomerEQ"
+    },
     "localDev": {
       "setupCommand": "docker compose up -d && pnpm install && pnpm db:migrate && pnpm db:seed",
       "devCommand": "pnpm dev",
-      "notes": "Requires Docker (PostgreSQL + Redis), Node.js 22, pnpm 9"
+      "notes": "Requires Docker (PostgreSQL + Redis), Node.js 20+, pnpm 9. Host-installed Postgres on :5432 must be stopped — see project rule R19."
     },
     "validation": {
+      "buildCommand": "pnpm build",
+      "testSuiteCommand": "pnpm test",
+      "smokeTestCommand": "pnpm test:smoke",
       "build": "pnpm build",
       "test": "pnpm test",
       "typecheck": "pnpm typecheck",
@@ -40,6 +47,13 @@
       "e2e": "pnpm test:e2e"
     },
     "compliance": {
+      "regulations": ["GDPR", "CCPA", "SOC2", "PCI-DSS"],
+      "compliance_specifications": {
+        "GDPR": "in-scope",
+        "CCPA": "in-scope",
+        "SOC2": "target: month-12",
+        "PCI-DSS": "minimal-scope"
+      },
       "gdpr": true,
       "ccpa": true,
       "soc2": "target-month-12",
@@ -49,7 +63,7 @@
       "frontend": "next.js-15",
       "ui": "shadcn-tailwind-v4",
       "backend": "fastify-v5",
-      "database": "postgresql-16",
+      "database": "postgresql-16-pgvector",
       "cache": "redis-7",
       "queue": "bullmq-v5",
       "auth": "clerk",
