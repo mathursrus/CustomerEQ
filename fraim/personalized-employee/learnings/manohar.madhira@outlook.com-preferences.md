@@ -8,44 +8,55 @@ Patterns that describe how this user prefers to work, interact, and approach rec
 
 ### Proposed new entries
 
-#### [P-HIGH] FRAIM job flow before acting
+#### [P-HIGH] Browser validation of UI changes before submit is non-negotiable
 
-**Score**: 9.0
-**Last seen**: 2026-04-24
+**Score**: 8.0
+**Last seen**: 2026-04-20
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-Before executing any non-trivial user request in this repo, start the FRAIM discovery flow: (1) read `fraim/personalized-employee/rules/project_rules.md`, (2) match the request to a FRAIM job via `mcp__fraim__list_fraim_jobs`, (3) call `mcp__fraim__get_fraim_job` for the full phased instructions. Do not dive straight into code, branching, or commits. Confirmed on 2026-04-24 during a DB-drift / Docker setup session that ended up producing commits on the wrong branch because FRAIM was skipped.
+For any UI-facing change, the user expects actual browser testing (Playwright or manual) before the implementation phase is reported as complete. Typecheck + build + smoke-test passing is not sufficient validation for React state sync, form population, rendering, or styling. On issue #153, the user's pushback ("Have you tested these?") forced full local env setup and browser validation — which then confirmed the fix worked end-to-end. Default behavior should be to set up whatever is needed (Docker, local DB, Clerk, browser) rather than relying on compile-time checks.
 
 ---
 
-#### [P-HIGH] File an issue before creating a branch
+#### [P-HIGH] Tight PR scope — no opportunistic scope creep
 
-**Score**: 9.0
-**Last seen**: 2026-04-24
+**Score**: 8.0
+**Last seen**: 2026-04-21
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-Every branch must be tied to a GitHub issue. File the issue first (or identify the existing one), then create the branch as `feature/issue-{N}-{slug}`. "Small" fixes — dev-env patches, compose image bumps, config corrections — are not exempt. Confirmed on 2026-04-24: user corrected course after a pgvector compose fix was committed on an unrelated feature branch. See project rules 10 and R21.
+The user values PRs that do exactly one thing. Issue #166 was a `deploy.yml` hardening: +29/-7 on one file, with a tangentially related concern (third-party action SHA-pinning) deferred to a follow-up issue rather than smuggled in. Default stance: if a fix is discovered mid-task but outside the issue's acceptance criteria, file a separate issue, do not bundle. Related: project rule R21 (one issue per branch) formalizes the branch-level version of this preference.
 
 ---
 
-#### [P-MED] Propose, then execute — especially for system-level or destructive actions
+#### [P-HIGH] Prefer systemic fixes over per-file fixes for cross-cutting issues
 
-**Score**: 6.0
-**Last seen**: 2026-04-24
+**Score**: 8.0
+**Last seen**: 2026-03-31
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-For actions that touch system services (Windows service stop/start, startup type changes), destructive git operations (hard reset, force push), or multi-file writes, propose the plan and wait for confirmation before executing — even when the user's intent is clear. The user is comfortable approving quickly; they are not comfortable with unreviewed side effects. Confirmed on 2026-04-24 when proposing `net stop postgresql-x64-16` and the branch-reset plan.
+When a bug affects multiple files with the same root cause, the user expects the fix to live at the shared layer — `globals.css`, a shared component, a utility, or a config — not replicated per file. On issue #71, the user's one-line pushback ("Why are you individually updating style in each file? Isn't having global style a better pattern?") triggered a full revert of a 7-file change in favor of a 5-line global CSS rule. This preference is now formalized as project rule #15.
 
 ---
 
-#### [P-MED] Terse, structured responses with clear options
+#### [P-MED] Surface open decisions with recommended defaults
 
 **Score**: 5.0
-**Last seen**: 2026-04-24
+**Last seen**: 2026-03-27
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-Prefer short, structured responses — tables, numbered lists, "Option A / Option B" framing — over long prose. When multiple decisions are pending, batch them into a single compact checklist and accept shorthand answers (e.g., "1b, 2a, 3b"). Observed as the user's consistent reply style across the 2026-04-24 session.
+When presenting design decisions for reviewer sign-off (RFC review, architectural tradeoffs), the user responds fastest when each open decision is framed as a small set of concrete options with one marked `← recommended`. On issue #2, both open decisions (OD-1 `packages/ui` placement, OD-2 pagination backfill scope) resolved in a single round because each had a recommended default. Default presentation format: numbered binary/ternary choice, one-line trade-off per option, explicit `← recommended` on the preferred path.
+
+---
+
+#### [P-MED] Thorough parallel context-gathering before design work
+
+**Score**: 5.0
+**Last seen**: 2026-03-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+For design and RFC phases, reading all relevant context files (schema, existing routes, worker code, shared types, architecture doc, feature spec, project rules, UI mocks) in parallel at the start of the phase produces better outcomes than sequential/on-demand reads. On issue #2, reading 8 key files upfront captured the `brandId`-from-JWT pattern, soft-delete approach, BullMQ split, and existing rule evaluator behavior — all of which shaped the RFC correctly on the first draft. Complementary to the existing `[P-MED] Parallel document reads at phase start` entry in `sid.mathur@gmail.com-preferences.md`.
