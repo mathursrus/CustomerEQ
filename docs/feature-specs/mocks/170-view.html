@@ -132,6 +132,8 @@
 <div class="mock-header">
   <h1>CustomerEQ — Onboarding & First-Run Experience (Issue #170) — Mocks</h1>
   <div class="nav">
+    <a href="#scene-signup">Signup</a>
+    <a href="#scene-org-profile">Org profile</a>
     <a href="#scene-use-case-picker">Use-case picker</a>
     <a href="#scene-checklist-expanded">Checklist expanded</a>
     <a href="#scene-activated">Activated</a>
@@ -139,10 +141,168 @@
 </div>
 
 <!-- ============================================================= -->
-<!-- SCENE 1: Use-case picker (Step 2 of the shared spine)          -->
+<!-- SCENE 1: CustomerEQ-owned signup page (Step 0)                 -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-signup">
+  <div class="scene-label"><strong>Scene 1 — Signup page (Step 0)</strong> &nbsp; Route: <code>/signup</code> &nbsp; CustomerEQ-owned. No Clerk chrome. Plan-selection slot reserved but inactive.</div>
+  <div class="container" style="max-width: 880px;">
+    <div class="admin-shell" style="padding: 0;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; min-height: 540px;">
+        <!-- Left panel: marketing/value-prop -->
+        <div style="background: linear-gradient(165deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 48px 32px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="logo" style="color: white; margin-bottom: 32px;"><span class="logo-mark" style="background: white; color: var(--primary);">C</span> CustomerEQ</div>
+            <h2 style="font-size: 22px; margin: 0 0 16px; line-height: 1.3;">Close the feedback-to-action gap.</h2>
+            <p style="font-size: 14px; opacity: 0.92; line-height: 1.55; margin: 0 0 12px;">Every CX signal — survey response, NPS score, support ticket — automatically triggers the right loyalty action in under 15 minutes.</p>
+            <p style="font-size: 14px; opacity: 0.92; line-height: 1.55; margin: 0;">No more dashboards that no one acts on. No more 82-hour response times.</p>
+          </div>
+          <div style="font-size: 12px; opacity: 0.75;">
+            Already have an account? <a href="#" style="color: white; text-decoration: underline;">Sign in</a>
+          </div>
+        </div>
+
+        <!-- Right panel: signup form -->
+        <div style="padding: 40px 32px; display: flex; flex-direction: column; justify-content: center;">
+          <h2 style="font-size: 22px; margin: 0 0 4px;">Create your account</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 24px;">Free today. No card required.</p>
+
+          <form style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Work email</label>
+              <input type="email" placeholder="jordan@acmecoffee.com" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Password</label>
+              <input type="password" placeholder="At least 8 characters" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Your name</label>
+              <input type="text" placeholder="Jordan Patel" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Organization name</label>
+              <input type="text" placeholder="Acme Coffee" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+              <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">This is what your members will see. You can change it later.</p>
+            </div>
+
+            <!-- Reserved plan-selection slot (inactive, deferred to future epic) -->
+            <div style="border: 1px dashed var(--border-strong); padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-muted); font-size: 11px; color: var(--text-subtle); text-align: center;">
+              <span style="font-weight: 500;">Reserved for plan selection</span> · added in a future epic · today everyone starts on Free
+            </div>
+
+            <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              <input type="checkbox" style="margin-top: 2px;">
+              <span>I agree to the <a href="#" style="color: var(--primary);">Terms</a> and <a href="#" style="color: var(--primary);">Privacy Policy</a>.</span>
+            </label>
+
+            <button type="button" class="btn btn-primary" style="margin-top: 4px; padding: 10px 14px; font-size: 14px;">Get started — it's free →</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 2: Org profile capture (Step 1.5)                        -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-org-profile">
+  <div class="scene-label"><strong>Scene 2 — Org profile capture (Step 1.5)</strong> &nbsp; Route: <code>/admin/onboarding/profile</code> &nbsp; Optional fields with explicit "Skip and add later" escape</div>
+  <div class="container" style="max-width: 760px;">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Signed in as <strong>jordan@example.com</strong> <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div style="padding: 40px 48px;">
+        <div class="picker-progress" aria-hidden="true" style="margin-bottom: 20px;">
+          <span class="dot done" title="Account created"></span>
+          <span class="dot active" title="Org profile"></span>
+          <span class="dot" title="Choose path"></span>
+          <span class="dot" title="Connect"></span>
+        </div>
+        <h2 style="font-size: 24px; margin: 0 0 6px;">Tell us about your organization</h2>
+        <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 28px;">These details appear on member-facing surveys, embed widgets, and emails. All fields except the brand name are optional — you can add or change them anytime.</p>
+
+        <form style="display: flex; flex-direction: column; gap: 18px;">
+          <!-- Brand display name -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Brand display name <span style="color: var(--danger);">*</span></label>
+            <input type="text" value="Acme Coffee" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">Pre-filled from signup. You can rename your brand here at any time.</p>
+          </div>
+
+          <!-- Logo upload -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Logo</label>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 64px; height: 64px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">AC</div>
+              <div style="flex: 1;">
+                <button type="button" class="btn btn-ghost" style="padding: 6px 12px; font-size: 13px;">Upload PNG or SVG</button>
+                <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Up to 1 MB, 512×512 max. We'll use the gradient initials as a placeholder if you skip.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Website -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Website</label>
+            <input type="text" placeholder="acmecoffee.com" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">Used for the static-site path's snippet detection and for "Visit our site" links in member emails.</p>
+          </div>
+
+          <!-- Default theme -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 6px;">Default theme</label>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+              <div style="border: 2px solid var(--primary); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; background: var(--primary-soft);">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Indigo</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #16a34a 0%, #65a30d 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Forest</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #ea580c 0%, #d97706 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Sunset</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #475569 0%, #334155 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Slate</div>
+              </div>
+            </div>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Applies to default survey theme and embed widgets. Override per-asset later from Settings → Themes.</p>
+          </div>
+
+          <!-- Org size -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 6px;">Team size (optional)</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 1–10</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--primary); background: var(--primary-soft); border-radius: 14px; font-size: 13px; cursor: pointer; color: var(--primary); font-weight: 500;"><input type="radio" name="size" checked style="margin: 0;"> 11–50</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 51–200</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 201+</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> Prefer not to say</label>
+            </div>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Helps us recommend the most common setup path for teams your size on the next screen.</p>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 12px;">
+            <button type="button" class="btn btn-primary" style="padding: 10px 16px; font-size: 14px;">Save and continue →</button>
+            <button type="button" class="btn btn-ghost" style="padding: 10px 16px; font-size: 14px;">Skip and add later</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 3: Use-case picker (Step 2 of the shared spine)          -->
 <!-- ============================================================= -->
 <section class="scene" id="scene-use-case-picker">
-  <div class="scene-label"><strong>Scene 1 — Use-case picker</strong> &nbsp; Route: <code>/admin/onboarding</code> &nbsp; Trigger: <code>OnboardingState.useCasePath IS NULL</code> &nbsp; Sub-issue hand-off: #171 / #172 / #173</div>
+  <div class="scene-label"><strong>Scene 3 — Use-case picker</strong> &nbsp; Route: <code>/admin/onboarding</code> &nbsp; Trigger: <code>OnboardingState.useCasePath IS NULL</code> &nbsp; Sub-issue hand-off: #171 / #172 / #173</div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -151,12 +311,14 @@
       </div>
       <div class="picker-hero">
         <div class="picker-progress" aria-hidden="true">
-          <span class="dot done" title="Sign up complete"></span>
+          <span class="dot done" title="Account created"></span>
+          <span class="dot done" title="Org profile complete"></span>
           <span class="dot active" title="Choose path"></span>
           <span class="dot" title="Connect"></span>
         </div>
-        <h1>How do you want to use CustomerEQ?</h1>
-        <p class="subtitle">Pick the path that best matches how you run your business today. You can change or add paths later.</p>
+        <h1>How is your setup today?</h1>
+        <p class="subtitle">Tell us where CustomerEQ should plug in. We'll show you the right setup steps for each option. You can add other paths later.</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 0; font-style: italic;">Most teams your size start with <strong style="color: var(--text);">"I have my own application"</strong>.</p>
       </div>
       <div class="picker-cards">
 
@@ -195,7 +357,7 @@
 <!-- SCENE 2: Admin home with checklist widget expanded             -->
 <!-- ============================================================= -->
 <section class="scene" id="scene-checklist-expanded">
-  <div class="scene-label"><strong>Scene 2 — Admin home with checklist (2 of 5 complete)</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: brand auto-created + data source connected (via #171 flow); waiting on first event, survey, action</div>
+  <div class="scene-label"><strong>Scene 4 — Admin home with checklist (2 of 5 complete)</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: brand auto-created + data source connected (via #171 flow); waiting on first event. Row 5 shows "Create your loyalty program" precondition state (programCreated = false)</div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -270,9 +432,9 @@
                 <span class="icon" aria-label="pending">5</span>
                 <div>
                   <div class="label">Trigger your first action</div>
-                  <div class="description">A loyalty action fires in response to a CX signal.</div>
+                  <div class="description">First, create a loyalty program. Then a campaign can fire actions against it.</div>
                 </div>
-                <span class="action" style="font-size: 12px; color: var(--text-subtle)">Create a campaign</span>
+                <a href="#" class="action" style="font-size: 13px; color: var(--primary);">Create a loyalty program →</a>
               </div>
 
             </div>
@@ -305,7 +467,7 @@
 <!-- SCENE 3: Activated (all 5 steps complete) with TTFV            -->
 <!-- ============================================================= -->
 <section class="scene" id="scene-activated">
-  <div class="scene-label"><strong>Scene 3 — Activated</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: all 5 checklist steps complete; TTFV captured; banner visible until dismissed</div>
+  <div class="scene-label"><strong>Scene 5 — Activated</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: all 5 checklist steps complete (including programCreated); TTFV captured from OnboardingActivationEvent rows; banner visible until dismissed</div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
