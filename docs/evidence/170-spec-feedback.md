@@ -180,3 +180,72 @@
 - Validation Plan extended from 7 functional + 3 compliance + 2 performance items to 13 functional + 3 compliance + 2 performance items, including OD-5 abstraction integrity and per-step funnel emission tests.
 
 The submitted commit on this round will reference this file as evidence. Threads will be replied to inline on GitHub with pointers to the section landing each change.
+
+---
+
+## Round 2 Feedback
+
+*Received: 2026-04-25 23:55 → 2026-04-26 00:09 UTC. Reviewer: rmadhira86. PR #187. Commit reviewed: 1952089.*
+
+### Substantive feedback (5) — all ADDRESSED
+
+#### Comment R2-1 — ADDRESSED
+- **Author**: rmadhira86
+- **Type**: review_comment
+- **File**: `docs/feature-specs/170-onboarding-first-run.md`
+- **Line**: 104 (routes table — `/signup` row)
+- **Comment**: "Would this prevent the Sign-in with Google that Clerk currently provides? How do we account for this?"
+- **Status**: ADDRESSED
+- **Theme**: H — OAuth / social sign-in compatibility.
+- **Landed**: Step 0 — new "Social / OAuth sign-in" sub-section. OAuth handshake routes through `IdentityProvider.beginOAuth` / `completeOAuth` / `createOrgForUser`; the supported provider list is read at runtime from `IdentityProvider.listSupportedOAuthProviders()` so the rendered buttons follow whatever the active provider supports. New-user OAuth path lands on `/signup/finish` for org-name capture, then converges with the email/password flow into Step 1.
+
+#### Comment R2-2 — ADDRESSED
+- **Author**: rmadhira86
+- **Type**: review_comment
+- **File**: `docs/feature-specs/170-onboarding-first-run.md`
+- **Line**: 106 (routes table — `/admin/onboarding/profile` row)
+- **Comment**: "How does this theme tie with the settings > theme? Are these available as standard to the admin when they go to settings > theme?"
+- **Status**: ADDRESSED
+- **Theme**: I — Theme continuity.
+- **Landed**: Step 1.5 default-theme field row updated. Four stock `Theme` rows (Indigo / Forest / Sunset / Slate) are seeded for every Brand at provisioning per #157, and the same picker + same options surface in `/admin/settings/themes` and Settings → Brand → Default theme (per **#190**). "Custom (set later)" routes to the existing Themes CRUD create flow.
+
+#### Comment R2-3 — ADDRESSED
+- **Author**: rmadhira86
+- **Type**: review_comment
+- **File**: `docs/feature-specs/170-onboarding-first-run.md`
+- **Line**: 173 (Step 1 edge case — invited-admin)
+- **Comment**: "If this doesn't exist, create an issue to land this feature."
+- **Status**: ADDRESSED
+- **Theme**: J — File new GitHub issue.
+- **Landed**: Filed **#189 — Team management — invite admins to an existing Brand**. The Step 1 edge-case bullet now references #189 rather than "tracked as a follow-up."
+
+#### Comment R2-4 — ADDRESSED
+- **Author**: rmadhira86
+- **Type**: review_comment
+- **File**: `docs/feature-specs/170-onboarding-first-run.md`
+- **Line**: 174 (Step 1 edge case — brand name change)
+- **Comment**: "Create a separate issue to ensure that a new settings page is created to change Org details, default themes etc."
+- **Status**: ADDRESSED
+- **Theme**: J — File new GitHub issue.
+- **Landed**: Filed **#190 — Brand settings page — edit org details (name, logo, website, default theme, size)**. The Step 1 edge-case bullet for brand-name change now references #190; Step 1.5's theme-picker description points at #190 as the post-onboarding edit surface.
+
+#### Comment R2-5 — ADDRESSED
+- **Author**: rmadhira86
+- **Type**: review_comment
+- **File**: `docs/feature-specs/170-onboarding-first-run.md`
+- **Line**: 201 (Step 1.5 Validation — theme preview)
+- **Comment**: "What are you showing a preview of? The mock today doesn't allow clicks."
+- **Status**: ADDRESSED
+- **Theme**: K — Concrete preview spec + mock.
+- **Landed**: Step 1.5 Validation bullet replaced with a concrete description of three illustrative-only mini-surfaces (member-portal header chip, NPS survey card, reward-redemption tile) that swap theme tokens on swatch selection. Mock Scene 2 updated with a new "Preview · Indigo theme" panel under the swatches showing all three mini-surfaces, explicitly labeled "illustrative only — not clickable."
+
+## Round 2 summary
+
+- **5 of 5 comments addressed.**
+- 2 new GitHub issues filed (#189 team-management, #190 brand-settings).
+- OD-5 (IdentityProvider abstraction) extended with three new methods (`beginOAuth`, `completeOAuth`, `createOrgForUser`) plus `listSupportedOAuthProviders()` to support social sign-in without leaking Clerk-isms.
+- Step 0 gained a "Social / OAuth sign-in" sub-section.
+- Step 1.5 default-theme field row gained a "Theme continuity" paragraph; Validation bullet replaced with concrete preview spec.
+- Step 1 edge cases re-linked to #189 / #190 instead of placeholder text.
+- Mock Scene 2 gained a "Preview · Indigo theme" panel (3 mini-surfaces). Browser-validated at 1440×900.
+- Traceability matrix extended 22 → 27 rows (one row per addressed Round-2 comment).
