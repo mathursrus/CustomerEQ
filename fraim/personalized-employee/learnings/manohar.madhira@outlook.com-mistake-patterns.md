@@ -4,9 +4,31 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 
 ---
 
-## ⏳ Pending Review — 2026-04-24
+## ⏳ Pending Review — 2026-04-26
 
 ### Proposed new entries
+
+#### [P-HIGH] FRAIM discovery skipped or plan-mode entered before scanning job stubs
+
+**Score**: 9.0
+**Last seen**: 2026-04-24
+**Recurrences**: 3
+**First synthesized**: (pending)
+
+In a FRAIM-equipped repo, defaulting to Claude Plan mode or launching Explore agents before scanning `fraim/ai-employee/jobs/` stubs and calling `fraim_connect` + `get_fraim_job` is the most expensive recurring miss. Observed across 3 sessions: the 2026-04-20 broken-windows-detection coaching moment (raw/) where the user had to correct three times; the 2026-04-20 issue-157 broken-windows postmortem ("attempted to shortcut through FRAIM phases — marked report-generation phase as complete without creating the actual file"); and the 2026-04-24 issue-179 onboarding session ("dove directly into tool calls without first reading project_rules.md or matching the request to a FRAIM job"). The remediation is captured in feedback memory `feedback_fraim_before_plan_mode.md`; the fact that the pattern still resurfaced after the memory was saved is the reason this entry sits at score 9.0.
+
+---
+
+#### [P-HIGH] Committed an unrelated fix on an active feature branch
+
+**Score**: 9.0
+**Last seen**: 2026-04-24
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+Landed the pgvector `docker-compose.yml` fix directly on `feature/170-epic-onboarding-first-run-experience` even though the change had nothing to do with issue #170. Violated rule 10 (branch-issue linkage) and the yet-to-be-written R21 (branch scope hygiene). The correct sequence: (1) notice the fix is off-scope for the current branch, (2) file a new issue, (3) branch off `main`, (4) commit. All of that must happen *before* `git commit`, not after. The cost was two extra branch-surgery rounds and two issues filed retroactively.
+
+---
 
 #### [P-HIGH] Symptom-level fix instead of systemic abstraction
 
@@ -15,7 +37,7 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-When multiple files exhibit the same user-visible defect, mechanically replicating an existing "fix" across every file instead of solving the root cause at the shared layer. On issue #71, invisible form-input text was first "fixed" by adding `text-gray-900` to 50+ inputs across 7 files, mimicking the Programs page workaround. The real fix was a 5-line global CSS rule in `globals.css` setting `color: var(--foreground)` on `input, textarea, select`. Pattern: anchoring on a working reference implementation without asking whether that reference was itself correct or just "happened to work." This mistake directly motivated project rule #15.
+When multiple files exhibit the same user-visible defect, mechanically replicating an existing "fix" across every file instead of solving the root cause at the shared layer. On issue #71, invisible form-input text was first "fixed" by adding `text-gray-900` to 50+ inputs across 7 files, mimicking the Programs page workaround. The real fix was a 5-line global CSS rule in `globals.css` setting `color: var(--foreground)` on `input, textarea, select`. This mistake directly motivated project rule #15.
 
 ---
 
@@ -26,7 +48,29 @@ When multiple files exhibit the same user-visible defect, mechanically replicati
 **Recurrences**: 1
 **First synthesized**: (pending)
 
-First instinct when adding a `workflow_run`-triggered job was to use `${{ github.sha }}` in `actions/checkout` and image tag expressions. Under `workflow_run`, `github.sha` resolves to the default-branch tip at dispatch time — not the CI-tested commit. Without the `github.event.workflow_run.head_sha || github.sha` fallback, the deploy would have checked out and tagged the wrong commit's image — a subtle correctness bug that presents as a "working" deploy. Caught by re-reading GitHub Actions docs once before committing, but the initial instinct was wrong.
+First instinct when adding a `workflow_run`-triggered job was to use `${{ github.sha }}` in `actions/checkout` and image-tag expressions. Under `workflow_run`, `github.sha` resolves to the default-branch tip at dispatch time — not the CI-tested commit. Without the `github.event.workflow_run.head_sha || github.sha` fallback, the deploy would have checked out and tagged the wrong commit's image — a subtle correctness bug that presents as a "working" deploy. Caught by re-reading GitHub Actions docs once before committing.
+
+---
+
+#### [P-HIGH] Mock-vs-spec sync gaps when editing spec text without sweeping the mock
+
+**Score**: 8.0
+**Last seen**: 2026-04-26
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When editing a feature spec that has accompanying HTML/CSS mocks, spec-text edits with visual analogs were not paired with same-commit mock updates. On issue #170 (PR #187), Round 2 added a "Social / OAuth sign-in" section to the spec text but the corresponding Scene 1 mock was forgotten until the reviewer asked. Same root cause produced two further gaps caught only when the reviewer asked "is the mock in sync completely?" — a missing "Custom (set later)" 5th theme swatch and a Scene-4 dashboard CTA mismatch with the row-2 archetype indicator. The reviewer's "is X in sync?" pattern is a hard signal that the audit didn't happen — captured in feedback memory `feedback_audit_mock_vs_spec_at_every_round.md`.
+
+---
+
+#### [P-MED] `prep-issue.sh` runs `npm install` in pnpm-only repo
+
+**Score**: 5.0
+**Last seen**: 2026-04-25
+**Recurrences**: 2
+**First synthesized**: (pending)
+
+`~/.fraim/scripts/prep-issue.sh` defaults to running `npm install` after creating the worktree, but CustomerEQ is a pnpm/Turborepo workspace. On issue #166, the first smoke-test run failed with `Failed to load url @customerEQ/shared` because `node_modules/@customerEQ/*` were never built — required a manual `pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter ... build`. On issue #177, almost ran into the same trap; caught it by passing `--skip-install` and running `corepack pnpm install` manually. Pattern: any pnpm-based repo invoking this FRAIM script should pass `--skip-install` and follow up with pnpm tooling.
 
 ---
 
@@ -49,6 +93,39 @@ Long phased jobs can have their conversation context compacted mid-phase, which 
 **First synthesized**: (pending)
 
 Created `docs/evidence/2-design-evidence.md` during issue #2 only to discover afterward that `docs/evidence/**/*.png` etc. patterns exist in `.gitignore` (and historically the whole directory was excluded). The file existed locally but could not be referenced from a PR, defeating its purpose. Before writing any evidence file, run a quick check of `.gitignore` for the target path. If the destination is gitignored, either change the destination or embed the summary directly in the PR body.
+
+---
+
+#### [P-MED] Phase 4 completeness review is a single-axis audit (spec-vs-source only)
+
+**Score**: 5.0
+**Last seen**: 2026-04-26
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+The `feature-specification` job's Phase 4 traceability matrix catches spec-vs-source-requirement gaps (it caught #170's checklist-milestone gap correctly), but it does not catch mock-vs-spec gaps. On #170, three mock-vs-spec mismatches shipped to PR review because the completeness review was unidirectional. Mitigation: add a second pass to Phase 4 that walks every mock scene and confirms each visible element matches the spec's description of it. Cheap to run; catches a class of gap the existing matrix misses.
+
+---
+
+#### [P-MED] Claimed a file was missing without exhaustive search
+
+**Score**: 5.0
+**Last seen**: 2026-04-24
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+During discovery, asserted "no design system doc exists" after running a single narrow glob (`docs/**/*design-system*`). The user pushed back that `docs/` contains substantial design content, which surfaced `docs/architecture/architecture.md` (UI tech decisions) and `docs/replicate/screenshots/component-catalog.md` (visual reference). Absence claims must be based on at least one broad survey (`docs/**/*.md`) plus keyword grep, not a single pattern match. Frame as "I did not find X under pattern Y" rather than "X does not exist" when the search was narrow.
+
+---
+
+#### [P-MED] Overcorrected toward generating unnecessary artifacts on broad approvals
+
+**Score**: 4.0
+**Last seen**: 2026-04-24
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When the user said "add all the later items," nearly started hand-generating 120+ FRAIM job/skill/rule discovery stubs — which are redundant with the live MCP catalog — and a faked `docs/compliance/` bundle that is the output of a separate `compliance-review` job. Correct response was to push back, explain the scope issue, and propose narrower writes (AGENTS.md/CLAUDE.md pointer fix, 2 ADRs, learnings starter). Lesson: before accepting a broad "do everything" instruction, audit each item against (a) whether it is the current job's actual output and (b) whether it duplicates an upstream system of record.
 
 ---
 
