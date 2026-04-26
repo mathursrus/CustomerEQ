@@ -25,7 +25,7 @@ The platform is a multi-tenant loyalty engine with:
 | Category | Choice | Rationale |
 | :--- | :--- | :--- |
 | **Language** | TypeScript 5.4 (strict mode) | Type safety across all apps and packages; shared types prevent API/frontend contract drift |
-| **Runtime** | Node.js >= 20 | LTS with native ESM support; shared runtime across API, worker, and frontend SSR |
+| **Runtime** | Node.js >= 22 | LTS with native ESM support; shared runtime across API, worker, and frontend SSR. Track upstream Node LTS — bump within ~6 months of EOL. |
 | **Frontend** | Next.js 15 (App Router) + React 18 | SSR/SSG for marketing, RSC for data-heavy dashboards, client components for interactive forms |
 | **UI** | Tailwind CSS v4 + shadcn/ui (Radix primitives) | Utility-first CSS with accessible, copy-into-repo components — no black-box theme system to fight |
 | **Backend** | Fastify v5 | Schema-first routes with auto-validation, ~2x Express throughput, clean plugin architecture |
