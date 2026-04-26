@@ -132,9 +132,9 @@ See "Decisions for the reviewer" at the bottom of the RFC. Each is framed with a
 
 - Phase 1 `requirements-analysis` — complete
 - Phase 2 `design-authoring` — complete
-- Phase 3 `technical-spike` — skipped with rationale
+- Phase 3 `technical-spike` — initially skipped with rationale; **a spike was subsequently run during Phase 7 (Round 1 feedback)** at the reviewer's prompt. Findings landed in the RFC's "Spike Findings" section + the feedback file `docs/evidence/170-design-feedback.md`. Two interface fixes resulted (`completeOAuth` removed; `createUserWithOrg` cleanup contract clarified); confidence bumped 85 → 90.
 - Phase 4 `architecture-gap-review` — complete (in RFC + this evidence)
-- Phase 5 `design-completeness-review` — complete (this document)
-- Phase 6 `design-submission` — pending (commit + force-push approval needed)
-- Phase 7 `address-feedback` — pending reviewer comments
+- Phase 5 `design-completeness-review` — complete
+- Phase 6 `design-submission` — complete (commit `df216ff`, PR #196)
+- Phase 7 `address-feedback` — Round 1 addressed (1 comment); see `docs/evidence/170-design-feedback.md`
 - Phase 8 `retrospective` — pending PR merge

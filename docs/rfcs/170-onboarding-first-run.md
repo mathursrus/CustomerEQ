@@ -197,6 +197,11 @@ export type ProviderOrgId = string;
 
 export interface IdentityProvider {
   // — Account lifecycle —
+  // Internally 3 provider calls (createUser + createOrganization + addMembership
+  // for Clerk per scripts/onboard-org.mjs). On any sub-step failure, the
+  // implementation MUST clean up partial state — e.g., delete the just-created
+  // user if org-create fails — so the caller sees a binary success/failure.
+  // This contract is part of the interface, not an implementation detail.
   createUserWithOrg(args: {
     email: string;
     password: string;
@@ -212,15 +217,22 @@ export interface IdentityProvider {
   // — Session —
   getSession(sessionToken: string): Promise<{ userId: ProviderUserId; orgId: ProviderOrgId } | null>;
 
-  // — OAuth (added in spec Round 2) —
+  // — OAuth (added in spec Round 2; revised post-spike 2026-04-26) —
+  // Provider mediates the OAuth handshake (Clerk-hosted today). App does NOT
+  // receive an OAuth code + state — `beginOAuth` returns the provider's
+  // entry-point URL, the browser is redirected through it, and the provider
+  // sets a session cookie before redirecting back. After redirect-back,
+  // `getSession` reads that session as usual. There is no `completeOAuth`
+  // method because the app is not in the code-exchange path.
   listSupportedOAuthProviders(): Promise<Array<'google' | 'github' | 'microsoft' | string>>;
   beginOAuth(args: { provider: string; returnTo: string }): Promise<{ authorizationUrl: string }>;
-  completeOAuth(args: {
-    provider: string;
-    code: string;
-    state: string;
-  }): Promise<{ userId: ProviderUserId; isNewUser: boolean; profile: { email: string; name: string } }>;
+  // For the new-user-without-org path: after a fresh OAuth sign-up, the
+  // session has a `userId` but no `orgId`. Caller detects `orgId === null` on
+  // /signup/finish and calls createOrgForUser to provision the org.
   createOrgForUser(args: { userId: ProviderUserId; orgName: string }): Promise<{ orgId: ProviderOrgId }>;
+  // Profile fetch — used by the OAuth path to pre-fill the name/email on
+  // /signup/finish and by erasure to confirm we have the right user.
+  getUser(userId: ProviderUserId): Promise<{ email: string; name: string } | null>;
 
   // — Org lifecycle —
   getOrg(orgId: ProviderOrgId): Promise<{ id: ProviderOrgId; name: string }>;
@@ -278,9 +290,9 @@ This is the structural test that makes the abstraction durable.
 | Route | Method | Auth | Body / Query | Response | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `/api/auth/signup` | POST | Public | `{ email, password, name, orgName, agreedToTos: true }` | `{ redirectTo: '/admin/onboarding/profile' }` | Calls `IdentityProvider.createUserWithOrg`, inserts Brand + OnboardingState + first OnboardingActivationEvent in one transaction, signs the user in. Step 0 entry. |
-| `/api/auth/oauth/:provider/start` | GET | Public | `?returnTo=...` (optional) | 302 to provider | Calls `IdentityProvider.beginOAuth`. |
-| `/api/auth/oauth/:provider/callback` | GET | Public | `?code=...&state=...` | 302 to `/signup/finish` (new user) or `/admin` (existing) | Calls `IdentityProvider.completeOAuth`. |
-| `/api/auth/oauth/finish` | POST | Auth (just-created session) | `{ orgName }` | `{ redirectTo: '/admin/onboarding/profile' }` | Calls `IdentityProvider.createOrgForUser` then provisions Brand row. OAuth-path-only convergence point. |
+| `/api/auth/oauth/:provider/start` | GET | Public | `?returnTo=...` (optional) | 302 to `IdentityProvider.beginOAuth(...)`'s `authorizationUrl` | The provider (Clerk today) handles the entire OAuth handshake; `returnTo` is propagated through Clerk's redirect flow back to our app. |
+| `/api/auth/oauth/callback` | — | (no app-side handler needed) | — | — | Clerk's hosted OAuth handler is the actual callback target. The browser lands back on our app with a session cookie set by Clerk; the existing auth middleware reads the session via `IdentityProvider.getSession`. The app middleware checks: if `getSession` returns `{ userId, orgId: null }` (new-user case), redirect to `/signup/finish`; if `{ userId, orgId }` (existing user), redirect to `/admin`. **No app-side `code` exchange.** |
+| `/api/auth/signup/finish` | POST | Auth (post-OAuth session) | `{ orgName }` | `{ redirectTo: '/admin/onboarding/profile' }` | New-user-without-org convergence point. Calls `IdentityProvider.getUser(userId)` for email/name (pre-filled from OAuth profile) + `IdentityProvider.createOrgForUser({ userId, orgName })`, then provisions Brand row + OnboardingState + first OnboardingActivationEvent (same shape as `/api/auth/signup`). |
 | `/api/webhooks/identity-provider` | POST | Signed (via abstraction) | provider raw body | 200/204 | `IdentityProvider.parseWebhook` validates signature; only `organization.created` is acted on for provisioning (idempotent upsert on `clerkOrgId`). |
 | `/v1/admin/onboarding/profile` | PATCH | Admin (Clerk JWT) | `{ name?, logoUrl?, siteDomain?, defaultThemeId?, sizeCategory? }` (Zod) | `{ brand, onboardingState }` | Step 1.5 submit + post-onboarding edits (called by both onboarding form and the future #190 settings page). Emits `OnboardingActivationEvent { step: 'org_profile_completed' }` only on first save (idempotent on `OnboardingState.checklist.org_profile_completed`). |
 | `/v1/admin/onboarding/checklist` | PATCH | Admin (Clerk JWT) | `{ useCasePath?, checklist?: Partial<ChecklistShape> }` (Zod) | `{ onboardingState }` | Validated transitions per spec. Emits the matching `OnboardingActivationEvent` on each flag flip. Sets `activatedAt` when all 5 milestones first complete (in same transaction; emits `activated` event). |
@@ -395,6 +407,9 @@ When an erasure request is filed for a Brand or User, the existing erasure job (
 | :--- | :--- | :--- |
 | `IdentityProvider.createUserWithOrg` rate-limit | Step 0 / `/api/auth/signup` | 429 to the form; admin sees "We can't create your account right now…" banner with Retry button (per spec). Brand row is never created (transaction rolls back). |
 | `IdentityProvider.createUserWithOrg` network error | Same | Same banner; client auto-retries up to 3× before surfacing manual retry. |
+| `IdentityProvider.createUserWithOrg` partial failure (user created, org-create fails) | Inside `clerk-identity-provider.ts` | The implementation MUST clean up: delete the just-created Clerk user before re-raising, so the caller's transaction sees a clean failure. Per the interface contract (§3.1 comment). If the cleanup itself fails, log the orphaned user ID at ERROR with `{ orphanedUserId, originalError }`; manual janitor sweep handles eventually-consistent deletion. |
+| OAuth flow returns to app with `getSession` showing `{ userId, orgId: null }` | Middleware on the post-OAuth-redirect route | Redirect to `/signup/finish` (new-user-without-org path). `IdentityProvider.getUser(userId)` retrieves the profile to pre-fill the org-name form. |
+| `IdentityProvider.createOrgForUser` fails on `/api/auth/signup/finish` | OAuth path | Same banner pattern as Step 0 errors. The Clerk user already exists (created during OAuth); the user can retry the org-name form. No cleanup needed because the user can re-attempt without re-doing OAuth. |
 | Webhook signature verification fails | `/api/webhooks/identity-provider` | 401; no DB write. Logged with the request's signature header for support. |
 | Webhook handler crash mid-write | Same | Idempotent upsert on `clerkOrgId` ensures replay is safe. The webhook delivery service retries (Svix exponential backoff). |
 | `IdentityProvider.updateOrgName` fails | `/v1/admin/brand` PATCH | Brand row already updated locally; enqueue retry job (`onboarding-provider-sync` queue, max 5 retries with exponential backoff). Admin sees no error. |
@@ -443,16 +458,16 @@ When an erasure request is filed for a Brand or User, the existing erasure job (
 
 ## Confidence Level
 
-**85**.
+**90** *(revised post-spike from 85)*.
 
 Confidence breakdown:
 - **Data models**: high — fields enumerated; Prisma syntax is mechanical; new enum values are additive.
-- **IdentityProvider abstraction**: high — Clerk SDK exposes the primitives we wrap; ESLint rule structurally enforces the boundary.
+- **IdentityProvider abstraction**: **high** *(post-spike)* — the spike (see Spike Findings) verified the 4 highest-uncertainty methods against Clerk's documented surface. `parseWebhook` and `updateOrgName` map cleanly; `createUserWithOrg`'s internal-cleanup contract is now spec'd as part of the interface; `completeOAuth` was removed in favor of the `getSession` + `getUser` pattern that matches Clerk's actual OAuth model. The ESLint rule then structurally enforces the boundary on the corrected interface.
 - **Per-step funnel emission**: medium-high — cross-app emission via shared helper is a known pattern, but the worker-side emission (`campaignTriggers.ts` → `emitActivationStep`) crosses an app boundary that doesn't currently emit `AuditEvent` from the worker. May need a minor refactor of the audit-event plumbing; lowering confidence slightly.
-- **OAuth flow**: medium — the abstraction is clean but the `/signup/finish` convergence-point UX hasn't been mocked yet. Implementation may surface UX questions.
+- **OAuth flow**: high *(post-spike)* — the abstraction now matches Clerk's actual OAuth model (Clerk-mediated handshake; app reads session). The `/signup/finish` convergence-point UX still hasn't been mocked, but the structural design is clean.
 - **GDPR cascade order**: high — straightforward additive steps to an existing job.
 
-I'd assign 90 if the cross-app emission pattern were already proven in this codebase (it isn't — `AuditEvent` is currently emitted only from `apps/api`, not `apps/worker`). The plumbing change is small but not zero.
+The remaining residual risk is the cross-app emission of `first_action_triggered` from `apps/worker` (Risks #1). That alone keeps overall confidence at 90 rather than 95.
 
 ---
 
@@ -540,18 +555,37 @@ I'd assign 90 if the cross-app emission pattern were already proven in this code
 
 ---
 
-## Spike Findings (if applicable)
+## Spike Findings
 
-**Not applicable** — no spike was run for this RFC.
+A focused spike was run on **2026-04-26** in response to reviewer pushback on the RFC's "high" confidence rating for the IdentityProvider abstraction (PR #196 review comment on line 450).
 
-**Why no spike**: Per the spike-first development rule, a spike is needed only when an ambiguity is "high uncertainty" — i.e., when we don't know *how* to implement something. For this RFC:
+### What was spiked
 
-- **IdentityProvider abstraction**: Clerk's SDK already exposes the OAuth begin/complete primitives; the abstraction is mechanical wrapping. No uncertainty.
-- **Per-step funnel emission**: cross-app event emission is a solved pattern in this codebase (BullMQ for queued work; direct Prisma helpers for synchronous writes). The new `emitActivationStep` helper follows the same shape as `AuditEvent.create` in `apps/api/src/plugins/audit.ts`. No uncertainty about *how*.
-- **GDPR cascade**: additive steps to an existing job (`apps/worker/src/processors/erasure.ts`). The pattern is established.
-- **Webhook signature verification**: Svix is the documented Clerk pattern; we already use it in #156's webhook delivery work.
+Verified the four highest-uncertainty methods of the `IdentityProvider` interface against (a) the existing repo's Clerk usage, (b) the existing `scripts/onboard-org.mjs` for actual API patterns, (c) the installed `@clerk/backend` v3.2.12 and `@clerk/nextjs` v5.7.6 surface, and (d) Clerk's documented OAuth model.
 
-If the implementation phase surfaces an unforeseen integration issue (e.g., the worker-side emission path proves harder than expected), it will be flagged in that PR's body for the reviewer rather than retroactively rejecting the RFC's design.
+### Findings
+
+| Method | Result | Action |
+| :--- | :--- | :--- |
+| **`parseWebhook`** | ✅ **Clean.** Clerk's webhook payloads (delivered via Svix) match the proposed `NormalizedProviderEvent` union. `organization.created.created_by` is present and maps to `createdByUserId`. The 5 event types we use all exist in Clerk's spec. | None — interface kept as-is. |
+| **`updateOrgName`** | ✅ **Clean.** Single API call: `clerkClient.organizations.updateOrganization(orgId, { name })`. Returns the updated org. Maps 1:1. | None — interface kept as-is. |
+| **`createUserWithOrg`** | ⚠️ **Internally 3 Clerk API calls** (`createUser` + `createOrganization` + `createOrganizationMembership`) per the existing `scripts/onboard-org.mjs`. Hides a real partial-failure mode where the user is created but org-create fails. | Interface kept, but contract clarified: the implementation MUST clean up the just-created user on org-create failure so the caller sees a clean binary success/failure. Documented in §3.1 interface comment + §10 failure-modes table. |
+| **`completeOAuth({ code, state })`** | 🔴 **Wrong shape for Clerk.** Clerk owns the entire OAuth handshake (browser → Clerk's hosted OAuth → Google → Clerk's hosted callback → app's `returnTo`). The app **never receives an OAuth `code` or `state` directly**; it receives a session cookie set by Clerk. The original interface assumed app-driven code-exchange — that pattern doesn't apply to Clerk-mediated OAuth. | **Removed `completeOAuth` from the interface.** Replaced with the existing `getSession` (read the session after redirect-back) plus a new `getUser` method (retrieve email/name profile for the new-user-without-org path). The OAuth API surface (`§4`) updated: `/api/auth/oauth/:provider/start` calls `beginOAuth` and redirects; the callback is Clerk-hosted (no app-side handler); the app's existing auth middleware reads the session and routes new-users to `/signup/finish`. |
+
+### Design impact
+
+- **§3.1 Interface**: removed `completeOAuth`; added `getUser(userId) → { email, name } | null`; documented `createUserWithOrg`'s internal cleanup contract as part of the interface comment.
+- **§4 API surface**: `/api/auth/oauth/:provider/callback` row removed (Clerk owns it). `/api/auth/signup/finish` row clarified for the new-user-without-org path; explicitly notes that profile pre-fill comes from `IdentityProvider.getUser(userId)`, not from a `code` exchange.
+- **§10 Failure modes**: added 3 rows — `createUserWithOrg` partial failure (with user-cleanup contract), OAuth `getSession` returning `orgId: null` for new users, `createOrgForUser` failure on `/api/auth/signup/finish`.
+- **§"Confidence Level"**: revised — see below.
+
+### Spike rationale
+
+The spike was the right call. Without it, we would have shipped an interface with a 12-method shape that included a method (`completeOAuth({ code, state })`) that doesn't exist in Clerk's OAuth model — the implementation would have either had to fake it or required a redesign mid-implementation, and any sub-issue depending on the OAuth flow (#171 / #172 / #173 archetype connect flows that gate on a logged-in admin) could have been misled by the wrong contract.
+
+The same pattern would have shipped the `createUserWithOrg` partial-failure mode silently, which would have produced orphaned Clerk users on the rare provider-failure paths until a janitor task was added later.
+
+The cost of the spike was ~30 minutes of code-and-docs review; the cost of catching these in implementation would have been a partial RFC rewrite + sub-issue rework.
 
 ---
 
