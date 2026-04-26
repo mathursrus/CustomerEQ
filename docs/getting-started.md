@@ -8,7 +8,7 @@ This guide helps new collaborators set up a local development environment and st
 
 | Tool | Version | Install |
 |---|---|---|
-| **Node.js** | >= 20 | [nodejs.org](https://nodejs.org/) or `nvm install 20` |
+| **Node.js** | >= 22 | [nodejs.org](https://nodejs.org/) or `nvm install 22` |
 | **pnpm** | >= 9 | `corepack enable && corepack prepare pnpm@9 --activate` |
 | **Docker** | Latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
 | **Git** | Latest | [git-scm.com](https://git-scm.com/) |
