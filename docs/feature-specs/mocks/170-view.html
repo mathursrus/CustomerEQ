@@ -270,7 +270,7 @@
           <!-- Default theme -->
           <div>
             <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 6px;">Default theme</label>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
               <div style="border: 2px solid var(--primary); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; background: var(--primary-soft);">
                 <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); margin-bottom: 6px;"></div>
                 <div style="font-size: 11px; font-weight: 500;">Indigo</div>
@@ -287,8 +287,12 @@
                 <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #475569 0%, #334155 100%); margin-bottom: 6px;"></div>
                 <div style="font-size: 11px; font-weight: 500;">Slate</div>
               </div>
+              <div style="border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; background: var(--surface-muted); display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;">
+                <div style="height: 28px; width: 100%; border-radius: 4px; background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.05) 4px, rgba(0,0,0,0.05) 8px); margin-bottom: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 18px;">+</div>
+                <div style="font-size: 11px; font-weight: 500; color: var(--text-muted);">Custom (set later)</div>
+              </div>
             </div>
-            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Same four themes are available later under Settings → Themes (#190). Picking here only sets your default; you can override per-asset anytime.</p>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Same four themes are available later under Settings → Themes (#190). "Custom (set later)" routes you to the existing Themes create flow. Picking here only sets your default; you can override per-asset anytime.</p>
 
             <!-- Theme Preview panel: illustrative-only, non-clickable -->
             <div style="margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-muted); padding: 14px;">
@@ -497,18 +501,19 @@
             <div class="health-card">
               <h4>CX Health</h4>
               <div class="empty">
-                <p>No surveys yet.</p>
-                <a href="#" class="btn btn-ghost">Create your first survey</a>
+                <p>No CX events yet.</p>
+                <a href="#" class="btn btn-ghost">Send a CX event via API</a>
               </div>
             </div>
             <div class="health-card">
               <h4>Loyalty Health</h4>
               <div class="empty">
                 <p>No campaigns active.</p>
-                <a href="#" class="btn btn-ghost">Create your first campaign</a>
+                <a href="#" class="btn btn-ghost">Trigger a campaign from a CX event</a>
               </div>
             </div>
           </div>
+          <p style="font-size: 11px; color: var(--text-subtle); margin: 12px 0 0;">Empty-state CTAs and quick-adds vary by <code style="background: var(--surface-muted); padding: 1px 4px; border-radius: 3px;">OnboardingState.useCasePath</code> — this scene shows the <strong>I have my own application</strong> archetype. Site / multi-app / skipped variants surface different next-step actions per the spec's "Path-specific dashboard states" matrix.</p>
 
         </main>
       </div>
