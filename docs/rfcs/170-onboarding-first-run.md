@@ -58,9 +58,6 @@ model Brand {
   defaultThemeId    String?           // FK → Theme (existing model from #157/ADR 0001)
   sizeCategory      OrgSizeCategory?  // NEW enum, see below
 
-  // NEW (forward-compat slot for future pricing — does NOT ship a tier today)
-  planTier          String?           // null = Free; reserved for future Subscription FK
-
   // NEW relations
   defaultTheme        Theme?                       @relation("DefaultTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
   onboardingState     OnboardingState?
@@ -76,7 +73,7 @@ enum OrgSizeCategory {
 }
 ```
 
-**Why no `Subscription` model now**: pricing is not finalized (per project memory `project_pricing_not_finalized.md` and the spec's forward-compat section). `planTier: String?` reserves the column without locking a shape; when the pricing-strategy job lands, the column is replaced by a proper FK to `Subscription` in a follow-up migration.
+**No pricing/subscription column today** *(reviewer decision PR #196 Round 2)*: pricing model is not finalized (project memory `project_pricing_not_finalized.md`), so the RFC does **not** add a placeholder column. The pricing-strategy job will land both the data shape (column, FK to `Subscription`, or other) and the corresponding API/UI surfaces together when it runs. The Step 0 form retains a visual "Reserved for plan selection" slot per the spec, but that slot is UX-only and writes nothing to the schema. **Revisit point**: when pricing is finalized, this RFC's data-model section needs an addendum (or a follow-up RFC) covering the schema and migration.
 
 #### 2.2 `OnboardingState` — new 1:1 model (OD-3)
 
@@ -183,7 +180,7 @@ The #173 RFC will pin per-app verification semantics; this RFC only adds the str
 
 #### 2.5 Migration strategy
 
-- **One migration** at the start of implementation: `20260427000000_onboarding_first_run` adds all of the above (`OnboardingState`, `OnboardingActivationEvent`, `Brand` field additions, `OrgSizeCategory` enum, `OnboardingStep` enum, `UseCasePath` enum, `APPLICATION` source-type enum value, `ApiKey.externalSignalSourceId`).
+- **One migration** at the start of implementation: `20260427000000_onboarding_first_run` adds all of the above (`OnboardingState`, `OnboardingActivationEvent`, `Brand` field additions [`siteDomain`, `logoUrl`, `defaultThemeId`, `sizeCategory`], `OrgSizeCategory` enum, `OnboardingStep` enum, `UseCasePath` enum, `APPLICATION` source-type enum value, `ApiKey.externalSignalSourceId`). No `planTier` column — see §2.1.
 - All new fields on `Brand` are nullable to avoid blocking existing rows; migration does **not** backfill `siteDomain`/`logoUrl`/etc. — existing brands keep nulls and the org-profile route allows them to populate at any time.
 - For existing Brands, a one-shot data backfill creates `OnboardingState` rows with `checklist = { brandCreated: true, /* rest false */ }` and emits a single `OnboardingActivationEvent { step: 'account_created' }`. Run as part of the migration (Prisma `migrate deploy` with a follow-up SQL script invoked from the API on first boot of the new release; idempotent on `OnboardingState.brandId` unique).
 
@@ -448,7 +445,7 @@ When an erasure request is filed for a Brand or User, the existing erasure job (
 
 ### 13. Out of scope
 
-- **Plan / pricing UI in Step 0** — placeholder slot only; `Brand.planTier` is reserved but unused. Future epic.
+- **Plan / pricing UI in Step 0** — visual placeholder slot only (no schema field); the pricing-strategy job lands both the UI and the data shape together when pricing is finalized.
 - **Multi-org / enterprise hierarchy** — gated on #19 / #44.
 - **SSO** — gated on #45.
 - **Custom theme creation** — uses existing `Theme` CRUD entity from #157; no new theme-builder UX in this RFC.
@@ -548,7 +545,7 @@ The remaining residual risk is the cross-app emission of `first_action_triggered
 | **`Brand.name` divergence between CustomerEQ DB and provider during retry-job lag** | Low | Spec accepted this trade-off (DB is source of truth). UI never reads from provider in the request path, so user-visible inconsistency is impossible. |
 | **`OnboardingActivationEvent` table grows large over time** | Low | ~9 rows per Brand for activation flow + ~1 row for any state change; pessimistically ~50 rows × 100k brands = 5M rows over years. Indexes on `(brandId, occurredAt)` and `(step, occurredAt)` keep funnel queries fast. Partitioning is unnecessary at this scale. |
 | **GDPR erasure provider-side calls fail** | Low | Best-effort with retry. Accepted because the local DB rows are deleted (the canonical compliance obligation); provider-side removal is a hygiene step that can be retried on a schedule. |
-| **Pricing-strategy work introduces a `Subscription` model that conflicts with `Brand.planTier`** | Medium | The current placeholder column is `String?` — easy to migrate to a FK or to drop entirely. The pricing-strategy RFC will own that migration; this RFC commits not to encode tier semantics in the spine code. |
+| **Pricing-strategy work needs a fresh schema decision later** *(reviewer reversal in PR #196 Round 2)* | Low | No `planTier` column in this RFC, so there is nothing to migrate or drop later. When pricing lands, the pricing-strategy RFC owns the schema design end-to-end (column, FK to `Subscription`, or other). The only obligation here is to revisit this RFC's `Brand` section then. |
 | **Lint rule `no-restricted-imports` is bypassed by `// eslint-disable-next-line` in a sub-issue PR** | Low | Add a CI check that `git grep -E "@clerk/(?!.*identity-provider)"` returns zero results outside the abstraction file. Failsafe over lint comments. |
 | **Concurrent activation: two admins flip the last checklist item at the same time** | Low | Postgres row-level lock on `OnboardingState` during the PATCH transaction. The first transaction wins; the second sees the row already activated and is a no-op. |
 | **Cross-archetype path-switch loses progress** | Low | Per spec: switching paths is additive — existing progress (API key generated, survey published) is preserved. The `useCasePath` field is set freely; checklist flags are not reset. |
@@ -649,9 +646,9 @@ None identified.
 
 ---
 
-## Decisions for the reviewer
+## Decisions for the reviewer — RESOLVED in PR #196 Round 2
 
-1. **Single migration vs. phased migrations** — the RFC commits to a single migration that adds everything (`OnboardingState`, `OnboardingActivationEvent`, all `Brand` fields, all enums, the `ApiKey` FK). Alternative: split into two — schema-first (models + enums) and Brand-additions second. *Recommendation: single migration.* Rationale: the additions are tightly coupled (the spine doesn't work if any one is missing), and Prisma's `migrate deploy` runs them atomically.
-2. **`Brand.planTier: String?` placeholder vs. omit entirely** — the RFC reserves the column. Alternative: drop until pricing lands. *Recommendation: keep the placeholder.* Rationale: adding a nullable column later is cheap, but removing test coverage / API exposure once `planTier` is observable is the costlier direction.
-3. **ADR scope** — should the funnel decision get its own ADR (0005) or roll into the IdentityProvider ADR (0004)? *Recommendation: roll into 0004 for now.* Rationale: ADR 0001 set a precedent of one ADR per cross-cutting decision; OD-4 + OD-5 are tightly coupled (both shape how onboarding events leave the spine), so co-locating them keeps the architecture-doc surface area smaller. Open to reversal if the reviewer prefers separate ADRs.
-4. **Worker-side emission of `first_action_triggered`** — the RFC adds the `emitActivationStep` import to `apps/worker/src/processors/campaignTriggers.ts`. Alternative: keep emission in `apps/api` by adding a campaign-fired event the worker enqueues for the API to consume. *Recommendation: direct emission from the worker.* Rationale: simpler, fewer hops; the helper is already cross-app via `packages/shared`.
+1. ✅ **Single migration vs. phased migrations** — Resolved: **single migration**. (Reviewer: "Agreed".) RFC unchanged.
+2. 🔄 **`Brand.planTier: String?` placeholder vs. omit entirely** — Resolved: **omit entirely**. *(Reviewer: "Plan tier or method is unknown at this time. So I won't design for it yet. Suggest omitting entirely while remembering that we will have to revisit this when pricing model is finalized.")* RFC §2.1 updated: `planTier` removed; revisit-point flagged for the pricing-strategy job. §13 updated to clarify the slot is UX-only. Risks table item updated.
+3. ✅ **ADR scope** — Resolved: **one ADR**. (Reviewer: "One ADR is fine".) ADR 0004 covers both OD-4 (activation funnel) and OD-5 (IdentityProvider abstraction). The optional ADR 0005 is dropped from the architecture-updates plan.
+4. ✅ **Worker-side emission of `first_action_triggered`** — Resolved: **direct emission from the worker**. (Reviewer: "Agreed".) RFC unchanged.

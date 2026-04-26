@@ -136,5 +136,5 @@ See "Decisions for the reviewer" at the bottom of the RFC. Each is framed with a
 - Phase 4 `architecture-gap-review` — complete (in RFC + this evidence)
 - Phase 5 `design-completeness-review` — complete
 - Phase 6 `design-submission` — complete (commit `df216ff`, PR #196)
-- Phase 7 `address-feedback` — Round 1 addressed (1 comment); see `docs/evidence/170-design-feedback.md`
+- Phase 7 `address-feedback` — Round 1 addressed (1 comment, spike); Round 2 addressed (4 comments on "Decisions for the reviewer" — single migration, planTier placeholder reversal → omit, single ADR, worker-direct emission); see `docs/evidence/170-design-feedback.md`
 - Phase 8 `retrospective` — pending PR merge
