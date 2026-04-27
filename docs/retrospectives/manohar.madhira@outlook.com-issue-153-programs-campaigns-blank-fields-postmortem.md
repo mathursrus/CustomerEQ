@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-20
-synthesized:
+synthesized: 2026-04-27
 ---
 
 # Postmortem: Programs and Campaigns blank fields fix - Issue #153

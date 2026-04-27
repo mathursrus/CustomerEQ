@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-26
-synthesized: false
+synthesized: 2026-04-27
 ---
 
 # Postmortem: Onboarding & First-Run Experience — feature spec — Issue #170
