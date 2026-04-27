@@ -43,12 +43,12 @@ ALTER TABLE "brands"
   ADD COLUMN "defaultThemeId" TEXT,
   ADD COLUMN "sizeCategory"   "OrgSizeCategory";
 
-ALTER TABLE "brands"
-  ADD CONSTRAINT "brands_defaultThemeId_fkey"
-  FOREIGN KEY ("defaultThemeId")
-  REFERENCES "survey_themes"("id")
-  ON DELETE SET NULL
-  ON UPDATE CASCADE;
+-- Note: no FK constraint to survey_themes(id). The survey_themes table is not
+-- present in the migration history (pre-existing schema-vs-migrations drift);
+-- adding the FK here would block this migration from validating against a
+-- fresh shadow DB. Application code enforces the referential check on writes.
+-- A follow-up drift-fix PR will (1) add a migration creating survey_themes,
+-- then (2) re-add the FK constraint here via a separate migration.
 
 -- ── ApiKey: per-app linkage (OD-2; #173 consumes) ────────────────────────────
 

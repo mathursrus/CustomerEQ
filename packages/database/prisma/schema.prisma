@@ -170,13 +170,17 @@ model Brand {
   // Step 1.5 org-profile fields (Issue #170)
   siteDomain            String?
   logoUrl               String?
+  // FK to SurveyTheme.id when set. Application code is responsible for the
+  // referential integrity check; we do not declare a Prisma @relation here
+  // because the existing `survey_themes` table is not in the migration history
+  // (pre-existing schema-vs-migrations drift). PR 5 / a follow-up drift fix
+  // restores the @relation once survey_themes has a backing migration.
   defaultThemeId        String?
   sizeCategory          OrgSizeCategory?
   programs              Program[]
   members               Member[]
   surveys               Survey[]
   surveyThemes          SurveyTheme[]
-  defaultTheme          SurveyTheme?           @relation("DefaultBrandTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
   questionTemplates     QuestionTemplate[]
   alertRules            AlertRule[]
   caseFollowUps         CaseFollowUp[]
@@ -617,8 +621,6 @@ model SurveyTheme {
   brand     Brand   @relation(fields: [brandId], references: [id])
   name      String
   isDefault Boolean @default(false)
-  // Inverse for Brand.defaultTheme (Issue #170)
-  brandsWithDefault Brand[] @relation("DefaultBrandTheme")
 
   logoUrl   String?
   brandName String?
