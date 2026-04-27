@@ -21,8 +21,6 @@ export interface IdentityProvider {
     orgName: string
   }): Promise<{ userId: ProviderUserId; orgId: ProviderOrgId }>
 
-  signInUser(args: { email: string; password: string }): Promise<{ sessionToken: string }>
-
   // Returns null when token is invalid/expired. Returns `{ userId, orgId: null }`
   // for a freshly-OAuth'd user that doesn't have an organization yet — caller
   // detects this and routes to /signup/finish.

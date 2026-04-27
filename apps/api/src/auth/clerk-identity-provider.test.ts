@@ -19,9 +19,6 @@ const clerkMock = vi.hoisted(() => ({
   sessions: {
     verifyToken: vi.fn(),
   },
-  signIns: {
-    create: vi.fn(),
-  },
 }))
 
 vi.mock('@clerk/backend', () => ({
@@ -39,11 +36,14 @@ import { verifyToken } from '@clerk/backend'
 
 const mockedVerifyToken = vi.mocked(verifyToken)
 
+const loggerMock = { error: vi.fn() }
+
 function buildProvider() {
   return new ClerkIdentityProvider({
     secretKey: 'sk_test_123',
     webhookSecret: 'whsec_test_123',
     oauthProviders: ['google', 'github'],
+    logger: loggerMock,
   })
 }
 
@@ -135,9 +135,10 @@ describe('ClerkIdentityProvider', () => {
       expect(clerkMock.users.deleteUser).toHaveBeenCalledWith('user_o2')
     })
 
-    it('logs but does not rethrow when cleanup itself fails', async () => {
-      // Per interface contract: orphan is logged at ERROR; the original
-      // error is re-raised. Cleanup-failure must not mask the real cause.
+    it('logs the orphaned-user metadata via the injected logger when cleanup itself fails (does not rethrow cleanup error)', async () => {
+      // Per interface contract: orphan is logged at ERROR via the injected
+      // logger; the original error is re-raised. Cleanup-failure must not
+      // mask the real cause.
       clerkMock.users.createUser.mockResolvedValueOnce({ id: 'user_double_fail' })
       clerkMock.organizations.createOrganization.mockRejectedValueOnce(
         new Error('original-cause'),
@@ -153,6 +154,15 @@ describe('ClerkIdentityProvider', () => {
           orgName: 'Acme',
         }),
       ).rejects.toThrow('original-cause')
+
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orphanedUserId: 'user_double_fail',
+          originalError: 'original-cause',
+          cleanupError: 'cleanup-failed',
+        }),
+        expect.stringMatching(/orphaned/i),
+      )
     })
   })
 
@@ -558,30 +568,4 @@ describe('ClerkIdentityProvider', () => {
     })
   })
 
-  describe('signInUser', () => {
-    it('returns sessionToken on credentials match', async () => {
-      clerkMock.signIns.create.mockResolvedValueOnce({
-        createdSessionId: 'sess_token_xyz',
-      })
-
-      const provider = buildProvider()
-      const result = await provider.signInUser({
-        email: 'a@b.test',
-        password: 'pw1234567890',
-      })
-
-      expect(result).toEqual({ sessionToken: 'sess_token_xyz' })
-    })
-
-    it('throws on bad credentials', async () => {
-      clerkMock.signIns.create.mockRejectedValueOnce(
-        Object.assign(new Error('bad creds'), { status: 401 }),
-      )
-
-      const provider = buildProvider()
-      await expect(
-        provider.signInUser({ email: 'a@b.test', password: 'bad' }),
-      ).rejects.toThrow('bad creds')
-    })
-  })
 })

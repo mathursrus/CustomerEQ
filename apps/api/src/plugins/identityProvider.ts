@@ -29,6 +29,7 @@ const identityProviderPlugin: FastifyPluginAsync = async (fastify) => {
     webhookSecret,
     oauthProviders,
     frontendApi: process.env.CLERK_FRONTEND_API,
+    logger: fastify.log,
   })
 
   fastify.decorate('identityProvider', provider)

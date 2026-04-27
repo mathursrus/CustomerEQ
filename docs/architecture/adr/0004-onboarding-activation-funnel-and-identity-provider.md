@@ -53,7 +53,11 @@ All identity-provider interactions in `apps/api` go through a single TypeScript 
 // apps/api/src/auth/identity-provider.ts
 export interface IdentityProvider {
   createUserWithOrg(...): Promise<{ userId; orgId }>
-  signInUser(...): Promise<{ sessionToken }>
+  // Note: there is no `signInUser` method. Sign-in is browser-driven via
+  // `Clerk.client.signIn.create()` after `createUserWithOrg` succeeds; the
+  // backend interface intentionally does not expose a method that the
+  // current SDK design cannot implement. Decision recorded in PR #197
+  // Round 1 (2026-04-27).
   getSession(token): Promise<{ userId; orgId | null } | null>
   listSupportedOAuthProviders(): Promise<string[]>
   beginOAuth(...): Promise<{ authorizationUrl }>

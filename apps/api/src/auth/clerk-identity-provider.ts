@@ -11,6 +11,13 @@ import type {
   ProviderUserId,
 } from './identity-provider.js'
 
+// Pino-shaped logger interface — matches Fastify's `fastify.log`. Kept narrow
+// (only the methods this impl uses) so a test fixture can satisfy it with a
+// couple of `vi.fn()` calls and we don't pull pino's full type into the file.
+export interface ClerkProviderLogger {
+  error(obj: Record<string, unknown>, msg: string): void
+}
+
 interface ClerkConfig {
   secretKey: string
   webhookSecret: string
@@ -18,6 +25,10 @@ interface ClerkConfig {
   // Frontend-API origin used to build OAuth handshake URLs. In real Clerk this
   // is the dashboard-configured frontend host (e.g. clerk.acme.test).
   frontendApi?: string
+  // Required: orphan-cleanup paths (when both the original SDK call AND the
+  // cleanup attempt fail) emit ERROR-level logs with structured metadata via
+  // this logger. Production passes `fastify.log`; tests pass a vi.fn() mock.
+  logger: ClerkProviderLogger
 }
 
 type ClerkClient = ReturnType<typeof createClerkClient>
@@ -28,6 +39,7 @@ export class ClerkIdentityProvider implements IdentityProvider {
   private oauthProviders: string[]
   private frontendApi: string
   private secretKey: string
+  private logger: ClerkProviderLogger
 
   constructor(config: ClerkConfig) {
     this.client = createClerkClient({ secretKey: config.secretKey })
@@ -35,6 +47,7 @@ export class ClerkIdentityProvider implements IdentityProvider {
     this.oauthProviders = config.oauthProviders
     this.frontendApi = config.frontendApi ?? 'https://accounts.clerk.dev'
     this.secretKey = config.secretKey
+    this.logger = config.logger
   }
 
   async createUserWithOrg(args: {
@@ -69,11 +82,14 @@ export class ClerkIdentityProvider implements IdentityProvider {
       try {
         await this.client.users.deleteUser(userId)
       } catch (cleanupErr) {
-        console.error('[ClerkIdentityProvider] orphaned user after createOrganization failure', {
-          orphanedUserId: userId,
-          originalError: err instanceof Error ? err.message : String(err),
-          cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
-        })
+        this.logger.error(
+          {
+            orphanedUserId: userId,
+            originalError: err instanceof Error ? err.message : String(err),
+            cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          },
+          'orphaned Clerk user after createOrganization failure',
+        )
       }
       throw err
     }
@@ -93,32 +109,19 @@ export class ClerkIdentityProvider implements IdentityProvider {
       try {
         await this.client.users.deleteUser(userId)
       } catch (cleanupErr) {
-        console.error('[ClerkIdentityProvider] orphaned user after membership failure', {
-          orphanedUserId: userId,
-          originalError: err instanceof Error ? err.message : String(err),
-          cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
-        })
+        this.logger.error(
+          {
+            orphanedUserId: userId,
+            originalError: err instanceof Error ? err.message : String(err),
+            cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          },
+          'orphaned Clerk user after membership failure',
+        )
       }
       throw err
     }
 
     return { userId, orgId }
-  }
-
-  async signInUser(args: {
-    email: string
-    password: string
-  }): Promise<{ sessionToken: string }> {
-    // The backend SDK's signIns API exchanges email/password for a session.
-    // The exact response shape varies by SDK version; this returns the
-    // session id string used by getSession callers.
-    const result = await (this.client as unknown as {
-      signIns: { create: (args: { identifier: string; password: string }) => Promise<{ createdSessionId: string }> }
-    }).signIns.create({
-      identifier: args.email,
-      password: args.password,
-    })
-    return { sessionToken: result.createdSessionId }
   }
 
   async getSession(
