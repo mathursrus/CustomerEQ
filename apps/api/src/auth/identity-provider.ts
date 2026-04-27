@@ -1,5 +1,3 @@
-import type { FastifyRequest } from 'fastify'
-
 export type ProviderUserId = string
 export type ProviderOrgId = string
 
@@ -69,9 +67,16 @@ export interface IdentityProvider {
   // Verifies the webhook signature inside the implementation; nothing outside
   // the abstraction sees the raw provider event shape. Returns null when the
   // event type is not one we act on (caller treats as 200 no-op).
-  parseWebhook(
-    rawRequest: Pick<FastifyRequest, 'headers' | 'body'>,
-  ): Promise<NormalizedProviderEvent | null>
+  //
+  // CONTRACT: `rawBody` MUST be the raw bytes received over the wire, NOT a
+  // re-serialized parsed JSON object. Svix verifies the exact bytes that were
+  // signed; re-stringified JSON differs (key order, whitespace) and verification
+  // fails. The route handler is responsible for capturing raw body via Fastify's
+  // `addContentTypeParser` (see PR 2 webhook route).
+  parseWebhook(args: {
+    headers: Record<string, string | string[] | undefined>
+    rawBody: string
+  }): Promise<NormalizedProviderEvent | null>
 }
 
 declare module 'fastify' {

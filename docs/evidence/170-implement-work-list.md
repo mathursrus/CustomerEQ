@@ -79,7 +79,7 @@ Builds on PR 1's data + abstraction. API-only — no UI.
 
 - [ ] NEW `apps/api/src/routes/auth.ts` (or `auth-onboarding.ts` to avoid colliding with any future `auth.ts`) — registers POST `/api/auth/signup`, GET `/api/auth/oauth/:provider/start`, POST `/api/auth/signup/finish`. **Convention decision**: existing routes are flat under `apps/api/src/routes/` (no subdirectories). Pinning to flat convention; consolidate the three handlers into one route module. Per RFC §4.
 - [ ] NEW `apps/api/src/routes/auth.test.ts` — integration tests for each endpoint covering happy path + the failure modes from RFC §10 (rate-limit, partial-failure, email-duplicate, OAuth new-user-without-org).
-- [ ] NEW `apps/api/src/routes/identityProviderWebhook.ts` — POST `/api/webhooks/identity-provider`. Verifies signature via `IdentityProvider.parseWebhook`; acts on `organization.created` / `organization.updated` / `organization.deleted` / `user.deleted`. Per RFC §5.
+- [ ] NEW `apps/api/src/routes/identityProviderWebhook.ts` — POST `/api/webhooks/identity-provider`. Verifies signature via `IdentityProvider.parseWebhook`; acts on `organization.created` / `organization.updated` / `organization.deleted` / `user.deleted`. Per RFC §5. **Security carry-over from PR 1 (SEC-170-001)**: route handler MUST register a Fastify `addContentTypeParser` for the webhook content-type that captures the raw body buffer; pass that buffer (as string) to `IdentityProvider.parseWebhook({ headers, rawBody })` so svix verifies the exact signed bytes (not Fastify's re-parsed JSON).
 - [ ] NEW `apps/api/src/routes/identityProviderWebhook.test.ts` — tests covering the full webhook table from RFC §5 + signature-rejection (validation row 11).
 - [ ] NEW `packages/shared/src/zod/onboarding.ts` — shared Zod schemas (`signupRequestSchema`, `oauthFinishRequestSchema`, plus stubs for the schemas PR 3 will fill in to keep one source of truth). Per RFC §4.1.
 - [ ] `apps/api/src/server.ts` (or `app.ts`) — register the two new route modules.
@@ -108,6 +108,7 @@ Builds on PR 2's auth API. Web-only — no API changes.
 - [ ] NEW `apps/web/src/app/(auth)/signup/finish/page.tsx` — OAuth-path convergence form (org-name only, email/name pre-filled from `IdentityProvider.getUser`).
 - [ ] `apps/web/src/app/sign-in/[[...sign-in]]/page.tsx` — keep Clerk catch-all (per resolved decision); add `<OAuthButtonRow />` parity only.
 - [ ] `apps/web/src/middleware.ts` — handle post-OAuth-redirect: if `getSession` returns `{ userId, orgId: null }` redirect to `/signup/finish`. Per RFC §4 oauth-callback row.
+- [ ] **Security fix forwarded from PR 1 (SEC-170-002)**: validate `returnTo` query param on `/api/auth/oauth/:provider/start` before passing to `IdentityProvider.beginOAuth`. Zod refine: must be a relative path starting with `/admin/` OR a same-origin URL. Reject otherwise (400). Defense-in-depth even when Clerk's redirect_url allowlist is configured.
 - [ ] NEW `apps/web/test/e2e/signup-paths.spec.ts` — Playwright E2E covering validation rows #1, #2 (signup happy path, OAuth happy path with mocked provider).
 
 **Validation (PR 3 — UI)**:
@@ -196,6 +197,7 @@ Step emission additions to existing handlers:
 - [ ] `apps/worker/src/processors/campaignTriggers.ts` — on first action triggered for a Brand, call `emitActivationStep(brandId, 'first_action_triggered')`. Cross-app emission. Per RFC §7 + Confidence-level note.
 - [ ] `apps/worker/src/processors/campaignTriggers.test.ts` — extend.
 - [ ] NEW `packages/shared/src/onboarding/emit-activation-step.ts` — extract the helper from `apps/api/src/services/onboarding.ts` so the worker can import it. The api-side service becomes a re-export. Per RFC §7.1.
+- [ ] **Security fix forwarded from PR 1 (SEC-170-003)**: `emitActivationStep` validates `metadata` against an allowlist of keys (`source`, `oauth_provider`, `picked_path`, `skipped`, `backfilled`) and rejects/strips any `email` / `name` / `phone` / `ip` fields at runtime. Prevents PII leakage into the funnel-event metadata field per GDPR data-minimization.
 
 GDPR cascade:
 - [ ] `apps/worker/src/processors/erasure.ts` — **uncertainty**: RFC §9 references this file as "existing" but it does not appear in the worker glob. Verify during PR 4 implementation: it may live under a different name (e.g., processor in another file) or may genuinely need to be created. Action items added on top of whatever exists per RFC §9: delete `OnboardingActivationEvent` rows; rely on cascade for `OnboardingState`; delete logo from object storage; call `IdentityProvider.deleteUser` + `deleteOrg`; emit `AuditEvent` for the erasure.

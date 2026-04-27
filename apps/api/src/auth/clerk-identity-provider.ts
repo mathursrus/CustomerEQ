@@ -10,7 +10,6 @@ import type {
   ProviderOrgId,
   ProviderUserId,
 } from './identity-provider.js'
-import type { FastifyRequest } from 'fastify'
 
 interface ClerkConfig {
   secretKey: string
@@ -265,12 +264,13 @@ export class ClerkIdentityProvider implements IdentityProvider {
     await this.client.organizations.deleteOrganization(orgId)
   }
 
-  async parseWebhook(
-    rawRequest: Pick<FastifyRequest, 'headers' | 'body'>,
-  ): Promise<NormalizedProviderEvent | null> {
-    const svixId = rawRequest.headers['svix-id']
-    const svixTimestamp = rawRequest.headers['svix-timestamp']
-    const svixSignature = rawRequest.headers['svix-signature']
+  async parseWebhook(args: {
+    headers: Record<string, string | string[] | undefined>
+    rawBody: string
+  }): Promise<NormalizedProviderEvent | null> {
+    const svixId = args.headers['svix-id']
+    const svixTimestamp = args.headers['svix-timestamp']
+    const svixSignature = args.headers['svix-signature']
 
     if (
       typeof svixId !== 'string' ||
@@ -281,8 +281,10 @@ export class ClerkIdentityProvider implements IdentityProvider {
     }
 
     // svix.verify throws on invalid signature; let it propagate so the route
-    // handler returns 401.
-    const event = this.webhook.verify(JSON.stringify(rawRequest.body), {
+    // handler returns 401. Pass rawBody (string of bytes received over the
+    // wire) directly — re-serializing parsed JSON would change the bytes and
+    // break signature verification.
+    const event = this.webhook.verify(args.rawBody, {
       'svix-id': svixId,
       'svix-timestamp': svixTimestamp,
       'svix-signature': svixSignature,

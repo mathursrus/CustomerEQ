@@ -222,7 +222,7 @@ describe('ClerkIdentityProvider', () => {
           'svix-timestamp': '1700000000',
           'svix-signature': 'v1,abc',
         },
-        body: { type: 'organization.created', data: {} },
+        rawBody: '{"type":"organization.created","data":{}}',
       })
 
       expect(result).toEqual({
@@ -242,7 +242,7 @@ describe('ClerkIdentityProvider', () => {
       const provider = buildProvider()
       const result = await provider.parseWebhook({
         headers: { 'svix-id': 'm', 'svix-timestamp': 't', 'svix-signature': 's' },
-        body: {},
+        rawBody: '{}',
       })
 
       expect(result).toEqual({
@@ -261,7 +261,7 @@ describe('ClerkIdentityProvider', () => {
       const provider = buildProvider()
       const result = await provider.parseWebhook({
         headers: { 'svix-id': 'm', 'svix-timestamp': 't', 'svix-signature': 's' },
-        body: {},
+        rawBody: '{}',
       })
 
       expect(result).toEqual({ type: 'organization.deleted', orgId: 'org_del' })
@@ -280,7 +280,7 @@ describe('ClerkIdentityProvider', () => {
       const provider = buildProvider()
       const result = await provider.parseWebhook({
         headers: { 'svix-id': 'm', 'svix-timestamp': 't', 'svix-signature': 's' },
-        body: {},
+        rawBody: '{}',
       })
 
       expect(result).toEqual({
@@ -299,7 +299,7 @@ describe('ClerkIdentityProvider', () => {
       const provider = buildProvider()
       const result = await provider.parseWebhook({
         headers: { 'svix-id': 'm', 'svix-timestamp': 't', 'svix-signature': 's' },
-        body: {},
+        rawBody: '{}',
       })
 
       expect(result).toEqual({ type: 'user.deleted', userId: 'user_to_delete' })
@@ -318,7 +318,7 @@ describe('ClerkIdentityProvider', () => {
             'svix-timestamp': '1700000000',
             'svix-signature': 'v1,bogus',
           },
-          body: {},
+          rawBody: '{}',
         }),
       ).rejects.toThrow('Invalid signature')
     })
@@ -328,7 +328,7 @@ describe('ClerkIdentityProvider', () => {
       await expect(
         provider.parseWebhook({
           headers: { 'svix-id': 'msg_x' /* missing timestamp + signature */ },
-          body: {},
+          rawBody: '{}',
         }),
       ).rejects.toThrow(/svix/i)
       expect(svixVerify).not.toHaveBeenCalled()
@@ -343,7 +343,7 @@ describe('ClerkIdentityProvider', () => {
       const provider = buildProvider()
       const result = await provider.parseWebhook({
         headers: { 'svix-id': 'm', 'svix-timestamp': 't', 'svix-signature': 's' },
-        body: {},
+        rawBody: '{}',
       })
 
       expect(result).toBeNull()
