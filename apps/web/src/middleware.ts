@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)'])
 const isPublicRoute = createRouteMatcher([
@@ -14,29 +15,22 @@ const isPublicRoute = createRouteMatcher([
   '/mystery(.*)',
 ])
 
-// During Playwright E2E tests there are no real Clerk keys. Pass placeholders
-// so clerkMiddleware initialises without throwing; the PLAYWRIGHT_TEST guard
-// inside the handler returns NextResponse.next() before any auth runs.
+// In E2E/dev-bypass mode, skip Clerk entirely before it can do its handshake
+// redirect. clerkMiddleware intercepts at the network level before our handler
+// fires, so the bypass must wrap the export, not live inside the handler.
 const isE2E = process.env.PLAYWRIGHT_TEST === 'true'
-// During E2E tests, use a structurally valid but non-functional Clerk key.
-// Format: pk_test_<base64url(frontendApi + '$')>
-const clerkPublishableKey = (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-  (isE2E ? 'pk_test_Y2xlcmsudGVzdC5leGFtcGxlLmZha2Uk' : undefined)) as `pk_${'test' | 'live'}_${string}`
-const clerkSecretKey = process.env.CLERK_SECRET_KEY ?? (isE2E ? 'sk_test_placeholder000000000000000000000000000000' : undefined)
 
-export default clerkMiddleware(
+function bypassMiddleware(_request: NextRequest) {
+  return NextResponse.next()
+}
+
+const clerkHandler = clerkMiddleware(
   async (auth, request) => {
-    // Allow Playwright E2E tests to bypass Clerk auth
-    if (isE2E) {
-      return NextResponse.next()
-    }
-
     const session = await auth()
     if (isAdminRoute(request)) {
       if (!session.userId) {
         return NextResponse.redirect(new URL('/sign-in', request.url))
       }
-      // Org/role authorization is handled by the API via JWT org_id -> brand mapping
     } else if (!isPublicRoute(request)) {
       if (!session.userId) {
         return NextResponse.redirect(new URL('/sign-in', request.url))
@@ -44,8 +38,13 @@ export default clerkMiddleware(
       session.protect()
     }
   },
-  { publishableKey: clerkPublishableKey, secretKey: clerkSecretKey },
+  {
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY as `pk_${'test' | 'live'}_${string}`,
+    secretKey: process.env.CLERK_SECRET_KEY,
+  },
 )
+
+export default isE2E ? bypassMiddleware : clerkHandler
 
 export const config = {
   matcher: [
