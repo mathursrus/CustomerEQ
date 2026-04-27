@@ -188,7 +188,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 
 | Plugin | Hook | Purpose |
 |---|---|---|
-| **auth** | `preHandler` | Clerk JWT verification, extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. |
+| **auth** | `preHandler` | Session verification (delegates to `fastify.identityProvider.getSession()`), extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. (Issue #170 OD-5: no direct `@clerk/*` imports — see ADR 0004.) |
+| **identityProvider** | decorator | Single boundary for all identity-provider interactions (`createUserWithOrg`, `getSession`, `parseWebhook`, OAuth, `inviteMember`, etc.). `ClerkIdentityProvider` is the only concrete impl today; ESLint `no-restricted-imports` enforces the boundary. Issue #170 OD-5; ADR 0004. |
 | **multiTenant** | `preValidation` | Rejects any request body containing `brandId` — must come from JWT only |
 | **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
@@ -240,6 +241,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **AuditEvent** | System audit trail for admin mutations. |
 | **WebhookEndpoint** | *New (Issue #156).* Brand-scoped outbound webhook configuration. Stores `label`, `url`, `signingSecret` (32-byte random hex, shown once on creation, stored plaintext — hard gate: #53 must encrypt before customer onboarding), `events[]` (`case.created`, `case.status_changed`, `case.overdue`), `active` flag. Index on `(brandId, active)`. Cascade relation to `WebhookDeliveryLog`. |
 | **WebhookDeliveryLog** | *New (Issue #156).* Append-only delivery attempt record per webhook job. Stores `event`, `caseId`, `httpStatus`, `latencyMs`, `success`, `attempt` (1–5), `requestPayload` (JSON), `responseBody` (first ~500 chars), `deliveredAt`. Indexes on `(webhookEndpointId, deliveredAt DESC)` and `(brandId, deliveredAt DESC)`. Used by `GET /v1/webhooks/:id/deliveries` (last 50 entries) for operator debugging. |
+| **OnboardingState** | *New (Issue #170).* 1:1 with Brand. Tracks onboarding progress: picked `useCasePath`, per-step `checklist` (JSON), `dismissedByUserIds` (array), `invitedAdminUserIds` (array), `activatedAt`. Single mutable row per brand; activation history lives in `OnboardingActivationEvent`. ADR 0004. |
+| **OnboardingActivationEvent** | *New (Issue #170).* Append-only funnel events. Stores `step` (`OnboardingStep` enum), `previousStep`, `occurredAt`, `dwellMs`, `metadata`. Idempotent on `(brandId, step)`. Indexes on `(brandId, occurredAt)` and `(step, occurredAt)` for funnel aggregation. Never `UPDATE`/`DELETE` outside the GDPR erasure path. ADR 0004. |
 
 ---
 
@@ -541,6 +544,7 @@ ADRs document one-way-door decisions. Each ADR lives in `docs/architecture/adr/`
 | ADR-004 | BullMQ over Kafka for event queue | 2026-03-24 |
 | ADR-005 | Vercel (frontend) + Azure (backend) hybrid deployment | 2026-03-24 |
 | ADR-006 | Shared test-utils package as single mock source of truth | 2026-03-24 |
+| [ADR 0004](./adr/0004-onboarding-activation-funnel-and-identity-provider.md) | OnboardingActivationEvent funnel model + IdentityProvider abstraction (Issue #170) | 2026-04-27 |
 
 ---
 

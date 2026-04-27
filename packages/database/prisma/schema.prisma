@@ -112,6 +112,34 @@ enum ExternalSourceType {
   X
   GENERIC_WEBHOOK
   GENERIC_API
+  APPLICATION
+}
+
+enum OrgSizeCategory {
+  SIZE_1_10
+  SIZE_11_50
+  SIZE_51_200
+  SIZE_201_PLUS
+  PREFER_NOT_TO_SAY
+}
+
+enum UseCasePath {
+  api
+  site
+  apps
+  skipped
+}
+
+enum OnboardingStep {
+  account_created
+  org_profile_completed
+  path_chosen
+  data_source_connected
+  first_event_received
+  first_survey_published
+  program_created
+  first_action_triggered
+  activated
 }
 
 enum ExternalSyncMode {
@@ -139,10 +167,16 @@ model Brand {
   id                    String                 @id @default(cuid())
   clerkOrgId            String                 @unique // Clerk organization ID → brandId mapping
   name                  String
+  // Step 1.5 org-profile fields (Issue #170)
+  siteDomain            String?
+  logoUrl               String?
+  defaultThemeId        String?
+  sizeCategory          OrgSizeCategory?
   programs              Program[]
   members               Member[]
   surveys               Survey[]
   surveyThemes          SurveyTheme[]
+  defaultTheme          SurveyTheme?           @relation("DefaultBrandTheme", fields: [defaultThemeId], references: [id], onDelete: SetNull)
   questionTemplates     QuestionTemplate[]
   alertRules            AlertRule[]
   caseFollowUps         CaseFollowUp[]
@@ -153,6 +187,9 @@ model Brand {
   externalSignals       ExternalSignal[]
   apiKeys               ApiKey[]
   webhookEndpoints      WebhookEndpoint[]
+  // Onboarding (Issue #170)
+  onboardingState       OnboardingState?
+  activationEvents      OnboardingActivationEvent[]
   createdAt             DateTime               @default(now())
 
   @@map("brands")
@@ -163,18 +200,22 @@ model Brand {
 // for server-to-server integration by the brand's own product (e.g. Acme
 // Coffee's backend calling /v1/events).
 model ApiKey {
-  id         String    @id @default(cuid())
-  brandId    String
-  brand      Brand     @relation(fields: [brandId], references: [id])
-  name       String // human label: "Production", "Staging", "Acme backend"
-  keyPrefix  String // first 8 chars of plaintext (for display — not a secret)
-  keyHash    String    @unique // SHA-256 hex of plaintext
-  createdBy  String // clerk user ID that created it
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime?
-  revokedAt  DateTime? // soft revoke — null = active
+  id                     String                @id @default(cuid())
+  brandId                String
+  brand                  Brand                 @relation(fields: [brandId], references: [id])
+  name                   String // human label: "Production", "Staging", "Acme backend"
+  keyPrefix              String // first 8 chars of plaintext (for display — not a secret)
+  keyHash                String                @unique // SHA-256 hex of plaintext
+  createdBy              String // clerk user ID that created it
+  createdAt              DateTime              @default(now())
+  lastUsedAt             DateTime?
+  revokedAt              DateTime? // soft revoke — null = active
+  // Per-app API key linkage (Issue #170 OD-2; consumed by #173)
+  externalSignalSourceId String?
+  externalSignalSource   ExternalSignalSource? @relation(fields: [externalSignalSourceId], references: [id], onDelete: SetNull)
 
   @@index([brandId, revokedAt])
+  @@index([externalSignalSourceId])
   @@map("api_keys")
 }
 
@@ -312,6 +353,7 @@ model ExternalSignalSource {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   signals          ExternalSignal[]
+  apiKeys          ApiKey[]
 
   @@index([brandId, enabled])
   @@index([brandId, sourceType])
@@ -575,6 +617,8 @@ model SurveyTheme {
   brand     Brand   @relation(fields: [brandId], references: [id])
   name      String
   isDefault Boolean @default(false)
+  // Inverse for Brand.defaultTheme (Issue #170)
+  brandsWithDefault Brand[] @relation("DefaultBrandTheme")
 
   logoUrl   String?
   brandName String?
@@ -960,5 +1004,53 @@ model WebhookDeliveryLog {
   @@index([webhookEndpointId, deliveredAt(sort: Desc)])
   @@index([brandId, deliveredAt(sort: Desc)])
   @@map("webhook_delivery_logs")
+}
+
+// ─── Onboarding (Issue #170) ──────────────────────────────────────────────────
+
+// 1:1 with Brand. Stores per-brand onboarding progress (which milestones have
+// fired, which use-case path the admin picked, which admins have dismissed
+// the post-activation widget). Single mutable row per brand; activation
+// history lives in OnboardingActivationEvent.
+model OnboardingState {
+  id                  String       @id @default(cuid())
+  brandId             String       @unique
+  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  useCasePath         UseCasePath?
+  // Shape: { brandCreated, dataSourceConnected, firstEventReceived,
+  //          firstSurveyLive, firstActionTriggered, programCreated }
+  // The patch handler enforces the precondition: firstActionTriggered=true
+  // requires programCreated=true (per spec).
+  checklist           Json         @default("{}")
+  dismissedByUserIds  String[]     @default([])
+  invitedAdminUserIds String[]     @default([])
+
+  activatedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([activatedAt])
+  @@map("onboarding_state")
+}
+
+// Append-only funnel events. Never UPDATE or DELETE outside the GDPR erasure
+// path. dwellMs is the gap from previousStep.occurredAt; null on the first
+// event. metadata captures per-step context (oauth provider, picked path,
+// etc.) for forensics.
+model OnboardingActivationEvent {
+  id           String          @id @default(cuid())
+  brandId      String
+  brand        Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  step         OnboardingStep
+  previousStep OnboardingStep?
+  occurredAt   DateTime        @default(now())
+  dwellMs     Int?
+  metadata     Json            @default("{}")
+
+  @@index([brandId, occurredAt])
+  @@index([step, occurredAt])
+  @@map("onboarding_activation_events")
 }
 

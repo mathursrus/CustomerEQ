@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
-import { verifyToken } from '@clerk/backend'
 import {
   EnrollMemberSchema,
   Customer360QuerySchema,
@@ -36,17 +35,15 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
     const data = parse.data
 
-    // Resolve clerkUserId from optional body token
+    // Resolve clerkUserId from optional body token via the IdentityProvider
+    // abstraction (Issue #170 OD-5; no direct @clerk imports).
     let clerkUserId: string | undefined
     if (data.clerkToken) {
-      try {
-        const payload = await verifyToken(data.clerkToken, {
-          secretKey: process.env.CLERK_SECRET_KEY,
-        })
-        clerkUserId = payload.sub
-      } catch {
+      const session = await fastify.identityProvider.getSession(data.clerkToken)
+      if (!session) {
         return reply.status(401).send({ error: 'Invalid Clerk token' })
       }
+      clerkUserId = session.userId
     }
 
     // Look up program — derives brandId (never from request body)
