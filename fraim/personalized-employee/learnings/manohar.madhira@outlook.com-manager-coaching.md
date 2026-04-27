@@ -63,6 +63,17 @@ When the agent surfaces design or scope decisions as numbered/lettered options a
 
 ---
 
+#### [P-MED] "Looks good. Proceed to next phase" = phase advance approval, not a merge instruction
+
+**Score**: 5.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+On issue #170 RFC Round 2 close-out, the user wrote "Looks good. Proceed to next phase" after the agent had pushed Round 2 fixes and posted GitHub thread replies. Correct interpretation: the user is approving the phase work and instructing the agent to advance to Phase 8 (retrospective) — they are **not** authorizing a merge of PR #196. Merges still require explicit user action on GitHub (per `feedback_push_pr_always_merge_with_review.md`). Cross-reference with prior issue #170 spec close: there the user said *"PR Looks Good. Merge with Main. Don't close the issue or worktree yet"* — the explicit "Merge with Main" is the merge authorization; "proceed to next phase" is not. Lesson: distinguish phase-advance approval from merge authorization. The user's vocabulary signals which one they mean — match the action to the words exactly.
+
+---
+
 #### [P-MED] Push + PR is the default flow; merges require explicit GitHub review
 
 **Score**: 5.0
