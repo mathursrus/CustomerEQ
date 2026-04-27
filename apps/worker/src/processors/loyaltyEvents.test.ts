@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { evaluateRules, evaluateConditions, evaluateRulesWithIds } from './loyaltyEvents.js'
+import { evaluateRules, evaluateConditions, evaluateRulesWithIds, EVENT_TO_TRIGGER_KEYS } from './loyaltyEvents.js'
 
 type EarningRule = {
   id: string
@@ -607,5 +607,61 @@ describe('evaluateRulesWithIds (priority + stackable + budgets)', () => {
       expect(result).toHaveLength(1)
       expect(result[0].ruleId).toBe('r1')
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Issue #117: EVENT_TO_TRIGGER_KEYS mapping
+// ---------------------------------------------------------------------------
+
+describe('EVENT_TO_TRIGGER_KEYS', () => {
+  it('maps tier.upgraded to tier_upgrade', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['tier.upgraded']).toEqual(['tier_upgrade'])
+  })
+
+  it('maps redemption.first to first_redemption', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['redemption.first']).toEqual(['first_redemption'])
+  })
+
+  it('maps member.enrolled to enrollment', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['member.enrolled']).toEqual(['enrollment'])
+  })
+
+  it('maps member.anniversary to anniversary', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['member.anniversary']).toEqual(['anniversary'])
+  })
+
+  it('maps cx.support_closed to after_support', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['cx.support_closed']).toEqual(['after_support'])
+  })
+
+  it('maps cx.nps_drop to nps_drop', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['cx.nps_drop']).toEqual(['nps_drop'])
+  })
+
+  it('maps purchase to 5th_purchase', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['purchase']).toEqual(['5th_purchase'])
+  })
+
+  it('maps member.inactive to inactive_30d', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['member.inactive']).toEqual(['inactive_30d'])
+  })
+
+  it('returns undefined for unmapped event types (scheduled triggers have no event)', () => {
+    expect(EVENT_TO_TRIGGER_KEYS['quarterly_pulse']).toBeUndefined()
+    expect(EVENT_TO_TRIGGER_KEYS['unknown.event']).toBeUndefined()
+  })
+
+  it('covers all 8 event-based trigger keys', () => {
+    const allTriggerKeys = Object.values(EVENT_TO_TRIGGER_KEYS).flat()
+    expect(allTriggerKeys).toContain('tier_upgrade')
+    expect(allTriggerKeys).toContain('first_redemption')
+    expect(allTriggerKeys).toContain('5th_purchase')
+    expect(allTriggerKeys).toContain('enrollment')
+    expect(allTriggerKeys).toContain('anniversary')
+    expect(allTriggerKeys).toContain('inactive_30d')
+    expect(allTriggerKeys).toContain('after_support')
+    expect(allTriggerKeys).toContain('nps_drop')
+    expect(allTriggerKeys).toHaveLength(8)
   })
 })

@@ -1,9 +1,30 @@
-import type { Job } from 'bullmq'
+import type { Job, ConnectionOptions } from 'bullmq'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
 import type { LoyaltyEventPayload } from '@customerEQ/shared'
 import { evaluateConditions } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
+import { enqueueSurveyDistribute } from '../queues/producers.js'
+
+// ---------------------------------------------------------------------------
+// Issue #117: Loyalty event → survey trigger mapping
+// Maps from LoyaltyEvent.eventType to the triggerKey(s) used on Survey records.
+// Scheduled triggers (quarterly_pulse etc.) are not event-driven — excluded here.
+// ---------------------------------------------------------------------------
+
+export const EVENT_TO_TRIGGER_KEYS: Record<string, string[]> = {
+  'tier.upgraded':      ['tier_upgrade'],
+  'redemption.first':   ['first_redemption'],
+  'purchase':           ['5th_purchase'],
+  'member.enrolled':    ['enrollment'],
+  'member.anniversary': ['anniversary'],
+  'member.inactive':    ['inactive_30d'],
+  'cx.support_closed':  ['after_support'],
+  'cx.nps_drop':        ['nps_drop'],
+}
+
+const SURVEY_DISTRIBUTE_COOLDOWN_DAYS = 30
+const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:4000'
 
 // Re-export so existing test imports continue to work
 export { evaluateConditions }
@@ -117,10 +138,35 @@ export function evaluateRules(
 }
 
 // ---------------------------------------------------------------------------
-// BullMQ processor
+// BullMQ processor factory — Issue #117: accepts connection for survey distribution
 // ---------------------------------------------------------------------------
 
+export function createLoyaltyEventProcessor(connection: ConnectionOptions) {
+  return async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promise<{
+    pointsAwarded: number
+    rulesApplied: string[]
+    skipped?: boolean
+    reason?: string
+  }> {
+    return _processLoyaltyEvent(job, connection)
+  }
+}
+
+// Keep the non-factory export for backwards compatibility with existing tests
+// (tests import processLoyaltyEvent as a named function)
 export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promise<{
+  pointsAwarded: number
+  rulesApplied: string[]
+  skipped?: boolean
+  reason?: string
+}> {
+  return _processLoyaltyEvent(job, null)
+}
+
+async function _processLoyaltyEvent(
+  job: Job<LoyaltyEventPayload>,
+  connection: ConnectionOptions | null,
+): Promise<{
   pointsAwarded: number
   rulesApplied: string[]
   skipped?: boolean
@@ -221,5 +267,63 @@ export async function processLoyaltyEvent(job: Job<LoyaltyEventPayload>): Promis
     })
   }
 
+  // Issue #117: Check for active triggered surveys matching this event type.
+  // Fire-and-forget — survey distribution failure must never affect loyalty processing.
+  if (connection) {
+    void enqueueSurveyDistributionsForEvent(connection, brandId, memberId, eventType)
+  }
+
   return { pointsAwarded: totalPoints, rulesApplied }
+}
+
+// ---------------------------------------------------------------------------
+// Issue #117: Survey trigger distribution
+// ---------------------------------------------------------------------------
+
+async function enqueueSurveyDistributionsForEvent(
+  connection: ConnectionOptions,
+  brandId: string,
+  memberId: string,
+  eventType: string,
+): Promise<void> {
+  const triggerKeys = EVENT_TO_TRIGGER_KEYS[eventType]
+  if (!triggerKeys || triggerKeys.length === 0) return
+
+  // Find active surveys for this brand with any of the matching trigger keys
+  const surveys = await prisma.survey.findMany({
+    where: {
+      brandId,
+      status: 'ACTIVE',
+      triggerKey: { in: triggerKeys },
+    },
+    select: { id: true, triggerKey: true },
+  })
+  if (surveys.length === 0) return
+
+  const now = new Date()
+  const cooldownCutoff = new Date(now)
+  cooldownCutoff.setDate(cooldownCutoff.getDate() - SURVEY_DISTRIBUTE_COOLDOWN_DAYS)
+
+  for (const survey of surveys) {
+    // Cooldown check: skip if already distributed to this member within cooldown window
+    const recentDistribution = await prisma.surveyDistribution.findFirst({
+      where: {
+        surveyId: survey.id,
+        memberId,
+        sentAt: { gte: cooldownCutoff },
+      },
+      select: { id: true },
+    })
+    if (recentDistribution) continue
+
+    const surveyLink = `${API_BASE_URL}/survey/${survey.id}`
+    await enqueueSurveyDistribute(connection, {
+      surveyId: survey.id,
+      memberId,
+      brandId,
+      triggerKey: survey.triggerKey ?? eventType,
+      surveyLink,
+      cooldownDays: SURVEY_DISTRIBUTE_COOLDOWN_DAYS,
+    })
+  }
 }

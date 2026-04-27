@@ -415,3 +415,88 @@ describe('Loop Monitor API — GET /v1/surveys/:id/loop-monitor', () => {
     expect(res.body.pipeline.campaignsTriggered).toBe(1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Issue #117: Ad-hoc survey creation (regression — must work without trigger fields)
+// ---------------------------------------------------------------------------
+
+describe('Surveys API — Issue #117 regression', () => {
+  beforeEach(async () => {
+    await seedTestDb()
+    InMemoryQueue.clear()
+  })
+
+  describe('POST /v1/surveys — ad-hoc path (no trigger fields)', () => {
+    it('creates a survey successfully with only name, programId, type, questions', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const request = authenticatedRequest(brand.id)
+
+      const res = await request.post('/v1/surveys').send({
+        name: 'Ad-hoc NPS Survey',
+        type: 'NPS',
+        programId: program.id,
+        questions: [
+          { id: 'q1', text: 'How likely are you to recommend us?', type: 'rating', required: true },
+        ],
+      })
+
+      expect(res.status).toBe(201)
+      expect(res.body.id).toBeTruthy()
+      // No trigger fields on ad-hoc survey
+      expect(res.body.triggerCategory).toBeNull()
+      expect(res.body.triggerKey).toBeNull()
+    })
+
+    it('creates a CSAT ad-hoc survey without trigger step', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const res = await authenticatedRequest(brand.id).post('/v1/surveys').send({
+        name: 'Quick CSAT',
+        type: 'CSAT',
+        programId: program.id,
+        questions: [
+          { id: 'q1', text: 'How satisfied are you?', type: 'rating', required: true },
+        ],
+      })
+
+      expect(res.status).toBe(201)
+      expect(res.body.type).toBe('CSAT')
+      expect(res.body.triggerKey).toBeNull()
+    })
+  })
+
+  describe('GET /v1/surveys — list distinguishes ad-hoc vs triggered surveys', () => {
+    it('returns triggerKey null for ad-hoc surveys and populated for triggered surveys', async () => {
+      const prisma = getTestPrisma()
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      // Ad-hoc survey
+      await createSurvey({ brandId: brand.id, programId: program.id, name: 'Ad-hoc', status: 'ACTIVE' })
+      // Triggered survey
+      await createSurvey({
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Triggered',
+        status: 'ACTIVE',
+        triggerCategory: 'loyalty',
+        triggerKey: 'tier_upgrade',
+      })
+
+      const res = await authenticatedRequest(brand.id).get('/v1/surveys')
+
+      expect(res.status).toBe(200)
+      const surveys: Array<{ name: string; triggerKey: string | null }> = res.body.data ?? res.body.surveys ?? res.body
+      const adhoc = surveys.find((s) => s.name === 'Ad-hoc')
+      const triggered = surveys.find((s) => s.name === 'Triggered')
+
+      expect(adhoc?.triggerKey).toBeNull()
+      expect(triggered?.triggerKey).toBe('tier_upgrade')
+
+      // Cleanup reference
+      void prisma
+    })
+  })
+})

@@ -50,7 +50,10 @@ const realMiddleware = clerkMiddleware(
       return NextResponse.redirect(new URL('/sign-in', request.url))
     }
   },
-  { publishableKey: clerkPublishableKey, secretKey: clerkSecretKey },
+  {
+    publishableKey: clerkPublishableKey,
+    secretKey: clerkSecretKey,
+  },
 )
 
 export default isE2E ? e2eMiddleware : realMiddleware
