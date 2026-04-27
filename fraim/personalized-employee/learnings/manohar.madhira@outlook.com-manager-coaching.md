@@ -4,18 +4,18 @@ Patterns observed in how this user coaches, intervenes, and adjusts agent behavi
 
 ---
 
-## ⏳ Pending Review — 2026-04-26
+## ⏳ Pending Review — 2026-04-27
 
 ### Proposed new entries
 
 #### [P-HIGH] Single-question pushback, not a lecture, when approach needs correction
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-27
+**Recurrences**: 4
 **First synthesized**: (pending)
 
-When the agent is on the wrong path, the user's intervention is consistently a single clean question — not a multi-paragraph explanation of what went wrong. Examples: "Why are you individually updating style in each file? Isn't having global style a better pattern?" (#71); "Have you tested these?" (#153); "Is the mock in sync completely with the spec now?" (#170 Round 2). The question itself is the coaching — it forces the agent to surface the assumption it made and re-evaluate. Implication: treat any single interrogative as a full stop-and-reconsider signal, not a request for justification. The correct response is a reversal, not a defense — and a real audit, not a reflexive "yes, all good."
+When the agent is on the wrong path, the user's intervention is consistently a single clean question — not a multi-paragraph explanation of what went wrong. Examples: "Why are you individually updating style in each file? Isn't having global style a better pattern?" (#71); "Have you tested these?" (#153); "Is the mock in sync completely with the spec now?" (#170 spec Round 2); "Do we need a Spike to verify?" (#170 RFC PR #196 Round 1, 2026-04-26); and the planTier reversal one-liner *"Plan tier or method is unknown at this time. So I won't design for it yet. Suggest omitting entirely..."* (#170 RFC PR #196 Round 2, 2026-04-27). The question itself is the coaching — it forces the agent to surface the assumption it made and re-evaluate. Implication: treat any single interrogative as a full stop-and-reconsider signal, not a request for justification. The correct response is a reversal, not a defense — and a real audit, not a reflexive "yes, all good."
 
 ---
 
@@ -55,11 +55,11 @@ For changes that cannot be tested pre-merge (GitHub Actions `workflow_run`, conc
 #### [P-MED] Decision points presented as numbered options resolve in one chat turn
 
 **Score**: 5.0
-**Last seen**: 2026-04-26
-**Recurrences**: 2
+**Last seen**: 2026-04-27
+**Recurrences**: 3
 **First synthesized**: (pending)
 
-When the agent surfaces design or scope decisions as numbered/lettered options at the bottom of a PR body or in the chat (each with a recommended default and a one-line tradeoff), the user answers all of them in a single chat turn. On issue #170 spec, the Round 1 and Round 2 pre-execution question batches got "yes to all" / "1b/2a/3b" style replies. On issue #177, three "Decisions for you" at PR #188 body bottom got three answers in one chat turn. Implication: this is the user's preferred decision-resolution format — adopt it for any non-trivial decision points rather than threading them inline.
+When the agent surfaces design or scope decisions as numbered/lettered options at the bottom of a PR body or in the chat (each with a recommended default and a one-line tradeoff), the user answers all of them in a single chat turn. On issue #170 spec, the Round 1 and Round 2 pre-execution question batches got "yes to all" / "1b/2a/3b" style replies. On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions (slicing approach, sign-in strategy, API layout, ADR placement) got "1) 6 PRs, 2) keep Clerk catch-all, 3) flat, 4) agreed" in a single message. On issue #177, three "Decisions for you" at PR #188 body bottom got three answers in one chat turn. Implication: this is the user's preferred decision-resolution format — adopt it for any non-trivial decision points rather than threading them inline.
 
 ---
 

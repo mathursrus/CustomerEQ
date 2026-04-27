@@ -4,18 +4,18 @@ Durable judgment calls and successful unusual-but-correct decisions worth reprod
 
 ---
 
-## ⏳ Pending Review — 2026-04-26
+## ⏳ Pending Review — 2026-04-27
 
 ### Proposed new entries
 
 #### [P-HIGH] User pushback caught a near-miss before submit
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 2
+**Last seen**: 2026-04-27
+**Recurrences**: 3
 **First synthesized**: (pending)
 
-On issue #153, the agent was ready to submit a React state-sync fix based on typecheck + build + smoke-test passing — none of which validate UI state behavior. The user's single-line pushback ("Have you tested these?") forced full local-env setup and Playwright validation, which then confirmed the fix worked. On issue #170 spec, the reviewer's "Is the mock in sync completely with the spec now?" caught three mock-vs-spec mismatches that would otherwise have shipped. Validated principle: a single-question pushback is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively.
+On issue #153, the agent was ready to submit a React state-sync fix based on typecheck + build + smoke-test passing — none of which validate UI state behavior. The user's single-line pushback ("Have you tested these?") forced full local-env setup and Playwright validation, which then confirmed the fix worked. On issue #170 spec, the reviewer's "Is the mock in sync completely with the spec now?" caught three mock-vs-spec mismatches that would otherwise have shipped. On issue #170 RFC PR #196 (2026-04-26), the reviewer's "Do we need a Spike to verify?" caught an overconfident "high" rating on the IdentityProvider abstraction — the spike that followed surfaced two real interface-shape issues (`completeOAuth` wrong shape; `createUserWithOrg` partial-failure mode). Validated principle: a single-question pushback is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively.
 
 ---
 
@@ -33,11 +33,11 @@ On issue #166, the initial deploy.yml edit would have used `${{ github.sha }}` t
 #### [P-HIGH] Multiple feedback memories firing correctly within a single session
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-27
+**Recurrences**: 4
 **First synthesized**: (pending)
 
-Saved feedback memories now consistently fire in-session and shape behavior without explicit recall. On issue #166, two memories triggered (`feedback_fraim_before_plan_mode`, `feedback_dont_ask_about_baseline_dev_env`) and produced clean phase progression with no rework. On issue #170 spec, five memories fired (FRAIM-first, issue-first-branching, push-PR-default, pricing-forward-compat, single-question-pushback) and Round 1 was visibly cleaner than the start of #179. On issue #177, three memories fired and the Node 22 bump shipped on the first pass. Validated principle: invest in the memory channel — durable lessons saved as `feedback_*.md` produce measurable efficiency gains across compounding sessions.
+Saved feedback memories now consistently fire in-session and shape behavior without explicit recall. On issue #166, two memories triggered (`feedback_fraim_before_plan_mode`, `feedback_dont_ask_about_baseline_dev_env`) and produced clean phase progression with no rework. On issue #170 spec, five memories fired (FRAIM-first, issue-first-branching, push-PR-default, pricing-forward-compat, single-question-pushback) and Round 1 was visibly cleaner than the start of #179. On issue #170 RFC + implementation phase 1 (2026-04-27), five+ memories fired across the technical-design and implementation-scoping phases (FRAIM-discovery-flow, push-PR-default, user-doesn't-manually-close, pricing-not-finalized, audit-mock-vs-spec-at-every-round) — the resulting work was clean enough that Round 2 review hit only one decision-set reversal. On issue #177, three memories fired and the Node 22 bump shipped on the first pass. Validated principle: invest in the memory channel — durable lessons saved as `feedback_*.md` produce measurable efficiency gains across compounding sessions.
 
 ---
 
@@ -66,11 +66,11 @@ On issue #157 technical-design, reading the duplicate `new/page.tsx` and edit pa
 #### [P-HIGH] Open decisions framed with `← recommended` get one-round answers
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-27
+**Recurrences**: 4
 **First synthesized**: (pending)
 
-On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination backfill) resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — most as one-word "Agreed", one reversed cleanly with a one-line rationale, one added new. On issue #177, three "Decisions for you" at PR-body bottom got three answers in a single chat turn. Validated principle: numbered/lettered options + one-line tradeoff each + explicit `← recommended` is the user's preferred decision format. Default to it for any non-trivial decision-set.
+On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination backfill) resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — most as one-word "Agreed", one reversed cleanly with a one-line rationale, one added new. On issue #170 RFC PR #196, four "Decisions for the reviewer" resolved across two rounds (3 accepted defaults + 1 clean reversal on the planTier placeholder). On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions (slicing approach, sign-in strategy, API layout, ADR placement) resolved in a single chat turn. On issue #177, three "Decisions for you" at PR-body bottom got three answers in a single chat turn. Validated principle: numbered/lettered options + one-line tradeoff each + explicit `← recommended` is the user's preferred decision format. Default to it for any non-trivial decision-set.
 
 ---
 
@@ -99,11 +99,11 @@ On issue #170 RFC Round 2, reviewer reversed Decision #2 (planTier placeholder, 
 #### [P-HIGH] Honest "is X synced?" answer triggers a real audit, not a reflexive "yes"
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 1
+**Last seen**: 2026-04-27
+**Recurrences**: 2
 **First synthesized**: (pending)
 
-On issue #170 spec, when the reviewer asked "Is the mock in sync completely with the spec now?", the agent did a fresh end-to-end audit and surfaced two more gaps (missing 5th theme swatch, Scene-4 archetype CTA mismatch) rather than answering "yes" reflexively. The audit took 5 minutes; the alternative (saying "yes" and shipping more gaps) would have cost another reviewer round-trip. Validated principle: when the user/reviewer asks a direct sync/completeness question, the only correct response is a fresh audit with explicit findings — never a reflex "yes."
+On issue #170 spec, when the reviewer asked "Is the mock in sync completely with the spec now?", the agent did a fresh end-to-end audit and surfaced two more gaps (missing 5th theme swatch, Scene-4 archetype CTA mismatch) rather than answering "yes" reflexively. On issue #170 RFC PR #196 (2026-04-26), the reviewer's "Do we need a Spike to verify?" triggered a real documentation-and-codebase spike instead of a reflex "high confidence is correct" — surfaced two real interface-shape issues that would otherwise have shipped. The audits cost ~5–30 minutes each; the alternatives (saying "yes" and shipping gaps) would have cost reviewer round-trips or days of integration rework. Validated principle: when the user/reviewer asks a direct sync/completeness/verification question, the only correct response is a fresh audit with explicit findings — never a reflex "yes."
 
 ---
 

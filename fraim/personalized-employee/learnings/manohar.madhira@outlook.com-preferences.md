@@ -4,18 +4,18 @@ Patterns that describe how this user prefers to work, interact, and approach rec
 
 ---
 
-## ⏳ Pending Review — 2026-04-26
+## ⏳ Pending Review — 2026-04-27
 
 ### Proposed new entries
 
 #### [P-HIGH] FRAIM discovery flow before any non-trivial action
 
 **Score**: 9.0
-**Last seen**: 2026-04-26
-**Recurrences**: 5
+**Last seen**: 2026-04-27
+**Recurrences**: 6
 **First synthesized**: (pending)
 
-Before executing any non-trivial user request in this repo, start the FRAIM discovery flow: (1) read `fraim/personalized-employee/rules/project_rules.md`, (2) match the request to a FRAIM job via `mcp__fraim__list_fraim_jobs`, (3) call `mcp__fraim__get_fraim_job` for the full phased instructions, (4) follow phases via `seekMentoring`. Do not enter Claude Plan mode; do not launch Explore agents ahead of FRAIM context. Confirmed across multiple sessions in 2026-04 (issues #157 broken-windows, #166, #170, #177, #179) — when this flow is followed, jobs run cleanly through their phases with zero rework; when it's skipped, work lands on wrong branches, phases are falsely marked complete, and recovery costs accumulate.
+Before executing any non-trivial user request in this repo, start the FRAIM discovery flow: (1) read `fraim/personalized-employee/rules/project_rules.md`, (2) match the request to a FRAIM job via `mcp__fraim__list_fraim_jobs`, (3) call `mcp__fraim__get_fraim_job` for the full phased instructions, (4) follow phases via `seekMentoring`. Do not enter Claude Plan mode; do not launch Explore agents ahead of FRAIM context. Confirmed across multiple sessions in 2026-04 (issues #157 broken-windows, #166, #170 spec, #170 RFC, #170 implementation phase 1, #177, #179) — when this flow is followed, jobs run cleanly through their phases with zero rework; when it's skipped, work lands on wrong branches, phases are falsely marked complete, and recovery costs accumulate.
 
 ---
 
@@ -33,11 +33,11 @@ For any UI-facing change, the user expects actual browser testing (Playwright or
 #### [P-HIGH] Tight PR scope — no opportunistic scope creep
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-27
+**Recurrences**: 4
 **First synthesized**: (pending)
 
-The user values PRs that do exactly one thing. Issue #166 was a `deploy.yml` hardening: +29/-7 on one file, with a tangentially related concern (third-party action SHA-pinning) deferred to a follow-up. Issue #177 (Node 22 bump) explicitly deferred three pre-existing test-coverage gaps (no e2e in CI, no real-Redis tests, no image-boot smoke) into a "Pre-existing gap → Why not addressed here → Recommendation" table rather than expanding the security-driven update. On issue #170 spec, when prompted for "all the later items" the agent had to push back and trim to the items actually in scope. Default stance: if a fix is discovered mid-task but outside the issue's acceptance criteria, file a separate issue, do not bundle. Related: project rule R21 (one issue per branch) formalizes the branch-level version of this preference.
+The user values PRs that do exactly one thing. Issue #166 was a `deploy.yml` hardening: +29/-7 on one file, with a tangentially related concern (third-party action SHA-pinning) deferred to a follow-up. Issue #177 (Node 22 bump) explicitly deferred three pre-existing test-coverage gaps (no e2e in CI, no real-Redis tests, no image-boot smoke) into a "Pre-existing gap → Why not addressed here → Recommendation" table rather than expanding the security-driven update. On issue #170 spec, when prompted for "all the later items" the agent had to push back and trim to the items actually in scope. Most recently on issue #170 implementation (2026-04-27), the user chose 6 PRs over a mega-PR — splitting both auth and onboarding-admin into API-only + UI-only slices for tighter review boundaries. Default stance: if a fix is discovered mid-task but outside the issue's acceptance criteria, file a separate issue, do not bundle. Related: project rule R21 (one issue per branch) formalizes the branch-level version of this preference.
 
 ---
 
@@ -55,11 +55,11 @@ When a bug affects multiple files with the same root cause, the user expects the
 #### [P-HIGH] Surface open decisions with recommended defaults for one-round resolution
 
 **Score**: 8.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-27
+**Recurrences**: 4
 **First synthesized**: (pending)
 
-When presenting design decisions for reviewer sign-off (RFC review, architectural tradeoffs), the user responds fastest when each open decision is framed as a small set of concrete options with one marked `← recommended`. On issue #2, both open decisions resolved in a single round because each had a recommended default. On issue #170, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — three came back as one-word "Agreed", one was reversed cleanly with a one-line rationale, one was added new in response to a theme. On issue #177, three "Decisions for you" at the bottom of the PR body got three answers in a single chat turn. Default presentation format: numbered binary/ternary choice, one-line tradeoff per option, explicit `← recommended` on the preferred path.
+When presenting design decisions for reviewer sign-off (RFC review, architectural tradeoffs), the user responds fastest when each open decision is framed as a small set of concrete options with one marked `← recommended`. On issue #2, both open decisions resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — three came back as one-word "Agreed", one was reversed cleanly with a one-line rationale, one was added new in response to a theme. On issue #170 RFC PR #196, four "Decisions for the reviewer" got four answers in two batches across Round 1 + Round 2. On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions (slicing, sign-in, API layout, ADR placement) got four answers in a single chat turn. On issue #177, three "Decisions for you" at the bottom of the PR body got three answers in a single chat turn. Default presentation format: numbered binary/ternary choice, one-line tradeoff per option, explicit `← recommended` on the preferred path.
 
 ---
 

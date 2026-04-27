@@ -4,7 +4,7 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 
 ---
 
-## ⏳ Pending Review — 2026-04-26
+## ⏳ Pending Review — 2026-04-27
 
 ### Proposed new entries
 
