@@ -255,6 +255,134 @@ describe('authPlugin', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // allowNoOrg config flag (PR 2 D1=(b))
+  //
+  // Routes marked `config: { allowNoOrg: true }` accept a session with
+  // orgId === null without rejecting. Used by /api/auth/signup/finish for
+  // the OAuth new-user-without-org convergence point. The handler still
+  // gets `request.clerkUserId` decorated; `request.brandId` is decorated
+  // ONLY when the session has a non-null orgId AND the brand exists.
+  // ---------------------------------------------------------------------------
+
+  describe('allowNoOrg config flag', () => {
+    it('decorates clerkUserId only and skips brand lookup when session.orgId is null', async () => {
+      const prevEnv = process.env.NODE_ENV
+      process.env.NODE_ENV = 'production' // exercise the strict path
+      try {
+        const built = buildApp()
+        app = built
+        await app.register(authPlugin)
+        app.get(
+          '/finish',
+          { config: { allowNoOrg: true } as never },
+          async (request) => ({
+            clerkUserId: request.clerkUserId,
+            brandId: request.brandId,
+          }),
+        )
+        await app.ready()
+
+        built._getSession.mockResolvedValueOnce({
+          userId: 'user_oauth_fresh',
+          orgId: null,
+        })
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/finish',
+          headers: { authorization: 'Bearer fresh_oauth_token' },
+        })
+
+        expect(res.statusCode).toBe(200)
+        const body = JSON.parse(res.body)
+        expect(body.clerkUserId).toBe('user_oauth_fresh')
+        // brandId not decorated — undefined in the JSON serialization
+        expect(body.brandId).toBeUndefined()
+      } finally {
+        process.env.NODE_ENV = prevEnv
+      }
+    })
+
+    it('also resolves brandId when session has a non-null orgId and brand exists', async () => {
+      const built = buildApp({ org_for_finish: 'brand_for_finish' })
+      app = built
+      await app.register(authPlugin)
+      app.get(
+        '/finish',
+        { config: { allowNoOrg: true } as never },
+        async (request) => ({
+          clerkUserId: request.clerkUserId,
+          brandId: request.brandId,
+        }),
+      )
+      await app.ready()
+
+      built._getSession.mockResolvedValueOnce({
+        userId: 'user_already_orged',
+        orgId: 'org_for_finish',
+      })
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/finish',
+        headers: { authorization: 'Bearer existing_user_token' },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = JSON.parse(res.body)
+      expect(body.clerkUserId).toBe('user_already_orged')
+      expect(body.brandId).toBe('brand_for_finish')
+    })
+
+    it('still returns 401 on null session (invalid token) regardless of allowNoOrg', async () => {
+      const built = buildApp()
+      app = built
+      await app.register(authPlugin)
+      app.get(
+        '/finish',
+        { config: { allowNoOrg: true } as never },
+        async () => ({ ok: true }),
+      )
+      await app.ready()
+
+      built._getSession.mockResolvedValueOnce(null)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/finish',
+        headers: { authorization: 'Bearer expired_token' },
+      })
+
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('routes WITHOUT allowNoOrg still reject null orgId in production (regression guard)', async () => {
+      const prevEnv = process.env.NODE_ENV
+      process.env.NODE_ENV = 'production'
+      try {
+        const built = buildApp()
+        app = built
+        await app.register(authPlugin)
+        app.get('/protected', async () => ({ ok: true }))
+        await app.ready()
+
+        built._getSession.mockResolvedValueOnce({ userId: 'user_x', orgId: null })
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/protected',
+          headers: { authorization: 'Bearer some_token' },
+        })
+
+        expect(res.statusCode).toBe(401)
+        expect(JSON.parse(res.body).error).toBe('Token does not contain an organization ID')
+      } finally {
+        process.env.NODE_ENV = prevEnv
+      }
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // X-Api-Key auth (developer-provisioned keys) — unchanged by IdentityProvider
   // refactor; identity-provider only abstracts JWT verification.
   // ---------------------------------------------------------------------------
