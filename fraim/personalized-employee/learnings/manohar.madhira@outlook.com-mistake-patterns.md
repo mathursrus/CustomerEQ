@@ -52,6 +52,28 @@ First instinct when adding a `workflow_run`-triggered job was to use `${{ github
 
 ---
 
+#### [P-HIGH] Marked design confidence "high" without verification (overconfident on abstraction)
+
+**Score**: 8.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+On issue #170 RFC (PR #196 Round 1), the IdentityProvider abstraction confidence row was rated "high" based on a desk-review of the interface shape — no codebase or documentation verification was done. Reviewer's single-question pushback ("Do we need a Spike to verify?") forced a retroactive spike that surfaced two real issues: `completeOAuth({code, state})` was the wrong shape for Clerk's mediated OAuth handshake (Clerk owns the callback; the app reads session, never receives code+state); and `createUserWithOrg` is internally 3 Clerk API calls with a hidden partial-failure mode. Lesson: "high confidence" on a new abstraction must be backed by either a PoC, a documentation re-read against the canonical SDK, or a parallel implementation review — never desk-only. The spike took ~30 minutes; the alternative (shipping a broken interface) would have been days of rework once integration started. Fixed-shape rule: any RFC row claiming "high confidence" on a not-yet-implemented external integration is overconfident unless the row also cites the verifying artifact.
+
+---
+
+#### [P-HIGH] Proposed a placeholder schema column for an unfinalized feature
+
+**Score**: 8.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+On issue #170 RFC (PR #196 Round 2), recommended adding `Brand.planTier: String?` as a "placeholder for the future pricing UI" — Decision #2 in the "Decisions for the reviewer" set, with `← recommended`. Reviewer reversed cleanly: *"Plan tier or method is unknown at this time. So I won't design for it yet. Suggest omitting entirely while remembering that we will have to revisit this when pricing model is finalized."* The placeholder was a half-measure: it didn't enable any current functionality, would have required a follow-up migration to drop or repurpose, and pre-committed the schema to a string-shaped tier when the actual pricing model could be enum / FK / multi-row. Lesson: when a downstream feature is unfinalized, do **not** add schema fields "for forward compat" — the schema decision belongs with the pricing-strategy job that lands UI + data shape together. UX-only placeholder slots in mocks are fine; persistent columns are not. Captured durably in `project_pricing_not_finalized.md` (point #6).
+
+---
+
 #### [P-HIGH] Mock-vs-spec sync gaps when editing spec text without sweeping the mock
 
 **Score**: 8.0

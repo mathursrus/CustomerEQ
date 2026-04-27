@@ -74,6 +74,28 @@ On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination ba
 
 ---
 
+#### [P-HIGH] Documentation-and-codebase spike (no PoC) is sufficient for many abstraction-shape questions
+
+**Score**: 8.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+On issue #170 RFC Round 1 spike, the IdentityProvider abstraction was verified entirely via Clerk SDK documentation re-read + existing codebase scan (`apps/api/src/plugins/auth.ts`, `scripts/onboard-org.mjs`) — no PoC, no test harness. The 30-minute audit surfaced two real interface-shape issues (completeOAuth wrong shape; createUserWithOrg's hidden 3-call internal complexity) that a PoC would have surfaced more slowly. Validated principle: when the spike question is "does this interface match how the SDK actually works?", a documentation-and-callsite read is often the right level of verification — not every spike needs a runnable PoC. Reserve PoCs for "does this perform under load?" / "does X integrate with Y at all?" — questions a desk audit cannot answer. Cost-quality tradeoff: the spike took ~30 min vs. likely 2-4 hours for a PoC; same findings.
+
+---
+
+#### [P-HIGH] Reviewer reversals with one-line rationale resolve cleanly when accepted without re-arguing
+
+**Score**: 8.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+On issue #170 RFC Round 2, reviewer reversed Decision #2 (planTier placeholder, `← recommended`) with a one-line rationale: *"Plan tier or method is unknown at this time. So I won't design for it yet. Suggest omitting entirely while remembering that we will have to revisit this when pricing model is finalized."* Correct response was to apply the reversal cleanly across all dependent sections (§2.1 schema, §2.5 migration list, §13 out-of-scope, Risks #7) and update the durable memory `project_pricing_not_finalized.md` with the principle — not to defend the original recommendation or ask for clarification. Validated principle: when a reviewer reversal includes a clear rationale, accept and apply it across all dependent sections in a single commit; the rationale itself is the design guidance. The reviewer's single-pass "Plan tier...unknown...won't design for it yet" is more durable than the agent's recommendation, because the user holds context the agent doesn't.
+
+---
+
 #### [P-HIGH] Honest "is X synced?" answer triggers a real audit, not a reflexive "yes"
 
 **Score**: 8.0
