@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin'
 import { verifyToken } from '@clerk/backend'
+import { createHash } from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
 
 declare module 'fastify' {
@@ -24,19 +25,63 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
-    // API key auth — for MCP server and service-to-service calls
-    // Set MCP_API_KEY env var to enable. Header: X-Api-Key
+    // API key auth via X-Api-Key header.
+    //
+    //   1. Admin-provisioned keys (preferred): look up in the `api_keys`
+    //      table by SHA-256 hash. Each key maps to a specific brand and is
+    //      revocable from /admin/developer. `lastUsedAt` is updated so the
+    //      admin can see activity.
+    //   2. Legacy env-var fallback: `MCP_API_KEY` + `MCP_BRAND_ID`. This is
+    //      how the MCP server authenticates today and how demos/CI jobs run
+    //      without a DB-backed key. Kept for back-compat; the admin UX
+    //      should encourage real keys.
     const apiKey = (request.headers['x-api-key'] as string | undefined)?.trim()
-    const mcpApiKey = process.env.MCP_API_KEY?.trim()
-    if (apiKey && mcpApiKey && apiKey === mcpApiKey) {
-      // API key maps to a specific brand via MCP_BRAND_ID env var
-      const mcpBrandId = process.env.MCP_BRAND_ID
-      if (!mcpBrandId) {
-        return reply.status(500).send({ error: 'MCP_BRAND_ID not configured' })
+    if (apiKey) {
+      const keyHash = createHash('sha256').update(apiKey).digest('hex')
+      // Guard: the api_keys table was added in #141 but the migration has
+      // not yet run in every environment. If Prisma throws P2021 ("table
+      // does not exist"), treat it as "no DB-backed key found" and fall
+      // through to the legacy env-var check — same behavior the route had
+      // before the DB-backed keys feature shipped. Without this guard the
+      // entire X-Api-Key auth path (including the MCP server) would 500
+      // on any DB that hasn't been migrated yet.
+      let dbKey: { id: string; brandId: string; revokedAt: Date | null } | null = null
+      try {
+        dbKey = await fastify.prisma.apiKey.findUnique({
+          where: { keyHash },
+          select: { id: true, brandId: true, revokedAt: true },
+        })
+      } catch (err) {
+        const code = (err as { code?: string } | null)?.code
+        if (code !== 'P2021') {
+          // Unexpected DB error — log and continue to the legacy fallback
+          // so a transient Prisma issue doesn't take down the whole auth
+          // path. The fallback is cheap and safe.
+          fastify.log.warn({ err }, 'api_keys lookup failed, falling through to env fallback')
+        }
+        // dbKey stays null (its initial value) and the code below falls
+        // through to the MCP_API_KEY env-var check.
       }
-      request.brandId = mcpBrandId
-      request.clerkUserId = 'mcp-server'
-      return
+      if (dbKey && dbKey.revokedAt === null) {
+        request.brandId = dbKey.brandId
+        request.clerkUserId = 'api-key'
+        // Fire-and-forget lastUsedAt update — don't block the request.
+        void fastify.prisma.apiKey
+          .update({ where: { id: dbKey.id }, data: { lastUsedAt: new Date() } })
+          .catch(() => { /* best-effort */ })
+        return
+      }
+      // Legacy env-var fallback
+      const mcpApiKey = process.env.MCP_API_KEY?.trim()
+      if (mcpApiKey && apiKey === mcpApiKey) {
+        const mcpBrandId = process.env.MCP_BRAND_ID
+        if (!mcpBrandId) {
+          return reply.status(500).send({ error: 'MCP_BRAND_ID not configured' })
+        }
+        request.brandId = mcpBrandId
+        request.clerkUserId = 'mcp-server'
+        return
+      }
     }
 
     // Skip auth for public routes — they handle their own auth if needed

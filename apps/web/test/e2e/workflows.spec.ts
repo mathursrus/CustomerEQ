@@ -230,6 +230,93 @@ async function mockAnalyticsAPI(page: Page) {
   })
 }
 
+async function mockExternalSignalsAPI(page: Page) {
+  const sources: Array<Record<string, unknown>> = [
+    {
+      id: 'source-1',
+      name: 'Flagship Reviews',
+      sourceType: 'GENERIC_WEBHOOK',
+      connectionMethod: 'webhook_secret',
+      syncMode: 'WEBHOOK',
+      enabled: true,
+      healthStatus: 'healthy',
+      lastSyncAt: '2026-04-07T12:00:00.000Z',
+      lastSuccessAt: '2026-04-07T12:00:00.000Z',
+      lastImportCount: 12,
+      lastError: null,
+      scopeConfig: { samplePayloads: [] },
+      webhookPath: '/v1/integrations/webhooks/external-signals/source-1',
+    },
+  ]
+
+  await page.route(`${API}/v1/admin/external-signal-sources/*/test`, (route: Route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        samples: [
+          {
+            externalId: 'preview-1',
+            body: 'Sample preview record',
+            summary: null,
+            rating: 4,
+            sentiment: 0.2,
+            topics: ['preview'],
+          },
+        ],
+      }),
+    })
+  })
+
+  await page.route(`${API}/v1/admin/external-signal-sources/*/sync`, (route: Route) => {
+    route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Source sync queued', jobId: 'job-1' }),
+    })
+  })
+
+  await page.route(`${API}/v1/admin/external-signal-sources*`, async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      const payload = route.request().postDataJSON() as Record<string, unknown>
+      const created = {
+        id: `source-${sources.length + 1}`,
+        name: payload.name,
+        sourceType: payload.sourceType,
+        connectionMethod: payload.connectionMethod,
+        syncMode: payload.syncMode,
+        enabled: payload.enabled,
+        healthStatus: 'never_synced',
+        lastSyncAt: null,
+        lastSuccessAt: null,
+        lastImportCount: null,
+        lastError: null,
+        scopeConfig: payload.scopeConfig,
+        webhookPath: `/v1/integrations/webhooks/external-signals/source-${sources.length + 1}`,
+      }
+      sources.push(created)
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(created),
+      })
+    }
+
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: sources,
+        total: sources.length,
+        page: 1,
+        pageSize: 50,
+        totalPages: 1,
+      }),
+    })
+  })
+}
+
 // ===========================================================================
 // Workflow 1: Demo Request Form (public, no auth)
 // ===========================================================================
@@ -397,6 +484,7 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
     await mockProgramsAPI(page)
     await mockCampaignsAPI(page)
     await mockAnalyticsAPI(page)
+    await mockExternalSignalsAPI(page)
   })
 
   test('navigates through all admin sections via sidebar links', async ({ page }) => {
@@ -429,11 +517,12 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
     await page.waitForURL('/admin/integrations')
     await expect(page.getByRole('heading', { name: 'Integrations' })).toBeVisible()
 
-    // Verify webhook URLs and copy buttons are displayed
+    // Verify webhook URLs, copy buttons, and external source registry are displayed
     await expect(page.getByTestId('webhook-url-salesforce')).toBeVisible()
     await expect(page.getByTestId('webhook-url-hubspot')).toBeVisible()
     await expect(page.getByTestId('copy-webhook-salesforce')).toBeVisible()
     await expect(page.getByTestId('copy-webhook-hubspot')).toBeVisible()
+    await expect(page.getByText('Flagship Reviews')).toBeVisible()
 
     // ── Click Programs to go back ──────────────────────────────────────────
     await page.getByRole('link', { name: 'Programs' }).click()
@@ -585,5 +674,29 @@ test.describe('Workflow 6: Campaign Create', () => {
 
     // Should redirect to campaigns list on success
     await page.waitForURL('/admin/campaigns')
+  })
+})
+
+// ===========================================================================
+// Workflow 7: External Signal Sources
+// ===========================================================================
+test.describe('Workflow 7: External Signal Sources', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockClerkAuth(page)
+    await mockExternalSignalsAPI(page)
+  })
+
+  test('creates a source and previews sample payloads', async ({ page }) => {
+    await page.goto('/admin/integrations')
+
+    await page.getByTestId('external-source-name').fill('Reddit Mentions')
+    await page.getByTestId('external-source-type').selectOption('REDDIT')
+    await page.getByTestId('save-external-source').click()
+
+    await expect(page.getByText('Source created')).toBeVisible()
+    await expect(page.getByText('Reddit Mentions')).toBeVisible()
+
+    await page.getByTestId('test-source-source-1').click()
+    await expect(page.getByText('Sample preview record')).toBeVisible()
   })
 })

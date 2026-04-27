@@ -115,8 +115,15 @@ function mapTier(t: ApiTier): Tier {
   }
 }
 
-function mapReward(r: ApiReward): Reward {
+function mapReward(r: ApiReward, tiers: ApiTier[]): Reward {
   const hasDateRange = r.availableFrom != null || r.availableTo != null
+  const eligibleTiers =
+    r.eligibleTierIds.length === 0
+      ? 'All Tiers'
+      : tiers
+          .filter((t) => r.eligibleTierIds.includes(t.id))
+          .map((t) => t.name)
+          .join(', ') || 'All Tiers'
   return {
     id: r.id,
     name: r.name,
@@ -125,7 +132,7 @@ function mapReward(r: ApiReward): Reward {
     pointsCost: String(r.pointsCost),
     stock: r.stock != null ? 'LIMITED' : 'UNLIMITED',
     stockQty: r.stock != null ? String(r.stock) : '',
-    eligibleTiers: 'All Tiers',
+    eligibleTiers,
     availability: hasDateRange ? 'DATES' : 'ALWAYS',
     availFrom: r.availableFrom ? r.availableFrom.split('T')[0] : '',
     availUntil: r.availableTo ? r.availableTo.split('T')[0] : '',
@@ -155,7 +162,7 @@ function mapProgramToState(program: ApiProgram): Partial<WizardState> {
       : '',
     earningRules: (program.earningRules ?? []).map(mapEarningRule),
     tiers: (program.tiers ?? []).map(mapTier),
-    rewards: (program.rewards ?? []).map(mapReward),
+    rewards: (program.rewards ?? []).map((r) => mapReward(r, program.tiers ?? [])),
   }
 }
 

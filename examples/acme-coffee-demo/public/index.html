@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acme Coffee</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">☕ Acme Coffee</div>
+    <nav>
+      <a href="#shop">Shop</a>
+      <a href="#account">My Rewards</a>
+      <a href="#help">Help</a>
+    </nav>
+    <div class="header-right">
+      <span id="points-badge" class="points-badge hidden">0 Beans</span>
+      <button id="signin-btn" class="btn-outline btn-sm">Sign In / Join</button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <h1>Hand-roasted coffee,<br>delivered to your door.</h1>
+    <p>Join Acme Rewards — earn Beans on every purchase, redeem for free coffee, exclusive experiences, and more.</p>
+    <button id="hero-join-btn" class="btn-primary btn-lg">Join Acme Rewards — It's Free</button>
+    <script src="http://localhost:4000/v1/public/surveys/cmnw0jkbn000ftn6dwr9qev5r/widget.js"></script>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       SHOP
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section id="shop" class="section">
+    <h2>Our Coffee</h2>
+    <div id="catalog" class="product-grid"></div>
+    <div id="cart-bar" class="cart-bar hidden">
+      <span id="cart-summary"></span>
+      <button id="checkout-btn" class="btn-primary">Place Order</button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       POST-CHECKOUT: Thank you + embedded NPS survey (appears after order)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section id="post-checkout" class="section hidden">
+    <div class="thankyou-card">
+      <div class="thankyou-icon">✓</div>
+      <h2>Thanks for your order!</h2>
+      <p id="order-detail"></p>
+      <p class="earned-points" id="earned-msg"></p>
+    </div>
+    <div class="survey-prompt">
+      <h3>Quick — how are we doing?</h3>
+      <p>Take 30 seconds to share your experience and earn bonus Beans.</p>
+      <div id="survey-host"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       MY REWARDS (account + loyalty dashboard)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section id="account" class="section hidden">
+    <div class="rewards-header">
+      <div>
+        <h2>My Rewards</h2>
+        <p class="sub" id="member-greeting"></p>
+      </div>
+      <div class="balance-card">
+        <div class="balance-number" id="balance-number">—</div>
+        <div class="balance-label">Beans</div>
+      </div>
+    </div>
+
+    <h3>Redeem Your Beans</h3>
+    <div id="rewards-grid" class="product-grid"></div>
+
+    <h3>Recent Activity</h3>
+    <div id="activity-list" class="activity-list">
+      <p class="muted">Loading...</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       HELP CENTER (KB search + support chat)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section id="help" class="section">
+    <h2>Help Center</h2>
+    <p>Search our guides or chat with support.</p>
+    <div class="search-row">
+      <input id="kb-query" type="text" placeholder="Search for help — e.g. 'How do I redeem Beans?'" />
+      <button id="kb-search-btn" class="btn-primary">Search</button>
+    </div>
+    <div id="kb-results" class="kb-results"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       SIGN-IN / JOIN MODAL
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="auth-modal" class="modal hidden">
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close">&times;</button>
+      <h2>Welcome to Acme Coffee</h2>
+      <p>Sign up for Acme Rewards. Earn Beans on every order.</p>
+      <input id="auth-email" type="email" placeholder="Email address" />
+      <input id="auth-first" type="text" placeholder="First name" />
+      <input id="auth-last" type="text" placeholder="Last name (optional)" />
+      <button id="auth-submit" class="btn-primary btn-full">Create Account</button>
+      <div id="auth-error" class="error-msg hidden"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       TOAST (non-blocking notifications)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Support chat widget — floating bottom-right -->
+  <script src="/ceq-support-chat.js"></script>
+  <ceq-support-chat id="acme-chat"></ceq-support-chat>
+
+  <script src="/app.js"></script>
+</body>
+</html>

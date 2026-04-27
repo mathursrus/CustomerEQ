@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CustomerEQ — Onboarding & First-Run Experience — Mocks (Issue #170)</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --surface-muted: #f4f4f5;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #71717a;
+    --text-subtle: #a1a1aa;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-soft: #eef2ff;
+    --success: #16a34a;
+    --success-soft: #dcfce7;
+    --warning: #d97706;
+    --warning-soft: #fef3c7;
+    --danger: #dc2626;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; }
+  .mock-header { background: #1f2937; color: white; padding: 16px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 16px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+  .scene { border-top: 1px solid var(--border); padding: 48px 24px; }
+  .scene-label { max-width: 1200px; margin: 0 auto 24px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* Admin shell */
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .org-switcher { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .admin-top .org-switcher .org-pill { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 14px; color: var(--text); font-weight: 500; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 540px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav a:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .admin-nav-group { padding: 12px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 32px; background: var(--bg); }
+
+  /* Scene 1: Use-case picker */
+  .picker-hero { text-align: center; padding: 48px 24px 24px; }
+  .picker-hero h1 { margin: 0 0 8px; font-size: 28px; }
+  .picker-hero .subtitle { color: var(--text-muted); font-size: 15px; margin: 0 auto; max-width: 560px; }
+  .picker-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 24px auto 16px; max-width: 960px; }
+  .picker-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; cursor: pointer; transition: border-color 150ms, box-shadow 150ms; display: flex; flex-direction: column; gap: 16px; }
+  .picker-card:hover, .picker-card:focus { border-color: var(--primary); box-shadow: var(--shadow-md); outline: none; }
+  .picker-card[aria-selected="true"] { border-color: var(--primary); background: var(--primary-soft); }
+  .picker-card .icon { width: 48px; height: 48px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; }
+  .picker-card h2 { margin: 0; font-size: 17px; }
+  .picker-card p { color: var(--text-muted); margin: 0; font-size: 13px; line-height: 1.5; }
+  .picker-card .picker-meta { font-size: 12px; color: var(--text-subtle); }
+  .picker-card .btn { margin-top: auto; }
+  .picker-skip { display: block; text-align: center; margin-top: 16px; color: var(--text-muted); font-size: 13px; }
+  .picker-skip a { color: var(--primary); text-decoration: none; }
+  .picker-skip a:hover { text-decoration: underline; }
+  .picker-progress { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; }
+  .picker-progress .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .picker-progress .dot.active { background: var(--primary); width: 32px; border-radius: 4px; }
+  .picker-progress .dot.done { background: var(--success); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; font-size: 14px; border-radius: var(--radius-sm); font-weight: 500; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: background 100ms, border-color 100ms; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-ghost { background: transparent; color: var(--primary); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--surface-muted); }
+
+  /* Checklist widget */
+  .checklist { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .checklist-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: var(--surface-muted); border-bottom: 1px solid var(--border); cursor: pointer; }
+  .checklist-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .checklist-header .count { background: var(--primary); color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .checklist-header .progress-mini { width: 160px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-left: 16px; }
+  .checklist-header .progress-mini-bar { height: 100%; background: var(--primary); transition: width 300ms; }
+  .checklist-header .chevron { color: var(--text-muted); }
+  .checklist-body { padding: 0; }
+  .checklist-step { display: grid; grid-template-columns: 32px 1fr auto; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: start; }
+  .checklist-step:last-child { border-bottom: none; }
+  .checklist-step .icon { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .checklist-step.done .icon { background: var(--success-soft); color: var(--success); }
+  .checklist-step.in-progress .icon { background: var(--primary-soft); color: var(--primary); }
+  .checklist-step.pending .icon { background: var(--surface-muted); color: var(--text-subtle); border: 1px solid var(--border-strong); }
+  .checklist-step .label { font-size: 14px; font-weight: 500; color: var(--text); }
+  .checklist-step.pending .label { color: var(--text-muted); }
+  .checklist-step .description { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .checklist-step .action { align-self: center; }
+
+  /* Health cards (existing style reference from /admin) */
+  .health-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .health-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .health-card h4 { margin: 0 0 12px; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .health-card .empty { text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 13px; }
+  .health-card .empty .btn { margin-top: 12px; }
+
+  /* Activation banner */
+  .activation-banner { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 20px 24px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; box-shadow: var(--shadow-md); }
+  .activation-banner .content h3 { margin: 0 0 4px; font-size: 16px; }
+  .activation-banner .content p { margin: 0; font-size: 13px; opacity: 0.9; }
+  .activation-banner .ttfv { font-size: 32px; font-weight: 700; margin-right: 8px; }
+  .activation-banner .ttfv-label { font-size: 11px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+  .activation-banner .dismiss { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 12px; font-size: 13px; }
+
+  .compact-checklist { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .compact-checklist .label-group { display: flex; align-items: center; gap: 10px; }
+  .compact-checklist .count-done { color: var(--success); font-weight: 600; font-size: 13px; }
+  .compact-checklist .progress-mini { width: 200px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .compact-checklist .progress-mini-bar { height: 100%; background: var(--success); width: 100%; }
+
+  .kbd { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>CustomerEQ — Onboarding & First-Run Experience (Issue #170) — Mocks</h1>
+  <div class="nav">
+    <a href="#scene-signup">Signup</a>
+    <a href="#scene-org-profile">Org profile</a>
+    <a href="#scene-use-case-picker">Use-case picker</a>
+    <a href="#scene-checklist-expanded">Checklist expanded</a>
+    <a href="#scene-activated">Activated</a>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- SCENE 1: CustomerEQ-owned signup page (Step 0)                 -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-signup">
+  <div class="scene-label"><strong>Scene 1 — Signup page (Step 0)</strong> &nbsp; Route: <code>/signup</code> &nbsp; CustomerEQ-owned. No Clerk chrome. Plan-selection slot reserved but inactive.</div>
+  <div class="container" style="max-width: 880px;">
+    <div class="admin-shell" style="padding: 0;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; min-height: 540px;">
+        <!-- Left panel: marketing/value-prop -->
+        <div style="background: linear-gradient(165deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 48px 32px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="logo" style="color: white; margin-bottom: 32px;"><span class="logo-mark" style="background: white; color: var(--primary);">C</span> CustomerEQ</div>
+            <h2 style="font-size: 22px; margin: 0 0 16px; line-height: 1.3;">Close the feedback-to-action gap.</h2>
+            <p style="font-size: 14px; opacity: 0.92; line-height: 1.55; margin: 0 0 12px;">Every CX signal — survey response, NPS score, support ticket — automatically triggers the right loyalty action in under 15 minutes.</p>
+            <p style="font-size: 14px; opacity: 0.92; line-height: 1.55; margin: 0;">No more dashboards that no one acts on. No more 82-hour response times.</p>
+          </div>
+          <div style="font-size: 12px; opacity: 0.75;">
+            Already have an account? <a href="#" style="color: white; text-decoration: underline;">Sign in</a>
+          </div>
+        </div>
+
+        <!-- Right panel: signup form -->
+        <div style="padding: 40px 32px; display: flex; flex-direction: column; justify-content: center;">
+          <h2 style="font-size: 22px; margin: 0 0 4px;">Create your account</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 18px;">Free today. No card required.</p>
+
+          <!-- Social / OAuth providers (rendered from IdentityProvider.listSupportedOAuthProviders()) -->
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <button type="button" style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 12px; font-size: 14px; font-weight: 500; background: white; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.46c-.28 1.49-1.13 2.74-2.42 3.59v2.99h3.91c2.29-2.11 3.61-5.21 3.61-8.82z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.91-2.99c-1.08.72-2.45 1.16-4.04 1.16-3.11 0-5.74-2.1-6.68-4.92H1.29v3.09C3.27 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.32 14.34c-.24-.72-.38-1.49-.38-2.34s.14-1.62.38-2.34V6.57H1.29C.47 8.21 0 10.05 0 12s.47 3.79 1.29 5.43l4.03-3.09z"/><path fill="#EA4335" d="M12 4.74c1.76 0 3.34.61 4.59 1.79l3.43-3.43C17.95 1.13 15.23 0 12 0 7.31 0 3.27 2.7 1.29 6.57l4.03 3.09C6.26 6.84 8.89 4.74 12 4.74z"/></svg>
+              Continue with Google
+            </button>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0; text-align: center; font-style: italic;">Provider list comes from <code style="font-size: 10px; background: var(--surface-muted); padding: 1px 4px; border-radius: 3px;">IdentityProvider.listSupportedOAuthProviders()</code> — buttons follow whatever the active provider supports today.</p>
+          </div>
+
+          <!-- Divider -->
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+            <span style="font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px;">or sign up with email</span>
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+          </div>
+
+          <form style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Work email</label>
+              <input type="email" placeholder="jordan@acmecoffee.com" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Password</label>
+              <input type="password" placeholder="At least 8 characters" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Your name</label>
+              <input type="text" placeholder="Jordan Patel" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Organization name</label>
+              <input type="text" placeholder="Acme Coffee" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+              <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">This is what your members will see. You can change it later.</p>
+            </div>
+
+            <!-- Reserved plan-selection slot (inactive, deferred to future epic) -->
+            <div style="border: 1px dashed var(--border-strong); padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-muted); font-size: 11px; color: var(--text-subtle); text-align: center;">
+              <span style="font-weight: 500;">Reserved for plan selection</span> · added in a future epic · today everyone starts on Free
+            </div>
+
+            <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              <input type="checkbox" style="margin-top: 2px;">
+              <span>I agree to the <a href="#" style="color: var(--primary);">Terms</a> and <a href="#" style="color: var(--primary);">Privacy Policy</a>.</span>
+            </label>
+
+            <button type="button" class="btn btn-primary" style="margin-top: 4px; padding: 10px 14px; font-size: 14px;">Get started — it's free →</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 2: Org profile capture (Step 1.5)                        -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-org-profile">
+  <div class="scene-label"><strong>Scene 2 — Org profile capture (Step 1.5)</strong> &nbsp; Route: <code>/admin/onboarding/profile</code> &nbsp; Optional fields with explicit "Skip and add later" escape</div>
+  <div class="container" style="max-width: 760px;">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Signed in as <strong>jordan@example.com</strong> <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div style="padding: 40px 48px;">
+        <div class="picker-progress" aria-hidden="true" style="margin-bottom: 20px;">
+          <span class="dot done" title="Account created"></span>
+          <span class="dot active" title="Org profile"></span>
+          <span class="dot" title="Choose path"></span>
+          <span class="dot" title="Connect"></span>
+        </div>
+        <h2 style="font-size: 24px; margin: 0 0 6px;">Tell us about your organization</h2>
+        <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 28px;">These details appear on member-facing surveys, embed widgets, and emails. All fields except the brand name are optional — you can add or change them anytime.</p>
+
+        <form style="display: flex; flex-direction: column; gap: 18px;">
+          <!-- Brand display name -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Brand display name <span style="color: var(--danger);">*</span></label>
+            <input type="text" value="Acme Coffee" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">Pre-filled from signup. You can rename your brand here at any time.</p>
+          </div>
+
+          <!-- Logo upload -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Logo</label>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="width: 64px; height: 64px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">AC</div>
+              <div style="flex: 1;">
+                <button type="button" class="btn btn-ghost" style="padding: 6px 12px; font-size: 13px;">Upload PNG or SVG</button>
+                <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Up to 1 MB, 512×512 max. We'll use the gradient initials as a placeholder if you skip.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Website -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Website</label>
+            <input type="text" placeholder="acmecoffee.com" style="width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; color: var(--text);">
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 4px 0 0;">Used for the static-site path's snippet detection and for "Visit our site" links in member emails.</p>
+          </div>
+
+          <!-- Default theme -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 6px;">Default theme</label>
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+              <div style="border: 2px solid var(--primary); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; background: var(--primary-soft);">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Indigo</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #16a34a 0%, #65a30d 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Forest</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #ea580c 0%, #d97706 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Sunset</div>
+              </div>
+              <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer;">
+                <div style="height: 28px; border-radius: 4px; background: linear-gradient(135deg, #475569 0%, #334155 100%); margin-bottom: 6px;"></div>
+                <div style="font-size: 11px; font-weight: 500;">Slate</div>
+              </div>
+              <div style="border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; background: var(--surface-muted); display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;">
+                <div style="height: 28px; width: 100%; border-radius: 4px; background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.05) 4px, rgba(0,0,0,0.05) 8px); margin-bottom: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 18px;">+</div>
+                <div style="font-size: 11px; font-weight: 500; color: var(--text-muted);">Custom (set later)</div>
+              </div>
+            </div>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Same four themes are available later under Settings → Themes (#190). "Custom (set later)" routes you to the existing Themes create flow. Picking here only sets your default; you can override per-asset anytime.</p>
+
+            <!-- Theme Preview panel: illustrative-only, non-clickable -->
+            <div style="margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-muted); padding: 14px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Preview · Indigo theme</span>
+                <span style="font-size: 10px; color: var(--text-subtle); font-style: italic;">illustrative only — not clickable</span>
+              </div>
+              <div style="display: grid; gap: 8px;">
+                <!-- Member-portal header chip -->
+                <div style="background: white; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">AC</div>
+                    <span style="font-size: 12px; font-weight: 600;">Acme Coffee</span>
+                  </div>
+                  <span style="background: var(--primary); color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500;">Earn rewards</span>
+                </div>
+                <!-- Survey card -->
+                <div style="background: white; border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
+                  <div style="font-size: 12px; font-weight: 500; margin-bottom: 8px;">How likely are you to recommend us?</div>
+                  <div style="display: flex; gap: 3px; margin-bottom: 8px;">
+                    <span style="flex: 1; height: 18px; background: white; border: 1px solid var(--border); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-muted);">0</span>
+                    <span style="flex: 1; height: 18px; background: white; border: 1px solid var(--border); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-muted);">…</span>
+                    <span style="flex: 1; height: 18px; background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--primary); font-weight: 600;">9</span>
+                    <span style="flex: 1; height: 18px; background: white; border: 1px solid var(--border); border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-muted);">10</span>
+                  </div>
+                  <span style="background: var(--primary); color: white; padding: 3px 9px; border-radius: 4px; font-size: 10px; font-weight: 500;">Submit</span>
+                </div>
+                <!-- Reward-redemption tile -->
+                <div style="background: white; border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <div style="font-size: 12px; font-weight: 500;">Free latte</div>
+                    <div style="font-size: 10px; color: var(--text-muted);">200 points</div>
+                  </div>
+                  <span style="border: 1px solid var(--primary); color: var(--primary); padding: 3px 9px; border-radius: 4px; font-size: 10px; font-weight: 500; background: white;">Redeem</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Org size -->
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 6px;">Team size (optional)</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 1–10</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--primary); background: var(--primary-soft); border-radius: 14px; font-size: 13px; cursor: pointer; color: var(--primary); font-weight: 500;"><input type="radio" name="size" checked style="margin: 0;"> 11–50</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 51–200</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> 201+</label>
+              <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; cursor: pointer;"><input type="radio" name="size" style="margin: 0;"> Prefer not to say</label>
+            </div>
+            <p style="font-size: 11px; color: var(--text-subtle); margin: 6px 0 0;">Helps us recommend the most common setup path for teams your size on the next screen.</p>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 12px;">
+            <button type="button" class="btn btn-primary" style="padding: 10px 16px; font-size: 14px;">Save and continue →</button>
+            <button type="button" class="btn btn-ghost" style="padding: 10px 16px; font-size: 14px;">Skip and add later</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 3: Use-case picker (Step 2 of the shared spine)          -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-use-case-picker">
+  <div class="scene-label"><strong>Scene 3 — Use-case picker</strong> &nbsp; Route: <code>/admin/onboarding</code> &nbsp; Trigger: <code>OnboardingState.useCasePath IS NULL</code> &nbsp; Sub-issue hand-off: #171 / #172 / #173</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Signed in as <strong>jordan@example.com</strong> <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="picker-hero">
+        <div class="picker-progress" aria-hidden="true">
+          <span class="dot done" title="Account created"></span>
+          <span class="dot done" title="Org profile complete"></span>
+          <span class="dot active" title="Choose path"></span>
+          <span class="dot" title="Connect"></span>
+        </div>
+        <h1>How is your setup today?</h1>
+        <p class="subtitle">Tell us where CustomerEQ should plug in. We'll show you the right setup steps for each option. You can add other paths later.</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 0; font-style: italic;">Most teams your size start with <strong style="color: var(--text);">"I have my own application"</strong>.</p>
+      </div>
+      <div class="picker-cards">
+
+        <div class="picker-card" role="button" tabindex="0" aria-labelledby="card-api-title">
+          <div class="icon" aria-hidden="true">⌘</div>
+          <h2 id="card-api-title">I have my own application</h2>
+          <p>Install a CustomerEQ snippet into your existing web, mobile, or backend code. API keys, per-language snippets, and a test-event round-trip.</p>
+          <div class="picker-meta">Best for: SMB teams with developer resources</div>
+          <button class="btn btn-primary">Choose this path</button>
+        </div>
+
+        <div class="picker-card" role="button" tabindex="0" aria-labelledby="card-site-title">
+          <div class="icon" aria-hidden="true">◈</div>
+          <h2 id="card-site-title">Just a website</h2>
+          <p>Paste a snippet onto your static marketing site, or share a hosted survey URL. No code required on your backend.</p>
+          <div class="picker-meta">Best for: brochure sites, shopify-like CMSes</div>
+          <button class="btn btn-primary">Choose this path</button>
+        </div>
+
+        <div class="picker-card" role="button" tabindex="0" aria-labelledby="card-apps-title">
+          <div class="icon" aria-hidden="true">⊞</div>
+          <h2 id="card-apps-title">Multiple applications</h2>
+          <p>Register each of your apps (web, mobile, backend) as a distinct event source under one brand, with per-app attribution.</p>
+          <div class="picker-meta">Best for: orgs with 2+ applications under one brand</div>
+          <button class="btn btn-primary">Choose this path</button>
+        </div>
+
+      </div>
+      <p class="picker-skip"><a href="#">Skip for now and go to the dashboard →</a></p>
+      <div style="height: 32px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 2: Admin home with checklist widget expanded             -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-checklist-expanded">
+  <div class="scene-label"><strong>Scene 4 — Admin home with checklist (2 of 5 complete)</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: brand auto-created + data source connected (via #171 flow); waiting on first event. Row 5 shows "Create your loyalty program" precondition state (programCreated = false)</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Acme Coffee &nbsp; • &nbsp; <strong>jordan@example.com</strong></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <a href="#" class="active">Dashboard</a>
+          <div class="admin-nav-group">CX</div>
+          <a href="#">Surveys</a>
+          <a href="#">Alerts</a>
+          <a href="#">Health Score</a>
+          <div class="admin-nav-group">Loyalty</div>
+          <a href="#">Programs</a>
+          <a href="#">Members</a>
+          <a href="#">Campaigns</a>
+          <div class="admin-nav-group">Settings</div>
+          <a href="#">Integrations</a>
+          <a href="#">Developer</a>
+        </nav>
+        <main class="admin-main">
+
+          <div class="checklist" aria-labelledby="checklist-header">
+            <div class="checklist-header" role="button" tabindex="0" aria-expanded="true">
+              <h3 id="checklist-header">
+                Onboarding
+                <span class="count">2 of 5</span>
+                <span class="progress-mini" aria-hidden="true"><span class="progress-mini-bar" style="width: 40%"></span></span>
+              </h3>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </div>
+            <div class="checklist-body">
+
+              <div class="checklist-step done">
+                <span class="icon" aria-label="complete">✓</span>
+                <div>
+                  <div class="label">Create your brand</div>
+                  <div class="description">Your tenant is set up in CustomerEQ.</div>
+                </div>
+                <span class="action" style="font-size: 12px; color: var(--text-subtle)">Auto</span>
+              </div>
+
+              <div class="checklist-step done">
+                <span class="icon" aria-label="complete">✓</span>
+                <div>
+                  <div class="label">Connect a data source</div>
+                  <div class="description">API key <code style="background: var(--surface-muted); padding: 1px 6px; border-radius: 3px; font-size: 12px;">Onboarding key</code> created — <strong>I have my own application</strong> path.</div>
+                </div>
+                <a href="#" class="action" style="font-size: 13px; color: var(--text-muted);">Change path</a>
+              </div>
+
+              <div class="checklist-step in-progress">
+                <span class="icon" aria-label="in progress">●</span>
+                <div>
+                  <div class="label">Receive your first event</div>
+                  <div class="description">We're watching for incoming events from your install. Waiting on <code style="background: var(--surface-muted); padding: 1px 6px; border-radius: 3px; font-size: 12px;">POST /v1/events</code>…</div>
+                </div>
+                <a href="#" class="action btn btn-primary" style="padding: 6px 12px; font-size: 13px;">View status</a>
+              </div>
+
+              <div class="checklist-step pending">
+                <span class="icon" aria-label="pending">4</span>
+                <div>
+                  <div class="label">Publish your first survey</div>
+                  <div class="description">Launch a survey to collect CX signals from your customers.</div>
+                </div>
+                <a href="#" class="action" style="font-size: 13px; color: var(--primary);">Create a survey →</a>
+              </div>
+
+              <div class="checklist-step pending">
+                <span class="icon" aria-label="pending">5</span>
+                <div>
+                  <div class="label">Trigger your first action</div>
+                  <div class="description">First, create a loyalty program. Then a campaign can fire actions against it.</div>
+                </div>
+                <a href="#" class="action" style="font-size: 13px; color: var(--primary);">Create a loyalty program →</a>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="health-grid">
+            <div class="health-card">
+              <h4>CX Health</h4>
+              <div class="empty">
+                <p>No CX events yet.</p>
+                <a href="#" class="btn btn-ghost">Send a CX event via API</a>
+              </div>
+            </div>
+            <div class="health-card">
+              <h4>Loyalty Health</h4>
+              <div class="empty">
+                <p>No campaigns active.</p>
+                <a href="#" class="btn btn-ghost">Trigger a campaign from a CX event</a>
+              </div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: var(--text-subtle); margin: 12px 0 0;">Empty-state CTAs and quick-adds vary by <code style="background: var(--surface-muted); padding: 1px 4px; border-radius: 3px;">OnboardingState.useCasePath</code> — this scene shows the <strong>I have my own application</strong> archetype. Site / multi-app / skipped variants surface different next-step actions per the spec's "Path-specific dashboard states" matrix.</p>
+
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 3: Activated (all 5 steps complete) with TTFV            -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-activated">
+  <div class="scene-label"><strong>Scene 5 — Activated</strong> &nbsp; Route: <code>/admin</code> &nbsp; State: all 5 checklist steps complete (including programCreated); TTFV captured from OnboardingActivationEvent rows; banner visible until dismissed</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Acme Coffee &nbsp; • &nbsp; <strong>jordan@example.com</strong></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <a href="#" class="active">Dashboard</a>
+          <div class="admin-nav-group">CX</div>
+          <a href="#">Surveys</a>
+          <a href="#">Alerts</a>
+          <a href="#">Health Score</a>
+          <div class="admin-nav-group">Loyalty</div>
+          <a href="#">Programs</a>
+          <a href="#">Members</a>
+          <a href="#">Campaigns</a>
+          <div class="admin-nav-group">Settings</div>
+          <a href="#">Integrations</a>
+          <a href="#">Developer</a>
+        </nav>
+        <main class="admin-main">
+
+          <div class="activation-banner" role="status">
+            <div class="content">
+              <h3>🎉 You've reached activation.</h3>
+              <p>Your first loyalty action just fired in response to a CX signal — the real-time CX-to-loyalty loop is live.</p>
+            </div>
+            <div style="text-align: right;">
+              <div><span class="ttfv">17</span><span style="font-size: 13px; opacity: 0.8;">minutes</span></div>
+              <div class="ttfv-label">Time to first value</div>
+            </div>
+            <button class="btn dismiss">Dismiss</button>
+          </div>
+
+          <div class="compact-checklist">
+            <div class="label-group">
+              <span class="count-done">✓ 5 of 5 complete</span>
+              <span class="progress-mini" aria-hidden="true"><span class="progress-mini-bar"></span></span>
+              <span style="font-size: 12px; color: var(--text-muted)">Activated 3 minutes ago</span>
+            </div>
+            <div>
+              <a href="#" style="font-size: 13px; color: var(--primary); text-decoration: none;">View details</a>
+            </div>
+          </div>
+
+          <div class="health-grid">
+            <div class="health-card">
+              <h4>CX Health</h4>
+              <div style="padding: 16px 0;">
+                <div style="font-size: 32px; font-weight: 600;">42</div>
+                <div style="color: var(--text-muted); font-size: 12px;">Responses this week</div>
+                <div style="margin-top: 12px; font-size: 13px;">NPS &nbsp;<strong style="color: var(--success)">+24</strong>&nbsp; <span style="color: var(--text-muted)">(industry avg +18)</span></div>
+              </div>
+            </div>
+            <div class="health-card">
+              <h4>Loyalty Health</h4>
+              <div style="padding: 16px 0;">
+                <div style="font-size: 32px; font-weight: 600;">1</div>
+                <div style="color: var(--text-muted); font-size: 12px;">Campaign fired in last hour</div>
+                <div style="margin-top: 12px; font-size: 13px;">Points awarded: <strong>500</strong> to <strong>1 detractor</strong></div>
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer style="padding: 24px 16px; text-align: center; color: var(--text-subtle); font-size: 12px; border-top: 1px solid var(--border); margin-top: 32px;">
+  Mock for issue #170 — CustomerEQ Onboarding & First-Run Experience. Viewport target: 1440×900 (desktop). Use <span class="kbd">Cmd</span>/<span class="kbd">Ctrl</span>+<span class="kbd">F</span> to jump to <code>#scene-use-case-picker</code>, <code>#scene-checklist-expanded</code>, or <code>#scene-activated</code>.
+</footer>
+
+</body>
+</html>

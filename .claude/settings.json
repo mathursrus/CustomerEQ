@@ -63,7 +63,9 @@
       "Bash(node node_modules/.bin/turbo test:smoke)",
       "Bash(cmd /c \"cd /d \"\"C:\\\\Users\\\\swaro\\\\Documents\\\\GitHub\\\\CustomerEQ\\\\CustomerEQ - Issue 3\"\" && node_modules\\\\.bin\\\\turbo.CMD test:smoke 2>&1\")",
       "mcp__github__pull_request_read",
-      "Bash(gh run:*)"
+      "Bash(gh run:*)",
+      "Bash(bash ~/.fraim/scripts/prep-issue.sh 129)",
+      "mcp__fraim__list_fraim_jobs"
     ],
     "additionalDirectories": [
       "c:\\Users\\swaro\\Documents\\GitHub\\CustomerEQ\\CustomerEQ - Issue 3\\docs\\evidence",

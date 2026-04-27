@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-04-06
-synthesized:
+synthesized: 2026-04-09
 ---
 
 # Postmortem: Survey Trigger Wizard Technical Design — Issue #79

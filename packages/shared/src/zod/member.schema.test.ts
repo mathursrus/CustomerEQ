@@ -115,6 +115,7 @@ describe('Customer360QuerySchema', () => {
     expect(result.surveysLimit).toBe(10)
     expect(result.redemptionsLimit).toBe(10)
     expect(result.campaignEventsLimit).toBe(10)
+    expect(result.externalSignalsLimit).toBe(10)
   })
 
   it('parses custom limits from string values', () => {
@@ -123,11 +124,13 @@ describe('Customer360QuerySchema', () => {
       surveysLimit: '3',
       redemptionsLimit: '15',
       campaignEventsLimit: '8',
+      externalSignalsLimit: '6',
     })
     expect(result.eventsLimit).toBe(5)
     expect(result.surveysLimit).toBe(3)
     expect(result.redemptionsLimit).toBe(15)
     expect(result.campaignEventsLimit).toBe(8)
+    expect(result.externalSignalsLimit).toBe(6)
   })
 
   it('rejects eventsLimit above 100', () => {

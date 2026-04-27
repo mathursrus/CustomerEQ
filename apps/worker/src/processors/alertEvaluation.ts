@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import type { PrismaClient } from '@prisma/client'
 import type { Prisma } from '@prisma/client'
 import pino from 'pino'
+import type { WebhookDeliveryPayload } from '@customerEQ/shared'
 
 const logger = pino({ name: 'alert-evaluation' })
 
@@ -16,6 +17,8 @@ export interface AlertEvaluationPayload {
   topics: string[]
 }
 
+type EnqueueWebhookFn = (payload: WebhookDeliveryPayload) => Promise<unknown>
+
 /**
  * Alert Evaluation Processor
  *
@@ -25,6 +28,7 @@ export interface AlertEvaluationPayload {
 export async function processAlertEvaluation(
   job: Job<AlertEvaluationPayload>,
   prisma: PrismaClient,
+  enqueueWebhookDelivery?: EnqueueWebhookFn,
 ): Promise<{ casesCreated: number; alertsSent: number }> {
   const { brandId, surveyResponseId, surveyType, score, sentiment, topics } = job.data
 
@@ -75,6 +79,23 @@ export async function processAlertEvaluation(
       },
     })
     casesCreated++
+
+    // Enqueue outbound webhook delivery for case.created event
+    if (enqueueWebhookDelivery) {
+      const endpoints = await prisma.webhookEndpoint.findMany({
+        where: { brandId, active: true, events: { has: 'case.created' } },
+        select: { id: true },
+      })
+      for (const ep of endpoints) {
+        enqueueWebhookDelivery({
+          webhookEndpointId: ep.id,
+          brandId,
+          event: 'case.created',
+          caseId: caseRecord.id,
+          data: { status: caseRecord.status, assignee: caseRecord.assignee, priority: caseRecord.priority },
+        }).catch((err) => logger.error({ err, caseId: caseRecord.id, webhookEndpointId: ep.id }, 'Failed to enqueue case.created webhook'))
+      }
+    }
 
     // Deliver alerts (non-blocking, best-effort)
     const alertResults = await deliverAlerts(rule, job.data, caseRecord.id)

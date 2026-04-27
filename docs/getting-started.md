@@ -8,7 +8,7 @@ This guide helps new collaborators set up a local development environment and st
 
 | Tool | Version | Install |
 |---|---|---|
-| **Node.js** | >= 20 | [nodejs.org](https://nodejs.org/) or `nvm install 20` |
+| **Node.js** | >= 22 | [nodejs.org](https://nodejs.org/) or `nvm install 22` |
 | **pnpm** | >= 9 | `corepack enable && corepack prepare pnpm@9 --activate` |
 | **Docker** | Latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
 | **Git** | Latest | [git-scm.com](https://git-scm.com/) |
@@ -59,7 +59,7 @@ The defaults in `.env.example` work for local development. You will need to add 
 2. Create an application and an organization
 3. Copy `CLERK_SECRET_KEY` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` into `.env`
 
-For webhook testing (optional), set `SALESFORCE_WEBHOOK_SECRET` and/or `HUBSPOT_WEBHOOK_SECRET`.
+For webhook testing (optional), set `CEQ_SALESFORCE_WEBHOOK_SECRET` and/or `CEQ_HUBSPOT_WEBHOOK_SECRET`.
 
 ---
 

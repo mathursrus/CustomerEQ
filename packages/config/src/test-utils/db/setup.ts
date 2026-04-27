@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { execSync } from 'child_process'
 
-let prisma: PrismaClient
+const GLOBAL_PRISMA_KEY = Symbol.for('customerEQ.test_prisma')
 
 /**
  * Creates an isolated test schema for each test run and runs migrations against it.
@@ -14,7 +14,7 @@ export async function setupTestDb(): Promise<PrismaClient> {
 
   process.env.DATABASE_URL = testUrl
 
-  prisma = new PrismaClient({
+  const prisma = new PrismaClient({
     datasources: { db: { url: testUrl } },
   })
 
@@ -47,10 +47,16 @@ export async function setupTestDb(): Promise<PrismaClient> {
   }
 
   await prisma.$connect()
+  ;(globalThis as any)[GLOBAL_PRISMA_KEY] = prisma
   return prisma
 }
 
 export function getTestPrisma(): PrismaClient {
-  if (!prisma) throw new Error('Test DB not initialized. Call setupTestDb() in beforeAll().')
+  const prisma = (globalThis as any)[GLOBAL_PRISMA_KEY]
+  if (!prisma) {
+    console.error(`[DEBUG] getTestPrisma FAILED in process ${process.pid}. globalThis symbols:`, Object.getOwnPropertySymbols(globalThis).map(s => s.toString()))
+    throw new Error('Test DB not initialized. Call setupTestDb() in beforeAll().')
+  }
   return prisma
 }
+

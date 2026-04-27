@@ -63,9 +63,32 @@ export interface SurveyDistributePayload {
   surveyId: string
   memberId: string
   brandId: string
-  triggerKey: string // e.g. 'tier_upgrade' — for logging/analytics
-  surveyLink: string // public URL for the survey
-  cooldownDays: number // default 30
+  triggerKey: string
+  surveyLink: string
+  cooldownDays: number
+}
+
+export interface ExternalSignalSyncPayload {
+  brandId: string
+  sourceId: string
+  triggeredBy?: string
+  reason?: 'manual' | 'scheduled'
+}
+
+export interface ExternalSignalIngestionPayload {
+  brandId: string
+  sourceId: string
+  deliveries: Record<string, unknown>[]
+  receivedAt: string
+  deliveryType?: 'webhook' | 'sync'
+}
+
+export interface WebhookDeliveryPayload {
+  webhookEndpointId: string
+  brandId: string
+  event: 'case.created' | 'case.status_changed' | 'case.overdue'
+  caseId: string
+  data: Record<string, unknown>
 }
 
 export type {

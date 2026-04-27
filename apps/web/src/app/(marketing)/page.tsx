@@ -420,8 +420,13 @@ export default function HomePage() {
 
         {/* Footer */}
         <footer className="border-t border-gray-200 py-8">
-          <div className="mx-auto max-w-7xl px-6 text-center text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} CustomerEQ. All rights reserved.
+          <div className="mx-auto max-w-7xl px-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-500">
+            <div>&copy; {new Date().getFullYear()} CustomerEQ. All rights reserved.</div>
+            <div className="flex items-center gap-6">
+              <Link href="/privacy" className="hover:text-indigo-600">Privacy</Link>
+              <Link href="/terms" className="hover:text-indigo-600">Terms</Link>
+              <Link href="/security" className="hover:text-indigo-600">Security</Link>
+            </div>
           </div>
         </footer>
       </main>

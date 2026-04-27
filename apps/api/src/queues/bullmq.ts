@@ -9,6 +9,12 @@ import {
   type SupportOrchestrationPayload,
   type EmbeddingGenerationPayload,
   type HealthScoreComputationPayload,
+  type ExternalSignalSyncPayload,
+  type ExternalSignalIngestionPayload,
+  type WebhookDeliveryPayload,
+  extractExternalSignalDeliveries,
+  normalizeExternalSignalCandidate,
+  deriveExternalSignalStatus,
   evaluateConditions,
   evaluateSupportRules,
 } from '@customerEQ/shared'
@@ -18,8 +24,9 @@ import { processSentimentForResponse, discoverClusters, detectAnomalies, generat
 import { processHealthScoreComputation } from './healthScore.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import pino from 'pino'
+import { scheduleInline } from './inlineRuntime.js'
 
 // QUEUE_MODE=inline  → skip Redis, run processor logic synchronously
 // QUEUE_MODE=redis   → use BullMQ queues (default)
@@ -35,6 +42,9 @@ let _alertEvaluationQueue: Queue | null = null
 let _supportOrchestrationQueue: Queue | null = null
 let _embeddingGenerationQueue: Queue | null = null
 let _healthScoreQueue: Queue | null = null
+let _externalSignalSyncQueue: Queue | null = null
+let _externalSignalIngestionQueue: Queue | null = null
+let _webhookDeliveryQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -49,6 +59,9 @@ export function initQueues(redis: ConnectionOptions): void {
   _supportOrchestrationQueue = new Queue(QUEUES.SUPPORT_ORCHESTRATION, { connection })
   _embeddingGenerationQueue = new Queue(QUEUES.EMBEDDING_GENERATION, { connection })
   _healthScoreQueue = new Queue(QUEUES.HEALTH_SCORE_COMPUTATION, { connection })
+  _externalSignalSyncQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_SYNC, { connection })
+  _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
+  _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -88,6 +101,18 @@ function getEmbeddingGenerationQueue(): Queue {
 function getHealthScoreQueue(): Queue {
   if (!_healthScoreQueue) throw new Error('Queues not initialized.')
   return _healthScoreQueue
+}
+function getExternalSignalSyncQueue(): Queue {
+  if (!_externalSignalSyncQueue) throw new Error('Queues not initialized.')
+  return _externalSignalSyncQueue
+}
+function getExternalSignalIngestionQueue(): Queue {
+  if (!_externalSignalIngestionQueue) throw new Error('Queues not initialized.')
+  return _externalSignalIngestionQueue
+}
+function getWebhookDeliveryQueue(): Queue {
+  if (!_webhookDeliveryQueue) throw new Error('Queues not initialized.')
+  return _webhookDeliveryQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,10 +179,6 @@ async function inlineLoyaltyEvent(p: LoyaltyEventPayload) {
 async function inlineCampaignTrigger(p: CampaignTriggerPayload) {
   const { campaignId, memberId, brandId, eventIngestedAt } = p
 
-  // DB-based dedup
-  const existing = await prisma.campaignEvent.findFirst({ where: { campaignId, memberId } })
-  if (existing) return
-
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: { program: { select: { pointToCurrencyRatio: true } } },
@@ -174,13 +195,24 @@ async function inlineCampaignTrigger(p: CampaignTriggerPayload) {
   }
 
   const latencyMs = Date.now() - new Date(eventIngestedAt).getTime()
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.loyaltyEvent.create({ data: { memberId, brandId, eventType: 'campaign_award', pointsEarned: points, campaignId, rulesApplied: [] } })
-    await tx.member.update({ where: { id: memberId }, data: { pointsBalance: { increment: points } } })
-    await tx.campaignEvent.create({ data: { campaignId, memberId, brandId, executedAt: new Date(), latencyMs, status: 'executed' } })
-    const costUsd = points * campaign.program.pointToCurrencyRatio
-    await tx.campaign.update({ where: { id: campaignId }, data: { budgetSpent: { increment: costUsd } } })
-  })
+  // Race-safe dedup: rely on the @@unique([campaignId, memberId]) constraint
+  // on CampaignEvent. Two concurrent triggers for the same (campaign, member)
+  // will both attempt the create; one wins, the loser raises P2002 and we
+  // treat that as a silent dedup — same outcome as Redis SET NX.
+  try {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.campaignEvent.create({ data: { campaignId, memberId, brandId, executedAt: new Date(), latencyMs, status: 'executed' } })
+      await tx.loyaltyEvent.create({ data: { memberId, brandId, eventType: 'campaign_award', pointsEarned: points, campaignId, rulesApplied: [] } })
+      await tx.member.update({ where: { id: memberId }, data: { pointsBalance: { increment: points } } })
+      const costUsd = points * campaign.program.pointToCurrencyRatio
+      await tx.campaign.update({ where: { id: campaignId }, data: { budgetSpent: { increment: costUsd } } })
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return { points: 0, latencyMs, deduped: true }
+    }
+    throw err
+  }
   return { points, latencyMs }
 }
 
@@ -348,15 +380,292 @@ async function inlineFeedbackClustering(p: FeedbackClusteringPayload) {
   return { newClustersCreated, responsesAssigned, snapshotsCreated, anomaliesDetected }
 }
 
+async function resolveExternalSignalMember(
+  brandId: string,
+  sourceMatchingConfig: Prisma.JsonValue | null | undefined,
+  memberEmail: string | null,
+) {
+  const matchingConfig = (sourceMatchingConfig ?? {}) as Record<string, unknown>
+  if (matchingConfig.memberResolutionEnabled === false || !memberEmail) {
+    return {
+      memberId: null,
+      matchStatus: 'UNMATCHED' as const,
+      matchConfidence: null,
+      matchMethod: null,
+    }
+  }
+
+  const member = await prisma.member.findUnique({
+    where: { brandId_email: { brandId, email: memberEmail } },
+    select: { id: true, consentGivenAt: true },
+  })
+
+  if (!member || !member.consentGivenAt) {
+    return {
+      memberId: null,
+      matchStatus: 'UNMATCHED' as const,
+      matchConfidence: null,
+      matchMethod: null,
+    }
+  }
+
+  return {
+    memberId: member.id,
+    matchStatus: 'MATCHED' as const,
+    matchConfidence: 1,
+    matchMethod: 'email_exact',
+  }
+}
+
+async function inlineExternalSignalIngestion(p: ExternalSignalIngestionPayload) {
+  const source = await prisma.externalSignalSource.findFirst({
+    where: { id: p.sourceId, brandId: p.brandId },
+  })
+  if (!source) {
+    throw new Error(`External signal source ${p.sourceId} not found`)
+  }
+
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: { lastSyncAt: new Date(p.receivedAt) },
+  })
+
+  const deliveries = extractExternalSignalDeliveries(p.deliveries)
+  let importedCount = 0
+
+  for (const record of deliveries) {
+    const candidate = normalizeExternalSignalCandidate(record)
+    const body = candidate.body || candidate.summary || '[No body provided]'
+    const match = await resolveExternalSignalMember(
+      p.brandId,
+      source.matchingConfig,
+      candidate.memberEmail,
+    )
+
+    const existing = await prisma.externalSignal.findUnique({
+      where: {
+        sourceId_externalId: {
+          sourceId: source.id,
+          externalId: candidate.externalId,
+        },
+      },
+      select: {
+        id: true,
+        providerStatus: true,
+        statusHistory: true,
+      },
+    })
+
+    const nextStatus = deriveExternalSignalStatus(candidate.providerStatus)
+    const nextStatusHistory = Array.isArray(existing?.statusHistory)
+      ? [...existing.statusHistory]
+      : []
+
+    if (candidate.providerStatus && existing?.providerStatus !== candidate.providerStatus) {
+      nextStatusHistory.push({
+        providerStatus: candidate.providerStatus,
+        changedAt: new Date(p.receivedAt).toISOString(),
+      })
+    }
+
+    if (existing) {
+      await prisma.externalSignal.update({
+        where: { id: existing.id },
+        data: {
+          memberId: match.memberId,
+          status: nextStatus,
+          matchStatus: match.matchStatus,
+          matchConfidence: match.matchConfidence,
+          matchMethod: match.matchMethod,
+          body,
+          summary: candidate.summary,
+          rating: candidate.rating,
+          sentiment: candidate.sentiment,
+          confidence: candidate.confidence,
+          topics: candidate.topics,
+          canonicalUrl: candidate.canonicalUrl,
+          externalAuthorHandle: candidate.externalAuthorHandle,
+          externalAuthorLabel: candidate.externalAuthorLabel,
+          subjectType: candidate.subjectType,
+          subjectKey: candidate.subjectKey,
+          subjectLabel: candidate.subjectLabel,
+          providerStatus: candidate.providerStatus,
+          providerMetadata:
+            candidate.providerMetadata == null
+              ? Prisma.JsonNull
+              : (candidate.providerMetadata as Prisma.InputJsonValue),
+          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
+          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
+          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
+        },
+      })
+    } else {
+      await prisma.externalSignal.create({
+        data: {
+          brandId: p.brandId,
+          sourceId: source.id,
+          memberId: match.memberId,
+          sourceType: source.sourceType,
+          externalId: candidate.externalId,
+          status: nextStatus,
+          matchStatus: match.matchStatus,
+          matchConfidence: match.matchConfidence,
+          matchMethod: match.matchMethod,
+          body,
+          summary: candidate.summary,
+          rating: candidate.rating,
+          sentiment: candidate.sentiment,
+          confidence: candidate.confidence,
+          topics: candidate.topics,
+          canonicalUrl: candidate.canonicalUrl,
+          externalAuthorHandle: candidate.externalAuthorHandle,
+          externalAuthorLabel: candidate.externalAuthorLabel,
+          subjectType: candidate.subjectType,
+          subjectKey: candidate.subjectKey,
+          subjectLabel: candidate.subjectLabel,
+          providerStatus: candidate.providerStatus,
+          statusHistory: nextStatusHistory as Prisma.InputJsonValue,
+          providerMetadata:
+            candidate.providerMetadata == null
+              ? Prisma.JsonNull
+              : (candidate.providerMetadata as Prisma.InputJsonValue),
+          rawPayload: candidate.rawPayload as Prisma.InputJsonValue,
+          postedAt: candidate.postedAt ? new Date(candidate.postedAt) : null,
+          ingestedAt: new Date(p.receivedAt),
+        },
+      })
+    }
+
+    importedCount += 1
+  }
+
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: {
+      healthStatus: 'healthy',
+      lastSuccessAt: new Date(p.receivedAt),
+      lastImportCount: importedCount,
+      lastError: null,
+      lastErrorAt: null,
+    },
+  })
+
+  return { importedCount }
+}
+
+async function inlineExternalSignalSync(p: ExternalSignalSyncPayload) {
+  const source = await prisma.externalSignalSource.findFirst({
+    where: { id: p.sourceId, brandId: p.brandId },
+    select: { id: true, sourceType: true, scopeConfig: true, credentialRef: true, lastCursor: true },
+  })
+  if (!source) {
+    throw new Error(`External signal source ${p.sourceId} not found`)
+  }
+
+  const scopeConfig = (source.scopeConfig ?? {}) as Record<string, unknown>
+
+  // Try native connector first (Google, Reddit, X, LinkedIn)
+  let deliveries: Record<string, unknown>[]
+  let nextCursor: Record<string, unknown> | null = null
+  let updatedCredentials: Record<string, unknown> | undefined
+
+  try {
+    const { CONNECTORS } = await import('@customerEQ/connectors')
+    const connector = CONNECTORS[source.sourceType]
+
+    if (connector) {
+      const result = await connector({
+        sourceId: source.id,
+        brandId: p.brandId,
+        scopeConfig,
+        lastCursor: (source.lastCursor ?? null) as Record<string, unknown> | null,
+        credentialRef: source.credentialRef,
+      })
+      deliveries = result.deliveries
+      nextCursor = result.nextCursor
+      updatedCredentials = result.updatedCredentials
+    } else {
+      // Fallback: samplePayloads for generic sources
+      deliveries = extractExternalSignalDeliveries(
+        scopeConfig.samplePayloads ?? scopeConfig.seedSignals ?? [],
+      )
+    }
+  } catch (err) {
+    // Mirror worker semantics so inline mode is functionally equivalent:
+    //   - Auth errors: mark `auth_error`, swallow (human must reconnect OAuth)
+    //   - Rate-limit errors: rethrow so the inline runtime applies backoff retry
+    //   - Other errors: mark `error`, rethrow for retry
+    const errName = err instanceof Error ? err.name : ''
+    if (errName === 'ConnectorAuthError') {
+      await prisma.externalSignalSource.update({
+        where: { id: source.id },
+        data: {
+          healthStatus: 'auth_error',
+          lastError: err instanceof Error ? err.message : 'Sync failed',
+          lastErrorAt: new Date(),
+          lastSyncAt: new Date(),
+        },
+      })
+      log.error({ sourceId: source.id, err }, 'Inline external signal sync auth error')
+      return { importedCount: 0, queued: 0, error: err instanceof Error ? err.message : 'Auth failed' }
+    }
+
+    if (errName === 'ConnectorRateLimitError') {
+      log.warn({ sourceId: source.id, err }, 'Inline external signal sync rate limited — will retry')
+      throw err
+    }
+
+    await prisma.externalSignalSource.update({
+      where: { id: source.id },
+      data: {
+        healthStatus: 'error',
+        lastError: err instanceof Error ? err.message : 'Sync failed',
+        lastErrorAt: new Date(),
+        lastSyncAt: new Date(),
+      },
+    })
+    throw err
+  }
+
+  if (deliveries.length === 0) {
+    const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+    if (nextCursor) updateData.lastCursor = nextCursor
+    await prisma.externalSignalSource.update({
+      where: { id: source.id },
+      data: updateData,
+    })
+    return { importedCount: 0, queued: 0 }
+  }
+
+  const result = await inlineExternalSignalIngestion({
+    brandId: p.brandId,
+    sourceId: p.sourceId,
+    deliveries,
+    receivedAt: new Date().toISOString(),
+    deliveryType: 'sync',
+  })
+
+  // Persist cursor and refreshed credentials
+  const updateData: Record<string, unknown> = { lastSyncAt: new Date() }
+  if (nextCursor) updateData.lastCursor = nextCursor
+  if (updatedCredentials) {
+    updateData.scopeConfig = { ...scopeConfig, credentials: updatedCredentials }
+  }
+  await prisma.externalSignalSource.update({
+    where: { id: source.id },
+    data: updateData,
+  })
+
+  return { ...result, queued: deliveries.length }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Public enqueue functions
 // ═══════════════════════════════════════════════════════════════════════════
 
 export async function enqueueEvent(payload: LoyaltyEventPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineLoyaltyEvent(payload).then((r) => {
-      log.info({ eventType: payload.eventType, points: r.pointsAwarded }, 'Inline loyalty event')
-    }).catch((err) => { log.error({ err, eventType: payload.eventType }, 'Inline loyalty event failed') })
+    scheduleInline('loyalty-event', payload, inlineLoyaltyEvent)
     return INLINE_STUB
   }
   return getLoyaltyEventsQueue().add('process', payload)
@@ -364,15 +673,27 @@ export async function enqueueEvent(payload: LoyaltyEventPayload): Promise<Job> {
 
 export async function enqueueCampaignTrigger(payload: CampaignTriggerPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineCampaignTrigger(payload).catch((err) => { log.error({ err, campaignId: payload.campaignId }, 'Inline campaign trigger failed') })
+    scheduleInline('campaign-trigger', payload, inlineCampaignTrigger)
     return INLINE_STUB
   }
   return getCampaignTriggersQueue().add('trigger', payload, { priority: 10 })
 }
 
+async function inlineNotification(payload: NotificationPayload): Promise<{ sent: boolean; reason?: string }> {
+  // Mirrors apps/worker/src/processors/notifications.ts processNotification
+  // exactly so both modes follow the same code path. Today both are stubs;
+  // when EMAIL_PROVIDER is wired up to a real provider, both modes pick up
+  // the change with no further refactor.
+  if (process.env.EMAIL_PROVIDER === 'stub' || !process.env.EMAIL_PROVIDER) {
+    log.info({ memberId: payload.memberId, channel: payload.channel }, 'Notification (stub provider)')
+    return { sent: false, reason: 'stub_provider' }
+  }
+  return { sent: true }
+}
+
 export async function enqueueNotification(payload: NotificationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    log.info({ memberId: payload.memberId, channel: payload.channel }, 'Inline notification (stub)')
+    scheduleInline('notification', payload, inlineNotification)
     return INLINE_STUB
   }
   return getNotificationsQueue().add('send', payload)
@@ -380,11 +701,12 @@ export async function enqueueNotification(payload: NotificationPayload): Promise
 
 export async function enqueueSentimentAnalysis(payload: SentimentAnalysisPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    processSentimentForResponse(
-      { surveyResponseId: payload.surveyResponseId, brandId: payload.brandId, memberId: payload.memberId, text: payload.text, eventType: payload.eventType, score: payload.score },
-      prisma,
-    ).then((r) => { log.info({ surveyResponseId: payload.surveyResponseId, sentiment: r.sentiment }, 'Inline sentiment') })
-      .catch((err) => { log.error({ err, surveyResponseId: payload.surveyResponseId }, 'Inline sentiment failed') })
+    scheduleInline('sentiment-analysis', payload, async (p) => {
+      return processSentimentForResponse(
+        { surveyResponseId: p.surveyResponseId, brandId: p.brandId, memberId: p.memberId, text: p.text, eventType: p.eventType, score: p.score },
+        prisma,
+      )
+    })
     return INLINE_STUB
   }
   return getSentimentAnalysisQueue().add('analyze', payload)
@@ -392,8 +714,7 @@ export async function enqueueSentimentAnalysis(payload: SentimentAnalysisPayload
 
 export async function enqueueFeedbackClustering(payload: FeedbackClusteringPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineFeedbackClustering(payload).then((r) => { log.info({ brandId: payload.brandId, ...r }, 'Inline clustering') })
-      .catch((err) => { log.error({ err, brandId: payload.brandId }, 'Inline clustering failed') })
+    scheduleInline('feedback-clustering', payload, inlineFeedbackClustering)
     return INLINE_STUB
   }
   return getFeedbackClusteringQueue().add('cluster', payload)
@@ -429,9 +750,7 @@ async function inlineEmbeddingGeneration(p: EmbeddingGenerationPayload) {
 
 export async function enqueueEmbeddingGeneration(payload: EmbeddingGenerationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineEmbeddingGeneration(payload).catch((err) => {
-      log.error({ err, articleId: payload.articleId }, 'Inline embedding generation failed')
-    })
+    scheduleInline('embedding-generation', payload, inlineEmbeddingGeneration, { attempts: 3, backoffMs: 1000 })
     return INLINE_STUB
   }
   return getEmbeddingGenerationQueue().add('generate', payload, {
@@ -442,9 +761,7 @@ export async function enqueueEmbeddingGeneration(payload: EmbeddingGenerationPay
 
 export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineAlertEvaluation(payload).then((r) => {
-      if (r.casesCreated > 0) log.info({ surveyResponseId: payload.surveyResponseId, ...r }, 'Inline alert evaluation')
-    }).catch((err) => { log.error({ err, surveyResponseId: payload.surveyResponseId }, 'Inline alert failed') })
+    scheduleInline('alert-evaluation', payload, inlineAlertEvaluation)
     return INLINE_STUB
   }
   return getAlertEvaluationQueue().add('evaluate', payload, { priority: 10 })
@@ -652,9 +969,7 @@ function generateFallbackResponse(intent: string, firstName: string, brandName: 
 
 export async function enqueueSupportOrchestration(payload: SupportOrchestrationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    inlineSupportOrchestration(payload).then((r) => {
-      log.info({ conversationId: payload.conversationId, ...r }, 'Inline support orchestration')
-    }).catch((err) => { log.error({ err, conversationId: payload.conversationId }, 'Inline support orchestration failed') })
+    scheduleInline('support-orchestration', payload, inlineSupportOrchestration)
     return INLINE_STUB
   }
   return getSupportOrchestrationQueue().add('orchestrate', payload)
@@ -662,10 +977,86 @@ export async function enqueueSupportOrchestration(payload: SupportOrchestrationP
 
 export async function enqueueHealthScoreComputation(payload: HealthScoreComputationPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    processHealthScoreComputation(payload).then((r) => {
-      log.info({ brandId: payload.brandId, ...r }, 'Inline health score computation')
-    }).catch((err) => { log.error({ err, brandId: payload.brandId }, 'Inline health score computation failed') })
+    scheduleInline('health-score-computation', payload, processHealthScoreComputation)
     return INLINE_STUB
   }
   return getHealthScoreQueue().add('compute', payload)
+}
+
+export async function enqueueExternalSignalSync(payload: ExternalSignalSyncPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline('external-signal-sync', payload, inlineExternalSignalSync)
+    return INLINE_STUB
+  }
+  return getExternalSignalSyncQueue().add('sync', payload)
+}
+
+export async function enqueueExternalSignalIngestion(payload: ExternalSignalIngestionPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline('external-signal-ingestion', payload, inlineExternalSignalIngestion)
+    return INLINE_STUB
+  }
+  return getExternalSignalIngestionQueue().add('ingest', payload)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Webhook Delivery
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function inlineWebhookDelivery(p: WebhookDeliveryPayload) {
+  const { webhookEndpointId, brandId, event, caseId, data } = p
+
+  const endpoint = await prisma.webhookEndpoint.findFirst({ where: { id: webhookEndpointId, brandId } })
+  if (!endpoint || !endpoint.active) return { success: false, latencyMs: 0 }
+
+  const { createHmac } = await import('node:crypto')
+  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const requestPayload = { id: `inline-${Date.now()}`, event, timestamp, data: { caseId, brandId, ...data } }
+  const body = JSON.stringify(requestPayload)
+  const signedString = `${timestamp}.${body}`
+  const signature = `sha256=${createHmac('sha256', endpoint.signingSecret).update(signedString).digest('hex')}`
+
+  const startMs = Date.now()
+  let httpStatus: number | undefined
+  let responseBody: string | undefined
+  let success!: boolean
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10_000)
+    let res: Response
+    try {
+      res = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CustomerEQ-Signature': signature, 'X-CustomerEQ-Timestamp': timestamp },
+        body,
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+    httpStatus = res.status
+    try { responseBody = await res.text() } catch { /* ignore */ }
+    success = res.ok
+  } catch (err) {
+    const latencyMs = Date.now() - startMs
+    await prisma.webhookDeliveryLog.create({ data: { webhookEndpointId, brandId, event, caseId, success: false, attempt: 1, requestPayload: requestPayload as never, responseBody: err instanceof Error ? err.message : String(err), latencyMs } })
+    throw err
+  }
+
+  const latencyMs = Date.now() - startMs
+  await prisma.webhookDeliveryLog.create({ data: { webhookEndpointId, brandId, event, caseId, httpStatus, latencyMs, success, attempt: 1, requestPayload: requestPayload as never, responseBody: responseBody ?? null } })
+  if (!success) throw new Error(`Webhook delivery failed: HTTP ${httpStatus}`)
+  return { success: true, httpStatus, latencyMs }
+}
+
+export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline('webhook-delivery', payload, inlineWebhookDelivery, { attempts: 5, backoffMs: 1000 })
+    return INLINE_STUB
+  }
+  return getWebhookDeliveryQueue().add('deliver', payload, {
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 1000 },
+  })
 }

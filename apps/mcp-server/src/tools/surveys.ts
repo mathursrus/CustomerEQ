@@ -1,15 +1,16 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { apiFetch } from '../api-client.js'
+import type { ApiFetch } from '../api-client.js'
 
-export function registerSurveyTools(server: McpServer) {
+export function registerSurveyTools(server: McpServer, fetch: ApiFetch = apiFetch) {
   // List surveys
   server.tool(
     'list_surveys',
     'List all surveys for the brand. Returns survey names, types, statuses, and response counts.',
     {},
     async () => {
-      const res = await apiFetch('/v1/surveys')
+      const res = await fetch('/v1/surveys')
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -34,7 +35,7 @@ export function registerSurveyTools(server: McpServer) {
     'Create a new survey. Starts in DRAFT status. Must activate before responses can be submitted.',
     CreateSurveySchema.shape,
     async (params) => {
-      const res = await apiFetch('/v1/surveys', { method: 'POST', body: params })
+      const res = await fetch('/v1/surveys', { method: 'POST', body: params })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Survey created: ${JSON.stringify(res.data, null, 2)}` }] }
     },
@@ -46,7 +47,7 @@ export function registerSurveyTools(server: McpServer) {
     'Get survey details including response stats, recent responses with sentiment and topics.',
     z.object({ surveyId: z.string().describe('Survey ID') }).shape,
     async ({ surveyId }) => {
-      const res = await apiFetch(`/v1/surveys/${surveyId}`)
+      const res = await fetch(`/v1/surveys/${surveyId}`)
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: JSON.stringify(res.data, null, 2) }] }
     },
@@ -61,7 +62,7 @@ export function registerSurveyTools(server: McpServer) {
       status: z.enum(['ACTIVE', 'PAUSED', 'CLOSED']).describe('New status'),
     }).shape,
     async ({ surveyId, status }) => {
-      const res = await apiFetch(`/v1/surveys/${surveyId}/status`, { method: 'PATCH', body: { status } })
+      const res = await fetch(`/v1/surveys/${surveyId}/status`, { method: 'PATCH', body: { status } })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Survey updated: ${JSON.stringify(res.data, null, 2)}` }] }
     },

@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { HealthScoreBadge } from '@/components/health-score/HealthScoreBadge'
+import { SENTIMENT } from '@customerEQ/shared'
 
 // ---------------------------------------------------------------------------
 // Types matching the GET /v1/members/:id/360 response
@@ -87,6 +88,23 @@ interface CampaignEvent {
   result: unknown
 }
 
+interface ExternalSignal {
+  id: string
+  sourceId: string
+  sourceType: string
+  sourceName: string
+  body: string
+  summary: string | null
+  rating: number | null
+  sentiment: number | null
+  topics: string[]
+  canonicalUrl: string | null
+  externalAuthorLabel: string | null
+  subjectLabel: string | null
+  postedAt: string | null
+  matchConfidence: number | null
+}
+
 interface OpenCase {
   id: string
   status: string
@@ -102,6 +120,7 @@ interface Customer360 {
   surveyResponses: { items: SurveyResponse[]; hasMore: boolean; total: number }
   redemptions: { items: Redemption[]; hasMore: boolean; total: number }
   campaignEvents: { items: CampaignEvent[]; hasMore: boolean; total: number }
+  externalSignals: { items: ExternalSignal[]; hasMore: boolean; total: number }
   openCases: OpenCase[]
   stats: {
     totalEvents: number
@@ -154,7 +173,8 @@ interface Note {
 
 const NOTE_CATEGORIES = ['call', 'email', 'meeting', 'note', 'escalation', 'win-back'] as const
 const NOTE_SENTIMENTS: { value: NoteSentiment | ''; label: string; chip: string }[] = [
-  { value: '', label: 'Not tagged', chip: 'bg-gray-100 text-gray-600' },
+  // Empty string = let the server auto-compute from the note body (Issue #141).
+  { value: '', label: 'Auto — AI reads the note', chip: 'bg-indigo-50 text-indigo-700' },
   { value: 'very_negative', label: 'Very negative · churn risk', chip: 'bg-red-100 text-red-800' },
   { value: 'negative', label: 'Negative · frustrated', chip: 'bg-orange-100 text-orange-800' },
   { value: 'neutral', label: 'Neutral', chip: 'bg-gray-100 text-gray-700' },
@@ -179,9 +199,14 @@ export default function MemberDetailPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [noteBody, setNoteBody] = useState('')
   const [noteCategory, setNoteCategory] = useState<string>('note')
+  // Empty string = let the server auto-compute from the note body.
+  // Any other value = manual override, respected by the server as-is.
   const [noteSentiment, setNoteSentiment] = useState<NoteSentiment | ''>('')
   const [noteSubmitting, setNoteSubmitting] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  // Surface the auto-computed sentiment for the last note so the rep can
+  // see what the AI picked and click to override if they disagree.
+  const [lastAutoSentiment, setLastAutoSentiment] = useState<{ noteId: string; sentiment: NoteSentiment } | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editBody, setEditBody] = useState('')
   const [editCategory, setEditCategory] = useState<string>('note')
@@ -247,14 +272,25 @@ export default function MemberDetailPage() {
         setNoteError(err.message || 'Failed to add note')
         return
       }
+      // Response now carries `sentimentAuto: true` when the server
+      // auto-computed from the note body (Issue #141). Capture it so
+      // we can show the rep what the AI picked and offer a one-click
+      // override via the existing edit flow.
+      const createdNote: { id: string; sentiment: NoteSentiment | null; sentimentAuto: boolean } = await res.json().catch(() => ({ id: '', sentiment: null, sentimentAuto: false }))
+      if (createdNote.sentimentAuto && createdNote.sentiment) {
+        setLastAutoSentiment({ noteId: createdNote.id, sentiment: createdNote.sentiment })
+      } else {
+        setLastAutoSentiment(null)
+      }
       setNoteBody('')
       setNoteCategory('note')
       setNoteSentiment('')
       await fetchNotes()
-      // Sentiment-tagged notes trigger health score recompute on the server;
-      // refetch the 360 after a short delay so the updated score + inconsistency
-      // flag show up.
-      if (noteSentiment) {
+      // Any note that lands with a non-null sentiment (manual or auto)
+      // triggers a health-score recompute on the server. Refetch the 360
+      // after a short delay so the updated score + inconsistency flag
+      // show up.
+      if (noteSentiment || createdNote.sentiment) {
         setTimeout(() => void fetchData(), 2500)
       }
     } catch {
@@ -367,7 +403,7 @@ export default function MemberDetailPage() {
     )
   }
 
-  const { member, recentEvents, surveyResponses, redemptions, campaignEvents, openCases, stats } =
+  const { member, recentEvents, surveyResponses, redemptions, campaignEvents, externalSignals, openCases, stats } =
     data
 
   const displayName =
@@ -650,8 +686,43 @@ export default function MemberDetailPage() {
           </div>
           {noteSentiment && (
             <p className="text-xs text-gray-500 italic">
-              Tagging sentiment will trigger a health-score recompute for this customer.
+              Manual override: this sentiment will be saved as-is and will trigger a health-score recompute.
             </p>
+          )}
+          {!noteSentiment && (
+            <p className="text-xs text-gray-500 italic">
+              AI will read the note body and tag sentiment automatically. You can override here or edit the note afterwards.
+            </p>
+          )}
+          {lastAutoSentiment && (
+            <div className="flex items-center gap-2 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">
+              <span className="text-xs text-indigo-700">
+                ✨ Last note tagged{' '}
+                <span className={`inline-flex px-2 py-0.5 rounded-full font-medium uppercase tracking-wide text-[10px] ${sentimentChip(lastAutoSentiment.sentiment)}`}>
+                  {sentimentLabel(lastAutoSentiment.sentiment)}
+                </span>
+                {' '}by the AI.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const note = notes.find((n) => n.id === lastAutoSentiment.noteId)
+                  if (note) beginEdit(note)
+                  setLastAutoSentiment(null)
+                }}
+                className="ml-auto text-xs text-indigo-700 hover:text-indigo-900 underline"
+              >
+                Disagree? Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setLastAutoSentiment(null)}
+                className="text-xs text-indigo-400 hover:text-indigo-600"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           )}
           {noteError && <p className="text-xs text-red-600">{noteError}</p>}
         </form>
@@ -881,6 +952,78 @@ export default function MemberDetailPage() {
                   <span className="text-gray-400 text-xs">
                     {formatRelativeTime(ce.triggeredAt)}
                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* External Signals */}
+      {externalSignals.total > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">
+            External Signals ({externalSignals.total})
+          </h2>
+          <div className="space-y-3 text-sm">
+            {externalSignals.items.map((signal) => (
+              <div key={signal.id} className="rounded-lg border border-gray-100 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                        {signal.sourceType.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-xs font-medium text-gray-700">{signal.sourceName}</span>
+                      {signal.subjectLabel && (
+                        <span className="text-xs text-gray-400">{signal.subjectLabel}</span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-800">{signal.body}</p>
+                    {signal.summary && (
+                      <p className="mt-1 text-xs text-gray-500">{signal.summary}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {signal.externalAuthorLabel && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                          {signal.externalAuthorLabel}
+                        </span>
+                      )}
+                      {signal.topics.map((topic) => (
+                        <span key={topic} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex flex-col items-end gap-2">
+                      {signal.rating != null && (
+                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                          Rating {signal.rating}
+                        </span>
+                      )}
+                      {signal.sentiment != null && (
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${signal.sentiment > SENTIMENT.POSITIVE_THRESHOLD ? 'bg-green-50 text-green-700' : signal.sentiment < SENTIMENT.NEGATIVE_THRESHOLD ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                          {signal.sentiment > 0 ? '+' : ''}
+                          {signal.sentiment.toFixed(2)}
+                        </span>
+                      )}
+                      {signal.postedAt && (
+                        <span className="text-xs text-gray-400">{formatRelativeTime(signal.postedAt)}</span>
+                      )}
+                      {signal.canonicalUrl && (
+                        <a
+                          href={signal.canonicalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          Open source
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

@@ -187,8 +187,8 @@ export default function RuleBuilderStep({ surveyType, programId, surveyId: _surv
         {rules.map((rule, index) => (
           <div key={index} className="rounded-lg border border-gray-200 bg-gray-50 p-4" data-testid={`rule-row-${index}`}>
             <div className="flex items-start gap-4">
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
+              <div className="flex-1 grid grid-cols-2 gap-4 min-w-0">
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Score Range (0–{maxScore})</label>
                   <div className="flex items-center gap-2">
                     <input
@@ -210,14 +210,14 @@ export default function RuleBuilderStep({ surveyType, programId, surveyId: _surv
                       className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       data-testid={`rule-score-max-${index}`}
                     />
-                    {rule.reachEstimate !== undefined && rule.reachEstimate !== null && (
-                      <span className="text-xs text-indigo-600 font-medium" data-testid={`reach-badge-${index}`}>
-                        ~{rule.reachEstimate} members
-                      </span>
-                    )}
                   </div>
+                  {rule.reachEstimate !== undefined && rule.reachEstimate !== null && (
+                    <span className="mt-1 block text-xs text-indigo-600 font-medium" data-testid={`reach-badge-${index}`}>
+                      ~{rule.reachEstimate} members
+                    </span>
+                  )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
                   <select
                     value={rule.actionType}
@@ -304,7 +304,7 @@ export default function RuleBuilderStep({ surveyType, programId, surveyId: _surv
 
       {/* Footer actions */}
       <div className="mt-8 flex justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {onBack && (
             <button
               type="button"

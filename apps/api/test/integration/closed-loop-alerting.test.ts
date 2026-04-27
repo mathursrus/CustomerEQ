@@ -130,6 +130,74 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // 4a. Webhook-mask preservation (Issue #157)
+  //
+  // The admin UI loads masked webhook URLs and leaves them blank on the form.
+  // When the user saves without typing a new URL, the client omits the key
+  // from the PATCH body so the DB value is preserved. Verify the end-to-end
+  // contract: omitting the key does not null the column.
+  // ---------------------------------------------------------------------------
+
+  it('preserves slackWebhookUrl when PATCH omits the key (issue #157 mask-round-trip)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    // PATCH without slackWebhookUrl in the body — should preserve the existing value.
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      name: 'Renamed',
+    })
+    expect(patchRes.status).toBe(200)
+
+    // GET the rule again — masked URL should still be present (not null).
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    expect(getRes.body.slackWebhookUrl).not.toBeNull()
+    expect(getRes.body.slackWebhookUrl).toMatch(/\*+/)
+    // Last 8 chars of the original ('test/test') should still match the mask.
+    expect(getRes.body.slackWebhookUrl).toMatch(/est\/test$/)
+  })
+
+  it('clears slackWebhookUrl when PATCH sends null explicitly (issue #157)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      slackWebhookUrl: null,
+    })
+    expect(patchRes.status).toBe(200)
+
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    expect(getRes.body.slackWebhookUrl).toBeNull()
+  })
+
+  it('replaces slackWebhookUrl when PATCH sends a new URL (issue #157)', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+
+    const createRes = await request.post('/v1/alert-rules').send(alertRulePayload)
+    const ruleId = createRes.body.id
+
+    const newUrl = 'https://hooks.slack.com/services/new/webhook/12345678'
+    const patchRes = await request.patch(`/v1/alert-rules/${ruleId}`).send({
+      slackWebhookUrl: newUrl,
+    })
+    expect(patchRes.status).toBe(200)
+
+    const getRes = await request.get(`/v1/alert-rules/${ruleId}`)
+    expect(getRes.status).toBe(200)
+    // Masked, but should reflect the NEW last-8 chars — not the original.
+    expect(getRes.body.slackWebhookUrl).toMatch(/\*+/)
+    expect(getRes.body.slackWebhookUrl).toMatch(/12345678$/)
+  })
+
+  // ---------------------------------------------------------------------------
   // 5. Activate / pause a rule
   // ---------------------------------------------------------------------------
 
@@ -210,6 +278,136 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const cases = res.body.cases ?? res.body
     expect(Array.isArray(cases)).toBe(true)
     expect(cases).toHaveLength(0)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 8c. List cases with survey data (Bug Repro)
+  // ---------------------------------------------------------------------------
+
+  it('lists cases with survey response data via GET /v1/cases', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+    const prisma = getTestPrisma()
+
+    const program = await createProgram(brand.id)
+    
+    const survey = await prisma.survey.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'List Survey',
+        type: 'NPS',
+        questions: [],
+      }
+    })
+
+    const surveyResponse = await prisma.surveyResponse.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        memberId: 'fake-member',
+        score: 5,
+        sentiment: -0.2,
+        topics: ['price'],
+        answers: { q1: 'Way too expensive' }
+      }
+    })
+
+    const alertRule = await prisma.alertRule.create({
+      data: {
+        brandId: brand.id,
+        name: 'List Rule',
+        defaultAssignee: 'ops@test.com',
+      },
+    })
+
+    const caseRecord = await prisma.caseFollowUp.create({
+      data: {
+        brandId: brand.id,
+        alertRuleId: alertRule.id,
+        surveyResponseId: surveyResponse.id,
+        memberId: 'fake-member',
+        status: 'OPEN',
+        assignee: 'ops@test.com',
+        priority: 'MEDIUM',
+      },
+    })
+
+    const res = await request.get('/v1/cases')
+
+    expect(res.status).toBe(200)
+    const cases = res.body.cases ?? res.body
+    expect(cases).toHaveLength(1)
+    
+    // UI expects these properties
+    expect(cases[0].id).toBe(caseRecord.id)
+    expect(cases[0].score).toBe(5)
+    expect(cases[0].surveyName).toBe('List Survey')
+    expect(cases[0].feedback).toBe('Way too expensive')
+  })
+
+  // ---------------------------------------------------------------------------
+  // 8b. Get case detail with survey data (Bug Repro)
+  // ---------------------------------------------------------------------------
+
+  it('gets case detail with survey response data via GET /v1/cases/:id', async () => {
+    const brand = await createBrand()
+    const request = authenticatedRequest(brand.id)
+    const prisma = getTestPrisma()
+
+    const program = await createProgram(brand.id)
+    
+    // Create survey and response
+    const survey = await prisma.survey.create({
+      data: {
+        brandId: brand.id,
+        programId: program.id,
+        name: 'NPS Survey',
+        type: 'NPS',
+        questions: [],
+      }
+    })
+
+    const surveyResponse = await prisma.surveyResponse.create({
+      data: {
+        brandId: brand.id,
+        surveyId: survey.id,
+        memberId: 'fake-member',
+        score: 4,
+        sentiment: -0.8,
+        topics: ['shipping', 'pricing'],
+        answers: { q1: 'Terrible experience' }
+      }
+    })
+
+    const alertRule = await prisma.alertRule.create({
+      data: {
+        brandId: brand.id,
+        name: 'Test Rule',
+        defaultAssignee: 'cx-lead@test.com',
+      },
+    })
+
+    const caseRecord = await prisma.caseFollowUp.create({
+      data: {
+        brandId: brand.id,
+        alertRuleId: alertRule.id,
+        surveyResponseId: surveyResponse.id,
+        memberId: 'fake-member',
+        status: 'OPEN',
+        assignee: 'cx-lead@test.com',
+        priority: 'HIGH',
+      },
+    })
+
+    const res = await request.get(`/v1/cases/${caseRecord.id}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(caseRecord.id)
+    expect(res.body.score).toBe(4)
+    expect(res.body.sentiment).toBe(-0.8)
+    expect(res.body.topics).toEqual(['shipping', 'pricing'])
+    expect(res.body.feedback).toBe('Terrible experience')  // mapped from answers or summary
   })
 
   // ---------------------------------------------------------------------------

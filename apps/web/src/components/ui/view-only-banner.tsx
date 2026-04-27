@@ -1,10 +1,11 @@
 'use client'
 
 interface ViewOnlyBannerProps {
+  entityLabel: string
   onEdit: () => void
 }
 
-export function ViewOnlyBanner({ onEdit }: ViewOnlyBannerProps) {
+export function ViewOnlyBanner({ entityLabel, onEdit }: ViewOnlyBannerProps) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
       <div className="flex items-center gap-2 text-sm text-yellow-800">
@@ -22,14 +23,14 @@ export function ViewOnlyBanner({ onEdit }: ViewOnlyBannerProps) {
           />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        You are viewing this program in read-only mode. Changes are not saved.
+        You are viewing this {entityLabel.toLowerCase()} in read-only mode. Click Edit to make changes.
       </div>
       <button
         type="button"
         onClick={onEdit}
         className="ml-4 shrink-0 rounded-lg bg-yellow-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-700 transition-colors"
       >
-        ✏️ Edit Program
+        ✏️ Edit {entityLabel}
       </button>
     </div>
   )

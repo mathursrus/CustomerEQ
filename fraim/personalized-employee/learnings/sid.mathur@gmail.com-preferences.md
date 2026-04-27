@@ -95,3 +95,16 @@ Any SLA requirement in the spec must be reflected in the RFC with a concrete mea
 When writing TDD test stubs for processors or services that do not yet exist, use `throw new Error('not implemented')` rather than `return undefined` or `return {}`. Silent returns may accidentally make tests pass for the wrong reason. A thrown error is unambiguous and guarantees the red state until the real implementation exists.
 
 ---
+
+## ⏳ Pending Review — 2026-04-02
+
+### Proposed new entry
+
+#### [P-HIGH] Fully autonomous execution of FRAIM jobs
+
+**Score**: 9.0
+**Last seen**: 2026-04-02
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When instructed to run a FRAIM job (e.g., `feature-implementation`), the user expects the agent to execute all phases to completion without intermediate pauses for permission. Pausing (e.g., in the middle of `implement-code`) breaks momentum. The agent should only stop if a hard blocker is encountered or if specifically instructed to pause. Status should be reported via `seekMentoring` with status "complete" at phase boundaries, rather than "shall I continue" questions.

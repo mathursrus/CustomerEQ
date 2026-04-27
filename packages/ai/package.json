@@ -6,11 +6,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --reporter=verbose",
-    "test:smoke": "vitest run --reporter=verbose",
-    "test:baml": "vitest run --config vitest.eval.config.ts --reporter=verbose",
+    "build": "pnpm run generate && tsc",
+    "typecheck": "pnpm run generate && tsc --noEmit",
+    "test": "pnpm run generate && vitest run --reporter=verbose",
+    "test:smoke": "pnpm run generate && vitest run --reporter=verbose",
+    "test:baml": "pnpm run generate && vitest run --config vitest.eval.config.ts --reporter=verbose",
     "generate": "npx @boundaryml/baml@0.211.0 generate"
   },
   "dependencies": {

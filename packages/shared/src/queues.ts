@@ -8,7 +8,10 @@ export const QUEUES = {
   SUPPORT_ORCHESTRATION: 'support-orchestration',
   EMBEDDING_GENERATION: 'embedding-generation',
   HEALTH_SCORE_COMPUTATION: 'health-score-computation',
-  SURVEY_DISTRIBUTE: 'survey-distribute', // Issue #117 — triggered survey distribution
+  EXTERNAL_SIGNAL_SYNC: 'external-signal-sync',
+  EXTERNAL_SIGNAL_INGESTION: 'external-signal-ingestion',
+  WEBHOOK_DELIVERY: 'webhook-delivery',
+  SURVEY_DISTRIBUTE: 'survey-distribute',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

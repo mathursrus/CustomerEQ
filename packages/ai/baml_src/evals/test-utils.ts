@@ -28,17 +28,27 @@ setLogLevel(logLevel)
 
 // ─── API Key Validation ──────────────────────────────────────────────────────
 
+function hasValue(name: string): boolean {
+  return Boolean(process.env[name]?.trim())
+}
+
 /**
- * Fail hard if no LLM API key is available.
+ * Fail hard if the Azure OpenAI config required by the BAML clients is missing.
  * Call at the top of every eval test file.
  * Never skip — a green suite means everything was verified.
  */
 export function ensureApiKey(): void {
-  if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  const missing: string[] = []
+
+  if (!hasValue('AZURE_OPENAI_API_KEY')) missing.push('AZURE_OPENAI_API_KEY')
+  if (!hasValue('AZURE_OPENAI_BASE_URL')) missing.push('AZURE_OPENAI_BASE_URL')
+
+  if (missing.length > 0) {
     throw new Error(
-      'BAML eval tests require OPENAI_API_KEY or ANTHROPIC_API_KEY.\n' +
-      'These tests call real LLMs and must never be skipped.\n' +
-      'Set the key in .env or environment before running pnpm test:baml.'
+      'BAML eval tests require a complete Azure OpenAI configuration.\n' +
+      `Missing: ${missing.join(', ')}\n` +
+      'These tests call real Azure OpenAI deployments and must never be skipped.\n' +
+      'Set the missing variables in .env or the shell before running pnpm test:baml.'
     )
   }
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
 
 const navLinks: { href: string; label: string; section?: string }[] = [
   // ── Customer (top-level, cross-functional) ──
@@ -23,6 +23,8 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/support/analytics', label: 'Analytics' },
   // ── Settings ──
   { href: '/admin/integrations', label: 'Integrations', section: 'Settings' },
+  { href: '/admin/settings/webhooks', label: 'Webhooks' },
+  { href: '/admin/developer', label: 'Developer' },
   { href: '/admin/settings/themes', label: 'Themes' },
 ]
 
@@ -50,15 +52,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="px-6 py-5 border-b border-gray-200">
-          <Link href="/admin/programs" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">C</span>
-            </div>
-            <span className="text-lg font-semibold text-gray-900">CustomerEQ</span>
-          </Link>
+        <div className="px-4 py-4 border-b border-gray-200">
+          <OrganizationSwitcher
+            hidePersonal
+            afterSelectOrganizationUrl="/admin/members"
+            appearance={{
+              elements: {
+                rootBox: 'w-full',
+                organizationSwitcherTrigger: 'w-full justify-start rounded-lg px-2 py-1.5 hover:bg-gray-50',
+              },
+            }}
+          />
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {navLinks.map(({ href, label, section }) => (
             <div key={href}>
               {section && (
@@ -100,7 +106,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </svg>
           </button>
           <div className="flex-1" />
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </header>
 
         {/* Page content */}

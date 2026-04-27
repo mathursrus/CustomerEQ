@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq'
+import { Worker, Queue } from 'bullmq'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { QUEUES } from '@customerEQ/shared'
@@ -11,8 +11,22 @@ import { processFeedbackClustering } from './processors/feedbackClustering.js'
 import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
 import { processHealthScore } from './processors/healthScore.js'
 import { processSurveyDistribute } from './processors/surveyDistribute.js'
+import { createExternalSignalSyncProcessor } from './processors/externalSignalSync.js'
+import { processExternalSignalIngestion } from './processors/externalSignalIngestion.js'
+import { processWebhookDelivery } from './processors/webhookDelivery.js'
+import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
 
 const logger = pino({ name: 'worker' })
+
+// QUEUE_MODE=inline means the API runs every processor in-process via
+// apps/api/src/queues/bullmq.ts + inlineRuntime.ts. The worker process is
+// not needed and would crash trying to connect to a Redis instance that
+// the deployment intentionally doesn't provide. Exit cleanly so container
+// orchestrators don't restart-loop us.
+if (process.env.QUEUE_MODE === 'inline') {
+  logger.info({ queueMode: 'inline' }, 'Worker not needed in inline mode — exiting cleanly')
+  process.exit(0)
+}
 
 // ---------------------------------------------------------------------------
 // Bootstrap
@@ -72,11 +86,45 @@ const surveyDistributeWorker = new Worker(
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const externalSignalSyncWorker = new Worker(
+  QUEUES.EXTERNAL_SIGNAL_SYNC,
+  createExternalSignalSyncProcessor(connection),
+  { connection, concurrency: 2, drainDelay: IDLE_POLL_SECONDS },
+)
+
+const externalSignalIngestionWorker = new Worker(
+  QUEUES.EXTERNAL_SIGNAL_INGESTION,
+  processExternalSignalIngestion,
+  { connection, concurrency: 3, drainDelay: IDLE_POLL_SECONDS },
+)
+
+const webhookDeliveryWorker = new Worker(
+  QUEUES.WEBHOOK_DELIVERY,
+  processWebhookDelivery,
+  { connection, concurrency: 10, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// SLA breach check — repeating job every 5 minutes
+const SLA_BREACH_QUEUE = 'sla-breach-check'
+const slaBreachQueue = new Queue(SLA_BREACH_QUEUE, { connection })
+const slaBreachWorker = new Worker(
+  SLA_BREACH_QUEUE,
+  createSlaBreachCheckProcessor(connection),
+  { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// Schedule the repeating job (idempotent — BullMQ deduplicates by jobId)
+void slaBreachQueue.add(
+  'check',
+  {},
+  { repeat: { every: 5 * 60 * 1000 }, jobId: 'sla-breach-check-repeating' },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -91,7 +139,20 @@ for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notifications
 
 logger.info(
   {
-    queues: [QUEUES.LOYALTY_EVENTS, QUEUES.CAMPAIGN_TRIGGERS, QUEUES.NOTIFICATIONS, QUEUES.SENTIMENT_ANALYSIS, QUEUES.FEEDBACK_CLUSTERING, QUEUES.EMBEDDING_GENERATION, QUEUES.HEALTH_SCORE_COMPUTATION, QUEUES.SURVEY_DISTRIBUTE],
+    queues: [
+      QUEUES.LOYALTY_EVENTS,
+      QUEUES.CAMPAIGN_TRIGGERS,
+      QUEUES.NOTIFICATIONS,
+      QUEUES.SENTIMENT_ANALYSIS,
+      QUEUES.FEEDBACK_CLUSTERING,
+      QUEUES.EMBEDDING_GENERATION,
+      QUEUES.HEALTH_SCORE_COMPUTATION,
+      QUEUES.SURVEY_DISTRIBUTE,
+      QUEUES.EXTERNAL_SIGNAL_SYNC,
+      QUEUES.EXTERNAL_SIGNAL_INGESTION,
+      QUEUES.WEBHOOK_DELIVERY,
+      SLA_BREACH_QUEUE,
+    ],
   },
   'Workers started',
 )
@@ -111,6 +172,11 @@ async function shutdown(signal: string): Promise<void> {
     embeddingGenerationWorker.close(),
     healthScoreWorker.close(),
     surveyDistributeWorker.close(),
+    externalSignalSyncWorker.close(),
+    externalSignalIngestionWorker.close(),
+    webhookDeliveryWorker.close(),
+    slaBreachWorker.close(),
+    slaBreachQueue.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

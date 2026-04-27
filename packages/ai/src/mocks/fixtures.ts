@@ -99,10 +99,16 @@ export function mockAnalyzeFeedback(
     }
   }
 
-  // Blend text + score (score is a strong signal — weight it 60/40)
-  const blended = textScore !== 0
-    ? textScore * 0.4 + scoreSignal * 0.6
-    : scoreSignal * 0.8
+  // Blend text + score.
+  //   - With a numeric score (survey responses): text is 40%, score is 60%.
+  //   - Without a numeric score (CRM notes, #141): text gets full weight.
+  //     Otherwise every note comes back "neutral" because text is compressed.
+  //   - If text produces no signal and we have no score, return 0.
+  const blended = numericScore === undefined
+    ? textScore
+    : textScore !== 0
+      ? textScore * 0.4 + scoreSignal * 0.6
+      : scoreSignal * 0.8
   const sentiment = Math.max(-1, Math.min(1, Math.round(blended * 100) / 100))
 
   // Extract topics (free-form, not hardcoded categories)

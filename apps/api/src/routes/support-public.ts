@@ -217,11 +217,19 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Conversation not found' })
       }
 
-      // Set SSE headers
+      // Set SSE headers. We call reply.raw.writeHead() directly (bypassing
+      // fastify.reply) so fastify-cors's onRequest/onSend hooks never get
+      // a chance to add Access-Control-Allow-Origin. Mirror the CORS policy
+      // from app.ts (localhost, *.azurecontainerapps.io, *.wellnessatwork.me)
+      // manually so cross-origin SSE consumers (embed widget, demo apps)
+      // aren't blocked by the browser.
+      const requestOrigin = (request.headers.origin as string | undefined) ?? ''
+      const corsOk = [/localhost/, /\.azurecontainerapps\.io$/, /\.wellnessatwork\.me$/].some((p) => p.test(requestOrigin))
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        ...(corsOk ? { 'Access-Control-Allow-Origin': requestOrigin, 'Access-Control-Allow-Credentials': 'true' } : {}),
       })
 
       // If Redis is available, subscribe to pub/sub channel
