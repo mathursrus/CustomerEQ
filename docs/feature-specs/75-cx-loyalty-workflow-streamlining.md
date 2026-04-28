@@ -13,6 +13,44 @@ Owner: swavaktp
 
 ---
 
+## Deployment Models & Member Identity
+
+CustomerEQ is B2B infrastructure. End members interact with the **operator's brand** — not CustomerEQ directly. Two deployment models govern how member identity and the member-facing experience are structured. All workflows in this spec default to **Model A** unless explicitly noted.
+
+### Model A — White-label / Embedded (Primary)
+
+The operator owns the member relationship and identity. CustomerEQ's loyalty engine runs transparently behind the operator's digital property; members never encounter the CustomerEQ name.
+
+- **Auth**: The operator's backend authenticates the member and passes a signed JWT to CustomerEQ's API. CustomerEQ maps the external member ID to an internal `memberId`. No separate CustomerEQ account is created.
+- **Member surface**: Embeddable React components integrated into the brand's existing web/app property, **or** a CustomerEQ-hosted portal at a brand-configured domain (e.g., `rewards.delta.com`). Only operator branding is visible in either case.
+- **Enrollment**: Triggered by the operator's backend via `POST /members`. The member already has a brand account; no member-initiated signup occurs within CustomerEQ.
+- **Survey delivery**: Sent from the brand's email domain (e.g., `noreply@delta.com`) using the operator's sending infrastructure. CustomerEQ generates survey content and tracks responses via webhook callback.
+- **Target operator**: Mid-market to enterprise brands with an existing member identity system (CRM, e-commerce platform, airline loyalty system, etc.).
+
+### Model B — Hosted Standalone (Outlier)
+
+The operator outsources the full member experience to CustomerEQ. CustomerEQ hosts the portal under the operator's brand — members never see "CustomerEQ."
+
+- **Auth**: CustomerEQ manages member accounts. Operators bulk-provision members via API or allow self-enrollment at the hosted portal.
+- **Member surface**: Hosted at `[slug].customereq.com` or a custom CNAME, fully branded as the operator's program (e.g., "Acme Rewards").
+- **Enrollment**: Member self-enrolls at the hosted portal, or is pre-provisioned by the operator via bulk import (`POST /members/import`).
+- **Survey delivery**: Sent via CustomerEQ's sending domain with the operator's display name (e.g., "From: Acme Rewards &lt;noreply@mail.customereq.com&gt;").
+- **Target operator**: Small operators (< 50 employees) with no existing member portal or loyalty infrastructure — full CX/loyalty outsourced to CustomerEQ.
+
+### Comparison
+
+| Aspect | Model A — White-label / Embedded | Model B — Hosted Standalone |
+|--------|----------------------------------|-----------------------------|
+| Member sees | Operator's existing property (delta.com, Acme app) | Operator-branded portal at CustomerEQ-hosted URL |
+| Member account | Existing brand account (JWT passthrough) | CustomerEQ-managed, brand-skinned |
+| Enrollment | API call from operator backend | Self-enrollment or operator bulk import |
+| Survey sender | Operator's email domain | CustomerEQ sending domain, operator display name |
+| Integration effort | Moderate (SDK/API integration by operator dev team) | Low (no-code operator wizard) |
+| CustomerEQ visible to member | Never | Never |
+| Primary use case | Mid-market → enterprise | SMB with no existing member portal |
+
+---
+
 ## Customer's Desired Outcome
 
 **Member (end customer):**
@@ -55,14 +93,23 @@ The MVP consists of 7 independent issues (#2–#9), each built in isolation. Wit
 
 **R2** — The member dashboard SHALL show an "Getting Started" checklist on first login until all onboarding steps are completed or dismissed.
 
-**R3** — The system SHALL send a welcome email within 5 minutes of enrollment containing: current points balance, the top 3 ways to earn, and a link to the rewards catalog.
+**R3** — The system SHALL send a welcome email within 5 minutes of enrollment containing: current points balance, the top 3 ways to earn, and a link to the rewards catalog. **[Model A]** The email is sent via the operator's email infrastructure using a CustomerEQ-generated template and the operator's configured sender domain. **[Model B]** The email is sent from CustomerEQ's sending domain using the operator's configured display name.
 
 *Given* a member completes enrollment,
 *When* they land on the dashboard for the first time,
 *Then* they see a non-dismissable Getting Started checklist with at least 3 earn actions and estimated points per action.
 
 **Steps in workflow:**
-1. Member submits enrollment form → confirmation screen shows points balance + first earn CTA
+
+**[Model A — White-label / Embedded]**
+1. Operator backend calls `POST /members` with external member ID + JWT → CustomerEQ creates loyalty profile, emits `member.enrolled` event
+2. Operator's portal surfaces the loyalty dashboard (embedded component or hosted at brand domain) → Getting Started checklist visible on first render
+3. Member clicks first earn action → context-appropriate earn flow within the operator's surface (purchase link, profile form, survey)
+4. System awards points via worker queue → dashboard balance updates within 60 seconds
+5. Member sees updated balance + earn notification
+
+**[Model B — Hosted Standalone]**
+1. Member submits enrollment form at hosted portal → confirmation screen shows points balance + first earn CTA
 2. Member lands on loyalty dashboard → Getting Started checklist visible in main content area
 3. Member clicks first earn action → context-appropriate earn flow (purchase link, profile form, survey)
 4. System awards points via worker queue → dashboard balance updates within 60 seconds
@@ -278,7 +325,7 @@ Based on `fraim/config.json` compliance settings (GDPR, CCPA, SOC2 target, PCI m
 **GDPR / CCPA**
 - **R-C1**: CX feedback data (NPS scores, CSAT ratings, free-text comments) is PII-adjacent. It SHALL be stored with `brandId` scoping and subject to the member erasure job in `apps/worker`. Free-text survey responses must be zeroed on erasure request.
 - **R-C2**: The welcome email (R3) and campaign notification (R8) SHALL include an unsubscribe link and reference the brand's privacy policy URL.
-- **R-C3**: Members who have not given consent (`consentGivenAt IS NULL`) SHALL NOT receive campaign notifications triggered by CX events. The campaign trigger logic SHALL check `Member.consentGivenAt` before enqueueing any notification.
+- **R-C3**: Members who have not given consent (`consentGivenAt IS NULL`) SHALL NOT receive campaign notifications triggered by CX events. The campaign trigger logic SHALL check `Member.consentGivenAt` before enqueueing any notification. **[Model A]** Consent is typically captured at the operator's brand level; the operator SHALL pass `consentGivenAt` as a parameter in the `POST /members` enrollment call. CustomerEQ SHALL NOT treat a null `consentGivenAt` as implicit consent in any model.
 - **R-C4**: The CRM integration (Workflow 9) SHALL never store raw CRM credentials in the database in plaintext. Credentials must be stored via Azure Key Vault and referenced by secret name only.
 
 **SOC2 (target)**
