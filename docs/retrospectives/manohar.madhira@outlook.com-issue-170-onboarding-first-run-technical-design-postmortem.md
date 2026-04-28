@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-27
-synthesized:
+synthesized: 2026-04-27
 ---
 
 # Postmortem: Onboarding & First-Run Experience (technical design) — Issue #170

@@ -30,6 +30,31 @@ export default tseslint.config(
       "no-console": "warn",
     },
   },
+  // Issue #170 OD-5: API code must go through the IdentityProvider abstraction
+  // for any Clerk interaction. Direct @clerk/* imports are only allowed in the
+  // single concrete implementation (clerk-identity-provider.ts).
+  {
+    files: ["apps/api/src/**/*.ts"],
+    ignores: [
+      "apps/api/src/auth/clerk-identity-provider.ts",
+      "apps/api/src/**/*.test.ts",
+      "apps/api/src/**/*.spec.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@clerk/*"],
+              message:
+                "Import the IdentityProvider abstraction from apps/api/src/auth/identity-provider.ts (or use fastify.identityProvider) instead. Direct @clerk/* imports are only allowed in clerk-identity-provider.ts.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Relax no-console for frontend (Next.js client-side logging is acceptable)
   {
     files: ["apps/web/**/*.ts", "apps/web/**/*.tsx"],

@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-24
-synthesized: false
+synthesized: 2026-04-27
 ---
 
 # Postmortem: FRAIM project-onboarding + docker-compose pgvector fix — Issues #179 and #178

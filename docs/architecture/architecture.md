@@ -61,10 +61,10 @@ The platform is a multi-tenant loyalty engine with:
 - **Plugin Registration Order**: CORS -> Sensible -> Prisma -> Redis -> Auth -> MultiTenant -> Audit
 
 ### 3.3. Event Processing Layer (apps/worker)
-- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, external signal sync/ingestion, and outbound webhook delivery.
-- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, embeddingGeneration, healthScore, externalSignalSync, externalSignalIngestion, webhookDelivery, slaBreachCheck), `apps/worker/src/queues/` (Redis connection, producers)
-- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 11 BullMQ workers, including 1 repeating job)
-- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), embedding-generation (5), health-score-computation (3), external-signal-sync (2), external-signal-ingestion (3), webhook-delivery (10), sla-breach-check (1)
+- **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, survey distribution, external signal sync/ingestion, and outbound webhook delivery.
+- **Key Modules**: `apps/worker/src/processors/` (loyaltyEvents, campaignTriggers, notifications, sentimentAnalysis, feedbackClustering, embeddingGeneration, healthScore, surveyDistribute, externalSignalSync, externalSignalIngestion, webhookDelivery, slaBreachCheck), `apps/worker/src/queues/` (Redis connection, producers)
+- **Entry Point**: `apps/worker/src/index.ts` (bootstraps 12 BullMQ workers, including 1 repeating job)
+- **Concurrency**: loyalty-events (5), campaign-triggers (10), notifications (5), sentiment-analysis (5), feedback-clustering (1), embedding-generation (5), health-score-computation (3), survey-distribute (5), external-signal-sync (2), external-signal-ingestion (3), webhook-delivery (10), sla-breach-check (1)
 - **Repeating jobs**: `sla-breach-check` runs every 5 minutes (BullMQ `repeat: { every: 5 * 60 * 1000 }`, jobId `sla-breach-check-repeating` for idempotent scheduling). This is the first use of BullMQ's repeating job capability in the worker.
 - **Queue mode**: The worker process exists to drain BullMQ queues and is only deployed when `QUEUE_MODE=redis`. In `QUEUE_MODE=inline`, the same processor logic is invoked in-process from the API via `apps/api/src/queues/bullmq.ts` — the worker is not needed and is not run. Both modes execute the **same** processor functions and produce the **same** outcomes; Redis only changes scheduling and concurrency.
 
@@ -188,7 +188,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 
 | Plugin | Hook | Purpose |
 |---|---|---|
-| **auth** | `preHandler` | Clerk JWT verification, extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. |
+| **auth** | `preHandler` | Session verification (delegates to `fastify.identityProvider.getSession()`), extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. (Issue #170 OD-5: no direct `@clerk/*` imports — see ADR 0004.) |
+| **identityProvider** | decorator | Single boundary for all identity-provider interactions (`createUserWithOrg`, `getSession`, `parseWebhook`, OAuth, `inviteMember`, etc.). `ClerkIdentityProvider` is the only concrete impl today; ESLint `no-restricted-imports` enforces the boundary. Issue #170 OD-5; ADR 0004. |
 | **multiTenant** | `preValidation` | Rejects any request body containing `brandId` — must come from JWT only |
 | **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
@@ -199,13 +200,14 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 
 | Queue | Processor | Concurrency | Key Logic |
 |---|---|---|---|
-| `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
+| `loyalty-events` | `createLoyaltyEventProcessor` (factory) | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) -> fire-and-forget `enqueueSurveyDistributionsForEvent` (Issue #117) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
 | `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
 | `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o. Also called synchronously (not queued) from `POST /v1/members/:id/notes` on the CRM note write path so the auto-tagged bucket is returned to the admin UI in the same response — see §6 "Synchronous AI on note creation". |
 | `feedback-clustering` | `processFeedbackClustering` | 1 | AI-powered feedback clustering with anomaly detection |
 | `alert-evaluation` | `processAlertEvaluation` | 10 | Rule-based alert evaluation creating case follow-ups |
 | `health-score-computation` | `processHealthScore` | 3 | Batch health score computation for members (weighted formula: recency 25%, frequency 20%, sentiment 25%, NPS 15%, engagement 15%) |
+| `survey-distribute` | `processSurveyDistribute` | 5 | *New (Issue #117).* ACTIVE guard -> 30-day cooldown check via `SurveyDistribution` -> upsert distribution record -> increment `distributionCount`. Enqueued fire-and-forget from loyalty-events processor when matching triggerKey found. |
 | `embedding-generation` | `processEmbeddingGeneration` | 5 | Generates and stores KB embeddings for semantic search |
 | `external-signal-sync` | `createExternalSignalSyncProcessor` | 2 | Polls or simulates source deliveries from `samplePayloads` / `seedSignals`, updates source health, and enqueues normalized ingestion work |
 | `external-signal-ingestion` | `processExternalSignalIngestion` | 3 | Normalizes provider payloads, deduplicates by `sourceId + externalId`, persists `ExternalSignal`, and updates source health/status history |
@@ -227,7 +229,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **Redemption** | Point spend record linking member -> reward. Status: PENDING/FULFILLED/CANCELLED. |
 | **Campaign** | Rule-based automation. `triggerType` + `triggerCondition` (JSON) -> `actionType` + `actionConfig` (JSON). Budget cap tracking. |
 | **CampaignEvent** | Campaign trigger execution record. Unique per `campaignId + memberId`. Tracks `latencyMs`. |
-| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. New (Issue #79): `triggerCategory` (loyalty/cx_risk/scheduled), `triggerKey` (e.g. tier_upgrade), `surveyTypeOverride` (non-null when manager deviated from recommendation) — all nullable, backwards-compatible. New (Issue #80): `distributionCount` (incremented on each automated distribution), `surveyRules` relation. |
+| **Survey** | CX feedback collection. Types: NPS/CSAT/CES/CUSTOM. Extended questions JSON supports 11 question types, skip logic, answer piping. Optional `themeId` FK to SurveyTheme. New (Issue #79): `triggerCategory` (loyalty/cx_risk/scheduled), `triggerKey` (e.g. tier_upgrade), `surveyTypeOverride` (non-null when manager deviated from recommendation) — all nullable, backwards-compatible. New (Issue #80): `distributionCount` (incremented on each automated distribution), `surveyRules` relation. New (Issue #117): `distributions` relation to `SurveyDistribution`. Index on `(brandId, triggerKey, status)` for fast triggered-survey lookup. |
+| **SurveyDistribution** | *New (Issue #117).* Cooldown deduplication record for triggered survey sends. `@@unique([surveyId, memberId])` — upserted (not inserted) on each distribution to prevent duplicates under race conditions. `sentAt` tracks last send time for 30-day cooldown window. |
 | **SurveyRule** | *New (Issue #80).* Per-survey response-to-action rule. Each row maps a score range (scoreMin/scoreMax) to a `Campaign` (1:1 via `campaignId` unique FK). Created atomically with the campaign in `POST /v1/surveys/:id/launch`. Evaluated against `SurveyResponse.score` on each response submission to enqueue campaign triggers. |
 | **CxPlaybook** | *New (Issue #80).* Brand-scoped named rule set for reuse across surveys of the same type. Stores an ordered `rules` JSON array (scoreMin, scoreMax, actionType, actionConfig, ruleLabel). Soft-deleted via `deletedAt`. `@@unique([brandId, name])` prevents duplicate names per brand. Brand-scoped (not program-scoped) so playbooks survive program lifecycle changes and are reusable across programs. |
 | **SurveyResponse** | Individual feedback with AI-analyzed sentiment, topics, confidence, cluster assignment. |
@@ -240,6 +243,8 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **AuditEvent** | System audit trail for admin mutations. |
 | **WebhookEndpoint** | *New (Issue #156).* Brand-scoped outbound webhook configuration. Stores `label`, `url`, `signingSecret` (32-byte random hex, shown once on creation, stored plaintext — hard gate: #53 must encrypt before customer onboarding), `events[]` (`case.created`, `case.status_changed`, `case.overdue`), `active` flag. Index on `(brandId, active)`. Cascade relation to `WebhookDeliveryLog`. |
 | **WebhookDeliveryLog** | *New (Issue #156).* Append-only delivery attempt record per webhook job. Stores `event`, `caseId`, `httpStatus`, `latencyMs`, `success`, `attempt` (1–5), `requestPayload` (JSON), `responseBody` (first ~500 chars), `deliveredAt`. Indexes on `(webhookEndpointId, deliveredAt DESC)` and `(brandId, deliveredAt DESC)`. Used by `GET /v1/webhooks/:id/deliveries` (last 50 entries) for operator debugging. |
+| **OnboardingState** | *New (Issue #170).* 1:1 with Brand. Tracks onboarding progress: picked `useCasePath`, per-step `checklist` (JSON), `dismissedByUserIds` (array), `invitedAdminUserIds` (array), `activatedAt`. Single mutable row per brand; activation history lives in `OnboardingActivationEvent`. ADR 0004. |
+| **OnboardingActivationEvent** | *New (Issue #170).* Append-only funnel events. Stores `step` (`OnboardingStep` enum), `previousStep`, `occurredAt`, `dwellMs`, `metadata`. Idempotent on `(brandId, step)`. Indexes on `(brandId, occurredAt)` and `(step, occurredAt)` for funnel aggregation. Never `UPDATE`/`DELETE` outside the GDPR erasure path. ADR 0004. |
 
 ---
 
@@ -541,6 +546,7 @@ ADRs document one-way-door decisions. Each ADR lives in `docs/architecture/adr/`
 | ADR-004 | BullMQ over Kafka for event queue | 2026-03-24 |
 | ADR-005 | Vercel (frontend) + Azure (backend) hybrid deployment | 2026-03-24 |
 | ADR-006 | Shared test-utils package as single mock source of truth | 2026-03-24 |
+| [ADR 0004](./adr/0004-onboarding-activation-funnel-and-identity-provider.md) | OnboardingActivationEvent funnel model + IdentityProvider abstraction (Issue #170) | 2026-04-27 |
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-25
-synthesized:
+synthesized: 2026-04-27
 ---
 
 # Postmortem: Upgrade Node 20 → 22 in Dockerfiles (technical design) — Issue #177

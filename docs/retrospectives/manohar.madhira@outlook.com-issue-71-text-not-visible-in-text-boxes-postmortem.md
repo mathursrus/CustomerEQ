@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-03-31
-synthesized: false
+synthesized: 2026-04-27
 ---
 
 # Postmortem: Text not visible while typing in text boxes across the site - Issue #71

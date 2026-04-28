@@ -59,6 +59,15 @@ export interface EmbeddingGenerationPayload {
   text: string // concatenation of title + body for embedding
 }
 
+export interface SurveyDistributePayload {
+  surveyId: string
+  memberId: string
+  brandId: string
+  triggerKey: string
+  surveyLink: string
+  cooldownDays: number
+}
+
 export interface ExternalSignalSyncPayload {
   brandId: string
   sourceId: string

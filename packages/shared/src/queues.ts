@@ -11,6 +11,7 @@ export const QUEUES = {
   EXTERNAL_SIGNAL_SYNC: 'external-signal-sync',
   EXTERNAL_SIGNAL_INGESTION: 'external-signal-ingestion',
   WEBHOOK_DELIVERY: 'webhook-delivery',
+  SURVEY_DISTRIBUTE: 'survey-distribute',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

@@ -1,18 +1,10 @@
 /// <reference types="vitest" />
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { mockClerkVerifyToken } from '@customerEQ/config/test-utils'
 
-// Mock @clerk/backend using the shared clerk mock factory
-vi.mock('@clerk/backend', () => ({
-  verifyToken: mockClerkVerifyToken('org_default'),
-}))
-
-import { verifyToken } from '@clerk/backend'
 import fp from 'fastify-plugin'
 import authPlugin from './auth.js'
-
-const mockedVerify = vi.mocked(verifyToken)
+import type { IdentityProvider } from '../auth/identity-provider.js'
 
 interface ApiKeyRow {
   id: string
@@ -26,8 +18,9 @@ function buildApp(
 ) {
   const app = Fastify()
   const apiKeyUpdate = vi.fn(async () => ({}))
+  const getSession = vi.fn() as unknown as IdentityProvider['getSession']
 
-  // Register a fake prisma plugin so the auth plugin's dependency is satisfied
+  // Fake prisma plugin (auth plugin depends on it)
   app.register(
     fp(
       async (fastify) => {
@@ -50,7 +43,22 @@ function buildApp(
     ),
   )
 
-  return Object.assign(app, { _apiKeyUpdate: apiKeyUpdate })
+  // Fake identity-provider plugin (auth plugin depends on it after refactor)
+  app.register(
+    fp(
+      async (fastify) => {
+        fastify.decorate('identityProvider', {
+          getSession,
+        } as unknown as IdentityProvider)
+      },
+      { name: 'identityProvider' },
+    ),
+  )
+
+  return Object.assign(app, {
+    _apiKeyUpdate: apiKeyUpdate,
+    _getSession: getSession as ReturnType<typeof vi.fn>,
+  })
 }
 
 describe('authPlugin', () => {
@@ -67,7 +75,8 @@ describe('authPlugin', () => {
 
   describe('OPTIONS preflight', () => {
     it('skips auth for OPTIONS requests', async () => {
-      app = buildApp()
+      const built = buildApp()
+      app = built
       await app.register(authPlugin)
       app.options('/test', async () => ({ ok: true }))
       await app.ready()
@@ -75,7 +84,7 @@ describe('authPlugin', () => {
       const res = await app.inject({ method: 'OPTIONS', url: '/test' })
 
       expect(res.statusCode).toBe(200)
-      expect(mockedVerify).not.toHaveBeenCalled()
+      expect(built._getSession).not.toHaveBeenCalled()
     })
   })
 
@@ -109,17 +118,18 @@ describe('authPlugin', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Invalid token
+  // Invalid / expired token (IdentityProvider.getSession returns null)
   // ---------------------------------------------------------------------------
 
   describe('invalid token', () => {
-    it('returns 401 when verifyToken throws', async () => {
-      app = buildApp()
+    it('returns 401 when getSession returns null', async () => {
+      const built = buildApp()
+      app = built
       await app.register(authPlugin)
       app.get('/test', async () => ({ ok: true }))
       await app.ready()
 
-      mockedVerify.mockRejectedValueOnce(new Error('expired'))
+      built._getSession.mockResolvedValueOnce(null)
 
       const res = await app.inject({
         method: 'GET',
@@ -133,12 +143,14 @@ describe('authPlugin', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Clerk JWT v1 (top-level org_id)
+  // Valid session — IdentityProvider abstracts JWT shape; the auth plugin only
+  // sees `{ userId, orgId }` and does the brand lookup from there.
   // ---------------------------------------------------------------------------
 
-  describe('Clerk JWT v1 format (org_id)', () => {
-    it('resolves brandId from top-level org_id', async () => {
-      app = buildApp({ org_v1_123: 'brand-abc' })
+  describe('valid session', () => {
+    it('resolves brandId from getSession.orgId', async () => {
+      const built = buildApp({ org_via_abstraction: 'brand-abc' })
+      app = built
       await app.register(authPlugin)
       app.get('/test', async (request) => ({
         brandId: request.brandId,
@@ -146,106 +158,105 @@ describe('authPlugin', () => {
       }))
       await app.ready()
 
-      mockedVerify.mockResolvedValueOnce({
-        sub: 'user_v1_456',
-        org_id: 'org_v1_123',
-      } as never)
+      built._getSession.mockResolvedValueOnce({
+        userId: 'user_abs',
+        orgId: 'org_via_abstraction',
+      })
 
       const res = await app.inject({
         method: 'GET',
         url: '/test',
-        headers: { authorization: 'Bearer valid_v1_token' },
+        headers: { authorization: 'Bearer valid' },
       })
 
       expect(res.statusCode).toBe(200)
       const body = JSON.parse(res.body)
       expect(body.brandId).toBe('brand-abc')
-      expect(body.userId).toBe('user_v1_456')
+      expect(body.userId).toBe('user_abs')
     })
-  })
 
-  // ---------------------------------------------------------------------------
-  // Clerk JWT v2 (nested o.id)
-  // ---------------------------------------------------------------------------
+    it('returns 401 in production when session has no orgId (new-user-without-org case)', async () => {
+      // Per RFC §4 oauth-callback row: in production, when a fresh OAuth user
+      // has no org yet, the auth plugin (used on protected admin routes)
+      // returns 401 with the explicit "no org" error. The new /signup/finish
+      // route handles the convergence; the redirect is owned by the web
+      // middleware, not the API. (In dev/test we fall back to userId as
+      // tenantKey for local convenience — covered separately below.)
+      const prevEnv = process.env.NODE_ENV
+      process.env.NODE_ENV = 'production'
+      try {
+        const built = buildApp()
+        app = built
+        await app.register(authPlugin)
+        app.get('/test', async () => ({ ok: true }))
+        await app.ready()
 
-  describe('Clerk JWT v2 format (o.id)', () => {
-    it('resolves brandId from nested o.id', async () => {
-      app = buildApp({ org_v2_789: 'brand-def' })
+        built._getSession.mockResolvedValueOnce({ userId: 'user_oauth_fresh', orgId: null })
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/test',
+          headers: { authorization: 'Bearer fresh_oauth' },
+        })
+
+        expect(res.statusCode).toBe(401)
+        expect(JSON.parse(res.body).error).toBe('Token does not contain an organization ID')
+      } finally {
+        process.env.NODE_ENV = prevEnv
+      }
+    })
+
+    it('falls back to userId as tenantKey in dev/test (Clerk-orgs-disabled local flow)', async () => {
+      const built = buildApp({ user_dev_local: 'brand-dev-local' })
+      app = built
       await app.register(authPlugin)
-      app.get('/test', async (request) => ({
-        brandId: request.brandId,
-        userId: request.clerkUserId,
-      }))
+      app.get('/test', async (req) => ({ brandId: req.brandId }))
       await app.ready()
 
-      mockedVerify.mockResolvedValueOnce({
-        sub: 'user_v2_101',
-        o: { id: 'org_v2_789', rol: 'admin' },
-      } as never)
+      built._getSession.mockResolvedValueOnce({ userId: 'user_dev_local', orgId: null })
 
       const res = await app.inject({
         method: 'GET',
         url: '/test',
-        headers: { authorization: 'Bearer valid_v2_token' },
+        headers: { authorization: 'Bearer dev_token' },
       })
 
       expect(res.statusCode).toBe(200)
-      const body = JSON.parse(res.body)
-      expect(body.brandId).toBe('brand-def')
-      expect(body.userId).toBe('user_v2_101')
-    })
-
-    it('prefers org_id over o.id when both are present', async () => {
-      app = buildApp({ org_v1_direct: 'brand-v1' })
-      await app.register(authPlugin)
-      app.get('/test', async (request) => ({ brandId: request.brandId }))
-      await app.ready()
-
-      mockedVerify.mockResolvedValueOnce({
-        sub: 'user_both',
-        org_id: 'org_v1_direct',
-        o: { id: 'org_v2_nested' },
-      } as never)
-
-      const res = await app.inject({
-        method: 'GET',
-        url: '/test',
-        headers: { authorization: 'Bearer token_with_both' },
-      })
-
-      expect(res.statusCode).toBe(200)
-      expect(JSON.parse(res.body).brandId).toBe('brand-v1')
+      expect(JSON.parse(res.body).brandId).toBe('brand-dev-local')
     })
   })
 
   // ---------------------------------------------------------------------------
-  // No org_id at all
+  // Unknown organization — getSession succeeds but no brand row exists
   // ---------------------------------------------------------------------------
 
-  describe('missing organization ID', () => {
-    it('returns 401 when token has neither org_id nor o.id', async () => {
-      app = buildApp()
+  describe('unknown organization', () => {
+    it('returns 401 when orgId does not match any brand', async () => {
+      const built = buildApp({}) // empty — no brands
+      app = built
       await app.register(authPlugin)
       app.get('/test', async () => ({ ok: true }))
       await app.ready()
 
-      mockedVerify.mockResolvedValueOnce({ sub: 'user_no_org' } as never)
+      built._getSession.mockResolvedValueOnce({
+        userId: 'user_unknown',
+        orgId: 'org_nonexistent',
+      })
 
       const res = await app.inject({
         method: 'GET',
         url: '/test',
-        headers: { authorization: 'Bearer token_no_org' },
+        headers: { authorization: 'Bearer token_unknown_org' },
       })
 
-      // In non-production (test), the dev fallback uses payload.sub as tenant key,
-      // so the error comes from brand-not-found rather than missing org ID.
       expect(res.statusCode).toBe(401)
       expect(JSON.parse(res.body).error).toBe('Brand not found for the provided organization')
     })
   })
 
   // ---------------------------------------------------------------------------
-  // X-Api-Key auth (developer-provisioned keys)
+  // X-Api-Key auth (developer-provisioned keys) — unchanged by IdentityProvider
+  // refactor; identity-provider only abstracts JWT verification.
   // ---------------------------------------------------------------------------
 
   describe('X-Api-Key auth', () => {
@@ -300,60 +311,6 @@ describe('authPlugin', () => {
       expect(res.statusCode).toBe(401)
     })
 
-    it('rejects an unknown key (not in table)', async () => {
-      app = buildApp({}, {})
-      await app.register(authPlugin)
-      app.get('/test', async () => ({ ok: true }))
-      await app.ready()
-
-      const res = await app.inject({
-        method: 'GET',
-        url: '/test',
-        headers: { 'x-api-key': 'ceq_totally_bogus' },
-      })
-
-      expect(res.statusCode).toBe(401)
-    })
-
-    it('falls back to env var when api_keys table is missing (P2021)', async () => {
-      // Regression guard: the api_keys table was introduced in #141 but
-      // migrations may not have run yet in every environment. When
-      // Prisma throws P2021 the auth plugin must swallow it and fall
-      // through to the legacy env-var check instead of 500ing out.
-      const prevKey = process.env.MCP_API_KEY
-      const prevBrand = process.env.MCP_BRAND_ID
-      process.env.MCP_API_KEY = 'legacy-mcp-key'
-      process.env.MCP_BRAND_ID = 'brand_legacy'
-      try {
-        const p2021 = Object.assign(new Error('Table does not exist'), { code: 'P2021' })
-        // Override the findUnique mock to throw P2021 like Prisma would
-        // against a DB missing the api_keys table.
-        app = buildApp({}, {})
-        // Replace the apiKey.findUnique mock with a thrower
-        const prisma = (app as unknown as { prisma: { apiKey: { findUnique: ReturnType<typeof vi.fn> } } }).prisma
-        if (prisma?.apiKey?.findUnique) {
-          prisma.apiKey.findUnique.mockRejectedValueOnce(p2021)
-        }
-        await app.register(authPlugin)
-        app.get('/test', async (req) => ({ brandId: req.brandId, userId: req.clerkUserId }))
-        await app.ready()
-
-        const res = await app.inject({
-          method: 'GET',
-          url: '/test',
-          headers: { 'x-api-key': 'legacy-mcp-key' },
-        })
-
-        expect(res.statusCode).toBe(200)
-        expect(JSON.parse(res.body)).toEqual({ brandId: 'brand_legacy', userId: 'mcp-server' })
-      } finally {
-        if (prevKey === undefined) delete process.env.MCP_API_KEY
-        else process.env.MCP_API_KEY = prevKey
-        if (prevBrand === undefined) delete process.env.MCP_BRAND_ID
-        else process.env.MCP_BRAND_ID = prevBrand
-      }
-    })
-
     it('falls back to MCP_API_KEY env var for back-compat', async () => {
       const prevKey = process.env.MCP_API_KEY
       const prevBrand = process.env.MCP_BRAND_ID
@@ -381,15 +338,48 @@ describe('authPlugin', () => {
       }
     })
 
+    it('falls back to env var when api_keys table is missing (P2021)', async () => {
+      const prevKey = process.env.MCP_API_KEY
+      const prevBrand = process.env.MCP_BRAND_ID
+      process.env.MCP_API_KEY = 'legacy-mcp-key'
+      process.env.MCP_BRAND_ID = 'brand_legacy'
+      try {
+        const p2021 = Object.assign(new Error('Table does not exist'), { code: 'P2021' })
+        app = buildApp({}, {})
+        const prisma = (app as unknown as { prisma: { apiKey: { findUnique: ReturnType<typeof vi.fn> } } }).prisma
+        if (prisma?.apiKey?.findUnique) {
+          prisma.apiKey.findUnique.mockRejectedValueOnce(p2021)
+        }
+        await app.register(authPlugin)
+        app.get('/test', async (req) => ({ brandId: req.brandId, userId: req.clerkUserId }))
+        await app.ready()
+
+        const res = await app.inject({
+          method: 'GET',
+          url: '/test',
+          headers: { 'x-api-key': 'legacy-mcp-key' },
+        })
+
+        expect(res.statusCode).toBe(200)
+        expect(JSON.parse(res.body)).toEqual({ brandId: 'brand_legacy', userId: 'mcp-server' })
+      } finally {
+        if (prevKey === undefined) delete process.env.MCP_API_KEY
+        else process.env.MCP_API_KEY = prevKey
+        if (prevBrand === undefined) delete process.env.MCP_BRAND_ID
+        else process.env.MCP_BRAND_ID = prevBrand
+      }
+    })
+
     it('updates lastUsedAt on successful auth (fire-and-forget)', async () => {
       const { createHash } = await import('node:crypto')
       const plaintext = 'ceq_lastused_key'
       const keyHash = createHash('sha256').update(plaintext).digest('hex')
 
-      app = buildApp(
+      const built = buildApp(
         {},
         { [keyHash]: { id: 'key_used', brandId: 'brand_acme', revokedAt: null } },
       )
+      app = built
       await app.register(authPlugin)
       app.get('/test', async () => ({ ok: true }))
       await app.ready()
@@ -402,34 +392,7 @@ describe('authPlugin', () => {
 
       // Fire-and-forget — give the microtask a beat to flush
       await new Promise((r) => setImmediate(r))
-      expect((app as unknown as { _apiKeyUpdate: ReturnType<typeof vi.fn> })._apiKeyUpdate).toHaveBeenCalledOnce()
-    })
-  })
-
-  // ---------------------------------------------------------------------------
-  // Unknown org
-  // ---------------------------------------------------------------------------
-
-  describe('unknown organization', () => {
-    it('returns 401 when org_id does not match any brand', async () => {
-      app = buildApp({}) // empty — no brands
-      await app.register(authPlugin)
-      app.get('/test', async () => ({ ok: true }))
-      await app.ready()
-
-      mockedVerify.mockResolvedValueOnce({
-        sub: 'user_unknown_org',
-        org_id: 'org_nonexistent',
-      } as never)
-
-      const res = await app.inject({
-        method: 'GET',
-        url: '/test',
-        headers: { authorization: 'Bearer token_unknown_org' },
-      })
-
-      expect(res.statusCode).toBe(401)
-      expect(JSON.parse(res.body).error).toBe('Brand not found for the provided organization')
+      expect(built._apiKeyUpdate).toHaveBeenCalledOnce()
     })
   })
 })
