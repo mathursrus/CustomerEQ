@@ -863,11 +863,11 @@ describe('Members API — /v1/members', () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
       const member = await createConsentedMember({ brandId: brand.id, programId: program.id })
-      const survey = await createSurvey({ brandId: brand.id, programId: program.id })
 
-      // Create 4 survey responses: sentiments = 0.8, 0.6, 0.4, 0.2 => avg = 0.5
+      // Create 4 surveys each with one response — unique (surveyId, memberId) required by DB constraint
       const sentiments = [0.8, 0.6, 0.4, 0.2]
       for (const sentiment of sentiments) {
+        const survey = await createSurvey({ brandId: brand.id, programId: program.id })
         await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, sentiment, score: 8 })
       }
 

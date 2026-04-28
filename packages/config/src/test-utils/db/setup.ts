@@ -9,7 +9,7 @@ const GLOBAL_PRISMA_KEY = Symbol.for('customerEQ.test_prisma')
  */
 export async function setupTestDb(): Promise<PrismaClient> {
   const schemaName = `test_${process.pid}_${Date.now()}`
-  const baseUrl = process.env.DATABASE_URL ?? 'postgresql://customereq:customereq@localhost:5432/customereq'
+  const baseUrl = (process.env.DATABASE_URL ?? 'postgresql://customerEQ:customerEQ@localhost:5432/customerEQ').split('?')[0]
   const testUrl = `${baseUrl}?schema=${schemaName}`
 
   process.env.DATABASE_URL = testUrl

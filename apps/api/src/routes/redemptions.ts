@@ -20,6 +20,8 @@ const redemptionsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const redemption = await fastify.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1. Lock + check member balance (scoped to brand)
+        // SELECT FOR UPDATE serializes concurrent redemptions on the same member row
+        await tx.$executeRaw`SELECT id FROM members WHERE id = ${memberId} FOR UPDATE`
         const member = await tx.member.findUnique({
           where: { id: memberId },
           select: { id: true, pointsBalance: true, brandId: true },

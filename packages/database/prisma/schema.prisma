@@ -890,7 +890,7 @@ model KBArticle {
   category  KBArticleCategory            @default(FAQ)
   tags      String[]
   status    KBArticleStatus              @default(DRAFT)
-  embedding Unsupported("vector(1536)")? // pgvector -- nullable until generated
+  embedding Unsupported("public.vector(1536)")? // pgvector -- schema-qualified so db push works in isolated test schemas
   deletedAt DateTime? // soft delete (GDPR/CCPA, project rule #13)
   createdAt DateTime                     @default(now())
   updatedAt DateTime                     @updatedAt
