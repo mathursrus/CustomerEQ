@@ -1,5 +1,4 @@
 import fp from 'fastify-plugin'
-import { verifyToken } from '@clerk/backend'
 import { createHash } from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
 
@@ -54,18 +53,12 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       } catch (err) {
         const code = (err as { code?: string } | null)?.code
         if (code !== 'P2021') {
-          // Unexpected DB error — log and continue to the legacy fallback
-          // so a transient Prisma issue doesn't take down the whole auth
-          // path. The fallback is cheap and safe.
           fastify.log.warn({ err }, 'api_keys lookup failed, falling through to env fallback')
         }
-        // dbKey stays null (its initial value) and the code below falls
-        // through to the MCP_API_KEY env-var check.
       }
       if (dbKey && dbKey.revokedAt === null) {
         request.brandId = dbKey.brandId
         request.clerkUserId = 'api-key'
-        // Fire-and-forget lastUsedAt update — don't block the request.
         void fastify.prisma.apiKey
           .update({ where: { id: dbKey.id }, data: { lastUsedAt: new Date() } })
           .catch(() => { /* best-effort */ })
@@ -97,26 +90,20 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     const token = authHeader.replace(/^Bearer\s+/i, '')
 
-    let payload: Awaited<ReturnType<typeof verifyToken>>
-    try {
-      payload = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY,
-      })
-    } catch {
-      return reply
-        .status(401)
-        .send({ error: 'Invalid or expired token' })
+    // Delegate to the IdentityProvider abstraction (Issue #170 OD-5). The
+    // abstraction normalizes Clerk JWT v1 / v2 token shapes and returns a
+    // single `{ userId, orgId }` envelope.
+    const session = await fastify.identityProvider.getSession(token)
+    if (!session) {
+      return reply.status(401).send({ error: 'Invalid or expired token' })
     }
 
-    const raw = payload as unknown as Record<string, unknown>
-    // Clerk JWT v2 nests org under `o.id`; v1 uses top-level `org_id`
-    const orgId =
-      (raw.org_id as string | undefined) ??
-      ((raw.o as Record<string, string> | undefined)?.id)
-
-    // In development, fall back to user sub when Clerk Organizations are not
-    // enabled (avoids the Clerk dashboard prerequisite for local testing)
-    const tenantKey = orgId ?? (process.env.NODE_ENV !== 'production' ? payload.sub : null)
+    // In development, fall back to userId when no orgId is present (avoids
+    // the Clerk dashboard prerequisite for local testing). In production,
+    // missing orgId means an OAuth-fresh user without an org — which the
+    // web middleware redirects to /signup/finish; admin API routes reject.
+    const tenantKey =
+      session.orgId ?? (process.env.NODE_ENV !== 'production' ? session.userId : null)
     if (!tenantKey) {
       return reply
         .status(401)
@@ -135,11 +122,11 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     request.brandId = brand.id
-    request.clerkUserId = payload.sub
+    request.clerkUserId = session.userId
   })
 }
 
 export default fp(authPlugin, {
   name: 'auth',
-  dependencies: ['prisma'],
+  dependencies: ['prisma', 'identityProvider'],
 })

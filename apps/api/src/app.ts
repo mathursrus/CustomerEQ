@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import sensible from '@fastify/sensible'
 import prismaPlugin from './plugins/prisma.js'
 import redisPlugin from './plugins/redis.js'
+import identityProviderPlugin from './plugins/identityProvider.js'
 import authPlugin from './plugins/auth.js'
 import multiTenantPlugin from './plugins/multiTenant.js'
 import auditPlugin from './plugins/audit.js'
@@ -65,6 +66,7 @@ export async function buildApp() {
   await fastify.register(sensible)
   await fastify.register(prismaPlugin)
   await fastify.register(redisPlugin)
+  await fastify.register(identityProviderPlugin)
   await fastify.register(authPlugin)
   await fastify.register(multiTenantPlugin)
   await fastify.register(auditPlugin)
