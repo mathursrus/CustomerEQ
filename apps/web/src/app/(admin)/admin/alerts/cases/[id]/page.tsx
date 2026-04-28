@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 
 interface CaseNote {
@@ -104,6 +104,7 @@ export default function CaseDetailPage() {
   const params = useParams()
   const id = params.id as string
   const { getToken } = useAuth()
+  const { user } = useUser()
   const [caseData, setCaseData] = useState<CaseDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showNoteInput, setShowNoteInput] = useState(false)
@@ -161,7 +162,7 @@ export default function CaseDetailPage() {
       const res = await fetch(`${API_URL}/v1/cases/${id}/notes`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: noteText }),
+        body: JSON.stringify({ text: noteText, author: user?.primaryEmailAddress?.emailAddress ?? user?.username ?? 'admin' }),
       })
       if (res.ok) {
         setNoteText('')

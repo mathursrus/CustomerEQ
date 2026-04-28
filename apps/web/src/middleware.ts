@@ -22,6 +22,7 @@ const isPublicRoute = createRouteMatcher([
 ])
 
 const isE2E = process.env.PLAYWRIGHT_TEST === 'true'
+const isDevBypass = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
 
 // During E2E tests, bypass clerkMiddleware entirely. clerkMiddleware reads
 // request headers synchronously during initialization, which throws under
@@ -53,7 +54,7 @@ const realMiddleware = clerkMiddleware(
   { publishableKey: clerkPublishableKey, secretKey: clerkSecretKey },
 )
 
-export default isE2E ? e2eMiddleware : realMiddleware
+export default isE2E || isDevBypass ? e2eMiddleware : realMiddleware
 
 export const config = {
   matcher: [

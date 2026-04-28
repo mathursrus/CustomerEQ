@@ -25,6 +25,20 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
+    // Dev bypass — skips Clerk entirely for local development without real keys.
+    // Set DEV_BYPASS_AUTH=true in .env. Uses DEV_BRAND_ID if set, otherwise
+    // picks the first brand in the DB so it works without manual configuration.
+    if (process.env.DEV_BYPASS_AUTH === 'true' && process.env.NODE_ENV !== 'production') {
+      const brandId = process.env.DEV_BRAND_ID
+        ?? (await fastify.prisma.brand.findFirst({ select: { id: true } }))?.id
+      if (!brandId) {
+        return reply.status(500).send({ error: 'DEV_BYPASS_AUTH: no brand found in database' })
+      }
+      request.brandId = brandId
+      request.clerkUserId = 'dev-bypass'
+      return
+    }
+
     // API key auth via X-Api-Key header.
     //
     //   1. Admin-provisioned keys (preferred): look up in the `api_keys`
