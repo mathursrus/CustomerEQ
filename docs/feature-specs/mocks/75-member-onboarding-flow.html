@@ -3,76 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CustomerEQ — Member Onboarding Flow Mock</title>
+  <title>Acme Rewards — Member Onboarding Flow Mock</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; }
 
     /* ── Layout ── */
     .shell { display: flex; min-height: 100vh; }
-    .sidebar { width: 220px; background: #18181b; color: #e4e4e7; padding: 24px 16px; flex-shrink: 0; }
-    .sidebar .logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 32px; display: flex; align-items: center; gap: 8px; }
-    .sidebar .logo span { color: #6366f1; }
+    .sidebar { width: 220px; background: #18181b; color: #e4e4e7; padding: 24px 16px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .sidebar .logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+    .sidebar .logo span { color: #0ea5e9; }
+    .sidebar nav { flex: 1; }
     .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: #a1a1aa; font-size: 14px; text-decoration: none; margin-bottom: 4px; cursor: pointer; }
     .sidebar nav a:hover, .sidebar nav a.active { background: #27272a; color: #fff; }
     .sidebar nav a .icon { font-size: 16px; }
+    .sso-badge { display: flex; align-items: center; gap: 6px; background: #1c1917; border: 1px solid #292524; border-radius: 6px; padding: 6px 10px; margin-bottom: 20px; font-size: 11px; color: #78716c; }
+    .sso-badge .dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; flex-shrink: 0; }
     .main { flex: 1; padding: 32px; overflow-y: auto; }
+
+    /* ── Deployment model note ── */
+    .model-note { font-size: 12px; color: #52525b; background: #fafafa; border: 1px solid #e4e4e7; border-left: 3px solid #0ea5e9; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; line-height: 1.6; }
+    .model-note strong { color: #18181b; }
+    .model-note code { font-family: ui-monospace, monospace; background: #e4e4e7; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
 
     /* ── Header ── */
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .page-header h1 { font-size: 22px; font-weight: 700; }
-    .badge-points { background: #eef2ff; color: #4338ca; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .badge-points { background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; }
 
-    /* ── Getting Started Checklist ── */
+    /* ── Cards ── */
     .card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 24px; margin-bottom: 20px; }
-    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap-8px; }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
     .card-subtitle { font-size: 13px; color: #71717a; margin-bottom: 18px; }
     .progress-bar-wrap { height: 8px; background: #e4e4e7; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; border-radius: 8px; background: #6366f1; width: 33%; transition: width 0.4s; }
+    .progress-bar-fill { height: 100%; border-radius: 8px; background: #0ea5e9; width: 50%; transition: width 0.4s; }
 
+    /* ── Checklist ── */
     .checklist-item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f4f4f5; }
     .checklist-item:last-child { border-bottom: none; }
     .check-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #d4d4d8; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; }
     .check-circle.done { background: #22c55e; border-color: #22c55e; color: #fff; }
-    .check-circle.active { border-color: #6366f1; }
+    .check-circle.active { border-color: #0ea5e9; }
     .checklist-text { flex: 1; }
     .checklist-text strong { font-size: 14px; display: block; margin-bottom: 2px; }
     .checklist-text span { font-size: 12px; color: #71717a; }
     .points-pill { background: #fef9c3; color: #854d0e; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
     .btn { padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
-    .btn-primary { background: #6366f1; color: #fff; }
-    .btn-primary:hover { background: #4f46e5; }
-    .btn-ghost { background: transparent; color: #6366f1; border: 1px solid #c7d2fe; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover { background: #0284c7; }
+    .btn-ghost { background: transparent; color: #0ea5e9; border: 1px solid #bae6fd; }
 
-    /* ── Points & Tier Widget ── */
+    /* ── Points & Tier ── */
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
     .stat-card { background: #fff; border-radius: 12px; border: 1px solid #e4e4e7; padding: 20px; }
     .stat-label { font-size: 12px; color: #71717a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat-value { font-size: 28px; font-weight: 800; color: #18181b; }
     .stat-sub { font-size: 12px; color: #71717a; margin-top: 4px; }
-    .tier-badge { display: inline-flex; align-items: center; gap: 6px; background: #fdf4ff; color: #7e22ce; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .tier-badge { display: inline-flex; align-items: center; gap: 6px; background: #f0f9ff; color: #0369a1; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
     .tier-progress { height: 6px; background: #e4e4e7; border-radius: 8px; margin: 8px 0; overflow: hidden; }
-    .tier-progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #6366f1); width: 42%; border-radius: 8px; }
+    .tier-progress-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #0ea5e9); width: 42%; border-radius: 8px; }
     .tier-hint { font-size: 12px; color: #71717a; }
 
-    /* ── Notification Toast ── */
+    /* ── Toast ── */
     .toast { position: fixed; bottom: 28px; right: 28px; background: #18181b; color: #fff; padding: 14px 18px; border-radius: 12px; font-size: 14px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); max-width: 320px; animation: slideIn 0.35s ease; }
     .toast .toast-icon { font-size: 22px; }
     @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .toast-dismiss { margin-left: auto; background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 16px; }
 
-    /* ── Reward CTA Banner ── */
-    .reward-banner { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; border-radius: 12px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    /* ── Reward Banner ── */
+    .reward-banner { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: #fff; border-radius: 12px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .reward-banner h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
     .reward-banner p { font-size: 13px; opacity: 0.85; }
-    .btn-white { background: #fff; color: #6366f1; font-weight: 700; padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
+    .btn-white { background: #fff; color: #0ea5e9; font-weight: 700; padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
 
     /* ── Tabs ── */
     .tabs { display: flex; gap: 0; border-bottom: 2px solid #e4e4e7; margin-bottom: 20px; }
     .tab { padding: 10px 18px; font-size: 14px; font-weight: 500; color: #71717a; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+    .tab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; }
 
-    /* ── Hero Flow Confirmation ── */
+    /* ── Hero Confirm ── */
     .hero-confirm { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 20px; display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px; }
     .hero-confirm .icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
     .hero-confirm h4 { font-size: 14px; font-weight: 700; color: #15803d; margin-bottom: 3px; }
@@ -84,14 +93,18 @@
     /* ── Scenario tabs ── */
     .scenario-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
     .scenario-btn { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d4d4d8; background: #fff; color: #52525b; }
-    .scenario-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+    .scenario-btn.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
   </style>
 </head>
 <body>
 <div class="shell">
   <!-- Sidebar -->
   <div class="sidebar">
-    <div class="logo">Customer<span>EQ</span></div>
+    <div class="logo">Acme<span> Rewards</span></div>
+    <div class="sso-badge">
+      <span class="dot"></span>
+      Signed in via Acme account
+    </div>
     <nav>
       <a class="active"><span class="icon">🏠</span> Dashboard</a>
       <a><span class="icon">⭐</span> Earn Points</a>
@@ -104,7 +117,11 @@
   <!-- Main -->
   <div class="main">
 
-    <div class="screen-label">Mock: Issue #75 — Member Workflows</div>
+    <div class="screen-label">Mock: Issue #75 — Member Workflows · White-label / Embedded</div>
+
+    <div class="model-note">
+      <strong>Deployment model:</strong> White-label / embedded. Member authenticated via their existing Acme account — no CustomerEQ account created. Profile data (<code>email</code>, <code>birthDate</code>, <code>phone</code>, etc.) was passed by the Acme backend at enrollment via <code>POST /members</code>. Surveys are sent from <code>noreply@acmeco.com</code>. CustomerEQ is never visible to the member.
+    </div>
 
     <!-- Scenario switcher -->
     <div class="scenario-bar">
@@ -116,43 +133,35 @@
     <!-- ── Scenario 1: First Login / Onboarding ── -->
     <div id="scenario-onboarding">
       <div class="page-header">
-        <h1>Welcome back, Alex 👋</h1>
+        <h1>Welcome, Alex 👋</h1>
         <div class="badge-points">✦ 150 points</div>
       </div>
 
-      <!-- Getting Started -->
+      <!-- Getting Started Checklist — 2 steps only (R2) -->
       <div class="card">
         <div class="card-title">🚀 Getting Started</div>
-        <div class="card-subtitle">Complete these steps to unlock more rewards — 1 of 3 done</div>
+        <div class="card-subtitle">Complete these steps to unlock more rewards — 1 of 2 done</div>
         <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
 
+        <!-- Step 1: auto-completed — operator enrolled member via API -->
         <div class="checklist-item">
           <div class="check-circle done">✓</div>
           <div class="checklist-text">
-            <strong>Create your account</strong>
-            <span>Done — welcome to the program!</span>
+            <strong>Joined Acme Rewards</strong>
+            <span>Enrolled via your Acme account — welcome to the program!</span>
           </div>
           <div class="points-pill">+50 pts earned</div>
         </div>
 
+        <!-- Step 2: first earn action (R1) -->
         <div class="checklist-item">
           <div class="check-circle active" style="border-width:2.5px;"></div>
-          <div class="checklist-text">
-            <strong>Complete your profile</strong>
-            <span>Add your birthday and preferences</span>
-          </div>
-          <div class="points-pill">+75 pts</div>
-          <button class="btn btn-primary" style="margin-left:12px;">Start →</button>
-        </div>
-
-        <div class="checklist-item">
-          <div class="check-circle"></div>
           <div class="checklist-text">
             <strong>Make your first purchase</strong>
             <span>Earn 2× points on your first order</span>
           </div>
           <div class="points-pill">+100 pts</div>
-          <button class="btn btn-ghost" style="margin-left:12px;">Shop</button>
+          <button class="btn btn-primary" style="margin-left:12px;">Shop →</button>
         </div>
       </div>
 
@@ -188,12 +197,12 @@
         <div class="badge-points">✦ 340 points</div>
       </div>
 
-      <!-- Hero confirmation banner (R7, R8) -->
+      <!-- Hero confirmation banner (R7, R8) — survey came from Acme's own channel -->
       <div class="hero-confirm">
         <div class="icon">💬</div>
         <div>
           <h4>Thanks for your feedback — we heard you!</h4>
-          <p>Your NPS response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
+          <p>Your Acme satisfaction survey response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
         </div>
       </div>
 
@@ -218,7 +227,7 @@
         <div class="checklist-item">
           <div style="font-size:22px;">✍️</div>
           <div class="checklist-text">
-            <strong>NPS Survey completed</strong>
+            <strong>Satisfaction survey completed</strong>
             <span>2 minutes ago · +25 pts awarded</span>
           </div>
           <div class="points-pill">+25 pts</div>
@@ -266,7 +275,7 @@
             </div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:6px;">400 pts</div>
+            <div style="font-size:13px;font-weight:700;color:#0ea5e9;margin-bottom:6px;">400 pts</div>
             <button class="btn btn-primary">Redeem →</button>
           </div>
         </div>
@@ -282,7 +291,7 @@
             </div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:6px;">300 pts</div>
+            <div style="font-size:13px;font-weight:700;color:#0ea5e9;margin-bottom:6px;">300 pts</div>
             <button class="btn btn-primary">Redeem →</button>
           </div>
         </div>
@@ -317,18 +326,21 @@
   <span class="toast-icon">🎉</span>
   <div>
     <strong>You earned 50 points!</strong><br>
-    <span style="font-size:12px;opacity:0.8;">Welcome bonus · Account created</span>
+    <span style="font-size:12px;opacity:0.8;">Welcome bonus · Joined via Acme account</span>
   </div>
   <button class="toast-dismiss" onclick="document.getElementById('toast').style.display='none'">✕</button>
 </div>
 
 <script>
   function showScenario(name) {
-    ['onboarding','hero','rewards'].forEach(s => {
+    ['onboarding', 'hero', 'rewards'].forEach(s => {
       document.getElementById('scenario-' + s).style.display = s === name ? '' : 'none';
     });
-    document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
-      btn.classList.toggle('active', btn.textContent.toLowerCase().includes(name === 'onboarding' ? 'first' : name === 'hero' ? 'hero' : 'reward'));
+    document.querySelectorAll('.scenario-btn').forEach(btn => {
+      const matches = (name === 'onboarding' && btn.textContent.includes('First'))
+                   || (name === 'hero' && btn.textContent.includes('Hero'))
+                   || (name === 'rewards' && btn.textContent.includes('Reward'));
+      btn.classList.toggle('active', matches);
     });
     document.getElementById('toast').style.display = name === 'onboarding' ? 'flex' : 'none';
   }

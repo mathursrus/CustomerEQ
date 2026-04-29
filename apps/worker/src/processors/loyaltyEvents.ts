@@ -265,6 +265,20 @@ async function _processLoyaltyEvent(
         data: { pointsBalance: { increment: totalPoints } },
       })
     })
+  } else if (eventType === 'purchase' && firedRules.length === 0) {
+    // R6: purchase received but no earning rule matched — log for audit and history display.
+    // No balance update since pointsEarned === 0.
+    await prisma.loyaltyEvent.create({
+      data: {
+        brandId,
+        memberId,
+        eventType,
+        pointsEarned: 0,
+        payload: payload as Prisma.InputJsonValue,
+        idempotencyKey: idempotencyKey ?? null,
+        rulesApplied: [],
+      },
+    })
   }
 
   // Issue #117: Check for active triggered surveys matching this event type.

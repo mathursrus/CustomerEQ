@@ -13,6 +13,22 @@ Owner: swavaktp
 
 ---
 
+## Deployment Model & Member Identity
+
+CustomerEQ is B2B infrastructure. End members interact with the **operator's brand** — not CustomerEQ directly. **White-label / embedded is the only deployment model in scope for this issue.** A hosted-standalone model for operators with no existing member portal is deferred — see Alternatives.
+
+### White-label / Embedded
+
+The operator owns the member relationship and identity. CustomerEQ's loyalty engine runs transparently behind the operator's digital property; members never encounter the CustomerEQ name.
+
+- **Auth**: The operator's backend authenticates the member and passes a signed JWT to CustomerEQ's API. CustomerEQ maps the external member ID to an internal `memberId`. No separate CustomerEQ account is created.
+- **Member surface**: Embeddable React components integrated into the brand's existing web/app property, **or** a CustomerEQ-hosted portal at a brand-configured domain (e.g., `rewards.delta.com`). Only operator branding is visible in either case.
+- **Enrollment**: Triggered by the operator's backend via `POST /members`. The operator passes all known member profile fields at enrollment time — `email`, `phone`, `birthDate`, `firstName`, `lastName`, `consentGivenAt`, `communicationChannels[]`. CustomerEQ does not ask the member to re-enter data the operator already holds.
+- **Survey delivery**: Sent from the brand's email domain (e.g., `noreply@delta.com`) using the operator's sending infrastructure. CustomerEQ generates survey content and tracks responses via webhook callback.
+- **Target operator**: Mid-market to enterprise brands with an existing member identity system (CRM, e-commerce platform, airline loyalty system, etc.).
+
+---
+
 ## Customer's Desired Outcome
 
 **Member (end customer):**
@@ -51,22 +67,22 @@ The MVP consists of 7 independent issues (#2–#9), each built in isolation. Wit
 
 ### Workflow 1: Enrollment → First Earn (Member)
 
-**R1** — The enrollment confirmation screen SHALL display a "Your first earn opportunity" card with a specific action (e.g., "Complete your profile to earn 50 points").
+**R1** — After enrollment is processed, the member dashboard SHALL display a "Your first earn opportunity" card with a specific action and estimated points (e.g., "Make your first purchase — earn 100 points").
 
-**R2** — The member dashboard SHALL show an "Getting Started" checklist on first login until all onboarding steps are completed or dismissed.
+**R2** — The member dashboard SHALL show a Getting Started checklist on first login until all steps are completed or dismissed. The checklist SHALL contain two steps: (1) program enrollment (auto-completed on arrival), and (2) first earn action (purchase, survey completion, or operator-configured action). A "complete your profile" step SHALL NOT appear — profile data is provided by the operator at enrollment via `POST /members`. If a loyalty rule requires a field the operator did not pass (e.g., `birthDate` for a birthday reward rule), the system SHALL surface a single targeted inline prompt for that field only, not a generic profile form.
 
-**R3** — The system SHALL send a welcome email within 5 minutes of enrollment containing: current points balance, the top 3 ways to earn, and a link to the rewards catalog.
+**R3** — The system SHALL send a welcome email within 5 minutes of enrollment using the operator's configured sender domain and CustomerEQ-generated template. The email SHALL contain: current points balance, the top 3 ways to earn, and a link to the rewards catalog.
 
-*Given* a member completes enrollment,
+*Given* a member is enrolled by the operator backend,
 *When* they land on the dashboard for the first time,
-*Then* they see a non-dismissable Getting Started checklist with at least 3 earn actions and estimated points per action.
+*Then* they see a Getting Started checklist with enrollment auto-completed and a single active earn action with estimated points.
 
 **Steps in workflow:**
-1. Member submits enrollment form → confirmation screen shows points balance + first earn CTA
-2. Member lands on loyalty dashboard → Getting Started checklist visible in main content area
-3. Member clicks first earn action → context-appropriate earn flow (purchase link, profile form, survey)
+1. Operator backend calls `POST /members` with external member ID, JWT, and member profile fields → CustomerEQ creates loyalty profile, emits `member.enrolled` event
+2. Operator's portal surfaces the loyalty dashboard (embedded component or hosted at brand domain) → Getting Started checklist visible with enrollment auto-completed
+3. Member clicks the active earn action → context-appropriate earn flow within the operator's surface (purchase link, survey)
 4. System awards points via worker queue → dashboard balance updates within 60 seconds
-5. Member sees updated balance + "You earned X points!" toast notification
+5. Member sees updated balance + earn notification
 
 **UI Mock**: [75-member-onboarding-flow.html](mocks/75-member-onboarding-flow.html)
 
@@ -278,7 +294,7 @@ Based on `fraim/config.json` compliance settings (GDPR, CCPA, SOC2 target, PCI m
 **GDPR / CCPA**
 - **R-C1**: CX feedback data (NPS scores, CSAT ratings, free-text comments) is PII-adjacent. It SHALL be stored with `brandId` scoping and subject to the member erasure job in `apps/worker`. Free-text survey responses must be zeroed on erasure request.
 - **R-C2**: The welcome email (R3) and campaign notification (R8) SHALL include an unsubscribe link and reference the brand's privacy policy URL.
-- **R-C3**: Members who have not given consent (`consentGivenAt IS NULL`) SHALL NOT receive campaign notifications triggered by CX events. The campaign trigger logic SHALL check `Member.consentGivenAt` before enqueueing any notification.
+- **R-C3**: Members who have not given consent (`consentGivenAt IS NULL`) SHALL NOT receive campaign notifications triggered by CX events. The campaign trigger logic SHALL check `Member.consentGivenAt` before enqueueing any notification. Consent is captured at the operator's brand level; the operator SHALL pass `consentGivenAt` in the `POST /members` enrollment call. CustomerEQ SHALL NOT treat a null `consentGivenAt` as implicit consent.
 - **R-C4**: The CRM integration (Workflow 9) SHALL never store raw CRM credentials in the database in plaintext. Credentials must be stored via Azure Key Vault and referenced by secret name only.
 
 **SOC2 (target)**
@@ -336,6 +352,7 @@ Based on `fraim/config.json` compliance settings (GDPR, CCPA, SOC2 target, PCI m
 | Wait until after MVP ships and fix UX in a polish sprint | Hero SLA confirmation (R7, R8) and consent check (R-C3) are P0 blockers — they cannot wait |
 | Build a full design system first | Out of MVP scope; shadcn/tailwind v4 generic baseline is sufficient |
 | Hire a UX designer to run a formal usability study | No users yet; this spec is the lightweight substitute until real user data exists |
+| **Hosted standalone portal (Model B)** — CustomerEQ manages member accounts and hosts the full loyalty portal under the operator's brand | **Deferred to a future issue.** Most operators already manage their own member identity and want CustomerEQ to be invisible infrastructure. Building a hosted auth system (account creation, password reset, email verification, CNAME management) is significant scope with limited near-term demand. The white-label/embedded model covers all mid-market and enterprise targets. Revisit when a concrete SMB segment opportunity emerges. |
 
 ---
 
