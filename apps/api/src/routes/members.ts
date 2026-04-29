@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import {
   EnrollMemberSchema,
   Customer360QuerySchema,
@@ -11,6 +12,42 @@ import {
 } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
 import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
+
+function formatEventLabel(
+  eventType: string,
+  pointsEarned: number,
+  payload: Record<string, unknown> | null,
+): string {
+  if (eventType === 'purchase' && pointsEarned === 0) {
+    return 'Ineligible action — no matching rule'
+  }
+  switch (eventType) {
+    case 'purchase':
+      return payload?.orderId ? `Purchase — Order #${payload.orderId}` : 'Purchase'
+    case 'enrollment':
+      return payload?.programName ? `Enrolled in ${String(payload.programName)}` : 'Program enrollment'
+    case 'campaign_award':
+      return payload?.campaignName ? `Campaign reward: ${String(payload.campaignName)}` : 'Campaign reward'
+    case 'cx.nps_response':
+    case 'cx.nps_submitted':
+      return 'NPS survey completed'
+    case 'cx.csat_response':
+    case 'cx.csat_submitted':
+      return 'CSAT survey completed'
+    case 'cx.ces_response':
+      return 'CES survey completed'
+    case 'cx.survey_completed':
+      return payload?.surveyName ? `Survey: ${String(payload.surveyName)}` : 'Survey completed'
+    case 'cx.promoter_identified':
+      return 'Identified as promoter'
+    case 'tier.upgraded':
+      return payload?.tierName ? `Tier upgraded to ${String(payload.tierName)}` : 'Tier upgrade'
+    case 'redemption':
+      return payload?.rewardName ? `Redeemed: ${String(payload.rewardName)}` : 'Reward redemption'
+    default:
+      return eventType.replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+}
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/members/enroll — public route (new member has no org JWT yet)
@@ -198,6 +235,191 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(200).send({
       pointsBalance: member.pointsBalance,
       recentEvents,
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/members/me/dashboard — full dashboard payload (Issue #75)
+  // Returns all data needed for the member dashboard in one call:
+  // balance, tier progress, affordable reward CTA, onboarding state, activity.
+  // Kept separate from /balance so the lightweight header badge call stays fast.
+  // ---------------------------------------------------------------------------
+  fastify.get('/members/me/dashboard', async (request, reply) => {
+    const member = await fastify.prisma.member.findFirst({
+      where: {
+        clerkUserId: request.clerkUserId,
+        brandId: request.brandId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        pointsBalance: true,
+        currentTierId: true,
+        currentTier: {
+          select: { id: true, name: true, rank: true, icon: true, benefits: true, minPoints: true },
+        },
+      },
+    })
+
+    if (!member) {
+      return reply.status(404).send({ error: 'Member not found' })
+    }
+
+    const [recentEvents, program, tiers, affordableReward, hasPurchase] = await Promise.all([
+      fastify.prisma.loyaltyEvent.findMany({
+        where: { memberId: member.id, brandId: request.brandId, pointsEarned: { gt: 0 } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      fastify.prisma.program.findFirst({
+        where: { brandId: request.brandId, status: 'ACTIVE' },
+        select: { pointCurrencyName: true, pointToCurrencyRatio: true },
+      }),
+      fastify.prisma.tier.findMany({
+        where: { brandId: request.brandId, deletedAt: null },
+        orderBy: { rank: 'asc' },
+        select: { id: true, name: true, rank: true, icon: true, benefits: true, minPoints: true },
+      }),
+      // Most valuable reward the member can afford
+      fastify.prisma.reward.findFirst({
+        where: {
+          brandId: request.brandId,
+          isAvailable: true,
+          deletedAt: null,
+          pointsCost: { lte: member.pointsBalance },
+          OR: [{ stock: null }, { stock: { gt: 0 } }],
+        },
+        orderBy: { pointsCost: 'desc' },
+        select: { id: true, name: true, pointsCost: true },
+      }),
+      fastify.prisma.loyaltyEvent.findFirst({
+        where: { memberId: member.id, brandId: request.brandId, eventType: 'purchase', pointsEarned: { gt: 0 } },
+        select: { id: true },
+      }),
+    ])
+
+    // Running balance for activity feed (events newest-first)
+    let running = member.pointsBalance
+    const recentActivity = recentEvents.map((e) => {
+      const bal = running
+      running -= e.pointsEarned
+      return {
+        id: e.id,
+        date: e.createdAt,
+        event: formatEventLabel(e.eventType, e.pointsEarned, e.payload as Record<string, unknown> | null),
+        points: e.pointsEarned,
+        balance: bal,
+      }
+    })
+
+    // Tier progress toward the next tier
+    let tierProgress: { nextTierName: string; minPoints: number; pointsToNext: number; pct: number } | null = null
+    const currentRank = member.currentTier?.rank ?? 0
+    const nextTier = tiers.find((t) => t.rank > currentRank && (t.minPoints ?? 0) > member.pointsBalance)
+    if (nextTier?.minPoints != null) {
+      const baseMin = member.currentTier?.minPoints ?? 0
+      const range = nextTier.minPoints - baseMin
+      const progress = member.pointsBalance - baseMin
+      tierProgress = {
+        nextTierName: nextTier.name,
+        minPoints: nextTier.minPoints,
+        pointsToNext: Math.max(0, nextTier.minPoints - member.pointsBalance),
+        pct: range > 0 ? Math.min(100, Math.round((progress / range) * 100)) : 100,
+      }
+    }
+
+    return reply.status(200).send({
+      pointsBalance: member.pointsBalance,
+      currencyName: program?.pointCurrencyName ?? 'Points',
+      currencyEquivalent: program
+        ? Number((member.pointsBalance * program.pointToCurrencyRatio).toFixed(2))
+        : null,
+      tier: member.currentTier
+        ? {
+            id: member.currentTier.id,
+            name: member.currentTier.name,
+            rank: member.currentTier.rank,
+            icon: member.currentTier.icon ?? null,
+          }
+        : null,
+      tierProgress,
+      affordableReward: affordableReward ?? null,
+      onboarding: { hasFirstPurchase: hasPurchase !== null },
+      recentActivity,
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/members/me/events — paginated loyalty event history (Issue #75 R5/R6)
+  // ---------------------------------------------------------------------------
+  const EventsQuerySchema = z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+
+  fastify.get('/members/me/events', async (request, reply) => {
+    const { page, limit } = EventsQuerySchema.parse(request.query)
+
+    const member = await fastify.prisma.member.findFirst({
+      where: {
+        clerkUserId: request.clerkUserId,
+        brandId: request.brandId,
+        deletedAt: null,
+      },
+      select: { id: true, pointsBalance: true },
+    })
+
+    if (!member) {
+      return reply.status(404).send({ error: 'Member not found' })
+    }
+
+    const skip = (page - 1) * limit
+    const [events, total] = await Promise.all([
+      fastify.prisma.loyaltyEvent.findMany({
+        where: { memberId: member.id, brandId: request.brandId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip,
+      }),
+      fastify.prisma.loyaltyEvent.count({
+        where: { memberId: member.id, brandId: request.brandId },
+      }),
+    ])
+
+    // Compute running balance for this page by summing events above it
+    let pageStartBalance = member.pointsBalance
+    if (skip > 0) {
+      const above = await fastify.prisma.loyaltyEvent.aggregate({
+        where: {
+          memberId: member.id,
+          brandId: request.brandId,
+          createdAt: { gt: events[0]?.createdAt ?? new Date() },
+        },
+        _sum: { pointsEarned: true },
+      })
+      pageStartBalance = member.pointsBalance - (above._sum.pointsEarned ?? 0)
+    }
+
+    let running = pageStartBalance
+    const items = events.map((e) => {
+      const bal = running
+      running -= e.pointsEarned
+      return {
+        id: e.id,
+        date: e.createdAt,
+        event: formatEventLabel(e.eventType, e.pointsEarned, e.payload as Record<string, unknown> | null),
+        points: e.pointsEarned,
+        balance: bal,
+        rulesApplied: e.rulesApplied,
+      }
+    })
+
+    return reply.status(200).send({
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     })
   })
 
