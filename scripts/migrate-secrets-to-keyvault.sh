@@ -230,8 +230,15 @@ grant_kv_access() {
     local principal
     principal=$(ensure_identity "$app")
     log "  identity principal: $principal"
+    # Use --assignee-object-id + --assignee-principal-type to bypass the
+    # Graph API lookup that --assignee triggers. The lookup fails for many
+    # callers without Microsoft Graph permissions and produces a confusing
+    # downstream "MissingSubscription" error. The values are already known
+    # at this point: a system-assigned managed identity is a ServicePrincipal
+    # in Azure RBAC parlance.
     run_ok az role assignment create \
-      --assignee "$principal" \
+      --assignee-object-id "$principal" \
+      --assignee-principal-type ServicePrincipal \
       --role "Key Vault Secrets User" \
       --scope "$vault_id"
   done
@@ -316,8 +323,10 @@ migrate_acr_pull() {
     principal=$(ensure_identity "$app")
 
     log "  granting AcrPull on $ACR_NAME to principal $principal"
+    # Same Graph-API bypass as the Key Vault role assignment in Phase 2.
     run_ok az role assignment create \
-      --assignee "$principal" \
+      --assignee-object-id "$principal" \
+      --assignee-principal-type ServicePrincipal \
       --role AcrPull \
       --scope "$acr_id"
 
