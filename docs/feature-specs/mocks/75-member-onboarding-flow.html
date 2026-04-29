@@ -21,11 +21,7 @@
     .sso-badge .dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; flex-shrink: 0; }
     .main { flex: 1; padding: 32px; overflow-y: auto; }
 
-    /* ── Model switcher ── */
-    .model-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-    .model-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; white-space: nowrap; }
-    .model-btn { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #d4d4d8; background: #fff; color: #52525b; }
-    .model-btn.active { background: #18181b; color: #fff; border-color: #18181b; }
+    /* ── Deployment model note ── */
     .model-note { font-size: 12px; color: #52525b; background: #fafafa; border: 1px solid #e4e4e7; border-left: 3px solid #0ea5e9; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; line-height: 1.6; }
     .model-note strong { color: #18181b; }
     .model-note code { font-family: ui-monospace, monospace; background: #e4e4e7; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
@@ -40,7 +36,7 @@
     .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
     .card-subtitle { font-size: 13px; color: #71717a; margin-bottom: 18px; }
     .progress-bar-wrap { height: 8px; background: #e4e4e7; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; border-radius: 8px; background: #0ea5e9; width: 33%; transition: width 0.4s; }
+    .progress-bar-fill { height: 100%; border-radius: 8px; background: #0ea5e9; width: 50%; transition: width 0.4s; }
 
     /* ── Checklist ── */
     .checklist-item { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f4f4f5; }
@@ -105,13 +101,10 @@
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="logo">Acme<span> Rewards</span></div>
-
-    <!-- Model A only: SSO indicator -->
-    <div class="sso-badge" id="sso-badge">
+    <div class="sso-badge">
       <span class="dot"></span>
       Signed in via Acme account
     </div>
-
     <nav>
       <a class="active"><span class="icon">🏠</span> Dashboard</a>
       <a><span class="icon">⭐</span> Earn Points</a>
@@ -124,19 +117,10 @@
   <!-- Main -->
   <div class="main">
 
-    <div class="screen-label">Mock: Issue #75 — Member Workflows</div>
+    <div class="screen-label">Mock: Issue #75 — Member Workflows · White-label / Embedded</div>
 
-    <!-- Model Switcher -->
-    <div class="model-bar">
-      <span class="model-label">Deployment model:</span>
-      <button class="model-btn active" onclick="setModel('a')">Model A — White-label / Embedded</button>
-      <button class="model-btn" onclick="setModel('b')">Model B — Hosted Standalone</button>
-    </div>
-    <div class="model-note" id="model-note-a">
-      <strong>Model A (primary):</strong> CustomerEQ is invisible infrastructure. The member authenticated via their existing Acme account — no new account created. The loyalty module is embedded in Acme's digital property. Surveys are sent from <code>noreply@acmeco.com</code>. Enrollment was triggered by Acme's backend calling <code>POST /members</code> with a JWT; the member never visited a CustomerEQ URL.
-    </div>
-    <div class="model-note" id="model-note-b" style="display:none">
-      <strong>Model B (outlier — SMB):</strong> CustomerEQ hosts the full portal at a brand-configured URL (e.g., <code>rewards.acmeco.com</code>). The member self-enrolled or was pre-provisioned by the operator's bulk import. Surveys are sent from <code>noreply@mail.customereq.com</code> with display name "Acme Rewards." CustomerEQ branding is never visible to the member.
+    <div class="model-note">
+      <strong>Deployment model:</strong> White-label / embedded. Member authenticated via their existing Acme account — no CustomerEQ account created. Profile data (<code>email</code>, <code>birthDate</code>, <code>phone</code>, etc.) was passed by the Acme backend at enrollment via <code>POST /members</code>. Surveys are sent from <code>noreply@acmeco.com</code>. CustomerEQ is never visible to the member.
     </div>
 
     <!-- Scenario switcher -->
@@ -153,14 +137,14 @@
         <div class="badge-points">✦ 150 points</div>
       </div>
 
-      <!-- Getting Started Checklist -->
+      <!-- Getting Started Checklist — 2 steps only (R2) -->
       <div class="card">
         <div class="card-title">🚀 Getting Started</div>
-        <div class="card-subtitle">Complete these steps to unlock more rewards — 1 of 3 done</div>
+        <div class="card-subtitle">Complete these steps to unlock more rewards — 1 of 2 done</div>
         <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
 
-        <!-- Step 1 — Model A: auto-enrolled via brand account -->
-        <div class="checklist-item" id="step1-a">
+        <!-- Step 1: auto-completed — operator enrolled member via API -->
+        <div class="checklist-item">
           <div class="check-circle done">✓</div>
           <div class="checklist-text">
             <strong>Joined Acme Rewards</strong>
@@ -169,34 +153,15 @@
           <div class="points-pill">+50 pts earned</div>
         </div>
 
-        <!-- Step 1 — Model B: member created account at hosted portal -->
-        <div class="checklist-item" id="step1-b" style="display:none">
-          <div class="check-circle done">✓</div>
-          <div class="checklist-text">
-            <strong>Create your account</strong>
-            <span>Done — welcome to the program!</span>
-          </div>
-          <div class="points-pill">+50 pts earned</div>
-        </div>
-
+        <!-- Step 2: first earn action (R1) -->
         <div class="checklist-item">
           <div class="check-circle active" style="border-width:2.5px;"></div>
-          <div class="checklist-text">
-            <strong>Complete your profile</strong>
-            <span>Add your birthday and preferences</span>
-          </div>
-          <div class="points-pill">+75 pts</div>
-          <button class="btn btn-primary" style="margin-left:12px;">Start →</button>
-        </div>
-
-        <div class="checklist-item">
-          <div class="check-circle"></div>
           <div class="checklist-text">
             <strong>Make your first purchase</strong>
             <span>Earn 2× points on your first order</span>
           </div>
           <div class="points-pill">+100 pts</div>
-          <button class="btn btn-ghost" style="margin-left:12px;">Shop</button>
+          <button class="btn btn-primary" style="margin-left:12px;">Shop →</button>
         </div>
       </div>
 
@@ -232,15 +197,12 @@
         <div class="badge-points">✦ 340 points</div>
       </div>
 
-      <!-- Hero confirmation banner (R7, R8) -->
+      <!-- Hero confirmation banner (R7, R8) — survey came from Acme's own channel -->
       <div class="hero-confirm">
         <div class="icon">💬</div>
         <div>
           <h4>Thanks for your feedback — we heard you!</h4>
-          <!-- Model A: survey came from brand's own channel -->
-          <p id="hero-text-a">Your Acme satisfaction survey response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
-          <!-- Model B: survey from hosted portal -->
-          <p id="hero-text-b" style="display:none">Your survey response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
+          <p>Your Acme satisfaction survey response was received. We've added <strong>25 bonus points</strong> to your account and a special offer is on its way within 15 minutes.</p>
         </div>
       </div>
 
@@ -364,28 +326,12 @@
   <span class="toast-icon">🎉</span>
   <div>
     <strong>You earned 50 points!</strong><br>
-    <span style="font-size:12px;opacity:0.8;" id="toast-sub-a">Welcome bonus · Joined via Acme account</span>
-    <span style="font-size:12px;opacity:0.8;" id="toast-sub-b" style="display:none">Welcome bonus · Account created</span>
+    <span style="font-size:12px;opacity:0.8;">Welcome bonus · Joined via Acme account</span>
   </div>
   <button class="toast-dismiss" onclick="document.getElementById('toast').style.display='none'">✕</button>
 </div>
 
 <script>
-  function setModel(model) {
-    document.querySelectorAll('.model-btn').forEach((btn, i) => {
-      btn.classList.toggle('active', (model === 'a' && i === 0) || (model === 'b' && i === 1));
-    });
-    document.getElementById('model-note-a').style.display = model === 'a' ? '' : 'none';
-    document.getElementById('model-note-b').style.display = model === 'b' ? '' : 'none';
-    document.getElementById('sso-badge').style.display = model === 'a' ? 'flex' : 'none';
-    document.getElementById('step1-a').style.display = model === 'a' ? 'flex' : 'none';
-    document.getElementById('step1-b').style.display = model === 'b' ? 'flex' : 'none';
-    document.getElementById('hero-text-a').style.display = model === 'a' ? '' : 'none';
-    document.getElementById('hero-text-b').style.display = model === 'b' ? '' : 'none';
-    document.getElementById('toast-sub-a').style.display = model === 'a' ? '' : 'none';
-    document.getElementById('toast-sub-b').style.display = model === 'b' ? '' : 'none';
-  }
-
   function showScenario(name) {
     ['onboarding', 'hero', 'rewards'].forEach(s => {
       document.getElementById('scenario-' + s).style.display = s === name ? '' : 'none';
