@@ -125,6 +125,92 @@ show_help() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────
+# Helper: cross-platform UUID generation. Tries (in order) uuidgen, python,
+# python3, node, openssl, /proc/sys/kernel/random/uuid. Bails if none work.
+# uuidgen is missing on Windows git-bash; python is often missing too. node
+# is available in this repo's environments (Node.js project) and openssl
+# ships almost everywhere.
+# ────────────────────────────────────────────────────────────────────────────
+
+gen_uuid() {
+  if command -v uuidgen >/dev/null 2>&1; then
+    uuidgen
+  elif command -v python >/dev/null 2>&1; then
+    python -c "import uuid; print(uuid.uuid4())"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "import uuid; print(uuid.uuid4())"
+  elif command -v node >/dev/null 2>&1; then
+    node -e "console.log(require('crypto').randomUUID())"
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 16 | sed -E 's/^(.{8})(.{4})(.{4})(.{4})(.{12})$/\1-\2-\3-\4-\5/'
+  elif [[ -r /proc/sys/kernel/random/uuid ]]; then
+    cat /proc/sys/kernel/random/uuid
+  else
+    die "no UUID generator available (tried uuidgen, python, python3, node, openssl, /proc/sys/kernel/random/uuid)"
+  fi
+}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Helper: assign an Azure RBAC role at a scope to a principal, idempotently.
+#
+# Uses `az rest` against the ARM API directly because `az role assignment
+# create/list` has a known bug on Windows git-bash environments where the
+# cmdlet's pre-flight tenant resolution returns `MissingSubscription` even
+# when the subscription is correct. Going through `az rest` bypasses the
+# buggy cmdlet path entirely; the underlying ARM API works for the same
+# caller in the same session.
+#
+# Args:
+#   $1 = principal-id (object ID — for managed identity, from
+#                      `az containerapp show --query identity.principalId`)
+#   $2 = role-definition-id (GUID — see well-known-roles table below)
+#   $3 = scope (full ARM resource path)
+#   $4 = role-name (for log output only)
+#
+# Well-known role definition IDs:
+#   Key Vault Secrets User    4633458b-17de-408a-b874-0445c86b69e6
+#   AcrPull                   7f951dda-4ed3-4680-a7ca-43fe172d538d
+# ────────────────────────────────────────────────────────────────────────────
+
+assign_role_via_rest() {
+  local principal="$1"
+  local role_def_id="$2"
+  local scope="$3"
+  local role_name="$4"
+
+  local sub_id
+  sub_id=$(az account show --query id -o tsv)
+  local role_def_full="/subscriptions/${sub_id}/providers/Microsoft.Authorization/roleDefinitions/${role_def_id}"
+
+  # Idempotency: list existing role assignments at the scope, JMESPath-filter
+  # to ones that match (principal, role). If any exist, skip the PUT.
+  local existing
+  existing=$(az rest --method get \
+    --uri "https://management.azure.com${scope}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01" \
+    --query "value[?properties.principalId=='${principal}' && properties.roleDefinitionId=='${role_def_full}'].name | [0]" \
+    -o tsv 2>/dev/null || echo "")
+
+  if [[ -n "$existing" && "$existing" != "None" ]]; then
+    log "  role '$role_name' already assigned (assignment GUID: $existing); skipping"
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    log "  [DRY-RUN] would PUT role assignment '$role_name' on $scope to principal $principal"
+    return 0
+  fi
+
+  local guid
+  guid=$(gen_uuid)
+  log "  assigning role '$role_name' (new assignment GUID: $guid)"
+
+  az rest --method put \
+    --uri "https://management.azure.com${scope}/providers/Microsoft.Authorization/roleAssignments/${guid}?api-version=2022-04-01" \
+    --body "{\"properties\":{\"roleDefinitionId\":\"${role_def_full}\",\"principalId\":\"${principal}\",\"principalType\":\"ServicePrincipal\"}}" \
+    --output none
+}
+
+# ────────────────────────────────────────────────────────────────────────────
 # Arg parsing
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -230,17 +316,10 @@ grant_kv_access() {
     local principal
     principal=$(ensure_identity "$app")
     log "  identity principal: $principal"
-    # Use --assignee-object-id + --assignee-principal-type to bypass the
-    # Graph API lookup that --assignee triggers. The lookup fails for many
-    # callers without Microsoft Graph permissions and produces a confusing
-    # downstream "MissingSubscription" error. The values are already known
-    # at this point: a system-assigned managed identity is a ServicePrincipal
-    # in Azure RBAC parlance.
-    run_ok az role assignment create \
-      --assignee-object-id "$principal" \
-      --assignee-principal-type ServicePrincipal \
-      --role "Key Vault Secrets User" \
-      --scope "$vault_id"
+    # Role assignment via az rest (bypasses the buggy `az role assignment`
+    # cmdlet — see the assign_role_via_rest comment block).
+    # 4633458b-17de-408a-b874-0445c86b69e6 = Key Vault Secrets User
+    assign_role_via_rest "$principal" "4633458b-17de-408a-b874-0445c86b69e6" "$vault_id" "Key Vault Secrets User"
   done
 }
 
@@ -323,12 +402,9 @@ migrate_acr_pull() {
     principal=$(ensure_identity "$app")
 
     log "  granting AcrPull on $ACR_NAME to principal $principal"
-    # Same Graph-API bypass as the Key Vault role assignment in Phase 2.
-    run_ok az role assignment create \
-      --assignee-object-id "$principal" \
-      --assignee-principal-type ServicePrincipal \
-      --role AcrPull \
-      --scope "$acr_id"
+    # Role assignment via az rest (same reason as Phase 2).
+    # 7f951dda-4ed3-4680-a7ca-43fe172d538d = AcrPull
+    assign_role_via_rest "$principal" "7f951dda-4ed3-4680-a7ca-43fe172d538d" "$acr_id" "AcrPull"
 
     log "  switching pulls to managed identity"
     run az containerapp registry set \
