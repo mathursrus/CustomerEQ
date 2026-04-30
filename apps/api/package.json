@@ -16,8 +16,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clerk/backend": "^3.2.12",
-    "@clerk/fastify": "^3.1.14",
+    "@clerk/backend": "^3.2.14",
+    "@clerk/fastify": "^3.1.16",
     "@customerEQ/ai": "workspace:*",
     "@customerEQ/connectors": "workspace:*",
     "@customerEQ/database": "workspace:*",
