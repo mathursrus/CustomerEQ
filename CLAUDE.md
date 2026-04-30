@@ -29,6 +29,35 @@ The generic adapter block above points at `fraim/ai-employee/jobs/` and `fraim/a
 
 Personalized overrides still live on disk under `fraim/personalized-employee/` and take precedence over synced baseline content. Always read `fraim/personalized-employee/rules/project_rules.md` before acting.
 
+## Production Secrets Policy (Issue #200)
+
+All production app secrets are sourced from Azure Key Vault `customereq-kv` via Container Apps Key Vault references. Container Apps must pull images from ACR `customereqcr` using their system-assigned managed identity. Violating this puts secrets back in plain text inside Container App config and re-introduces shared admin credentials for ACR — both of which Issue #200 was opened to fix.
+
+**Required pattern for any secret a container needs:**
+- The secret value lives in Key Vault `customereq-kv`.
+- The container app's `secrets:` entry uses `keyVaultUrl: https://customereq-kv.vault.azure.net/secrets/<name>` plus `identity: system` — never a plain `value:`.
+- The container's env var uses `secretRef: <secret-name>` — never plain `value:` for sensitive data.
+- The container app's managed identity holds `Key Vault Secrets User` on the vault.
+
+**Required pattern for ACR pulls:**
+- `registries:` entry uses `identity: system` — never `username` + `passwordSecretRef`.
+- The container app's managed identity holds `AcrPull` on the registry.
+
+**Forbidden — do not introduce these in any IaC, deploy script, workflow, or ad-hoc command:**
+- `az containerapp update --secrets KEY=plain-value` for any production secret.
+- A `secrets:` block with `value:` (instead of `keyVaultUrl:`) in `*.bicep` / `*.yml` / `*.json` for any production app.
+- An env var entry with a plain `value:` for anything sensitive (API keys, DB URLs, JWT secrets, signing keys, etc.).
+- `az containerapp registry set --username ... --password ...` against a production app.
+- Re-enabling `customereqcr`'s admin user.
+
+**Adding a new secret:**
+1. Add the value to Key Vault: `az keyvault secret set --vault-name customereq-kv --name <name> --value <value>`.
+2. Bind it on the container app: `az containerapp secret set --name <app> --resource-group customereq-prod --secrets <name>=keyvaultref:https://customereq-kv.vault.azure.net/secrets/<name>,identityref:system`.
+3. Reference it from env: `az containerapp update --name <app> --resource-group customereq-prod --set-env-vars KEY=secretref:<name>`.
+4. The migration script `scripts/migrate-secrets-to-keyvault.sh` is the canonical reference for this pattern — read it before doing anything custom.
+
+**Drift detection:** `./scripts/migrate-secrets-to-keyvault.sh --dry-run` is idempotent; if it reports any change to a production app, that's drift, investigate before letting it proceed.
+
 ## Testing Rules
 
 - **Tests must never skip.** If a test cannot run (missing API key, DB unreachable, server down), it must **fail with a clear error** — not skip or pass vacuously.
