@@ -77,17 +77,21 @@ Builds on PR 1's data + abstraction. API-only — no UI.
 
 **Estimated files**: ~9
 
-- [ ] NEW `apps/api/src/routes/auth.ts` (or `auth-onboarding.ts` to avoid colliding with any future `auth.ts`) — registers POST `/api/auth/signup`, GET `/api/auth/oauth/:provider/start`, POST `/api/auth/signup/finish`. **Convention decision**: existing routes are flat under `apps/api/src/routes/` (no subdirectories). Pinning to flat convention; consolidate the three handlers into one route module. Per RFC §4.
+- [ ] NEW `apps/api/src/routes/auth.ts` — registers POST `/api/auth/signup`, GET `/api/auth/oauth/:provider/start`, POST `/api/auth/signup/finish`. **Convention**: flat under `apps/api/src/routes/` (no collision: `routes/auth.ts` is new; existing `routes/oauth.ts` is for MCP OAuth, distinct concern). Per RFC §4.
+- [ ] **Security fix carried forward from PR 1 (SEC-170-002)**: in `routes/auth.ts`'s GET `/api/auth/oauth/:provider/start` handler, validate `returnTo` query param before passing to `IdentityProvider.beginOAuth`. Zod refine: must be a relative path starting with `/admin/` OR a same-origin URL. Reject otherwise with 400. Defense-in-depth even when Clerk's `redirect_url` allowlist is strictly configured.
 - [ ] NEW `apps/api/src/routes/auth.test.ts` — integration tests for each endpoint covering happy path + the failure modes from RFC §10 (rate-limit, partial-failure, email-duplicate, OAuth new-user-without-org).
 - [ ] NEW `apps/api/src/routes/identityProviderWebhook.ts` — POST `/api/webhooks/identity-provider`. Verifies signature via `IdentityProvider.parseWebhook`; acts on `organization.created` / `organization.updated` / `organization.deleted` / `user.deleted`. Per RFC §5. **Security carry-over from PR 1 (SEC-170-001)**: route handler MUST register a Fastify `addContentTypeParser` for the webhook content-type that captures the raw body buffer; pass that buffer (as string) to `IdentityProvider.parseWebhook({ headers, rawBody })` so svix verifies the exact signed bytes (not Fastify's re-parsed JSON).
 - [ ] NEW `apps/api/src/routes/identityProviderWebhook.test.ts` — tests covering the full webhook table from RFC §5 + signature-rejection (validation row 11).
 - [ ] NEW `packages/shared/src/zod/onboarding.ts` — shared Zod schemas (`signupRequestSchema`, `oauthFinishRequestSchema`, plus stubs for the schemas PR 3 will fill in to keep one source of truth). Per RFC §4.1.
 - [ ] `apps/api/src/server.ts` (or `app.ts`) — register the two new route modules.
 - [ ] NEW `apps/api/src/services/onboarding.ts` (initial slice) — exports `emitActivationStep(brandId, step, metadata?)` helper. Used by `/api/auth/signup` and the webhook handler (`account_created` emission). Full helper implementation (worker re-export) lands in PR 4 / PR 6.
+- [ ] **PR 2 D1=(b)**: extend `apps/api/src/plugins/auth.ts` with an `allowNoOrg` route-config flag. When set, the plugin verifies the session via `IdentityProvider.getSession` and decorates `request.clerkUserId`; `request.brandId` is decorated only if `session.orgId !== null` (standard brand lookup). Used by `POST /api/auth/signup/finish` for the OAuth new-user-without-org case. Update `apps/api/src/plugins/auth.test.ts` with three new cases: orgId-null allowed; orgId-non-null still resolves brand; no `allowNoOrg` flag still rejects null orgId.
+- [ ] **PR 2 D2=(a)**: scope the raw-body content-type parser to `routes/identityProviderWebhook.ts` only (per-route `addContentTypeParser`). Don't add a global Buffer-capturing parser.
+- [ ] **PR 2 D3=(a)**: skip the explicit email-duplicate pre-check in the signup handler; map Clerk's duplicate-email error from `createUserWithOrg` to HTTP 409 with a clear message. Document the error-mapping table in the route handler's JSDoc.
 
 **Validation (PR 2 — API only)**:
 - `pnpm test:smoke` + `pnpm test:integration` (auth + webhook routes)
-- Manual: trigger a Clerk webhook locally (svix CLI or Clerk dashboard) and confirm 401 on bad signature, 200 on good
+- **Manual: trigger a Clerk webhook locally (svix CLI) with a real signed payload** and confirm 200 on good signature, 401 on bad. Lesson from PR 1 retrospective ("tests pass via mocks ≠ tested in production"): the svix-mocked unit tests do not exercise the actual signature math + raw-body capture path; svix-CLI exercises it end-to-end through Fastify's content-type parser. Required before submission.
 - Browser-level signup-flow validation deferred to PR 3 (where the UI lands)
 
 **Validation map**: rows 1 (DB-level), 2 (DB-level), 11 from RFC validation plan.
@@ -108,7 +112,7 @@ Builds on PR 2's auth API. Web-only — no API changes.
 - [ ] NEW `apps/web/src/app/(auth)/signup/finish/page.tsx` — OAuth-path convergence form (org-name only, email/name pre-filled from `IdentityProvider.getUser`).
 - [ ] `apps/web/src/app/sign-in/[[...sign-in]]/page.tsx` — keep Clerk catch-all (per resolved decision); add `<OAuthButtonRow />` parity only.
 - [ ] `apps/web/src/middleware.ts` — handle post-OAuth-redirect: if `getSession` returns `{ userId, orgId: null }` redirect to `/signup/finish`. Per RFC §4 oauth-callback row.
-- [ ] **Security fix forwarded from PR 1 (SEC-170-002)**: validate `returnTo` query param on `/api/auth/oauth/:provider/start` before passing to `IdentityProvider.beginOAuth`. Zod refine: must be a relative path starting with `/admin/` OR a same-origin URL. Reject otherwise (400). Defense-in-depth even when Clerk's redirect_url allowlist is configured.
+- [ ] (SEC-170-002 was moved up to PR 2 where the `/api/auth/oauth/:provider/start` route handler actually lives. Web middleware in PR 3 handles only the post-redirect-back routing, not `returnTo` ingress.)
 - [ ] NEW `apps/web/test/e2e/signup-paths.spec.ts` — Playwright E2E covering validation rows #1, #2 (signup happy path, OAuth happy path with mocked provider).
 
 **Validation (PR 3 — UI)**:

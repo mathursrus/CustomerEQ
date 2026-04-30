@@ -92,7 +92,10 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     // Skip auth for public routes — they handle their own auth if needed
-    if ((request.routeOptions?.config as unknown as Record<string, unknown>)?.public === true) {
+    const routeConfig = request.routeOptions?.config as
+      | { public?: boolean; allowNoOrg?: boolean }
+      | undefined
+    if (routeConfig?.public === true) {
       return
     }
 
@@ -110,6 +113,25 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     const session = await fastify.identityProvider.getSession(token)
     if (!session) {
       return reply.status(401).send({ error: 'Invalid or expired token' })
+    }
+
+    // PR 2 D1=(b): routes marked `config: { allowNoOrg: true }` accept a
+    // session with orgId === null without rejecting. `request.clerkUserId`
+    // is decorated; `request.brandId` is decorated only when the session
+    // actually has an orgId AND the brand exists. Used by
+    // /api/auth/signup/finish for the OAuth new-user-without-org case.
+    if (routeConfig?.allowNoOrg === true) {
+      request.clerkUserId = session.userId
+      if (session.orgId) {
+        const brand = await fastify.prisma.brand.findUnique({
+          where: { clerkOrgId: session.orgId },
+          select: { id: true },
+        })
+        if (brand) {
+          request.brandId = brand.id
+        }
+      }
+      return
     }
 
     // In development, fall back to userId when no orgId is present (avoids
