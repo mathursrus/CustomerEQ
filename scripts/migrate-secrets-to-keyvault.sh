@@ -125,28 +125,30 @@ show_help() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────
-# Helper: cross-platform UUID generation. Tries (in order) uuidgen, python,
-# python3, node, openssl, /proc/sys/kernel/random/uuid. Bails if none work.
-# uuidgen is missing on Windows git-bash; python is often missing too. node
-# is available in this repo's environments (Node.js project) and openssl
-# ships almost everywhere.
+# Helper: cross-platform UUID generation. Tries (in order) uuidgen, node,
+# python, python3, openssl, /proc/sys/kernel/random/uuid. Bails if none work.
+#
+# Order matters on Windows: the Microsoft Store stub at
+# %LOCALAPPDATA%\Microsoft\WindowsApps\python.exe satisfies `command -v python`
+# but hangs (waiting for Store interaction) when invoked. Since this is a
+# Node.js repo, node is guaranteed present — try it first to sidestep the stub.
 # ────────────────────────────────────────────────────────────────────────────
 
 gen_uuid() {
   if command -v uuidgen >/dev/null 2>&1; then
     uuidgen
+  elif command -v node >/dev/null 2>&1; then
+    node -e "console.log(require('crypto').randomUUID())"
   elif command -v python >/dev/null 2>&1; then
     python -c "import uuid; print(uuid.uuid4())"
   elif command -v python3 >/dev/null 2>&1; then
     python3 -c "import uuid; print(uuid.uuid4())"
-  elif command -v node >/dev/null 2>&1; then
-    node -e "console.log(require('crypto').randomUUID())"
   elif command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 16 | sed -E 's/^(.{8})(.{4})(.{4})(.{4})(.{12})$/\1-\2-\3-\4-\5/'
   elif [[ -r /proc/sys/kernel/random/uuid ]]; then
     cat /proc/sys/kernel/random/uuid
   else
-    die "no UUID generator available (tried uuidgen, python, python3, node, openssl, /proc/sys/kernel/random/uuid)"
+    die "no UUID generator available (tried uuidgen, node, python, python3, openssl, /proc/sys/kernel/random/uuid)"
   fi
 }
 
