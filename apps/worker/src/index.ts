@@ -3,13 +3,14 @@ import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { QUEUES } from '@customerEQ/shared'
 import { createConnection } from './queues/definitions.js'
-import { processLoyaltyEvent } from './processors/loyaltyEvents.js'
+import { createLoyaltyEventProcessor } from './processors/loyaltyEvents.js'
 import { createCampaignTriggerProcessor } from './processors/campaignTriggers.js'
 import { processNotification } from './processors/notifications.js'
 import { createSentimentProcessor } from './processors/sentimentAnalysis.js'
 import { processFeedbackClustering } from './processors/feedbackClustering.js'
 import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
 import { processHealthScore } from './processors/healthScore.js'
+import { processSurveyDistribute } from './processors/surveyDistribute.js'
 import { createExternalSignalSyncProcessor } from './processors/externalSignalSync.js'
 import { processExternalSignalIngestion } from './processors/externalSignalIngestion.js'
 import { processWebhookDelivery } from './processors/webhookDelivery.js'
@@ -39,7 +40,7 @@ const IDLE_POLL_SECONDS = 60
 
 const loyaltyEventsWorker = new Worker(
   QUEUES.LOYALTY_EVENTS,
-  processLoyaltyEvent,
+  createLoyaltyEventProcessor(connection),
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
@@ -77,6 +78,12 @@ const healthScoreWorker = new Worker(
   QUEUES.HEALTH_SCORE_COMPUTATION,
   processHealthScore,
   { connection, concurrency: 3, drainDelay: IDLE_POLL_SECONDS },
+)
+
+const surveyDistributeWorker = new Worker(
+  QUEUES.SURVEY_DISTRIBUTE,
+  processSurveyDistribute,
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
 const externalSignalSyncWorker = new Worker(
@@ -117,7 +124,7 @@ void slaBreachQueue.add(
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -140,6 +147,7 @@ logger.info(
       QUEUES.FEEDBACK_CLUSTERING,
       QUEUES.EMBEDDING_GENERATION,
       QUEUES.HEALTH_SCORE_COMPUTATION,
+      QUEUES.SURVEY_DISTRIBUTE,
       QUEUES.EXTERNAL_SIGNAL_SYNC,
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
       QUEUES.WEBHOOK_DELIVERY,
@@ -163,6 +171,7 @@ async function shutdown(signal: string): Promise<void> {
     feedbackClusteringWorker.close(),
     embeddingGenerationWorker.close(),
     healthScoreWorker.close(),
+    surveyDistributeWorker.close(),
     externalSignalSyncWorker.close(),
     externalSignalIngestionWorker.close(),
     webhookDeliveryWorker.close(),

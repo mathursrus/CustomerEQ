@@ -4,6 +4,7 @@ import type {
   LoyaltyEventPayload,
   CampaignTriggerPayload,
   NotificationPayload,
+  SurveyDistributePayload,
   ExternalSignalIngestionPayload,
   WebhookDeliveryPayload,
 } from '@customerEQ/shared'
@@ -31,6 +32,14 @@ export async function enqueueNotification(
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.NOTIFICATIONS, connection)
   return queue.add(QUEUES.NOTIFICATIONS, payload)
+}
+
+export async function enqueueSurveyDistribute(
+  connection: ConnectionOptions,
+  payload: SurveyDistributePayload,
+): Promise<Job> {
+  const queue: Queue = createQueue(QUEUES.SURVEY_DISTRIBUTE, connection)
+  return queue.add(QUEUES.SURVEY_DISTRIBUTE, payload)
 }
 
 export async function enqueueExternalSignalIngestion(

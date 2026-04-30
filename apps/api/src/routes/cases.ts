@@ -191,21 +191,20 @@ const casesRoutes: FastifyPluginAsync = async (fastify) => {
       data,
     })
 
-    // Enqueue outbound webhook delivery for case.status_changed event (non-blocking)
-    fastify.prisma.webhookEndpoint.findMany({
+    // Enqueue outbound webhook delivery for case.status_changed event
+    const webhookEndpoints = await fastify.prisma.webhookEndpoint.findMany({
       where: { brandId: request.brandId, active: true, events: { has: 'case.status_changed' } },
       select: { id: true },
-    }).then((endpoints) => {
-      for (const ep of endpoints) {
-        enqueueWebhookDelivery({
-          webhookEndpointId: ep.id,
-          brandId: request.brandId,
-          event: 'case.status_changed',
-          caseId: id,
-          data: { status: updated.status, previousStatus: caseRecord.status },
-        }).catch(() => { /* best-effort */ })
-      }
-    }).catch(() => { /* best-effort */ })
+    }).catch(() => [] as { id: string }[])
+    for (const ep of webhookEndpoints) {
+      enqueueWebhookDelivery({
+        webhookEndpointId: ep.id,
+        brandId: request.brandId,
+        event: 'case.status_changed',
+        caseId: id,
+        data: { status: updated.status, previousStatus: caseRecord.status },
+      }).catch(() => { /* best-effort */ })
+    }
 
     return reply.status(200).send(updated)
   })

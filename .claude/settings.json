@@ -65,7 +65,11 @@
       "mcp__github__pull_request_read",
       "Bash(gh run:*)",
       "Bash(bash ~/.fraim/scripts/prep-issue.sh 129)",
-      "mcp__fraim__list_fraim_jobs"
+      "mcp__fraim__list_fraim_jobs",
+      "Bash(gh pr *)",
+      "Bash(docker compose *)",
+      "Bash(docker start *)",
+      "mcp__playwright__browser_snapshot"
     ],
     "additionalDirectories": [
       "c:\\Users\\swaro\\Documents\\GitHub\\CustomerEQ\\CustomerEQ - Issue 3\\docs\\evidence",

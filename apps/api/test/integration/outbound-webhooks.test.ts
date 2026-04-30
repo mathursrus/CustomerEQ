@@ -285,7 +285,6 @@ describe('Outbound Webhooks — endpoint management + delivery hooks', () => {
       data: {
         brandId: brand.id,
         alertRuleId: alertRule.id,
-        surveyResponseId: 'fake-response',
         memberId: 'fake-member',
         status: 'OPEN',
         assignee: 'ops@test.com',

@@ -127,6 +127,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           incentivePoints: true,
           brand: { select: { name: true } },
           theme: true,
+          _count: { select: { surveyRules: true } },
         },
       })
 
@@ -134,7 +135,8 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Survey not found or not active' })
       }
 
-      return reply.status(200).send(survey)
+      const { _count, ...surveyData } = survey
+      return reply.status(200).send({ ...surveyData, hasCxRules: _count.surveyRules > 0 })
     },
   )
 

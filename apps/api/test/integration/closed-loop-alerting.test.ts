@@ -289,8 +289,12 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const request = authenticatedRequest(brand.id)
     const prisma = getTestPrisma()
 
-    const program = await createProgram(brand.id)
-    
+    const program = await createProgram({ brandId: brand.id })
+
+    const member = await prisma.member.create({
+      data: { brandId: brand.id, email: 'survey-member@test.com' },
+    })
+
     const survey = await prisma.survey.create({
       data: {
         brandId: brand.id,
@@ -305,7 +309,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         surveyId: survey.id,
-        memberId: 'fake-member',
+        memberId: member.id,
         score: 5,
         sentiment: -0.2,
         topics: ['price'],
@@ -326,7 +330,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
         brandId: brand.id,
         alertRuleId: alertRule.id,
         surveyResponseId: surveyResponse.id,
-        memberId: 'fake-member',
+        memberId: member.id,
         status: 'OPEN',
         assignee: 'ops@test.com',
         priority: 'MEDIUM',
@@ -338,7 +342,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     expect(res.status).toBe(200)
     const cases = res.body.cases ?? res.body
     expect(cases).toHaveLength(1)
-    
+
     // UI expects these properties
     expect(cases[0].id).toBe(caseRecord.id)
     expect(cases[0].score).toBe(5)
@@ -355,8 +359,12 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const request = authenticatedRequest(brand.id)
     const prisma = getTestPrisma()
 
-    const program = await createProgram(brand.id)
-    
+    const program = await createProgram({ brandId: brand.id })
+
+    const member = await prisma.member.create({
+      data: { brandId: brand.id, email: 'case-detail-member@test.com' },
+    })
+
     // Create survey and response
     const survey = await prisma.survey.create({
       data: {
@@ -372,7 +380,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         surveyId: survey.id,
-        memberId: 'fake-member',
+        memberId: member.id,
         score: 4,
         sentiment: -0.8,
         topics: ['shipping', 'pricing'],
@@ -393,7 +401,7 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
         brandId: brand.id,
         alertRuleId: alertRule.id,
         surveyResponseId: surveyResponse.id,
-        memberId: 'fake-member',
+        memberId: member.id,
         status: 'OPEN',
         assignee: 'cx-lead@test.com',
         priority: 'HIGH',
@@ -433,7 +441,6 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         alertRuleId: alertRule.id,
-        surveyResponseId: 'fake-response-id',
         memberId: 'fake-member-id',
         status: 'OPEN',
         assignee: 'cx-lead@test.com',
@@ -471,7 +478,6 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         alertRuleId: alertRule.id,
-        surveyResponseId: 'fake-response-id',
         memberId: 'fake-member-id',
         status: 'OPEN',
         assignee: 'cx-lead@test.com',
@@ -513,7 +519,6 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         alertRuleId: alertRule.id,
-        surveyResponseId: 'response-1',
         memberId: 'member-1',
         status: 'OPEN',
         assignee: 'cx-lead@test.com',
@@ -525,7 +530,6 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
       data: {
         brandId: brand.id,
         alertRuleId: alertRule.id,
-        surveyResponseId: 'response-2',
         memberId: 'member-2',
         status: 'RESOLVED',
         assignee: 'cx-lead@test.com',

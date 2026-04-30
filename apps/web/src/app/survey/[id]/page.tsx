@@ -74,6 +74,7 @@ interface SurveyData {
   questions: SurveyQuestion[]
   incentivePoints?: number
   theme?: SurveyTheme
+  hasCxRules?: boolean
 }
 
 // Answer value can be many shapes depending on question type
@@ -433,6 +434,13 @@ export default function SurveyResponsePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
               </svg>
               You earned {survey.incentivePoints} points!
+            </div>
+          )}
+          {/* R8: CX rules exist — a loyalty/offer action may be triggered */}
+          {survey?.hasCxRules && (
+            <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-left">
+              <p className="text-sm font-semibold text-indigo-800">A special offer is on its way!</p>
+              <p className="mt-0.5 text-xs text-indigo-600">Based on your feedback, we&apos;re preparing a personalized reward for you. Keep an eye on your inbox.</p>
             </div>
           )}
           {theme?.thankYouRedirectUrl && (

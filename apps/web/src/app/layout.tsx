@@ -20,10 +20,9 @@ export const metadata: Metadata = {
 // PLAYWRIGHT_TEST=true, so no real auth flows run.
 // Key format: pk_test_<base64url(frontendApi + '$')>
 const clerkPublishableKey =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-  (process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+  (process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' || process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true')
     ? 'pk_test_Y2xlcmsudGVzdC5leGFtcGxlLmZha2Uk'
-    : undefined)
+    : process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
 export default function RootLayout({
   children,
