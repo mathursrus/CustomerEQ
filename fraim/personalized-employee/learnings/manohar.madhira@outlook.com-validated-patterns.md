@@ -2,18 +2,18 @@
 
 Durable judgment calls and successful unusual-but-correct decisions worth reproducing.
 
-**Last synthesized**: 2026-04-27
+**Last synthesized**: 2026-05-01
 
 ---
 
 #### [P-HIGH] User pushback caught a near-miss before submit
 
 **Score**: 8.0
-**Last seen**: 2026-04-27
-**Recurrences**: 3
+**Last seen**: 2026-04-30
+**Recurrences**: 4
 **First synthesized**: 2026-04-27
 
-On issue #153, the agent was ready to submit a React state-sync fix based on typecheck + build + smoke-test passing — none of which validate UI state behavior. The user's single-line pushback ("Have you tested these?") forced full local-env setup and Playwright validation, which then confirmed the fix worked. On issue #170 spec, the reviewer's "Is the mock in sync completely with the spec now?" caught three mock-vs-spec mismatches that would otherwise have shipped. On issue #170 RFC PR #196 (2026-04-26), the reviewer's "Do we need a Spike to verify?" caught an overconfident "high" rating on the IdentityProvider abstraction — the spike that followed surfaced two real interface-shape issues (`completeOAuth` wrong shape; `createUserWithOrg` partial-failure mode). Validated principle: a single-question pushback is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively.
+On issue #153, the agent was ready to submit a React state-sync fix based on typecheck + build + smoke-test passing — none of which validate UI state behavior. The user's single-line pushback ("Have you tested these?") forced full local-env setup and Playwright validation, which then confirmed the fix worked. On issue #170 spec, the reviewer's "Is the mock in sync completely with the spec now?" caught three mock-vs-spec mismatches that would otherwise have shipped. On issue #170 RFC PR #196 (2026-04-26), the reviewer's "Do we need a Spike to verify?" caught an overconfident "high" rating on the IdentityProvider abstraction — the spike that followed surfaced two real interface-shape issues. **#170 PR2 retrospective PR #222 (2026-04-30) added a 4th recurrence**: reviewer's inline comment *"This is a key learning moment. When presenting options, we should consider both 'with sunk cost' and without sunk cost."* caught the mis-categorization of the JTBD framing miss as "Almost Did Wrong But Caught" — when in fact the user caught it, not the agent. The retrospective was updated with a new "What I Did Wrong That The User Caught" subsection that names the failure honestly. Validated principle: a single-question pushback or pointed observation is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively.
 
 ---
 
@@ -31,11 +31,11 @@ On issue #166, the initial deploy.yml edit would have used `${{ github.sha }}` t
 #### [P-HIGH] Multiple feedback memories firing correctly within a single session
 
 **Score**: 8.0
-**Last seen**: 2026-04-27
-**Recurrences**: 4
+**Last seen**: 2026-04-30
+**Recurrences**: 5
 **First synthesized**: 2026-04-27
 
-Saved feedback memories now consistently fire in-session and shape behavior without explicit recall. On issue #166, two memories triggered (`feedback_fraim_before_plan_mode`, `feedback_dont_ask_about_baseline_dev_env`) and produced clean phase progression with no rework. On issue #170 spec, five memories fired (FRAIM-first, issue-first-branching, push-PR-default, pricing-forward-compat, single-question-pushback) and Round 1 was visibly cleaner than the start of #179. On issue #170 RFC + implementation phase 1 (2026-04-27), five+ memories fired across the technical-design and implementation-scoping phases (FRAIM-discovery-flow, push-PR-default, user-doesn't-manually-close, pricing-not-finalized, audit-mock-vs-spec-at-every-round) — the resulting work was clean enough that Round 2 review hit only one decision-set reversal. On issue #177, three memories fired and the Node 22 bump shipped on the first pass. Validated principle: invest in the memory channel — durable lessons saved as `feedback_*.md` produce measurable efficiency gains across compounding sessions.
+Saved feedback memories now consistently fire in-session and shape behavior without explicit recall. On issue #166, two memories triggered (`feedback_fraim_before_plan_mode`, `feedback_dont_ask_about_baseline_dev_env`) and produced clean phase progression with no rework. On issue #170 spec, five memories fired and Round 1 was visibly cleaner than the start of #179. On issue #170 RFC + implementation phase 1 (2026-04-27), five+ memories fired across the technical-design and implementation-scoping phases — the resulting work was clean enough that Round 2 review hit only one decision-set reversal. On issue #177, three memories fired and the Node 22 bump shipped on the first pass. **#170 PR2 added a 5th recurrence**: three new memories were saved at session-time during the work itself — `feedback_diagnose_my_script_before_blaming_externals.md` (Issue #200 misdiagnosis), `feedback_check_version_coupling_before_overrides.md` (Clerk override mismatch), and `feedback_present_both_sunk_cost_frames_upfront.md` (sunk-cost framing on retro PR #222). All three include structured `Why:` (incident reference) and `How to apply:` (concrete checklist) per the feedback memory style guide. Two of the three already fired within the same conversation: the version-coupling one prevented a worse second-attempt fix; the sunk-cost-framing one was applied immediately during the Issue #217 question analysis turn. Validated principle: invest in the memory channel — durable lessons saved as `feedback_*.md` produce measurable efficiency gains across compounding sessions, AND can fire usefully within the same session if the structure (Why + How-to-apply) is concrete enough.
 
 ---
 
@@ -64,11 +64,11 @@ On issue #157 technical-design, reading the duplicate `new/page.tsx` and edit pa
 #### [P-HIGH] Open decisions framed with `← recommended` get one-round answers
 
 **Score**: 8.0
-**Last seen**: 2026-04-27
-**Recurrences**: 4
+**Last seen**: 2026-04-30
+**Recurrences**: 6
 **First synthesized**: 2026-04-27
 
-On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination backfill) resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — most as one-word "Agreed", one reversed cleanly with a one-line rationale, one added new. On issue #170 RFC PR #196, four "Decisions for the reviewer" resolved across two rounds (3 accepted defaults + 1 clean reversal on the planTier placeholder). On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions (slicing approach, sign-in strategy, API layout, ADR placement) resolved in a single chat turn. On issue #177, three "Decisions for you" at PR-body bottom got three answers in a single chat turn. Validated principle: numbered/lettered options + one-line tradeoff each + explicit `← recommended` is the user's preferred decision format. Default to it for any non-trivial decision-set.
+On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination backfill) resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 (five open architectural decisions) all resolved in single review rounds — most as one-word "Agreed", one reversed cleanly with a one-line rationale, one added new. On issue #170 RFC PR #196, four "Decisions for the reviewer" resolved across two rounds (3 accepted defaults + 1 clean reversal on the planTier placeholder). On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions resolved in a single chat turn. On issue #177, three "Decisions for you" at PR-body bottom got three answers in a single chat turn. **#170 PR1 (2026-04-27) added a 5th recurrence**: the structured-decisions block on PR #197 got "go with a)" the moment it was visible. **#170 PR2 (2026-04-30) added a 6th recurrence in two flavors**: (a) Clerk CVE Path A vs B framing got a one-message "Yes, take Path A"; (b) the merge-vs-rebase trade-off table got "Would 2 be safer if we merge main into branch?" — same-message resolution. Validated principle: numbered/lettered options + one-line tradeoff each + explicit `← recommended` is the user's preferred decision format. Default to it for any non-trivial decision-set, including in-chat strategic questions, not just PR bodies.
 
 ---
 
@@ -141,11 +141,11 @@ On issue #153, two related minor bugs (#133 step label, #134 hardcoded eligibleT
 #### [P-MED] Filing backlog issues proactively for deferred work
 
 **Score**: 5.0
-**Last seen**: 2026-04-26
-**Recurrences**: 3
+**Last seen**: 2026-04-30
+**Recurrences**: 7
 **First synthesized**: 2026-04-27
 
-Whenever a design review defers a decision or a follow-up to a future phase, file the corresponding tracking artifact at decision time, not "when we get there." On issue #2, filed #34 for Phase 2 packages/ui extraction without being asked. On issue #157 technical-design, recommended a follow-up issue for inline-editing entity standardization. On issue #170 spec Round 2, filed **#189** (team-management) and **#190** (brand-settings) before referencing them in the spec — turning placeholder text into linked issues in the same commit. Validated principle: deferrals without trackers decay into lost context; proactive issue-filing converts "we'll do it later" into a concrete artifact the team can act on.
+Whenever a design review defers a decision or a follow-up to a future phase, file the corresponding tracking artifact at decision time, not "when we get there." On issue #2, filed #34 for Phase 2 packages/ui extraction without being asked. On issue #157 technical-design, recommended a follow-up issue for inline-editing entity standardization. On issue #170 spec Round 2, filed **#189** (team-management) and **#190** (brand-settings) before referencing them in the spec — turning placeholder text into linked issues in the same commit. **#170 PR1 (2026-04-27) added a 4th recurrence**: filed **#198** for the SurveyTheme schema-vs-migrations drift in the same commit as the Round 1 fixes — at decision time, not deferred. **#170 PR2 (2026-04-30) added 5th-7th recurrences**: filed **#217** (JTBD re-segmentation) when the spec discussion surfaced a weak-POV call; **#218** (rate-limiting) when partner approved decision 1/a; **#219** (Clerk CVE) when CI failure surfaced the dependency vulnerability — all three at the moment the deferral / decision was made, not bundled and not orally tracked. Validated principle: deferrals without trackers decay into lost context; proactive issue-filing converts "we'll do it later" into a concrete artifact the team can act on. The pattern carries through any sub-issue created during a phase that the current PR doesn't own.
 
 ---
 
@@ -174,8 +174,41 @@ On issues #157 technical-design and #177, the architecture-gap-review phase prod
 #### [P-MED] Decision-points-at-PR-body-bottom format for fast review
 
 **Score**: 5.0
-**Last seen**: 2026-04-25
-**Recurrences**: 1
+**Last seen**: 2026-04-30
+**Recurrences**: 4
 **First synthesized**: 2026-04-27
 
-On issue #177 (PR #188), the PR description ended with three numbered "Decisions for you" — each a binary or ternary choice with one-line tradeoffs and a recommended default. The user answered all three in a single chat turn. Faster than waiting for inline GitHub review comments on each one separately. Validated principle: when an RFC or implementation PR has 2–4 design decisions the reviewer must make, surface them as a numbered list at the bottom of the PR body. Reviewer answers in one batch; agent applies the answers in one follow-up commit. Same pattern works for pre-execution question batches in chat.
+On issue #177 (PR #188), the PR description ended with three numbered "Decisions for you" — each a binary or ternary choice with one-line tradeoffs and a recommended default. The user answered all three in a single chat turn. Faster than waiting for inline GitHub review comments on each one separately. **#170 PR1 added a 2nd recurrence**: PR #197's initial body buried the `signInUser` decision in prose; updated body via `gh pr edit` to add a `## Decisions for the reviewer` section; reviewer answered "go with a)" within minutes. **#170 PR2 added a 3rd recurrence**: PR #201's body included two reviewer decisions ("Rate-limiting work scope", "Brand.deletedAt placement") with `← recommended` defaults; partner answered `1/a, 2/a` in one comment. **The Clerk CVE Path A vs B framing in chat** added a 4th recurrence: agent presented the trade-off (separate security PR vs inline-bump) with one marked recommended; user picked A in one message; that turned out to be exactly right when the override fix needed its own hotfix iteration #221. Validated principle: when an RFC, implementation PR, or in-chat strategic decision has 2-4 design decisions the reviewer must make, surface them as a numbered list with `← recommended` defaults. Reviewer answers in one batch; agent applies in one follow-up commit. The format is reusable across PR-body decisions, in-chat strategic-question framing, and pre-execution question batches.
+
+---
+
+#### [P-HIGH] PR scope discipline holds under multiple side-quests in one session (R21 carrying)
+
+**Score**: 8.0
+**Last seen**: 2026-04-30
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On #170 PR2 (PR #201, 2026-04-30), Phase 12 (address-feedback) hit three unrelated obstacles in sequence: a freshly-published Clerk CVE blocking the audit gate, an over-aggressive `pnpm.overrides` hotfix that broke apps/web's build, and a JTBD spec re-segmentation discussion that surfaced a "weak POV" call against the existing picker. Each could have been bundled into PR #201 ("I can fix this on the same branch in 5 minutes"). All three were instead spun out: #218 (rate-limiting), #219 (Clerk CVE — closed via PRs #220 + #221), and #217 (JTBD re-segmentation). PR #201's final diff stayed exactly its original scope — 15 files, +2345/-13. The cost paid off concretely when PR #220's first attempt at the Clerk fix needed its own hotfix #221 — those iterations didn't muddy PR #201's history. R21 is the load-bearing rule and it carried under three simultaneous interruptions. Validated principle: when an unrelated fix surfaces during an in-flight PR's address-feedback phase, default to a separate-branch + new-issue path, even when the temptation to bundle is strong. **The frame to use**: "this issue blocks all PRs against main, not just this PR — that's a fair argument for treating it as repo infrastructure not feature-PR work." That framing converts the bundling temptation into a separation argument.
+
+---
+
+#### [P-MED] Logger injection over console / module-level singletons for testability + structural correctness
+
+**Score**: 5.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On #170 PR1 Round 1 review (PR #197, 2026-04-27), reviewer flagged two `console.error` calls in `clerk-identity-provider.ts` orphan-cleanup paths as ESLint warnings. Replacement options: (a) eslint-disable, (b) module-level logger import, (c) injected `logger: { error(obj, msg): void }` constructor param. Picked (c). The Fastify plugin passes `fastify.log`; tests pass a `vi.fn()`-shaped mock; the existing orphan-cleanup test extended in-place to assert `logger.error` was called with the expected metadata. Validated principle: when ESLint flags `console.*` in production code, the right fix is constructor-injected Pino-shaped logger — not eslint-disable, not a module-level import. The pattern generalizes to any provider abstraction that wraps a vendor SDK and needs to log internal failures. Cost: ~5 lines of constructor + interface change; benefit: structurally clean dependency, mockable in tests, consistent with the rest of the Fastify ecosystem.
+
+---
+
+#### [P-MED] Merge-into-branch over rebase when conflicts touch evolving shared surfaces under squash-merge
+
+**Score**: 5.0
+**Last seen**: 2026-04-30
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On #170 PR2 (PR #201, 2026-04-30), the branch had been off main for 2 days while waiting for partner approval. Five conflicts surfaced when re-syncing — `auth.ts`, `auth.test.ts`, `members.ts`, `architecture.md`, `170-implement-work-list.md`. The auth.ts conflict was semantically touchy (HEAD added `allowNoOrg`; main had layered DEV_BYPASS_AUTH on the same plugin). Rebase would replay each commit on top of main and could surface the same logical conflict 4-5 times across PR 2's history. Chose merge-into-branch instead: single conflict resolution moment, no force-push (preserves partner's local checkouts and any review-thread anchors), final history identical because CustomerEQ uses squash-merge (`gh pr merge --squash`). After resolution: typecheck 0 errors, lint 0/0, full test suite 346/346. CI green. Validated principle: rebase is the convention for "clean feature branches", but when conflicts touch genuinely-evolving shared surfaces (auth/identity/middleware), merge-in is the conservative call. The deciding factor is the squash-merge workflow — it makes "linear history on the branch" moot because the branch's merge commit gets squashed away on merge to main.

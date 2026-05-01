@@ -2,7 +2,7 @@
 
 Patterns that describe how this user prefers to work, interact, and approach recurring decisions.
 
-**Last synthesized**: 2026-04-27
+**Last synthesized**: 2026-05-01
 
 ---
 
@@ -31,11 +31,11 @@ For any UI-facing change, the user expects actual browser testing (Playwright or
 #### [P-HIGH] Tight PR scope — no opportunistic scope creep
 
 **Score**: 8.0
-**Last seen**: 2026-04-27
-**Recurrences**: 4
+**Last seen**: 2026-04-30
+**Recurrences**: 8
 **First synthesized**: 2026-04-27
 
-The user values PRs that do exactly one thing. Issue #166 was a `deploy.yml` hardening: +29/-7 on one file, with a tangentially related concern (third-party action SHA-pinning) deferred to a follow-up. Issue #177 (Node 22 bump) explicitly deferred three pre-existing test-coverage gaps (no e2e in CI, no real-Redis tests, no image-boot smoke) into a "Pre-existing gap → Why not addressed here → Recommendation" table rather than expanding the security-driven update. On issue #170 spec, when prompted for "all the later items" the agent had to push back and trim to the items actually in scope. Most recently on issue #170 implementation (2026-04-27), the user chose 6 PRs over a mega-PR — splitting both auth and onboarding-admin into API-only + UI-only slices for tighter review boundaries. Default stance: if a fix is discovered mid-task but outside the issue's acceptance criteria, file a separate issue, do not bundle. Related: project rule R21 (one issue per branch) formalizes the branch-level version of this preference.
+The user values PRs that do exactly one thing. Issue #166 was a `deploy.yml` hardening: +29/-7 on one file, with a tangentially related concern (third-party action SHA-pinning) deferred to a follow-up. Issue #177 (Node 22 bump) explicitly deferred three pre-existing test-coverage gaps into a "Pre-existing gap → Why not addressed here → Recommendation" table. On issue #170 spec, when prompted for "all the later items" the agent had to push back and trim to in-scope items. On issue #170 implementation phase 1, the user chose 6 PRs over a mega-PR — splitting both auth and onboarding-admin into API-only + UI-only slices. **PR1 (#197) added a 5th recurrence**: SurveyTheme schema-vs-migrations drift surfaced mid-implementation; rather than bundling the fix into PR #197, agent filed #198 as a separate issue + branch, dropped the FK from PR 1's migration, and documented the workaround. **PR2 (#201) added 6th-8th recurrences**: three side-quests interrupted the address-feedback phase (fresh-published Clerk CVE blocking the audit gate, an override-fix hotfix iteration, JTBD spec re-segmentation discussion) — all three got their own issues (#219, #221's parent #219 reused, #217) and branches per R21. PR #201 stayed scoped to its original 15-file API-only slice (+2345/-13). Default stance: if a fix is discovered mid-task but outside the issue's acceptance criteria, file a separate issue, do not bundle. Related: project rule R21 (one issue per branch) formalizes the branch-level version of this preference.
 
 ---
 
@@ -102,3 +102,4 @@ When given a structured list of pre-execution questions or open decisions, the u
 **First synthesized**: 2026-04-27
 
 The user does not manually close GitHub issues or PRs from the UI; closes happen either via merge auto-close (`Closes #N` in PR body) or via explicit asks ("merge and close"). On 2026-04-25, the agent incorrectly described issue #157 as having been "closed manually" based on a `commit_id: null` close event; the user clarified that this is never the case for them. Captured in feedback memory `feedback_user_does_not_manually_close.md`. Implication: when investigating a closed-without-merge state, do not jump to "user clicked close in UI" — the actor is more likely a CLI/script call from a previous session or another tool.
+

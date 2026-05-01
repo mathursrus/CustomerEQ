@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-04-27
-synthesized:
+synthesized: 2026-05-01
 ---
 
 # Postmortem: Onboarding Shared Spine — PR 1/6 Implementation — Issue #170
