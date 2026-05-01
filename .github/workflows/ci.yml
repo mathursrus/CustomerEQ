@@ -52,6 +52,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate Prisma schema
+        run: pnpm --filter @customerEQ/database exec prisma validate
+
+      - name: Check enum migration coverage
+        run: bash packages/database/scripts/check-enum-migrations.sh
+
       - name: Generate Prisma client
         run: pnpm db:generate
         env:
