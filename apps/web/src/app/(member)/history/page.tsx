@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 
+const IS_PLAYWRIGHT = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+
 interface ActivityItem {
   id: string
   date: string
@@ -30,10 +32,10 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
 
   const fetchPage = useCallback(async (p: number) => {
-    if (!user?.id) return
+    if (!user?.id && !IS_PLAYWRIGHT) return
     setLoading(true)
     try {
-      const token = await getToken()
+      const token = IS_PLAYWRIGHT ? 'playwright-test-token' : await getToken()
       const r = await fetch(`${API_URL}/v1/members/me/events?page=${p}&limit=${PAGE_LIMIT}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
