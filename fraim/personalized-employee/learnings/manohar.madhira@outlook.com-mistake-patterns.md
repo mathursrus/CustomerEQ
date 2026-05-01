@@ -2,7 +2,7 @@
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
 
-**Last synthesized**: 2026-04-27
+**Last synthesized**: 2026-05-01
 
 ---
 
@@ -157,3 +157,68 @@ When the user said "add all the later items," nearly started hand-generating 120
 **First synthesized**: 2026-04-27
 
 RFC for issue #2 shipped with two sections both numbered "2a" (Member model + Program model). Cosmetic — the content was correct — but caused confusion during implementation reference. A single final-pass read-through of the section outline before submit catches this class of error cheaply.
+
+
+
+
+
+#### [P-HIGH] Tests pass via mocks ≠ tested in production (forced casts and overrides mask boundary mismatches)
+
+**Score**: 8.0
+**Last seen**: 2026-04-30
+**Recurrences**: 3
+**First synthesized**: 2026-05-01
+
+Three independent failures in two days share one shape: validated only the surface I changed, not the boundary I crossed. (1) On #170 PR1 (2026-04-27), `signInUser` impl used `(this.client as unknown as { signIns: { create: ... } }).signIns.create(...)` — a forced cast that bypassed TypeScript checking. Tests passed via mocks because the mock satisfied the cast shape; `@clerk/backend` doesn't actually expose `signIns.create` (sign-in is browser-driven via Clerk.js). At runtime, `this.client.signIns` is undefined and the call would throw. Reviewer caught it on PR #197 Round 1. (2) On #170 PR2 / Issue #219 (2026-04-30), forced `@clerk/shared: ^4.8.7` via `pnpm.overrides` because the CVE patch range said ">=4.8.3" — without checking that `@clerk/clerk-react@5.61.6` (the other override target) declares `@clerk/shared: ^3.47.5`. The two are version-coupled; forcing 4.x at the root broke apps/web's Webpack build with missing-export errors. (3) Both incidents pair with the same local-validation gap — `pnpm --filter @customerEQ/api test:smoke` passed in both cases; the actual failure surface was apps/web's build (or production runtime). Pattern: **before publishing a change that crosses a boundary (SDK cast, override, lockfile mutation), verify the consumer side that exercises the boundary**. Concrete checks: `npm view <pkg>@<version> dependencies` for any override target; run the consumer's `build` step (Next.js, Webpack, esbuild) when `pnpm.overrides` changes; eliminate forced casts in production code by redesigning the interface, not by silencing TypeScript. Captured durably as `feedback_check_version_coupling_before_overrides.md`. Sibling of "Marked design confidence high without verification" (RFC analog).
+
+---
+
+
+
+#### [P-HIGH] Single-frame strategic recommendation buries the cleaner answer (silent sunk-cost weighting)
+
+**Score**: 8.0
+**Last seen**: 2026-04-30
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On the #170 spec re-segmentation discussion (2026-04-30), the user asked whether the current "Own application / Static site / Multiple applications" picker was the right segmentation. The agent led with a "light reframe" recommendation (preserve the existing enum, three sub-issues, and three-bucket structure; repurpose #172 as a SaaS-connector hub) — explicitly framed as the lower-cost path because *"PR #197 shipped the enum, sub-issues #171/#172/#173 exist."* The user responded with *"If we don't worry about sunk cost, what would you suggest?"* — and at that prompt the agent committed to the JTBD-based segmentation (winback / listen / reward), which was a substantively different and arguably better recommendation. On reviewing the resulting retrospective PR #222, the user left an inline comment: *"This is a key learning moment. When presenting options, we should consider both 'with sunk cost' and without sunk cost."* Failure mode: the agent had implicit knowledge of in-flight work (the enum, the sub-issues, the existing spec) and silently weighted "minimize churn" higher than "give the right answer" without naming the trade-off to the user. The correct response to a strategic / design / scoping question is to surface **both** the "respect sunk cost" and "clean slate" recommendations side-by-side, name the deciding trade-off, and let the user pick the frame. Captured durably as `feedback_present_both_sunk_cost_frames_upfront.md`. Trigger-question shapes that fire this rule: *"is X the right approach?"*, *"should we keep going or rebuild?"*, *"are these the right segments / categories / boundaries?"*
+
+---
+
+
+
+#### [P-HIGH] Misdiagnosed a script hang as an external system issue when it was a portability trap in my own script
+
+**Score**: 8.0
+**Last seen**: 2026-04-30
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+During Issue #200's secrets-migration script work (2026-04-30), the `gen_uuid` helper in `scripts/migrate-secrets-to-keyvault.sh` hit the Microsoft Store python stub at `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`. The stub satisfies `command -v python` but hangs indefinitely when invoked (it waits for Store interaction). The visible symptom downstream was a Container App revision stuck `Activating` for 26+ minutes. Initial diagnosis: "Container Apps is slow / Azure ARM is slow." Acted on the downstream symptom by deactivating api revision 143 to "recover" — which triggered revision 111 to deprovision and exposed a separate pre-existing failed Prisma migration. The api went down. The actual fix was a 4-line reorder in `gen_uuid` (PR #215, putting `node` before `python` in the fallback chain). Two diagnostic mistakes: (1) treated "GET returns empty after 26 min" as evidence Azure was slow, when it was evidence the script never executed the PUT; (2) added `gen_uuid` in PR #214 without testing it on the same Windows + git-bash machine where #213's failure had originated — `which python` would have surfaced the stub trap in 30 seconds. Captured durably as `feedback_diagnose_my_script_before_blaming_externals.md`. Default rule: when automation hangs, suspect the script first (`ps -ef`, last log line, Windows portability traps); don't act on downstream symptoms before diagnosing.
+
+---
+
+
+
+#### [P-MED] Migration not validated against a real DB before PR submission
+
+**Score**: 5.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On #170 PR1 (2026-04-27), the implement-validate phase ran `pnpm build / typecheck / lint / test:smoke` — none of which exercise migrations against a fresh database. The PR body said *"Migration applies on next `pnpm prisma migrate dev` against a running DB"* (passive, future tense), without actually running it. Reviewer ran it during the test plan and `prisma migrate dev` rejected the FK on the shadow DB with `P1014: The underlying table for model survey_themes does not exist` — a pre-existing schema-vs-migrations drift on `SurveyTheme` that PR 1's `Brand.defaultThemeId → SurveyTheme.id` FK was the first migration to surface. Cost: one extra commit to drop the FK, one follow-up issue (#198), and `Brand.defaultThemeId` shipping without referential integrity. **Rule: any PR with a migration delta MUST run `pnpm prisma migrate dev` against a real Docker-backed DB before submission, not just the static checks.** The `pnpm test:integration` and `pnpm test:e2e` scripts already imply DB connectivity; migrations are a strict prerequisite. Add to the work list as a pre-submission checkbox for any migration-touching PR.
+
+---
+
+
+
+#### [P-MED] PR-body decisions buried in prose instead of a structured `## Decisions for the reviewer` block
+
+**Score**: 5.0
+**Last seen**: 2026-04-27
+**Recurrences**: 1
+**First synthesized**: 2026-05-01
+
+On #170 PR1 (PR #197, 2026-04-27), the initial PR body buried the `signInUser` interface decision inside a 5-bullet "Deviations surfaced" paragraph: *"`signInUser` impl uses a forced cast over the Clerk SDK; @clerk/backend doesn't expose password sign-in. … **PR 2 decision**: replace with admin-API session create OR remove from interface entirely (recommended …)."* The prose form was invisible to the reviewer scan-reading the PR body — user asked *"I don't see where I should confirm the signInUser decision"* (cf. manager-coaching pending entry on user-asks-where-to-confirm). Cost: one extra round-trip (~5 min to update the PR body via `gh pr edit`). The validated-pattern memory `Decision-points-at-PR-body-bottom format for fast review` was already in L1 — it fired correctly for the implementation-scoping phase (4 pre-execution decisions surfaced as a numbered block; user answered all in one chat turn) — but did not fire when authoring the PR body itself. **Rule: any time the PR body contains a phrase like *"PR N decision:"*, *"decide later"*, *"needs reviewer input"*, or *"X or Y"* — surface as a numbered block at the bottom with `← recommended` defaults. Even one decision is worth its own block.**
