@@ -29,10 +29,13 @@
     "db:reset": "pnpm --filter @customerEQ/database exec prisma migrate reset",
     "healthz": "curl -s http://localhost:4000/healthz | python -m json.tool",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "onboard-org": "node scripts/onboard-org.mjs"
+    "onboard-org": "node scripts/onboard-org.mjs",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "run-scenario": "tsx scripts/run-scenario.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "tsx": "^4.9.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^1.6.0",
     "eslint": "^10.1.0",
