@@ -5,16 +5,18 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { API_URL } from '@/lib/config'
 
+const IS_PLAYWRIGHT = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+
 function MemberHeader() {
   const { getToken } = useAuth()
   const { user } = useUser()
   const [balance, setBalance] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id && !IS_PLAYWRIGHT) return
     async function fetchBalance() {
       try {
-        const token = await getToken()
+        const token = IS_PLAYWRIGHT ? 'playwright-test-token' : await getToken()
         const r = await fetch(`${API_URL}/v1/members/me/balance`, {
           headers: { Authorization: `Bearer ${token}` },
         })

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 
+const IS_PLAYWRIGHT = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+
 interface Reward {
   id: string
   name: string
@@ -29,9 +31,9 @@ export default function RewardsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id && !IS_PLAYWRIGHT) return
     async function fetchData() {
-      const token = await getToken()
+      const token = IS_PLAYWRIGHT ? 'playwright-test-token' : await getToken()
       const [rewardsRes, balanceRes] = await Promise.all([
         fetch(`${API_URL}/v1/rewards`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/v1/members/me/balance`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -53,7 +55,7 @@ export default function RewardsPage() {
     setRedeeming(reward.id)
     setError(null)
     try {
-      const token = await getToken()
+      const token = IS_PLAYWRIGHT ? 'playwright-test-token' : await getToken()
       const res = await fetch(`${API_URL}/v1/redemptions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

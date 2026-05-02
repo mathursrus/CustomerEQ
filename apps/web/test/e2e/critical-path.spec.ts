@@ -154,19 +154,33 @@ test.describe('CustomerEQ Critical Path', () => {
   // 2–5. Member-side and analytics flows require a live backend
   // ---------------------------------------------------------------------------
 
-  test.skip('member can enroll in the loyalty program', async () => {
-    // Requires /member/enroll page and a live API with real DB
+  test('member enrollment flow is covered by integration test earn-points-flow.test.ts', async () => {
+    throw new Error(
+      'Playwright-level enrollment + earn flow requires Clerk browser auth and a live API backend. ' +
+      'The backend pipeline (event → queue → DB balance) is verified in apps/api/test/integration/earn-points-flow.test.ts. ' +
+      'Implement this spec once a Playwright-compatible auth fixture exists.'
+    )
   })
 
-  test.skip('CX event triggers campaign and awards points to member', async () => {
-    // Requires live API, real member record from test 2
+  test('CX event → campaign → points pipeline is covered by integration test earn-points-flow.test.ts', async () => {
+    throw new Error(
+      'Playwright-level event pipeline requires Clerk browser auth and a live API backend. ' +
+      'The backend pipeline is verified in apps/api/test/integration/earn-points-flow.test.ts. ' +
+      'Implement this spec once a Playwright-compatible auth fixture exists.'
+    )
   })
 
-  test.skip('member can redeem a reward', async () => {
-    // Requires live API, real points balance from test 3
+  test('reward redemption flow requires live API backend and Clerk auth', async () => {
+    throw new Error(
+      'Playwright-level redemption requires Clerk browser auth, a seeded member with points, and a live API backend. ' +
+      'Implement this spec once a Playwright-compatible auth fixture exists.'
+    )
   })
 
-  test.skip('analytics dashboard shows updated metrics', async () => {
-    // Requires live API, real data from tests 2–4
+  test('analytics dashboard metrics require live data from prior flows', async () => {
+    throw new Error(
+      'Playwright-level analytics requires live data populated by prior flows and Clerk browser auth. ' +
+      'Implement this spec once a Playwright-compatible auth fixture exists.'
+    )
   })
 })

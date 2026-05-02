@@ -7,6 +7,7 @@ import {
   createConsentedMember,
   createReward,
   authenticatedRequest,
+  getTestPrisma,
 } from '@customerEQ/config/test-utils'
 
 describe('Rewards & Redemptions API', () => {
@@ -187,6 +188,62 @@ describe('Rewards & Redemptions API', () => {
       // Balance is now 0, not negative
       const balanceRes = await request.get(`/v1/members/${member.id}/balance`)
       expect(balanceRes.body.pointsBalance).toBe(0)
+    })
+
+    it('creates a LoyaltyEvent burn record with negative pointsEarned in the same transaction', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const member = await createConsentedMember({
+        brandId: brand.id,
+        programId: program.id,
+        pointsBalance: 1000,
+      })
+      const reward = await createReward({
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Burn Record Reward',
+        pointsCost: 400,
+      })
+      const request = authenticatedRequest(brand.id)
+
+      await request.post('/v1/redemptions').send({ memberId: member.id, rewardId: reward.id })
+
+      const prisma = getTestPrisma()
+      const burnEvent = await prisma.loyaltyEvent.findFirst({
+        where: { memberId: member.id, eventType: 'redemption' },
+      })
+
+      expect(burnEvent).not.toBeNull()
+      expect(burnEvent!.pointsEarned).toBe(-400)
+      expect(burnEvent!.brandId).toBe(brand.id)
+    })
+
+    it('depletes stock to zero and blocks a second redemption with 422', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+      const memberA = await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 2000 })
+      const memberB = await createConsentedMember({ brandId: brand.id, programId: program.id, pointsBalance: 2000 })
+      const reward = await createReward({
+        brandId: brand.id,
+        programId: program.id,
+        name: 'Limited Reward',
+        pointsCost: 500,
+        stock: 1,
+      })
+      const request = authenticatedRequest(brand.id)
+
+      // First redemption exhausts stock
+      const first = await request.post('/v1/redemptions').send({ memberId: memberA.id, rewardId: reward.id })
+      expect(first.status).toBe(201)
+
+      // Second redemption hits stock = 0
+      const second = await request.post('/v1/redemptions').send({ memberId: memberB.id, rewardId: reward.id })
+      expect(second.status).toBe(422)
+      expect(second.body.error).toMatch(/no longer available/i)
+
+      // memberB balance unchanged
+      const balanceRes = await request.get(`/v1/members/${memberB.id}/balance`)
+      expect(balanceRes.body.pointsBalance).toBe(2000)
     })
 
     it('returns 404 when attempting to redeem a reward from a different brand', async () => {

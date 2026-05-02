@@ -32,10 +32,11 @@ const baseChecklist = {
 
 const identityProviderWebhookRoutes: FastifyPluginAsync = async (fastify) => {
   // SEC-170-001 / PR 2 D2=(a): raw-body content-type parser scoped to this
-  // plugin's encapsulation context. Fastify's prototype-chain encapsulation
-  // means routes registered inside this plugin see this parser; routes
-  // registered outside it (every other API route) keep the global JSON
-  // parser from app.ts untouched.
+  // plugin's encapsulation context. Fastify 5 requires explicitly removing the
+  // parent-scope parser before overriding it — addContentTypeParser alone throws
+  // FST_ERR_CTP_ALREADY_PRESENT even inside an encapsulated register() scope.
+  // Routes outside this plugin keep the global JSON parser from app.ts.
+  fastify.removeContentTypeParser('application/json')
   fastify.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },
