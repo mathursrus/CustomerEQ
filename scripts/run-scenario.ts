@@ -39,11 +39,26 @@ async function api<T = Record<string, unknown>>(
   path: string,
   body?: unknown,
 ): Promise<T | null> {
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers: AUTH_HEADERS,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API}${path}`, {
+      method,
+      headers: AUTH_HEADERS,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch (err) {
+    const cause = (err as { cause?: NodeJS.ErrnoException }).cause
+    const isConnRefused = cause?.code === 'ECONNREFUSED' || (cause as { errors?: NodeJS.ErrnoException[] })?.errors?.some(e => e.code === 'ECONNREFUSED')
+    if (isConnRefused) {
+      console.error(`\n  ✗ Cannot reach API at ${API}`)
+      console.error('    Start the local stack first:')
+      console.error('      docker compose up -d')
+      console.error('      pnpm db:migrate')
+      console.error('      pnpm dev\n')
+      process.exit(1)
+    }
+    throw err
+  }
   const data = await res.json().catch(() => ({})) as T
   if (!res.ok) {
     const msg = (data as Record<string, unknown>).message ?? (data as Record<string, unknown>).error ?? ''
