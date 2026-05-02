@@ -300,17 +300,18 @@ async function main() {
       enrolledMembers.push({ email: persona.email, firstName: persona.firstName, id: existing.id })
       continue
     }
-    const res = await api<{ id: string }>('POST', '/v1/members/enroll', {
+    const res = await api<{ memberId: string }>('POST', '/v1/members/enroll', {
       email: persona.email,
       firstName: persona.firstName,
       lastName: persona.lastName,
       programId,
       consentGiven: true,
+      consentGivenAt: new Date().toISOString(),
       consentVersion: '1.0',
     })
-    if (res?.id) {
-      console.log(`  ✓ ${persona.firstName} ${persona.lastName} enrolled (${res.id})`)
-      enrolledMembers.push({ email: persona.email, firstName: persona.firstName, id: res.id })
+    if (res?.memberId) {
+      console.log(`  ✓ ${persona.firstName} ${persona.lastName} enrolled (${res.memberId})`)
+      enrolledMembers.push({ email: persona.email, firstName: persona.firstName, id: res.memberId })
     } else {
       console.error(`  ✗ Failed to enroll ${persona.firstName} ${persona.lastName}`)
     }

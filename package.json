@@ -30,6 +30,7 @@
     "healthz": "curl -s http://localhost:4000/healthz | python -m json.tool",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "onboard-org": "node scripts/onboard-org.mjs",
+    "setup:dev-brand": "tsx --env-file=.env scripts/setup-dev-brand.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "run-scenario": "tsx scripts/run-scenario.ts"
   },
