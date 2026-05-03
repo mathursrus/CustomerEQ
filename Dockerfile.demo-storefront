@@ -1,0 +1,50 @@
+# ── Stage 1: Install & Build ──────────────────────────────────────────
+FROM node:22-slim AS builder
+
+# NEXT_PUBLIC_* vars are inlined at build time by Next.js.
+# NEXT_PUBLIC_DEMO_API_URL is also needed client-side (survey page calls API
+# from the browser), so it must be baked in at image build time.
+ARG NEXT_PUBLIC_DEMO_BRAND_NAME="StarBrew Coffee"
+ARG NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR="#00704A"
+ARG NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR="#CBA258"
+ARG NEXT_PUBLIC_DEMO_API_URL
+ENV NEXT_PUBLIC_DEMO_BRAND_NAME=$NEXT_PUBLIC_DEMO_BRAND_NAME
+ENV NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR=$NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR
+ENV NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR=$NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR
+ENV NEXT_PUBLIC_DEMO_API_URL=$NEXT_PUBLIC_DEMO_API_URL
+# Enables next.config.ts `output: 'standalone'` branch
+ENV DOCKER=true
+
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+# Copy workspace config and lockfile first for layer caching
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY apps/demo-storefront/package.json apps/demo-storefront/
+COPY packages/config/package.json packages/config/
+
+RUN pnpm install --frozen-lockfile
+
+# Copy source
+COPY packages/config/ packages/config/
+COPY apps/demo-storefront/ apps/demo-storefront/
+
+RUN CI=true pnpm turbo run build --filter=@customerEQ/demo-storefront
+
+# ── Stage 2: Production runner ─────────────────────────────────────────
+FROM node:22-slim AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy Next.js standalone output
+COPY --from=builder /app/apps/demo-storefront/.next/standalone ./
+COPY --from=builder /app/apps/demo-storefront/.next/static ./apps/demo-storefront/.next/static
+COPY --from=builder /app/apps/demo-storefront/public ./apps/demo-storefront/public
+
+EXPOSE 3002
+
+ENV PORT=3002
+ENV HOSTNAME=0.0.0.0
+
+CMD ["node", "apps/demo-storefront/server.js"]
