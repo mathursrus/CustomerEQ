@@ -5,6 +5,8 @@ import { useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { API_URL } from '@/lib/config'
 
+const IS_PLAYWRIGHT = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+
 interface Activity {
   id: string
   date: string
@@ -39,10 +41,10 @@ export default function MemberDashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id && !IS_PLAYWRIGHT) return
     async function fetchDashboard() {
       try {
-        const token = await getToken()
+        const token = IS_PLAYWRIGHT ? 'playwright-test-token' : await getToken()
         const r = await fetch(`${API_URL}/v1/members/me/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         })

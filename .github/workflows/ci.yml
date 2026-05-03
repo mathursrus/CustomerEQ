@@ -54,6 +54,8 @@ jobs:
 
       - name: Validate Prisma schema
         run: pnpm --filter @customerEQ/database exec prisma validate
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
       - name: Check enum migration coverage
         run: bash packages/database/scripts/check-enum-migrations.sh

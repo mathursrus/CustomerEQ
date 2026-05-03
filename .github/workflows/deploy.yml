@@ -78,6 +78,16 @@ jobs:
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
             .
 
+      - name: Build and push Demo Storefront image
+        run: |
+          API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          az acr build --registry customereqcr \
+            --image customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }} \
+            --image customereq-demo:latest \
+            --file Dockerfile.demo-storefront \
+            --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
+            .
+
       - name: Deploy API
         run: |
           az containerapp update \
@@ -98,6 +108,13 @@ jobs:
             --name customereq-web \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-web:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Deploy Demo Storefront
+        run: |
+          az containerapp update \
+            --name customereq-demo \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify API health
         run: |
