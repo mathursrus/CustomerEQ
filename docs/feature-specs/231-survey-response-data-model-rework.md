@@ -96,7 +96,7 @@ A small Brand-onboarding identifier-kind picker mock for Touchpoint 1 lives at `
 
 ### Design Standards Applied
 
-Used `docs/architecture/architecture.md` (the project-specific architecture document) — Next.js App Router for admin UI, Tailwind utility classes for the picker, brand setup is part of the existing onboarding flow under #225/#239. No new design tokens introduced.
+Used `docs/architecture/architecture.md` (the project-specific architecture document) — Next.js App Router for admin UI, Tailwind utility classes for the picker. **There is no Brand Setup UI in V0 today** — brand rows are created via ad-hoc SQL or the auto-provision path in #239. The picker described here is part of the *to-be-built* brand-setup flow owned by #225 / #239. No new design tokens introduced.
 
 ---
 
@@ -113,8 +113,9 @@ Each requirement has an `R{N}` traceability tag. SHALL-style.
   - `ONCE` → reject second submission with HTTP 409 referencing the prior response id
   - `MULTIPLE` → accept; insert new row
   - `LATEST_OVERWRITES` → upsert by `(surveyId, memberId)` tuple; new answers overwrite prior; `completedAt` updated
-- **R4**: `Member` SHALL gain `externalId String NOT NULL` and `Brand` SHALL gain `memberIdentifierKind` enum (`EMAIL | PHONE | CUSTOMER_ID | OTHER`, default `EMAIL`). New unique constraint `@@unique([brandId, externalId])` (case-insensitive — see R5).
-- **R5**: `externalId` SHALL be stored normalized: lowercased and whitespace-trimmed at insert and lookup. (Postgres expression-index `LOWER(externalId)` enforced via migration.)
+- **R4**: `Member` SHALL gain `externalId String NOT NULL` and `Brand` SHALL gain `memberIdentifierKind` enum (`EMAIL | PHONE | CUSTOMER_ID`, default `EMAIL`). New unique constraint `@@unique([brandId, externalId])` (case-insensitive — see R5). `OTHER` was considered and rejected: no concrete use case, YAGNI; can be added forward-compatibly when a real customer surfaces one.
+- **R5**: `externalId` SHALL be stored normalized: lowercased and whitespace-trimmed at insert and lookup, **uniformly across all identifier kinds in V0**. (Postgres expression-index `LOWER(externalId)` enforced via migration.)
+  - **Case-sensitivity decision (V0)**: All identifier kinds are case-insensitive. A future `Brand.identifierCaseSensitive` flag (gated on `memberIdentifierKind ∈ {CUSTOMER_ID}`) is *deferred* until a customer needs it — likely when GUID-shaped customer-ids surface (Comment #14). Rationale: mixing per-kind sensitivity (insensitive for email/phone, sensitive for customer_id) doubles the test matrix, requires conditional unique constraints (`LOWER(externalId)` vs `externalId`), and asks every brand admin to make a decision they likely don't have an opinion on. Single uniform policy in V0 is simpler; the migration to add the flag is forward-compatible (drop the expression index, add the flag column with default `false`, recompute the constraint per-brand).
 - **R6**: A new **late-arriving update path** SHALL exist: re-submitting the enrollment endpoint with the same `(brandId, externalId)` SHALL be idempotent — it MUST NOT create a duplicate, and SHALL last-write-wins on non-identifier fields (`firstName`, `lastName`, `phone`, opt-in flags). Identifier change is NOT supported via this path; changing `externalId` requires a separate ops process (out-of-scope V0).
 - **R7**: All non-identifier `Member` fields SHALL be optional (`firstName`, `lastName`, `phone`, opt-in flags) so a freshly auto-enrolled member can exist with only `(brandId, externalId, consentGivenAt)`.
 
@@ -126,17 +127,23 @@ Each requirement has an `R{N}` traceability tag. SHALL-style.
   2. Enforce `Survey.responsePolicy` (R3).
   3. Validate consent per brand `consentMode` (see Compliance §).
   4. Persist `SurveyResponse`. Fire the existing event-pipeline hooks (BullMQ job for survey-rule evaluation, hero #6 path).
-- **R10**: Auto-enrollment via survey response SHALL set `Member.consentGivenAt = now()`, `status = ACTIVE`, `programId = survey.programId`. The auto-enrolled member SHALL be eligible for any incentive points configured on the survey.
+- **R10**: Auto-enrollment via survey response SHALL set `Member.consentGivenAt = now()`, `status = ACTIVE`, `programId = survey.programId`, and `enrolledVia = SURVEY_RESPONSE` (see R15). The auto-enrolled member SHALL be eligible for any incentive points configured on the survey.
 
 ### Integrator-facing
 
-- **R11**: The brand admin SHALL pick `memberIdentifierKind` exactly once during brand setup (V0). UI: radio group with `EMAIL` default. Surface: brand setup flow (existing under #225/#239), not part of #231 implementation.
+- **R11**: The brand admin SHALL pick `memberIdentifierKind` exactly once during brand setup (V0). UI: radio group with `EMAIL` default. Surface: brand setup flow **(to-be-built)** owned by #225 / #239 — there is no Brand Setup UI today; brand rows are inserted via ad-hoc SQL or the auto-provision path in #239. Not part of #231 implementation.
 - **R12**: The `responsePolicy` picker SHALL surface in the survey creation/edit flow, owned by **#241**. Default `MULTIPLE`. Inline help text describes each option.
 
 ### Compatibility
 
 - **R13**: Acme demo flow (Maya enrolls, then submits survey) SHALL continue to work unchanged — it is the `EMAIL` identifier kind + `responsePolicy = MULTIPLE` path with consent gathered at enrollment.
-- **R14**: Existing surveys SHALL be migrated with `responsePolicy = ONCE` (preserves current behavior literally), so no observable change for already-deployed brands. Brand admins opt in to `MULTIPLE` per survey.
+- **R14**: Existing surveys SHALL be migrated with `responsePolicy = MULTIPLE` (the new default). Rationale: only test customers exist in the system today; testing the new V0 default takes priority over preserving the historical (incorrect) one-response-per-member-per-survey behavior. Brand admins explicitly set `ONCE` per survey when they want the prior behavior.
+
+### Traceability and consent text
+
+- **R15**: `Member.enrolledVia` SHALL be added (enum `MANUAL_API | BULK_IMPORT | SURVEY_RESPONSE | EMBEDDED_FORM | CLERK_OAUTH`, NOT NULL). The enroll endpoint, bulk-import path, survey auto-enrollment (R10), and Clerk-webhook auto-provision (#239) SHALL each set this field at create time. Required for traceability ("which integration channel created this member?") and to enable future welcome / onboarding flows that differ by enrollment source.
+- **R16**: Consent text SHALL be stored brand-level by default with per-survey override. `Brand.consentTextDefault` (string, nullable) holds the brand-wide disclosure / checkbox text, populated during brand setup. `Survey.consentTextOverride` (string, nullable) holds a per-survey override. The submit endpoint and embedded form SHALL resolve text via `Survey.consentTextOverride ?? Brand.consentTextDefault`. Privacy-policy and terms URLs SHALL be stored separately as `Brand.privacyPolicyUrl` and `Brand.termsUrl` (captured during brand onboarding) and rendered as links inside whichever consent text is active. Text editing UI lives in #225/#239 (brand-level) and #241 (per-survey override).
+- **R17**: Brands MAY suppress on-form consent UI for surveys whose responder population has prior consent (e.g., internal employee NPS, support-ticket surveys to logged-in customers). Mechanism: `Survey.consentTextOverride = ''` (empty string). When this empty-string override is in effect, the survey form SHALL NOT show a consent checkbox or disclosure block. Submit still server-stamps `consentGivenAt = now()`, and the brand admin SHALL attest in writing during survey setup ("I confirm responders to this survey have given prior consent in my system") before the empty-string override saves. Audit: the attestation timestamp + admin user is recorded on the Survey row (`Survey.consentSuppressedAttestedBy`, `Survey.consentSuppressedAttestedAt`).
 
 ---
 
@@ -146,7 +153,10 @@ Each requirement has an `R{N}` traceability tag. SHALL-style.
 model Brand {
   // ... existing fields
   memberIdentifierKind MemberIdentifierKind @default(EMAIL)  // R4
-  consentMode          ConsentMode          @default(EXPLICIT) // see Compliance §
+  consentMode          ConsentMode          @default(EXPLICIT) // R16, Compliance §
+  consentTextDefault   String?              // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl     String?              // R16 — captured at brand onboarding
+  termsUrl             String?              // R16 — captured at brand onboarding
   // ...
 }
 
@@ -154,7 +164,6 @@ enum MemberIdentifierKind {
   EMAIL
   PHONE
   CUSTOMER_ID
-  OTHER
 }
 
 enum ConsentMode {
@@ -162,21 +171,35 @@ enum ConsentMode {
   IMPLIED_ON_SUBMIT
 }
 
+enum MemberEnrolledVia {
+  MANUAL_API         // integrator POST /members/enroll
+  BULK_IMPORT        // bulk migration import path
+  SURVEY_RESPONSE    // auto-enrolled via survey submission (R10)
+  EMBEDDED_FORM      // auto-enrolled via embedded form, no prior member_id param
+  CLERK_OAUTH        // signup via Clerk
+}
+
 model Member {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   brandId         String
-  externalId      String   // R4 — normalized lowercased value
-  email           String?  // optional now; only populated when identifierKind = EMAIL or as PII sidecar
-  // ... other fields, all optional per R7
-  consentGivenAt  DateTime?  // already nullable
+  externalId      String              // R4 — canonical lookup, normalized lowercased
+  email           String?             // PII sidecar; populated when identifierKind = EMAIL (and may also hold an email even if identifierKind = PHONE / CUSTOMER_ID, for transactional mail)
+  phone           String?             // PII sidecar; populated when identifierKind = PHONE in E.164 form (column already exists in current schema)
+  enrolledVia     MemberEnrolledVia   // R15 — traceability; set at create time
+  // ... other non-identifier fields all optional per R7
+  consentGivenAt  DateTime?           // already nullable in current schema
+  consentVersion  String?             // already nullable in current schema; brand-attestation hash for R17 empty-override surveys
   // ...
-  @@unique([brandId, externalId])  // replaces @@unique([brandId, email])
+  @@unique([brandId, externalId])    // replaces @@unique([brandId, email])
   @@index([brandId, externalId])
 }
 
 model Survey {
   // ... existing fields
-  responsePolicy  ResponsePolicy @default(MULTIPLE)  // R3
+  responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
+  consentTextOverride           String?         // R16 — null = use Brand.consentTextDefault; '' (empty string) = R17 suppress-UI mode
+  consentSuppressedAttestedBy   String?         // R17 — admin user who attested
+  consentSuppressedAttestedAt   DateTime?       // R17 — attestation timestamp
 }
 
 enum ResponsePolicy {
@@ -188,17 +211,17 @@ enum ResponsePolicy {
 model SurveyResponse {
   // ... existing fields, memberId stays NOT NULL
   // DROP @@unique([surveyId, memberId])  // R2
-  @@index([surveyId, memberId])  // for ONCE / LATEST_OVERWRITES enforcement
+  @@index([surveyId, memberId])    // for ONCE / LATEST_OVERWRITES enforcement
 }
 ```
 
 **Backfill plan** (one migration, transactional):
-1. Add `Brand.memberIdentifierKind` (default `EMAIL`), `Brand.consentMode` (default `EXPLICIT`).
-2. Add `Member.externalId` nullable temporarily.
-3. `UPDATE members SET externalId = LOWER(TRIM(email))` — verify no `(brandId, lower(email))` collisions first; if any, fail the migration with a report and stop.
-4. Set `Member.externalId NOT NULL`, add `@@unique([brandId, externalId])`.
-5. Drop `@@unique([brandId, email])`. Keep `email` column (now optional) for PII / send-mail purposes.
-6. Add `Survey.responsePolicy` (default `MULTIPLE`); `UPDATE surveys SET responsePolicy = 'ONCE'` for all existing rows (R14 — preserve current behavior for deployed brands).
+1. Add `Brand.memberIdentifierKind` (default `EMAIL`), `Brand.consentMode` (default `EXPLICIT`), `Brand.consentTextDefault` (nullable), `Brand.privacyPolicyUrl` (nullable), `Brand.termsUrl` (nullable).
+2. Add `Member.externalId` nullable temporarily, `Member.enrolledVia` nullable temporarily.
+3. `UPDATE members SET externalId = LOWER(TRIM(email)), enrolledVia = 'MANUAL_API'` — verify no `(brandId, lower(email))` collisions first; if any, fail the migration with a report and stop. (`MANUAL_API` is the safest backfill value — pre-existing rows pre-date this enum and were created via the legacy enroll path; future audits will see the migration commit and understand.)
+4. Set `Member.externalId NOT NULL`, `Member.enrolledVia NOT NULL`, add `@@unique([brandId, externalId])`.
+5. Drop `@@unique([brandId, email])`. Keep `email` (already nullable) and `phone` (already nullable) columns as PII sidecars per R4/R9.
+6. Add `Survey.responsePolicy` (default `MULTIPLE`), `Survey.consentTextOverride` (nullable), `Survey.consentSuppressedAttestedBy` (nullable), `Survey.consentSuppressedAttestedAt` (nullable). **Existing rows take the default `MULTIPLE` per R14** — testing the new V0 default is preferred over preserving the historical one-response policy (test customers only).
 7. Drop `@@unique([surveyId, memberId])` on `SurveyResponse`; add `@@index([surveyId, memberId])`.
 
 **Pre-migration guard** (added to `packages/database/scripts/`): a script that detects `(brandId, lower(email))` collisions before migration runs and prints a remediation report. Fails CI if collisions exist on production data.
@@ -207,16 +230,16 @@ model SurveyResponse {
 
 ## Compliance Requirements
 
-`fraim/config.json` does not declare regulations explicitly. Inferred from `docs/architecture/architecture.md §10`: **GDPR + CCPA/CPRA required from MVP**. SOC2 Type 2 is on the Month-12 roadmap.
+Per `fraim/config.json` `customizations.compliance.regulations` (verified by reading the file): **GDPR (in-scope), CCPA (in-scope), SOC2 (target Month-12), PCI-DSS (minimal-scope)**. `docs/architecture/architecture.md §10` corroborates the same posture (PCI scope minimized via Tremendous/Rybbon for reward fulfillment).
 
 ### GDPR / CCPA implications of auto-enrollment
 
 | Requirement | How spec addresses it |
 |---|---|
-| Consent must be freely given, specific, informed, unambiguous (GDPR Art. 7) | `Brand.consentMode = EXPLICIT` (default) requires the survey form to show a checkbox with brand's privacy-policy + terms link. Submit blocked until checked. `IMPLIED_ON_SUBMIT` is opt-in for brands willing to attest the disclosure-text-on-form mode satisfies their legal review. |
+| Consent must be freely given, specific, informed, unambiguous (GDPR Art. 7) | `Brand.consentMode = EXPLICIT` (default) requires the survey form to show a checkbox with brand's privacy-policy + terms link. Submit blocked until checked. `IMPLIED_ON_SUBMIT` is opt-in for brands willing to attest the disclosure-text-on-form mode satisfies their legal review. **Storage**: consent text + URLs are stored on `Brand` (R16) and editable per-survey via `Survey.consentTextOverride`. UI scope: brand-level fields owned by #225 / #239; per-survey override owned by #241. |
 | Right to be forgotten (GDPR Art. 17 / CCPA §1798.105) | Existing erasure job in `apps/worker` already zeros PII fields on `Member`. New fields (`externalId`) MUST be added to the erasure field list. Survey responses retain `memberId` reference but the member's PII is wiped. |
 | Data export (GDPR Art. 15 / CCPA §1798.110) | Existing data-export endpoint includes `Member` PII. Add `externalId` to export. Survey responses already exported. |
-| Auto-enrollment lawful basis | Auto-enrollment under `EXPLICIT` mode = consent (Art. 6(1)(a)). Under `IMPLIED_ON_SUBMIT` = legitimate interest (Art. 6(1)(f)) with disclosure on form. **Spec position**: default `EXPLICIT`; `IMPLIED_ON_SUBMIT` requires brand-level legal attestation captured during brand setup (mark as "I confirm my legal review has approved implied-consent disclosure"). |
+| Auto-enrollment lawful basis | Auto-enrollment under `EXPLICIT` mode = consent (Art. 6(1)(a)). Under `IMPLIED_ON_SUBMIT` = legitimate interest (Art. 6(1)(f)) with disclosure on form. **Spec position**: default `EXPLICIT`; `IMPLIED_ON_SUBMIT` requires brand-level legal attestation captured during brand setup (mark as "I confirm my legal review has approved implied-consent disclosure"). **Per-survey suppression** (R17): a brand admin may set `Survey.consentTextOverride = ''` to suppress on-form consent UI when the responder population has prior consent (e.g., internal employee NPS) — gated by a per-survey written attestation. |
 | Bulk-migration consent preservation | R8 — integrator-supplied `consentGivenAt` is preserved verbatim. The original consent (e.g., from a prior loyalty platform) remains the legal-basis timestamp. |
 
 ### Data minimization
@@ -234,11 +257,13 @@ These are my proposed answers for Q1-Q5. Each has a stated tradeoff. Push back w
 **Proposal**: Add `Member.externalId` as the canonical lookup column (normalized, lowercased) with `@@unique([brandId, externalId])`. Keep `email` as an optional PII field for send-mail purposes only — *not* the join key. Add `Brand.memberIdentifierKind` enum to declare what semantic shape `externalId` holds for that brand.
 
 **Why this over alternatives**:
-- (vs. overloading `email` to hold any identifier) — keeps `email` semantically email; erasure / mail-send logic doesn't have to ask "is this actually an email or is it a phone number?"
+- (vs. overloading `email` to hold any identifier) — keeps `email` semantically email; erasure / mail-send logic doesn't have to ask "is this actually an email or is it a phone number?". Symmetrically, `Member.phone` (already a column in current schema) holds the PHONE-kind value when `identifierKind = PHONE`. `externalId` is the canonical lookup column; `email` and `phone` are PII sidecars.
 - (vs. polymorphic `identifierType` + `identifierValue` per-row) — unnecessary; identifier kind is per-brand, so storing it once on `Brand` is normalized
 - Mirrors Clerk's existing two-key model (`clerkUserId` is a separate column from `email`)
 
-**Tradeoff**: One extra column on `Member`, one enum on `Brand`. Brand-setup gains one more required decision (with a sensible default). Acceptable cost.
+**Tradeoff**: One extra column on `Member`, one enum on `Brand`, plus the `enrolledVia` traceability column (R15). Brand-setup gains one more required decision (with a sensible default). Acceptable cost.
+
+**Note on case sensitivity**: V0 is uniformly case-insensitive across all identifier kinds (R5). Comment #14 raised that future GUID-shaped customer-ids may need case-sensitive lookup; deferred to a `Brand.identifierCaseSensitive` flag added when a real customer surfaces the need (forward-compatible).
 
 ### Q2 — Where is identifier kind configured: brand-level or per-program?
 
@@ -284,15 +309,18 @@ Add a `member_profile_audit` table that records each non-identifier field write 
 
 **Tradeoff**: A brand admin who misconfigures their import script and overwrites good data with stale data has no UNDO from the API. Mitigation: audit log + a future ops endpoint to roll back (out of V0).
 
+**Related: consent text on explicit member-program-join** (Comment #17 part a). The Demo flow (Maya enrolls → consent shown) sources its consent text from `Brand.consentTextDefault` (R16). Implementation home is issue #3 (member-enrollment); cross-link added in this spec's dependency table. The "no-consent-text" scenario (e.g., internal employee NPS where responders have prior consent) is handled by R17 — empty-string `Survey.consentTextOverride` plus per-survey brand attestation.
+
 ---
 
 ## Cross-issue dependencies and impacts
 
 | Issue | Relationship | What this spec asks of it |
 |---|---|---|
-| **#241** (Unify survey lifecycle) | Owns UI for `responsePolicy` picker | Add the picker (3 radio options) to the survey-create / survey-edit flow. Inline help copy describes each. Default `MULTIPLE`. |
-| **#225** (Onboarding walkthrough — parent epic) | Owns brand-setup flow | Add `memberIdentifierKind` picker + `consentMode` picker (with attestation when `IMPLIED_ON_SUBMIT`) to brand setup. |
-| **#239** (Auto-provision Brand from Clerk webhook) | Owns brand creation event | Default new brands to `memberIdentifierKind = EMAIL`, `consentMode = EXPLICIT`. |
+| **#241** (Unify survey lifecycle) | Owns UI for `responsePolicy` picker, per-survey consent text override, embedded-form layout, URL-param surveys | (1) Add `responsePolicy` picker (3 radio options) to survey create/edit. Default `MULTIPLE`. (2) Add `Survey.consentTextOverride` editor (R16). (3) Implement R17 empty-string suppression UI + per-survey attestation checkbox. (4) Embedded-form/URL-param survey path is the same path documented in this spec — log as a survey-design requirement so it doesn't stay isolated here. |
+| **#225** (Onboarding walkthrough — parent epic) | Owns to-be-built brand-setup flow | Add to brand-setup UI: `memberIdentifierKind` picker, `consentMode` picker (with `IMPLIED_ON_SUBMIT` legal-attestation), `consentTextDefault` editor, `privacyPolicyUrl` and `termsUrl` URL fields. Reference mock at `docs/feature-specs/mocks/231-brand-identifier-kind.html`. |
+| **#239** (Auto-provision Brand from Clerk webhook) | Owns brand creation event | Default new brands to `memberIdentifierKind = EMAIL`, `consentMode = EXPLICIT`, `consentTextDefault = null` (admin must populate before EXPLICIT-mode surveys can collect responses). |
+| **#3** (Member enrollment) | Owns explicit member-program-join consent text | Demo flow's consent text on explicit join sources from `Brand.consentTextDefault` (R16). Verify or extend #3 to render this text. Cross-link this spec. |
 | **#217** (JTBD picker re-segmentation) | Picker copy can't ship while member-must-exist constraint exists | This spec unblocks #217 — once shipped, the picker's "hear what my customers think" track becomes ethically shippable. |
 | **#6** (Hero — <15-min CX-to-loyalty SLA) | Must remain protected | The auto-enrollment path runs synchronously in the submit handler before the BullMQ event fires; net latency added is one DB insert. Validation Plan §perf checks <15-min SLA on auto-enrolled responder path. |
 | **#117** (Survey creation UX — already in needs-review) | Adjacent; touches survey-create flow | If #117 lands first, #241 picks up the picker addition on top of #117's work. No conflict expected. |
@@ -305,7 +333,7 @@ P0 issue → unit + integration + E2E tests required (project rule R9).
 
 ### Functional validation
 
-- **Unit**: requirement-by-requirement test cases for R1-R14 (Vitest, `apps/api/src/**/*.test.ts`).
+- **Unit**: requirement-by-requirement test cases for R1-R17 (Vitest, `apps/api/src/**/*.test.ts`).
 - **Integration**: against real Postgres+Redis services (already in CI). Cover:
   - `POST /surveys/:id/respond` with known member → resolves correctly
   - With non-member identifier → auto-enrolls + responds
@@ -351,7 +379,7 @@ The original issue body proposed several design directions that the user's [cano
 
 ### Configured Competitors
 
-`fraim/config.json` does not declare competitors explicitly. Pulled from `docs/replicate/reports/REPLICATION_ANALYSIS.md` and `docs/business-development/business-validation-report-cx-loyalty-platform-2026-03-24.md`:
+Verified `fraim/config.json` — no `competitors` key configured (the schema today carries `project`, `repository`, `issueTracking`, `customizations` blocks; `customizations.compliance` is configured but `customizations.competitors` is not). Competitor research below is pulled from existing project artifacts: `docs/replicate/reports/REPLICATION_ANALYSIS.md` and `docs/business-development/business-validation-report-cx-loyalty-platform-2026-03-24.md`.
 
 | Competitor | Survey response model | Strengths | Weaknesses | Position |
 |---|---|---|---|---|
