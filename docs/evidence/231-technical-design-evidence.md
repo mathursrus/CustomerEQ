@@ -11,7 +11,7 @@ Agent: manohar.madhira@outlook.com (Claude, FRAIM `technical-design` job)
 
 - Spec read and traced: `docs/feature-specs/231-survey-response-data-model-rework.md` ✅
 - RFC committed/synced to branch: **Yes** (`docs/rfcs/231-survey-response-data-model-rework.md`)
-- Traceability Matrix: All R1-R17 mapped — see below ✅
+- Traceability Matrix: All R1-R18 mapped — see below ✅
 - Architecture gaps surfaced: 5 missing + 3 incorrectly-followed; all in RFC § Architecture Analysis ✅
 - Spike outcome: No spike needed (no high-uncertainty technical risks identified) ✅
 - User question answered: SURVEY_RESPONSE vs EMBEDDED_FORM distinguishable server-side via URL-query-vs-body identifier source — see RFC § Channel attribution ✅
@@ -39,8 +39,9 @@ Every functional requirement in `docs/feature-specs/231-survey-response-data-mod
 | **R15** — `Member.enrolledVia` enum (`MANUAL_API \| BULK_IMPORT \| SURVEY_RESPONSE \| EMBEDDED_FORM \| CLERK_OAUTH`) | § Schema migration steps 2, 4 (backfill as `MANUAL_API`); § Channel attribution rule for SURVEY_RESPONSE vs EMBEDDED_FORM | Met |
 | **R16** — Brand-default + per-survey override consent text; URL fields on Brand | § Schema migration steps 1, 6; § File-level `services/consentResolver.ts` (resolves `override ?? default`) | Met |
 | **R17** — Empty-string `Survey.consentTextOverride` suppresses on-form consent UI; per-survey written attestation | § Schema migration step 6 (`consentSuppressedAttestedBy`, `consentSuppressedAttestedAt` columns); § Validation Plan row "Brand admin saves a survey with `consentTextOverride = ''`..." | Met |
+| **R18** — Audit-only IP-derived enrollment-signal capture (SHA-256 hashed IP + ISO country) on `LoyaltyEvent.payload.enrollmentSignals` for `SURVEY_RESPONSE` / `EMBEDDED_FORM` paths | § Enrollment-signal capture (audit-only, no schema change); RFC documents shape, IP source order, geo-provider candidates, hero #6 SLA budget, erasure path, forward-compat to future `Member.location` | Met |
 
-**Result**: 17 / 17 Met. Zero Unmet. No "wave-hands" coverage.
+**Result**: 18 / 18 Met. Zero Unmet. No "wave-hands" coverage.
 
 ### Validation Alignment
 
@@ -48,7 +49,7 @@ Each spec validation requirement covered by RFC's § Validation Plan + § Test M
 
 | Spec validation requirement | RFC coverage |
 |---|---|
-| Unit tests for R1-R17 (P0 → unit + integration + E2E) | § Test Matrix § Unit (5 test files listed by name) |
+| Unit tests for R1-R18 (P0 → unit + integration + E2E) | § Test Matrix § Unit (5 test files listed by name) |
 | Integration tests against real Postgres+Redis (auto-enroll flow, responsePolicy, case-insensitive lookup, race) | § Test Matrix § Integration (5 test files listed by name) |
 | E2E for Acme demo + ArtistOS-style flow | § Test Matrix § E2E (3 spec files; capped at 3 per repo pattern) |
 | Synthetic load test, p99 < 1s synchronous; <15min downstream BullMQ (hero #6) | § Validation Plan + § Risks "Hero #6 SLA regression"; § Observability metric `survey_response_persist_duration_seconds` + alert `survey_response_persist_p99_above_2s` |

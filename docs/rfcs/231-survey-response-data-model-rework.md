@@ -173,6 +173,44 @@ CREATE INDEX "survey_responses_surveyId_memberId_idx" ON survey_responses("surve
 
 Rollback: every step is reversible. If something fails mid-migration, Postgres aborts the tx; no partial state. Out-of-tx rollback (after a successful migration that's later regretted) requires a separate `down` migration: drop `externalId`-based indices, restore `email`-based unique, drop new columns. Backwards-compat tested in CI on a snapshot of staging data.
 
+### Enrollment-signal capture (R18) — audit-only, no schema change
+
+Per spec R18: when a `SURVEY_RESPONSE` or `EMBEDDED_FORM` auto-enroll fires, the `LoyaltyEvent.payload` JSON gets an `enrollmentSignals` object. **No schema change** — `LoyaltyEvent.payload` is already `Json?` (existing column at `schema.prisma:416`, described as "raw event payload"). This is exactly the right semantic.
+
+**Shape:**
+```typescript
+LoyaltyEvent.payload = {
+  // ... existing payload fields (survey answers, scores, etc.)
+  enrollmentSignals?: {
+    ipHash: string;        // SHA-256 hex; salted with brandId
+    ipCountryIso: string | null;  // 2-letter ISO; null if geo lookup failed or skipped
+    capturedAt: string;    // ISO 8601
+  };
+}
+```
+
+`enrollmentSignals` is present **only on the loyalty event for the auto-enroll moment**. Subsequent events for the same member do not include it (that's the audit-trail point — capture once, at enrollment, not every interaction).
+
+**IP source order:**
+1. `request.headers['cf-connecting-ip']` (if behind Cloudflare; CF strips spoofed values)
+2. `request.headers['x-forwarded-for']` (first hop, if behind a trusted reverse proxy)
+3. `request.ip` (Fastify's default, falls back to the socket peer)
+
+The selected IP is hashed before storage — raw IP is **never** persisted, even in logs. Hash salt is `Brand.id` so the same IP across brands does not collide (prevents cross-tenant correlation).
+
+**IP-geo provider:**
+Pick at implementation time; deferred decision (out of RFC scope). Candidates:
+- **Cloudflare `CF-IPCountry` header** — free if behind CF; pre-resolved by the edge; zero added latency
+- **MaxMind GeoLite2 self-hosted** — free, ~25MB DB embedded in the API container; ~5ms lookup
+- **ip-api.com free tier** — external HTTP call; adds 100-200ms; rate-limited
+- Default fallback: if no provider is configured, write `ipCountryIso: null` and proceed
+
+**Hero #6 SLA:** the IP-hash + country-lookup path adds <10ms when CF or MaxMind is used; <250ms with ip-api fallback. Always within the <1s p99 budget. If lookup fails or times out (>500ms), the handler proceeds with `ipCountryIso: null` — never block the submit on geo-lookup.
+
+**Erasure (GDPR Art. 17 / CCPA §1798.105):** `LoyaltyEvent.payload.enrollmentSignals` is zeroed alongside other PII when a member's erasure runs. The existing erasure job already walks `LoyaltyEvent` rows scoped to the erased `memberId`; just extend the payload-zeroing logic to scrub the `enrollmentSignals` sub-object.
+
+**Forward-compatible to a future `Member.location` (or `Member.country`) field:** when a real feature lands that needs a structured location column on `Member`, a one-time backfill batch job populates the new column from `LoyaltyEvent.payload.enrollmentSignals.ipCountryIso` (joining on `(brandId, memberId)`, taking the earliest event). No schema choice is forced now; the data exists when the choice is made.
+
 ### Failure modes & timeouts
 
 | Failure | Behavior |
@@ -183,13 +221,14 @@ Rollback: every step is reversible. If something fails mid-migration, Postgres a
 | `responsePolicy = ONCE` and a prior response exists | 409 with `{ priorResponseId }` — endpoint does not auto-enroll a new member if the resolved member already has a response on this survey. |
 | BullMQ event publish fails after the response is persisted | Response succeeds (return 201); the event is retried by BullMQ's standard retry policy. Hero #6 SLA is on the worker side; the synchronous path's job is to persist + enqueue. |
 | Migration collision-detection fails on staging | Migration aborts; CI fails the deploy; the engineer reads the CSV report and decides whether to merge duplicates manually before proceeding. No automatic merge — too risky. |
+| IP-geo lookup fails or times out (R18) | Submit succeeds with `enrollmentSignals.ipCountryIso = null`. Never blocks the submit. Logged at `warn` level. |
 
 Timeouts: synchronous submit handler aims for p99 < 1s. Hard timeout 5s. The auto-enrollment path adds one DB insert + one BullMQ enqueue; total ~3 round-trips on local Postgres.
 
 ### Telemetry & analytics
 
 Logs (existing pino logger):
-- `member.auto_enrolled` `{ brandId, memberId, enrolledVia, surveyId? }`
+- `member.auto_enrolled` `{ brandId, memberId, enrolledVia, surveyId?, ipCountryIso? }`  (raw IP never logged — only ISO country if R18 capture succeeded)
 - `survey.response_persisted` `{ surveyId, memberId, responsePolicy, autoEnrolled }`
 - `survey.consent_suppressed_attestation` `{ surveyId, attestedBy, attestedAt }` — emitted on save, not on submit
 
@@ -233,7 +272,7 @@ Alerts (existing Grafana stack):
 
 - `services/memberResolution.test.ts` — identifier-shape validation per `MemberIdentifierKind`; idempotent upsert behavior; case-insensitive lookup; handling of integrator-supplied vs server-stamped `consentGivenAt`.
 - `services/consentResolver.test.ts` — R16 hierarchy resolution; R17 empty-string suppression; null brand default + non-null override behavior.
-- `routes/surveys/respond.test.ts` — channel attribution rule: URL query → `SURVEY_RESPONSE`; body only → `EMBEDDED_FORM`; both present → URL wins; neither → 400. `responsePolicy` enforcement at all three values.
+- `routes/surveys/respond.test.ts` — channel attribution rule: URL query → `SURVEY_RESPONSE`; body only → `EMBEDDED_FORM`; both present → URL wins; neither → 400. `responsePolicy` enforcement at all three values. R18 enrollment-signal capture: assert `LoyaltyEvent.payload.enrollmentSignals` populated on auto-enroll paths only, never on resolved-existing-member paths; assert raw IP never persisted; assert IP-geo failure → null country, not error.
 - `routes/members/enroll.test.ts` — `consentGivenAt` optional with server-stamp fallback; integrator-supplied value preserved; idempotent on `(brandId, externalId)`.
 - `schemas/EnrollMemberSchema.test.ts` — Zod schema accepts new shape; rejects malformed identifier values per kind.
 
