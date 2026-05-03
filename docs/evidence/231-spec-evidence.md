@@ -10,8 +10,8 @@ Agent: manohar.madhira@outlook.com (Claude, FRAIM `feature-specification` job)
 
 ## Completeness Evidence
 
-- Issue tagged `phase:spec`: No — label not used in repo
-- Issue tagged `status:needs-review`: Added in this submission
+- Issue tagged `phase:spec`: **Yes** — applied during submission (label exists in repo; was not applied at first pass — corrected)
+- Issue tagged `status:needs-review`: **Yes** — applied during submission
 - Spec committed/synced to branch: **Yes**
 - Open Questions: **5/5 resolved with proposed positions** awaiting user iteration in PR review
 
