@@ -31,7 +31,7 @@ Every functional requirement in `docs/feature-specs/231-survey-response-data-mod
 | **R7** — All non-identifier `Member` fields optional | § Schema migration step 4 (email/phone already nullable; firstName/lastName/opt-ins remain optional in EnrollMemberSchema) | Met |
 | **R8** — `consentGivenAt` optional in `EnrollMemberSchema`, server-stamp fallback | § API endpoints request schema; § File-level `apps/api/src/schemas/EnrollMemberSchema.ts` | Met |
 | **R9** — New `POST /v1/public/surveys/:surveyId/respond` endpoint | § API endpoints (full request/response contract); § File-level `apps/api/src/routes/surveys/respond.ts` | Met |
-| **R10** — Auto-enrollment sets `consentGivenAt=now()`, `status=ACTIVE`, `programId=survey.programId`, `enrolledVia=SURVEY_RESPONSE` | § Channel attribution; § API endpoints; § File-level `routes/surveys/respond.ts` | Met |
+| **R10** — Auto-enrollment sets `consentGivenAt=now()`, `status=ACTIVE`, `programId=survey.programId`, `enrolledVia` per channel attribution (`EMBEDDED_FORM` for URL-supplied identity, `SURVEY_RESPONSE` for form-body-supplied identity) | § Channel attribution; § API endpoints; § File-level `routes/surveys/respond.ts` | Met |
 | **R11** — Brand admin picks `memberIdentifierKind` once during brand setup; surface owned by #225/#239 | RFC explicitly delegates UI to #225/#239; documents the data model the UI consumes | Met (delegated by spec) |
 | **R12** — `responsePolicy` picker UI; surface owned by #241 | RFC adds the schema column; UI delegated to #241 per spec | Met (delegated by spec) |
 | **R13** — Acme demo flow works unchanged | § Validation Plan row "Demo flow (Maya enrolls...)"; § Test Matrix `acme-demo-flow.spec.ts` E2E | Met |

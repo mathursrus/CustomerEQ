@@ -101,30 +101,34 @@ Response 400: missing identifier (neither URL query nor body), missing required 
 
 ### Channel attribution: SURVEY_RESPONSE vs EMBEDDED_FORM (the user's design question)
 
-**Yes — the server can distinguish these deterministically.** The rule:
+**Yes — the server can distinguish these deterministically.** The rule (corrected after PR #259 review — names describe the *channel*, not the trust signal):
 
 ```
 if (request.query.member_id is present and non-empty)
-    enrolledVia = 'SURVEY_RESPONSE'        // host knew the responder
+    enrolledVia = 'EMBEDDED_FORM'          // host application knew the responder
+                                            // and supplied identity via URL param
+                                            // (typical embedded-survey-in-host-app scenario)
 else if (request.body.memberId is present and non-empty)
-    enrolledVia = 'EMBEDDED_FORM'          // responder self-identified on the form
+    enrolledVia = 'SURVEY_RESPONSE'        // responder self-identified on the form
+                                            // (typical standalone-survey-link scenario)
 else
     return 400 NO_IDENTIFIER
 ```
 
 Why this rule is the right one:
 
-- **It's a real semantic difference.** A URL-supplied `member_id` is evidence that *something authoritative* (the host's SDK, a personalized email-send pipeline, a logged-in app session) knew the responder before the form rendered. A form-body `memberId` is just text the responder typed — could be their email, could be anyone's. The trust surface differs.
+- **It's a real semantic difference.** `EMBEDDED_FORM` is the channel where a host application embeds the survey and the host's SDK / email-send pipeline / logged-in session supplies the responder's identity (typically as a URL param). `SURVEY_RESPONSE` is the channel where the survey stands on its own (a link in an email, a shared URL) and the responder fills in the identifier on the form because there's no host context to draw on.
+- **The names match the channel, not the detection signal.** `EMBEDDED_FORM` describes a form *embedded* in another product; `SURVEY_RESPONSE` describes a *response* to a standalone survey. URL-param vs form-body is the *detection mechanism* for that channel difference, not the channel itself.
 - **It's verifiable server-side without client cooperation.** The handler simply inspects `request.query` vs `request.body`. No `X-Source: ...` header that the client could lie about; no Origin/Referer dependency.
-- **It survives round-tripping.** Embedded-widget JS that receives `memberId` from its host SDK can choose to put it in the URL query when navigating to the survey URL — that's the integrator's deliberate signal "I knew this person." Forms that collect identifier as a field stay on the form-body path.
-- **The branch closes cleanly when both sources are present.** URL query wins (more authoritative). The body's `memberId` is then ignored for attribution.
+- **It survives round-tripping.** Embedded-widget JS that receives `memberId` from its host SDK puts it in the URL query when navigating to the survey URL — that's the host's deliberate signal "I knew this person, the form is embedded in my product." Forms that collect identifier as a field stay on the form-body path because the responder is using the survey link directly.
+- **The branch closes cleanly when both sources are present.** URL query wins (host context is more authoritative than self-typed). The body's `memberId` is then ignored for attribution.
 
 What this rule is NOT:
 
 - **Not a security gate.** A URL query is still client-supplied; nothing stops a malicious party from forging `?member_id=victim@example.com`. The rule is about *attribution and traceability*, not *authentication*. R10 still server-stamps `consentGivenAt = now()` so the consent signal is system-supplied either way.
-- **Not "embedded vs hosted" in the deployment sense.** A survey rendered inside an iframe on the brand's site can still receive `member_id` via URL query — that's still SURVEY_RESPONSE, not EMBEDDED_FORM. The distinction is about identifier provenance, not the rendering surface.
+- **Not "embedded vs hosted" in the deployment sense.** A survey rendered inside an iframe on the brand's site IS using the EMBEDDED_FORM channel if it receives `member_id` via URL query (the host knew the responder). The distinction is about identifier provenance — host-supplied vs responder-supplied — not the rendering surface.
 
-Future hardening (out of V0): signed `member_id` query param (HMAC over `(surveyId, memberId, timestamp)` with a brand-specific shared secret). When present and verified, set `enrolledVia = SURVEY_RESPONSE` *and* tag a separate `memberIdentitySignedBy` field with the verifying brand. Open as a follow-up if/when a customer needs the higher-trust signal — not in V0.
+Future hardening (out of V0): signed `member_id` query param (HMAC over `(surveyId, memberId, timestamp)` with a brand-specific shared secret). When present and verified, the path is still `EMBEDDED_FORM` (URL-param-supplied), with an added `memberIdentitySignedBy` field tagging the verifying brand. Open as a follow-up if/when a customer needs the higher-trust attribution signal — not in V0.
 
 The `MemberEnrolledVia` enum stays at five values: `MANUAL_API | BULK_IMPORT | SURVEY_RESPONSE | EMBEDDED_FORM | CLERK_OAUTH`. Spec R15 is preserved.
 
@@ -243,7 +247,8 @@ The provider is selected via `IP_GEO_PROVIDER` env var (default `azure-maps`); t
 | Submit endpoint, identifier shape doesn't match `Brand.memberIdentifierKind` (e.g., PHONE brand receives a non-E.164 string) | 400 `IDENTIFIER_SHAPE_INVALID` with the expected shape in the message. |
 | Submit endpoint, brand is in `EXPLICIT` mode and `consent: true` is missing from body | 400 `CONSENT_REQUIRED` (unless `Survey.consentTextOverride === ''` → R17 path; then no checkbox required). |
 | Auto-enroll race: two concurrent submits for the same `(brandId, externalId)` | The second insert hits the unique constraint, catches the error, retries the SELECT; both submits succeed and produce two `SurveyResponse` rows tied to the same auto-enrolled `Member`. Idempotent at the Member level. |
-| `responsePolicy = ONCE` and a prior response exists | 409 with `{ priorResponseId }` — endpoint does not auto-enroll a new member if the resolved member already has a response on this survey. |
+| Member already exists by `(brandId, externalId)` | Use the existing `Member` — no auto-enrollment, no `enrolledVia` change. Decision is based purely on member existence; **`responsePolicy` plays no role in the auto-enroll path**. Whether to accept the new response then proceeds to the `responsePolicy` check below. |
+| `responsePolicy = ONCE` and the resolved member already has a response on this survey | 409 with `{ priorResponseId }`. Independent of auto-enrollment — applies whether the member was just auto-enrolled (no prior response could exist, so this never fires for that case in practice) or was pre-existing. |
 | BullMQ event publish fails after the response is persisted | Response succeeds (return 201); the event is retried by BullMQ's standard retry policy. Hero #6 SLA is on the worker side; the synchronous path's job is to persist + enqueue. |
 | Migration collision-detection fails on staging | Migration aborts; CI fails the deploy; the engineer reads the CSV report and decides whether to merge duplicates manually before proceeding. No automatic merge — too risky. |
 | IP-geo lookup fails or times out (R18) | Submit succeeds with `enrollmentSignals.ipCountryIso = null`. Never blocks the submit. Logged at `warn` level. |
@@ -280,8 +285,8 @@ Alerts (existing Grafana stack):
 | User Scenario | Expected Outcome | Validation method |
 |---|---|---|
 | Brand admin sets `memberIdentifierKind = PHONE`; submits enroll API with phone in E.164 | Member created with `externalId` = lowercased phone; `phone` column populated; `enrolledVia = MANUAL_API` | API + DB validation |
-| Embedded survey form: responder visits `/surveys/abc?member_id=user@x.com` (URL param), submits | Member resolved (or auto-enrolled with `enrolledVia = SURVEY_RESPONSE`); response persisted | API + DB validation |
-| Embedded survey form: responder visits `/surveys/abc` (no URL param), types email into form, submits | Member auto-enrolled with `enrolledVia = EMBEDDED_FORM` | API + DB validation |
+| Embedded survey: host app loads `/surveys/abc?member_id=user@x.com` (URL param supplied by host SDK), submits | Member resolved (or auto-enrolled with `enrolledVia = EMBEDDED_FORM`); response persisted | API + DB validation |
+| Standalone survey: responder clicks email link to `/surveys/abc` (no URL param), types email into form, submits | Member auto-enrolled with `enrolledVia = SURVEY_RESPONSE` | API + DB validation |
 | Two concurrent submissions, same identifier, same survey, `responsePolicy = MULTIPLE` | Both succeed; one `Member` row; two `SurveyResponse` rows; no unique-constraint violation | Integration test with concurrent fetch |
 | `responsePolicy = ONCE`, second submission | 409 with `priorResponseId` | API validation |
 | Bulk-migration script POSTs 1000 enrolls with integrator-supplied `consentGivenAt` | All preserved verbatim; rerunning the import is idempotent (no duplicate members, late-arriving fields update) | Integration test with fixture CSV |
@@ -297,7 +302,7 @@ Alerts (existing Grafana stack):
 
 - `services/memberResolution.test.ts` — identifier-shape validation per `MemberIdentifierKind`; idempotent upsert behavior; case-insensitive lookup; handling of integrator-supplied vs server-stamped `consentGivenAt`.
 - `services/consentResolver.test.ts` — R16 hierarchy resolution; R17 empty-string suppression; null brand default + non-null override behavior.
-- `routes/surveys/respond.test.ts` — channel attribution rule: URL query → `SURVEY_RESPONSE`; body only → `EMBEDDED_FORM`; both present → URL wins; neither → 400. `responsePolicy` enforcement at all three values. R18 enrollment-signal capture: assert `LoyaltyEvent.payload.enrollmentSignals` populated on auto-enroll paths only, never on resolved-existing-member paths; assert raw IP never persisted; assert IP-geo failure → null country, not error.
+- `routes/surveys/respond.test.ts` — channel attribution rule: URL query → `EMBEDDED_FORM` (host-supplied identity); body only → `SURVEY_RESPONSE` (responder self-identified); both present → URL wins; neither → 400. `responsePolicy` enforcement at all three values, **independent of auto-enrollment** (member-existence check runs first; policy check runs on the resolved member). R18 enrollment-signal capture: assert `LoyaltyEvent.payload.enrollmentSignals` populated on auto-enroll paths only, never on resolved-existing-member paths; assert raw IP never persisted; assert IP-geo failure → null country, not error.
 - `routes/members/enroll.test.ts` — `consentGivenAt` optional with server-stamp fallback; integrator-supplied value preserved; idempotent on `(brandId, externalId)`.
 - `schemas/EnrollMemberSchema.test.ts` — Zod schema accepts new shape; rejects malformed identifier values per kind.
 
@@ -317,7 +322,7 @@ Modified: `apps/api/test/integration/earn-points-flow.test.ts` (uses Member.emai
 
 - `acme-demo-flow.spec.ts` — Maya enrolls → submits survey. Existing test, retargeted at the new schema.
 - `embedded-survey-non-member.spec.ts` — fresh browser, navigate to survey URL with no member_id, fill identifier on form, submit; verify auto-enrolled.
-- `embedded-survey-with-url-param.spec.ts` — navigate with `?member_id=`, verify form skips identifier field, submit; verify `SURVEY_RESPONSE` attribution.
+- `embedded-survey-with-url-param.spec.ts` — navigate with `?member_id=`, verify form skips identifier field, submit; verify `EMBEDDED_FORM` attribution (host-supplied identity).
 
 Cap at 3 E2E tests — per the existing project pattern (most flows are integration-tested).
 

@@ -127,7 +127,7 @@ Each requirement has an `R{N}` traceability tag. SHALL-style.
   2. Enforce `Survey.responsePolicy` (R3).
   3. Validate consent per brand `consentMode` (see Compliance §).
   4. Persist `SurveyResponse`. Fire the existing event-pipeline hooks (BullMQ job for survey-rule evaluation, hero #6 path).
-- **R10**: Auto-enrollment via survey response SHALL set `Member.consentGivenAt = now()`, `status = ACTIVE`, `programId = survey.programId`, and `enrolledVia = SURVEY_RESPONSE` (see R15). The auto-enrolled member SHALL be eligible for any incentive points configured on the survey.
+- **R10**: Auto-enrollment via survey response SHALL set `Member.consentGivenAt = now()`, `status = ACTIVE`, `programId = survey.programId`. `Member.enrolledVia` SHALL be set per the channel-attribution rule (see RFC § Channel attribution): `EMBEDDED_FORM` when identity is supplied via URL query (host knew the responder); `SURVEY_RESPONSE` when identity is supplied in the request body (responder self-identified on a standalone survey). The auto-enrolled member SHALL be eligible for any incentive points configured on the survey.
 
 ### Integrator-facing
 
@@ -178,8 +178,8 @@ enum ConsentMode {
 enum MemberEnrolledVia {
   MANUAL_API         // integrator POST /members/enroll
   BULK_IMPORT        // bulk migration import path
-  SURVEY_RESPONSE    // auto-enrolled via survey submission (R10)
-  EMBEDDED_FORM      // auto-enrolled via embedded form, no prior member_id param
+  SURVEY_RESPONSE    // auto-enrolled via standalone survey link/email — responder self-identified on the form
+  EMBEDDED_FORM      // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
   CLERK_OAUTH        // signup via Clerk
 }
 
