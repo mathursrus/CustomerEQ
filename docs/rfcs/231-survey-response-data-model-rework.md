@@ -35,6 +35,7 @@ This is mostly a data-plane change; the spec covers the two visible touchpoints 
 | `apps/api/src/routes/surveys/respond.ts` | **NEW**. `POST /v1/public/surveys/:surveyId/respond` (no auth — public endpoint, brand inferred from survey). Auto-enrolls if not found. Sets `enrolledVia = SURVEY_RESPONSE` or `EMBEDDED_FORM` per the rule in §Channel attribution. |
 | `apps/api/src/services/memberResolution.ts` | **NEW**. `resolveOrEnrollMember(brandId, identifier, opts)` — single call site for all auto-enroll paths. Validates identifier shape per `Brand.memberIdentifierKind`. |
 | `apps/api/src/services/consentResolver.ts` | **NEW**. `getConsentTextForSurvey(surveyId)` returns `{ text, isSuppressed, sourcedFrom: 'override' | 'brand-default' }` — encapsulates R16/R17 hierarchy. |
+| `apps/api/src/services/ipGeo.ts` | **NEW**. Provider-abstracted `IpGeoProvider` interface + V0 `AzureMapsIpGeoProvider` impl (calls `https://atlas.microsoft.com/geolocation/ip/json` with 500ms timeout). Selected via `IP_GEO_PROVIDER` env var, default `azure-maps`. Returns ISO country or `null`. See § Enrollment-signal capture. |
 | `apps/api/src/schemas/EnrollMemberSchema.ts` | Make `consentGivenAt` optional. Drop `email` requirement; introduce `memberId: string` (the identifier value) + optional `email`/`phone` PII fields. |
 | `apps/web/src/app/(member)/enroll/page.tsx` (existing) | If brand is in `EXPLICIT` consentMode, render brand's `consentTextDefault` with privacy/terms links (replaces hard-coded copy). |
 | `apps/worker/src/jobs/erasure.ts` | Add `externalId` to the field-zero list (GDPR Art. 17 / CCPA §1798.105). |
@@ -198,12 +199,36 @@ LoyaltyEvent.payload = {
 
 The selected IP is hashed before storage — raw IP is **never** persisted, even in logs. Hash salt is `Brand.id` so the same IP across brands does not collide (prevents cross-tenant correlation).
 
-**IP-geo provider:**
-Pick at implementation time; deferred decision (out of RFC scope). Candidates:
-- **Cloudflare `CF-IPCountry` header** — free if behind CF; pre-resolved by the edge; zero added latency
-- **MaxMind GeoLite2 self-hosted** — free, ~25MB DB embedded in the API container; ~5ms lookup
-- **ip-api.com free tier** — external HTTP call; adds 100-200ms; rate-limited
-- Default fallback: if no provider is configured, write `ipCountryIso: null` and proceed
+**IP-geo provider — picked: Azure Maps Geolocation IP-to-country API**
+
+Endpoint: `GET https://atlas.microsoft.com/geolocation/ip/json?subscription-key={key}&api-version=1.0&ip={ip}` → returns `{ "countryRegion": { "isoCode": "US" }, "ipAddress": "..." }`.
+
+| Candidate | Verdict | Rationale |
+|---|---|---|
+| Cloudflare `CF-IPCountry` header | **Reject** | Project not behind Cloudflare. Architecture doc §8 has CDN = Azure Front Door, not CF. Header doesn't exist in the request path. |
+| Azure Front Door custom rule injecting country header | **Reject for V0** | Possible (AFD Standard/Premium rules-engine extracts geo and writes a request header), but requires (a) AFD SKU verification + possible upgrade, (b) a Terraform change in the IaC layer, (c) cross-config coordination between infra + app code. Higher setup cost than the API option for the same accuracy. Worth revisiting when V1 traffic justifies the latency saving. |
+| MaxMind GeoLite2 self-hosted | **Reject for V0** | Best at-scale economics (free DB, ~5ms lookups, no external dependency). But: ~25 MB binary in the container image, monthly DB-update cron, MaxMind license-key management, and license terms (must update every 30 days, must remove if discontinued). Higher one-time and ongoing setup cost than Azure Maps for a test-customer-volume system. **Migration target** when transaction volume justifies the swap (see "Swap path" below). |
+| ip-api.com free tier | **Reject** | Free tier is HTTP-only — passing client IPs over plaintext to a third-party endpoint is a non-starter. Rate-limited to 45 req/min. Paid tier has HTTPS but no advantage over Azure Maps. |
+| ipinfo.io | **Reject for V0** | HTTPS, generous free tier (50k/month). External dependency outside the existing Azure footprint — adds a new vendor relationship for marginal benefit over Azure Maps. |
+| **Azure Maps Geolocation API** | **Picked** | (1) Azure-native — fits the project's Azure Container Apps + Front Door + Key Vault stack with zero new operational categories. (2) `subscription-key` lives in Azure Key Vault per the project's production-secrets policy (CLAUDE.md "Production Secrets Policy"); pattern matches the existing `OPENAI_API_KEY` flow. (3) Free tier of S0 SKU = 25,000 transactions/month, which dwarfs current test-customer volume; Gen2 pay-as-you-go pricing is ~$0.50 per 1k transactions thereafter. (4) Latency p99 ~50-100ms (HTTPS round-trip to `atlas.microsoft.com`) — within the hero-#6 <1s synchronous-path budget. (5) Provider abstraction is trivial: a single `getCountryFromIp(ip): Promise<string \| null>` function in `apps/api/src/services/ipGeo.ts` lets us swap providers later without touching call sites. |
+
+**Implementation contract (provider-abstracted):**
+
+```typescript
+// apps/api/src/services/ipGeo.ts
+export interface IpGeoProvider {
+  getCountryFromIp(ip: string): Promise<string | null>;  // ISO 3166-1 alpha-2 or null on miss/timeout
+}
+
+// V0: AzureMapsIpGeoProvider — calls Azure Maps geolocation API with 500ms timeout, falls back to null
+// V1+: MaxMindIpGeoProvider — same interface, in-process lookup (swap when scale justifies)
+```
+
+The provider is selected via `IP_GEO_PROVIDER` env var (default `azure-maps`); the call site in the survey-respond handler does not know which provider is configured.
+
+**New secret:** `AZURE_MAPS_KEY` added to Key Vault `customereq-kv` per the production-secrets pattern in CLAUDE.md (`az keyvault secret set` → `containerapp secret set` with `keyvaultref:` → env via `secretRef:`). Migration script `scripts/migrate-secrets-to-keyvault.sh` is the canonical reference.
+
+**Swap path to MaxMind (when V0 → V1):** trigger conditions are (a) Azure Maps monthly transactions exceed ~100k (cost line item becomes meaningful) OR (b) p99 latency to Azure Maps exceeds 200ms sustained for >24h (network reliability concern). Swap is a single file change (new `MaxMindIpGeoProvider` implementing the same interface) plus container-image work to package the GeoLite2 DB. The `enrollmentSignals` data already in `LoyaltyEvent.payload` rows from V0 is unchanged — only the provider for *new* lookups changes. No data migration needed.
 
 **Hero #6 SLA:** the IP-hash + country-lookup path adds <10ms when CF or MaxMind is used; <250ms with ip-api fallback. Always within the <1s p99 budget. If lookup fails or times out (>500ms), the handler proceeds with `ipCountryIso: null` — never block the submit on geo-lookup.
 
