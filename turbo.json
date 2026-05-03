@@ -3,7 +3,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**", "!.next/cache/**"]
+      "outputs": [".next/**", "dist/**", "!.next/cache/**"],
+      "env": [
+        "NEXT_PUBLIC_DEMO_BRAND_NAME",
+        "NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR",
+        "NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR",
+        "NEXT_PUBLIC_DEMO_API_URL"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"]

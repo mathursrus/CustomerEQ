@@ -17,6 +17,8 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "pnpm --filter @customerEQ/web test:e2e",
+    "test:e2e:demo": "pnpm --filter @customerEQ/demo-storefront test:e2e",
+    "demo": "pnpm --filter @customerEQ/demo-storefront dev",
     "test:smoke": "turbo run test:smoke",
     "test:baml": "pnpm --filter @customerEQ/ai test:baml",
     "test:all": "turbo run test test:integration",
