@@ -2,7 +2,7 @@
 
 Issue: #262  
 Owner: swavak@gmail.com  
-Status: **DRAFT — OQ-1/OQ-2 answered; awaiting OQ-1a and OQ-3 before implementation**
+Status: **READY FOR IMPLEMENTATION — all open questions resolved**
 
 ---
 
@@ -58,22 +58,17 @@ Clients with thousands of historical responses cannot feasibly re-enter them man
 
 ---
 
-### OQ-3: What does "connect historical data with future surveys" mean?
+### OQ-3: What does "connect historical data with future surveys" mean? ✅ ANSWERED
 
-Two interpretations, with different implementation implications:
+**Answer (2026-05-03):** Analytics continuity only for v1. Historical responses appear in trend charts, NPS baselines, clustering, and anomaly detection. No effect on loyalty tier, health score, or campaigns.
 
-| Interpretation | Meaning | What we build |
-|---------------|---------|--------------|
-| **Analytics continuity only** | Historical responses appear in trend charts, NPS baselines, clustering, and anomaly detection. No effect on loyalty tier or campaigns. | Import data → run through sentiment pipeline → surface in analytics. No changes to loyalty engine. |
-| **Loyalty signal influence** | A member's historical NPS=3 should increase their winback campaign priority or lower their health score going forward. | Import data → score feeds into member health score calculation → loyalty rules can reference it. Significant additional scope. |
+**Rationale:** Many historical records (especially Google Reviews) have no member linkage, so feeding them into the loyalty engine is not reliably possible. If the analytics data shows clear signal that warrants revisiting this, loyalty engine integration becomes a future feature at that point.
 
-**Question for owner:** Is this analytics continuity only, or should historical sentiment influence the real-time loyalty engine?
+**What we build:** Import data → run through sentiment pipeline → surface in analytics. No changes to loyalty engine, health score computation, or campaign trigger evaluation.
 
 ---
 
-## User Experience (Updated for source adapter approach)
-
-*OQ-3 (loyalty engine influence) still pending — this section assumes analytics continuity only and will be updated once answered.*
+## User Experience
 
 ### UX Flow
 
@@ -118,9 +113,7 @@ Google Business Profile exports a CSV with these columns (as of 2025):
 | *(none)* | `channel` | Hardcoded to `review` |
 | `Review ID` (if present) | `externalId` | Deduplication key |
 
-**Member matching:** No email available. Records are stored as anonymous historical responses with `memberId = null` and `sourceKey = SHA256(Reviewer + Date)` for deduplication. Anonymous records contribute to analytics (NPS trend, sentiment clustering) but are excluded from loyalty engine calculations.
-
-> Pending OQ-1a answer: if fuzzy name matching against existing members is approved, this changes.
+**Member matching:** No email available. Records are stored as anonymous historical responses with `memberId = null` and `sourceKey = SHA256(Reviewer + Date)` for deduplication. Anonymous records contribute to analytics (NPS trend, sentiment clustering) but are excluded from loyalty engine calculations. *(OQ-1a resolved: anonymous records — no fuzzy name matching.)*
 
 ---
 
@@ -209,9 +202,11 @@ The key CustomerEQ advantage for this feature is **member continuity**: we don't
 
 ## Open Questions Summary
 
-| ID | Question | Status | Blocks |
-|----|----------|--------|--------|
-| OQ-1 | Which tools do first clients export from? | ✅ Answered — Google Reviews (v1), Excel flexible (v2) | —  |
-| OQ-1a | For Google Reviews (no email): anonymous records or fuzzy name matching? | ⏳ Pending | Google Reviews adapter member-matching design |
-| OQ-2 | Fixed template vs mapping wizard? | ✅ Answered — source adapter library | — |
-| OQ-3 | Analytics continuity only, or should historical sentiment influence loyalty engine? | ⏳ Pending | Technical scope (significant if yes); anonymous Google Reviews records cannot contribute to loyalty engine without OQ-3 resolved |
+All open questions resolved. Implementation may begin.
+
+| ID | Question | Resolution |
+|----|----------|------------|
+| OQ-1 | Which tools do first clients export from? | Google Reviews (v1), Excel flexible (v2) |
+| OQ-1a | Google Reviews — anonymous records or fuzzy name matching? | Anonymous records (`memberId = null`) |
+| OQ-2 | Fixed template vs mapping wizard? | Source adapter library — server-side per-source mapping |
+| OQ-3 | Analytics only vs loyalty engine influence? | Analytics only for v1; loyalty engine integration is a future feature |
