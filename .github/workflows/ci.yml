@@ -107,9 +107,22 @@ jobs:
           context: .
           file: Dockerfile.api
           push: false
+          load: true
           tags: ceq-api:${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
+
+      # Module-resolution probe: catches BAML-class regressions (#273) at PR
+      # time by running the built image with a one-shot dynamic import of
+      # @customerEQ/ai. Probe target is deliberately narrow — importing the
+      # full app entry would couple this gate to env-var reads and produce
+      # false positives in CI. CI is complementary to the existing CD-side
+      # `Verify API health` gate, not a replacement.
+      - name: Verify API image module resolution
+        run: |
+          docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
+            --input-type=module \
+            -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build worker image
         uses: docker/build-push-action@v6
@@ -117,9 +130,16 @@ jobs:
           context: .
           file: Dockerfile.worker
           push: false
+          load: true
           tags: ceq-worker:${{ github.sha }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,scope=worker,mode=max
+
+      - name: Verify Worker image module resolution
+        run: |
+          docker run --rm --entrypoint node ceq-worker:${{ github.sha }} \
+            --input-type=module \
+            -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build web image
         uses: docker/build-push-action@v6
