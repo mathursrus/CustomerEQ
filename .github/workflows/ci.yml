@@ -114,15 +114,18 @@ jobs:
 
       # Module-resolution probe: catches BAML-class regressions (#273) at PR
       # time by running the built image with a one-shot dynamic import of
-      # @customerEQ/ai. Probe target is deliberately narrow — importing the
-      # full app entry would couple this gate to env-var reads and produce
-      # false positives in CI. CI is complementary to the existing CD-side
-      # `Verify API health` gate, not a replacement.
+      # the @customerEQ/ai dist entry. Probe target is deliberately narrow —
+      # importing the full app entry would couple this gate to env-var reads
+      # and produce false positives in CI. We import the dist directly by
+      # path rather than by package name because pnpm doesn't hoist workspace
+      # packages to /app/node_modules; the dist path is stable across builds
+      # and exercises the exact module tree that crashed in #273. CI is
+      # complementary to the existing CD-side `Verify API health` gate.
       - name: Verify API image module resolution
         run: |
           docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
             --input-type=module \
-            -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build worker image
         uses: docker/build-push-action@v6
@@ -139,7 +142,7 @@ jobs:
         run: |
           docker run --rm --entrypoint node ceq-worker:${{ github.sha }} \
             --input-type=module \
-            -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build web image
         uses: docker/build-push-action@v6

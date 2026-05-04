@@ -13,7 +13,7 @@
 
 ### CI changes
 
-- [ ] `.github/workflows/ci.yml` — in the `docker-build` job, after `Build api image`, add step `Verify API image module resolution` that runs `node --input-type=module -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` against `ceq-api:${{ github.sha }}`.
+- [ ] `.github/workflows/ci.yml` — in the `docker-build` job, after `Build api image`, add step `Verify API image module resolution` that runs `node --input-type=module -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` against `ceq-api:${{ github.sha }}`.
 - [ ] `.github/workflows/ci.yml` — same step pattern after `Build worker image` (`Verify Worker image module resolution`) against `ceq-worker:${{ github.sha }}`.
 - [ ] Web image is exempt — `apps/web` does not depend on `@customerEQ/ai`.
 
@@ -28,7 +28,7 @@
 - [ ] **Mobile validation**: not required (no mobile surface).
 - [ ] **Browser validation**: not required.
 - [ ] **Code-load probe (local)**: `pnpm --filter @customerEQ/ai run generate` then `grep -nE 'from "\\./[a-z_]+"' packages/ai/src/generated/baml_client/index.ts` returns no extensionless imports.
-- [ ] **Built-image probe (local)**: `docker build -f Dockerfile.api -t ceq-api:test .` then `docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` exits 0.
+- [ ] **Built-image probe (local)**: `docker build -f Dockerfile.api -t ceq-api:test .` then `docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` exits 0.
 - [ ] **CI green**: PR's CI run shows `Verify API image module resolution` and `Verify Worker image module resolution` steps both passing.
 - [ ] **Existing CI gates still green**: `pnpm typecheck`, `pnpm lint`, `pnpm test:smoke`, `docker-build` job all pass.
 - [ ] **Smoke test (post-merge, deferred to CD)**: existing `Verify API health` step in `deploy.yml` returns 200 from a new `customereq-api--<NNNN>` revision serving the new image.

@@ -84,10 +84,12 @@ The CI probe imports `@customerEQ/ai` directly. That is the narrowest target tha
   run: |
     docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
       --input-type=module \
-      -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+      -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 ```
 
 The same step is added for `ceq-worker:${{ github.sha }}` — the worker has the same dependency on `@customerEQ/ai` and would surface the same regression independently.
+
+Note on probe path: we import the dist by absolute path (`/app/packages/ai/dist/index.js`), not by package name (`@customerEQ/ai`). pnpm's workspace-package layout doesn't hoist `@customerEQ/ai` into `/app/node_modules/`, so a `node -e` running in `/app` (the image's WORKDIR) cannot resolve the package by name. The dist path is stable across builds, identical between api and worker images, and exercises the exact module tree that crashed in #273. Same scope as the package-name import; more reliable mechanism.
 
 Each runs in <2 seconds, has no DB/Redis/env dependency, and fails the CI job on any `ERR_MODULE_NOT_FOUND` / circular-import / missing-dist-file inside the BAML codegen output or the `@customerEQ/ai` package's own module tree. Stops the entire class of regression at PR time.
 
@@ -139,7 +141,7 @@ The remaining 5% is the unlikely possibility that some downstream consumer of `@
 |---|---|---|
 | BAML regenerated locally with new `module_format` | All relative imports in `src/generated/baml_client/*.ts` end in `.js` | Local: `pnpm --filter @customerEQ/ai run generate && grep -REn 'from "\\./[a-z_]+"' packages/ai/src/generated/baml_client/` returns no matches |
 | BAML rejects bogus value | Codegen errors fail-fast with a useful message | Spike confirmed (manual one-off) |
-| API/Worker images load `@customerEQ/ai` cleanly with the new BAML output | `node --input-type=module -e "await import('@customerEQ/ai')"` exits 0 without `ERR_MODULE_NOT_FOUND` | New CI step `Verify API image module resolution` (and worker equivalent). Local: `docker build -f Dockerfile.api -t ceq-api:test . && docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` |
+| API/Worker images load the AI package's BAML output cleanly | `node --input-type=module -e "await import('/app/packages/ai/dist/index.js')"` exits 0 without `ERR_MODULE_NOT_FOUND` | New CI step `Verify API image module resolution` (and worker equivalent). Local: `docker build -f Dockerfile.api -t ceq-api:test . && docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` |
 | API container deployed to prod activates cleanly | New revision `customereq-api--<NNNN>` reaches `Running, Healthy`; `0000111` deactivates | Post-merge: `az containerapp revision list --name customereq-api --query "[?properties.active]"` returns the new revision only |
 | CD's `Verify API health` step passes | `/healthz` returns 200 from the new revision | Post-merge: CD job log shows "API health check passed" |
 | Existing `@customerEQ/ai` consumers continue to work | All `packages/ai` unit + smoke tests pass; `apps/api` and `apps/worker` typecheck and build | Existing CI: `pnpm typecheck`, `pnpm test:smoke`, `docker-build` job |
