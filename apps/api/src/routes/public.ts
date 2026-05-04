@@ -377,11 +377,10 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       // R18 — capture enrollment signals on auto-enroll *only*. Existing
       // members' enrollment signals were captured at their original enroll
       // moment; we don't re-capture on every survey response.
-      let enrollmentSignals: Awaited<ReturnType<typeof buildEnrollmentSignals>> | null = null
       if (autoEnrolled) {
         const ip = (request.ip ?? null) as string | null
         const ipCountryIso = await fastify.ipGeoProvider.getCountryFromIp(ip ?? '')
-        enrollmentSignals = buildEnrollmentSignals({
+        const enrollmentSignals = buildEnrollmentSignals({
           ip,
           brandId,
           ipCountryIso,
