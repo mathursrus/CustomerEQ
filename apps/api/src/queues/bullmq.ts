@@ -395,8 +395,9 @@ async function resolveExternalSignalMember(
     }
   }
 
+  // #231 PR2: switch to canonical externalId lookup (R5 case-insensitive).
   const member = await prisma.member.findUnique({
-    where: { brandId_email: { brandId, email: memberEmail } },
+    where: { brandId_externalId: { brandId, externalId: memberEmail.trim().toLowerCase() } },
     select: { id: true, consentGivenAt: true },
   })
 

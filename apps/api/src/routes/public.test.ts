@@ -7,20 +7,38 @@ import { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema } fro
 // ---------------------------------------------------------------------------
 
 describe('PublicSurveyResponseSchema', () => {
+  // Issue #231 PR2 — accepts memberId (new) or memberEmail (legacy back-compat).
   const valid = {
-    memberEmail: 'user@example.com',
+    memberId: 'user@example.com',
     answers: { q1: 'Great product!' },
     score: 9,
     channel: 'email' as const,
   }
 
-  it('accepts a valid full payload', () => {
+  it('accepts a valid payload with memberId', () => {
     expect(PublicSurveyResponseSchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('accepts legacy memberEmail field for back-compat with existing widget.js', () => {
+    const legacy = {
+      memberEmail: 'user@example.com',
+      answers: { q1: 'Great product!' },
+      score: 9,
+    }
+    expect(PublicSurveyResponseSchema.safeParse(legacy).success).toBe(true)
   })
 
   it('accepts payload without optional score', () => {
     const { score: _, ...noScore } = valid
     expect(PublicSurveyResponseSchema.safeParse(noScore).success).toBe(true)
+  })
+
+  it('accepts payload without memberId — handler enforces URL-query-or-body identifier', () => {
+    // The schema permits both memberId and memberEmail to be absent because
+    // the URL-query path (?member_id=…) is also a valid identifier carrier;
+    // the route handler enforces "at least one of (query, body)".
+    const { memberId: _, ...noId } = valid
+    expect(PublicSurveyResponseSchema.safeParse(noId).success).toBe(true)
   })
 
   it('defaults channel to "link" when omitted', () => {
@@ -30,8 +48,9 @@ describe('PublicSurveyResponseSchema', () => {
     if (result.success) expect(result.data.channel).toBe('link')
   })
 
-  it('rejects invalid email', () => {
-    expect(PublicSurveyResponseSchema.safeParse({ ...valid, memberEmail: 'not-email' }).success).toBe(false)
+  it('rejects invalid memberEmail when supplied', () => {
+    const bad = { memberEmail: 'not-email', answers: { q1: 'x' } }
+    expect(PublicSurveyResponseSchema.safeParse(bad).success).toBe(false)
   })
 
   it('rejects empty answers', () => {
@@ -48,6 +67,10 @@ describe('PublicSurveyResponseSchema', () => {
 
   it('rejects invalid channel', () => {
     expect(PublicSurveyResponseSchema.safeParse({ ...valid, channel: 'carrier_pigeon' }).success).toBe(false)
+  })
+
+  it('accepts optional consent boolean (R16 EXPLICIT-mode opt-in marker)', () => {
+    expect(PublicSurveyResponseSchema.safeParse({ ...valid, consent: true }).success).toBe(true)
   })
 })
 

@@ -70,17 +70,25 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
         lastName: form.lastName,
       })
 
-      // Step 2: Enroll member
+      // Step 2: Enroll member.
+      //
+      // Issue #231 PR2 — new API contract:
+      //   - `memberId` is the canonical identifier; we send the email value.
+      //   - `email` is sent as the PII sidecar (here it doubles as memberId
+      //     for EMAIL brands, but explicit-sidecar is forward-compatible with
+      //     PHONE / CUSTOMER_ID brands when the form is reused).
+      //   - `consentGivenAt` is preserved for audit; the integrator-supplied
+      //     timestamp wins over the server's auto-stamp.
       const res = await fetch(`${API_URL}/v1/members/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          memberId: form.email,
           email: form.email,
           firstName: form.firstName,
           lastName: form.lastName,
           phone: form.phone || undefined,
           programId: program.programId,
-          consentGiven: true,
           consentGivenAt: new Date().toISOString(),
           consentVersion: 'privacy-v1.0',
           emailOptIn: form.emailOptIn,
@@ -90,12 +98,24 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
 
       const body = await res.json() as Record<string, unknown>
 
+      // R6 idempotent re-enroll: the API now returns 200 (not 409) when the
+      // same identifier re-enrolls. Treat the `updated: true` payload as a
+      // friendly "already enrolled" signal and route to sign-in.
+      if (res.status === 200 && body.updated === true) {
+        setError('This email is already enrolled. Please sign in instead.')
+        return
+      }
       if (res.status === 409) {
+        // Reserved for V1+ identifier-change conflicts.
         setError('This email is already enrolled. Please sign in instead.')
         return
       }
       if (res.status === 422) {
         setError((body.message as string) ?? 'Please check your input and try again.')
+        return
+      }
+      if (res.status === 400 && body.error === 'IDENTIFIER_SHAPE_INVALID') {
+        setError('Please enter a valid email address.')
         return
       }
       if (!res.ok) {

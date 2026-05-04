@@ -32,16 +32,20 @@ describe('Members API — /v1/members', () => {
   // -------------------------------------------------------------------------
 
   describe('POST /v1/members/enroll', () => {
+    // Issue #231 PR2 — polymorphic identifier model. `memberId` is the canonical
+    // identifier value (becomes externalId after lower+trim). `consentGivenAt`
+    // is optional; the server stamps now() if absent (R8). Re-enroll on the
+    // same `(brandId, externalId)` is idempotent (R6) — returns 200, not 409.
+
     it('enrolls a new member and returns EnrollMemberResponse shape', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
       const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'alice@example.com',
+        memberId: 'alice@example.com',
         firstName: 'Alice',
         lastName: 'Smith',
         programId: program.id,
-        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       })
 
@@ -51,20 +55,20 @@ describe('Members API — /v1/members', () => {
       expect(res.body.firstName).toBe('Alice')
       expect(res.body.pointsBalance).toBe(0)
       expect(res.body.programName).toBe(program.name)
+      expect(res.body.enrolledVia).toBe('MANUAL_API')
       expect(res.body.enrollmentBonusPending).toBe(true)
     })
 
-    it('sets consentGivenAt in the DB after enrollment', async () => {
+    it('preserves a caller-supplied consentGivenAt verbatim', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-      const consentAt = new Date().toISOString()
+      const consentAt = '2024-06-15T10:00:00.000Z'
 
       const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'consent-check@example.com',
+        memberId: 'consent-check@example.com',
         firstName: 'Consent',
         lastName: 'Check',
         programId: program.id,
-        consentGiven: true,
         consentGivenAt: consentAt,
       })
 
@@ -72,22 +76,45 @@ describe('Members API — /v1/members', () => {
 
       const prisma = getTestPrisma()
       const member = await prisma.member.findUnique({
-        where: { brandId_email: { brandId: brand.id, email: 'consent-check@example.com' } },
+        where: { brandId_externalId: { brandId: brand.id, externalId: 'consent-check@example.com' } },
+        select: { consentGivenAt: true },
+      })
+      expect(member?.consentGivenAt?.toISOString()).toBe(consentAt)
+    })
+
+    it('server-stamps consentGivenAt when caller omits it (R8)', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const before = Date.now()
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'autostamp@example.com',
+        programId: program.id,
+      })
+      const after = Date.now()
+
+      expect(res.status).toBe(201)
+
+      const prisma = getTestPrisma()
+      const member = await prisma.member.findUnique({
+        where: { brandId_externalId: { brandId: brand.id, externalId: 'autostamp@example.com' } },
         select: { consentGivenAt: true },
       })
       expect(member?.consentGivenAt).not.toBeNull()
+      const ts = member!.consentGivenAt!.getTime()
+      expect(ts).toBeGreaterThanOrEqual(before)
+      expect(ts).toBeLessThanOrEqual(after)
     })
 
-    it('returns 409 EMAIL_ALREADY_ENROLLED when enrolling the same email twice', async () => {
+    it('R6 — re-enroll on the same (brandId, externalId) returns 200 with idempotent payload', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
       const payload = {
-        email: 'bob@example.com',
+        memberId: 'bob@example.com',
         firstName: 'Bob',
         lastName: 'Jones',
         programId: program.id,
-        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       }
 
@@ -95,25 +122,52 @@ describe('Members API — /v1/members', () => {
       expect(firstRes.status).toBe(201)
 
       const secondRes = await unauthenticatedRequest().post('/v1/members/enroll').send(payload)
-      expect(secondRes.status).toBe(409)
-      expect(secondRes.body.error).toBe('EMAIL_ALREADY_ENROLLED')
+      expect(secondRes.status).toBe(200)
+      expect(secondRes.body.memberId).toBe(firstRes.body.memberId)
+      expect(secondRes.body.updated).toBe(false)
+      expect(secondRes.body.updatedFields).toEqual([])
     })
 
-    it('returns 422 CONSENT_REQUIRED when consentGiven is false', async () => {
+    it('R6 — last-write-wins on profile fields when re-enrolling', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
-      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'noconsent@example.com',
-        firstName: 'No',
-        lastName: 'Consent',
+      await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'lww@example.com',
+        firstName: 'Original',
+        lastName: 'Name',
         programId: program.id,
-        consentGiven: false,
-        consentGivenAt: new Date().toISOString(),
       })
 
-      expect(res.status).toBe(422)
-      expect(res.body.error).toBe('CONSENT_REQUIRED')
+      const updateRes = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'lww@example.com',
+        firstName: 'Updated',
+        lastName: 'Name',
+        programId: program.id,
+      })
+
+      expect(updateRes.status).toBe(200)
+      expect(updateRes.body.updated).toBe(true)
+      expect(updateRes.body.updatedFields).toContain('firstName')
+      expect(updateRes.body.firstName).toBe('Updated')
+    })
+
+    it('R5 — case-insensitive lookup: ALICE@x.com matches alice@x.com', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const a = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'alice@x.com',
+        programId: program.id,
+      })
+      expect(a.status).toBe(201)
+
+      const b = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: '  ALICE@x.com  ',
+        programId: program.id,
+      })
+      expect(b.status).toBe(200)
+      expect(b.body.memberId).toBe(a.body.memberId)
     })
 
     it('persists emailOptIn and smsOptIn when provided', async () => {
@@ -121,11 +175,10 @@ describe('Members API — /v1/members', () => {
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
       const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'optin@example.com',
+        memberId: 'optin@example.com',
         firstName: 'Opt',
         lastName: 'In',
         programId: program.id,
-        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
         emailOptIn: true,
         smsOptIn: true,
@@ -135,71 +188,77 @@ describe('Members API — /v1/members', () => {
 
       const prisma = getTestPrisma()
       const member = await prisma.member.findUnique({
-        where: { brandId_email: { brandId: brand.id, email: 'optin@example.com' } },
+        where: { brandId_externalId: { brandId: brand.id, externalId: 'optin@example.com' } },
         select: { emailOptIn: true, smsOptIn: true },
       })
       expect(member?.emailOptIn).toBe(true)
       expect(member?.smsOptIn).toBe(true)
     })
 
-    it('returns 422 when consentGivenAt is absent', async () => {
-      const brand = await createBrand()
-      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-
-      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'missing-consent-at@example.com',
-        firstName: 'No',
-        lastName: 'Consent',
-        programId: program.id,
-        consentGiven: true,
-        // consentGivenAt intentionally omitted
-      })
-
-      expect(res.status).toBe(422)
-      expect(res.body.error).toBe('Validation failed')
-    })
-
-    it('returns 422 when email is missing', async () => {
+    it('returns 422 when memberId is missing', async () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
 
       const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
         firstName: 'Missing',
-        lastName: 'Email',
+        lastName: 'Id',
         programId: program.id,
-        consentGiven: true,
-        consentGivenAt: new Date().toISOString(),
       })
 
       expect(res.status).toBe(422)
       expect(res.body.error).toBe('Validation failed')
     })
 
-    it('allows re-enrollment with same email on a different brand (201)', async () => {
+    it('returns 400 IDENTIFIER_SHAPE_INVALID for non-email memberId on EMAIL brand', async () => {
+      // EMAIL is the default brand identifier kind. A non-email memberId without
+      // an email PII sidecar fails identifier-shape validation (R4).
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'CUST-12345',
+        programId: program.id,
+      })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('IDENTIFIER_SHAPE_INVALID')
+      expect(res.body.expectedKind).toBe('EMAIL')
+    })
+
+    it('accepts opaque memberId on EMAIL brand when email PII sidecar is supplied', async () => {
+      const brand = await createBrand()
+      const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+
+      const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
+        memberId: 'CUST-12345',
+        email: 'cust12345@example.com',
+        programId: program.id,
+      })
+
+      expect(res.status).toBe(201)
+      expect(res.body.email).toBe('cust12345@example.com')
+    })
+
+    it('allows the same memberId on a different brand (201 on each)', async () => {
       const brandA = await createBrand()
       const brandB = await createBrand()
       const programA = await createProgram({ brandId: brandA.id, status: 'ACTIVE' })
       const programB = await createProgram({ brandId: brandB.id, status: 'ACTIVE' })
-      const email = 'shared@example.com'
-      const consentAt = new Date().toISOString()
+      const memberId = 'shared@example.com'
 
       const resA = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email,
+        memberId,
         firstName: 'Shared',
         lastName: 'User',
         programId: programA.id,
-        consentGiven: true,
-        consentGivenAt: consentAt,
       })
       expect(resA.status).toBe(201)
 
       const resB = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email,
+        memberId,
         firstName: 'Shared',
         lastName: 'User',
         programId: programB.id,
-        consentGiven: true,
-        consentGivenAt: consentAt,
       })
       expect(resB.status).toBe(201)
       expect(resB.body.memberId).not.toBe(resA.body.memberId)
@@ -207,12 +266,10 @@ describe('Members API — /v1/members', () => {
 
     it('returns 404 when programId does not exist', async () => {
       const res = await unauthenticatedRequest().post('/v1/members/enroll').send({
-        email: 'badprogram@example.com',
+        memberId: 'badprogram@example.com',
         firstName: 'Bad',
         lastName: 'Program',
         programId: '00000000-0000-0000-0000-000000000000',
-        consentGiven: true,
-        consentGivenAt: new Date().toISOString(),
       })
 
       expect(res.status).toBe(404)

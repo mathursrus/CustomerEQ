@@ -300,12 +300,14 @@ async function main() {
       enrolledMembers.push({ email: persona.email, firstName: persona.firstName, id: existing.id })
       continue
     }
+    // Issue #231 PR2: enroll API takes memberId + optional consentGivenAt
+    // (server-stamps when omitted). consentGiven literal-true was dropped.
     const res = await api<{ memberId: string }>('POST', '/v1/members/enroll', {
+      memberId: persona.email,
       email: persona.email,
       firstName: persona.firstName,
       lastName: persona.lastName,
       programId,
-      consentGiven: true,
       consentGivenAt: new Date().toISOString(),
       consentVersion: '1.0',
     })

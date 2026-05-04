@@ -4,21 +4,28 @@ import { apiFetch } from '../api-client.js'
 import type { ApiFetch } from '../api-client.js'
 
 export function registerMemberTools(server: McpServer, fetch: ApiFetch = apiFetch) {
-  // Enroll member
+  // Enroll member — Issue #231 PR2 polymorphic identifier shape.
   server.tool(
     'enroll_member',
-    'Enroll a new member in a loyalty program. Idempotent — returns existing member if email already enrolled.',
+    'Enroll a new member in a loyalty program. Idempotent — re-enrolling the same identifier returns 200 with the existing member and any field updates applied.',
     z.object({
-      email: z.string().email().describe('Member email address'),
+      email: z.string().email().describe('Member email — used as both the identifier and PII sidecar for EMAIL brands'),
       programId: z.string().describe('Loyalty program ID'),
       firstName: z.string().describe('First name'),
       lastName: z.string().describe('Last name'),
       phone: z.string().optional().describe('Phone number'),
     }).shape,
     async (params) => {
+      const { email, ...rest } = params
       const res = await fetch('/v1/members/enroll', {
         method: 'POST',
-        body: { ...params, consentGiven: true, consentGivenAt: new Date().toISOString(), consentVersion: '1.0' },
+        body: {
+          ...rest,
+          memberId: email,
+          email,
+          consentGivenAt: new Date().toISOString(),
+          consentVersion: '1.0',
+        },
       })
       if (!res.ok) return { content: [{ type: 'text' as const, text: `Error: ${res.error}` }] }
       return { content: [{ type: 'text' as const, text: `Member enrolled: ${JSON.stringify(res.data, null, 2)}` }] }

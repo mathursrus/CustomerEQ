@@ -160,9 +160,11 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: 'Webhook endpoint not configured' })
       }
 
-      // Look up member by email within the brand
+      // #231 PR2: switch to canonical externalId lookup (R5 case-insensitive).
+      // Pre-#231 lookups by email were case-sensitive — `Bob@x.com` and
+      // `bob@x.com` would resolve to different members.
       const member = await fastify.prisma.member.findUnique({
-        where: { brandId_email: { brandId, email: normalized.memberEmail } },
+        where: { brandId_externalId: { brandId, externalId: normalized.memberEmail.trim().toLowerCase() } },
         select: { id: true, consentGivenAt: true },
       })
 
@@ -252,8 +254,9 @@ const webhooksRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: 'Cannot determine brand from webhook request' })
       }
 
+      // #231 PR2: canonical externalId lookup (R5 case-insensitive).
       const member = await fastify.prisma.member.findUnique({
-        where: { brandId_email: { brandId, email: normalized.memberEmail } },
+        where: { brandId_externalId: { brandId, externalId: normalized.memberEmail.trim().toLowerCase() } },
         select: { id: true, consentGivenAt: true },
       })
 

@@ -321,9 +321,12 @@ model Member {
   // PR1 ships externalId as the canonical key alongside the existing email column.
   // PR2 will make `email` nullable when auto-enrolling members for PHONE / CUSTOMER_ID brands.
   // V0 is uniformly case-insensitive across all identifier kinds (R5).
-  externalId           String               // R4 — backfilled from LOWER(TRIM(email)) during migration
-  enrolledVia          MemberEnrolledVia    // R15 — backfilled to MANUAL_API for pre-existing rows
-  email                String
+  externalId           String               // R4 — canonical lookup column (lowercased + trimmed)
+  enrolledVia          MemberEnrolledVia    // R15 — set at create time per channel attribution
+  // PR2 (#231): email is now nullable. Auto-enrolled members on PHONE /
+  // CUSTOMER_ID brands have no email at create time; the field is populated
+  // later if/when the integrator provides one (R6 idempotent upsert).
+  email                String?
   clerkUserId          String?
   firstName            String?
   lastName             String?
@@ -352,12 +355,10 @@ model Member {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
-  // PR1 keeps both unique constraints to stay strictly additive: every existing
-  // call site that uses brandId_email continues to work, and brandId_externalId
-  // is the new canonical lookup. PR2 drops @@unique([brandId, email]) at the
-  // same time it makes `email` nullable to support non-EMAIL identifier kinds.
-  @@unique([brandId, email])
-  @@unique([brandId, externalId])               // R4 — new canonical lookup
+  // PR2 (#231): @@unique([brandId, email]) dropped — externalId is now the
+  // canonical lookup. email is a PII sidecar populated when identifierKind=EMAIL
+  // (and may be set via the late-arriving update path R6 for non-EMAIL brands).
+  @@unique([brandId, externalId])               // R4 — canonical lookup
   @@index([brandId])
   @@index([brandId, externalId])                // R5 — canonical lookup index
   @@index([clerkUserId, brandId])
