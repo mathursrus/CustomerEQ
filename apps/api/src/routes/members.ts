@@ -107,10 +107,16 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
     let member: Awaited<ReturnType<typeof fastify.prisma.member.create>>
     try {
+      // Issue #231 PR1: externalId mirrors LOWER(TRIM(email)) per the migration
+      // backfill semantics; enrolledVia=MANUAL_API marks this as the integrator-
+      // POST enrollment channel (R15). PR2 rewrites this route for R6 idempotent
+      // upsert + R8 optional consentGivenAt + auto-enroll channel attribution.
       member = await fastify.prisma.member.create({
         data: {
           brandId,
           email: data.email,
+          externalId: data.email.trim().toLowerCase(),
+          enrolledVia: 'MANUAL_API',
           clerkUserId: clerkUserId ?? undefined,
           firstName: data.firstName ?? undefined,
           lastName: data.lastName ?? undefined,

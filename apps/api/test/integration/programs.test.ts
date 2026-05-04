@@ -425,10 +425,13 @@ describe('Programs API — /v1/programs', () => {
         const program = await createProgram({ brandId: brand.id })
         const tier = await createTier({ brandId: brand.id, programId: program.id, name: 'Gold', rank: 1 })
         const prisma = getTestPrisma()
+        const tierMemberEmail = `tier-member-${Date.now()}@test.com`
         await prisma.member.create({
           data: {
             brandId: brand.id,
-            email: `tier-member-${Date.now()}@test.com`,
+            email: tierMemberEmail,
+            externalId: tierMemberEmail.toLowerCase(),
+            enrolledVia: 'MANUAL_API',
             currentTierId: tier.id,
           },
         })

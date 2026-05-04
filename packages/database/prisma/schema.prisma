@@ -161,6 +161,33 @@ enum ExternalMatchStatus {
   REJECTED
 }
 
+// ─── Issue #231: Survey response data model rework ────────────────────────────
+
+enum MemberIdentifierKind {
+  EMAIL
+  PHONE
+  CUSTOMER_ID
+}
+
+enum ConsentMode {
+  EXPLICIT
+  IMPLIED_ON_SUBMIT
+}
+
+enum MemberEnrolledVia {
+  MANUAL_API       // integrator POST /v1/members/enroll
+  BULK_IMPORT      // bulk migration import
+  SURVEY_RESPONSE  // auto-enrolled via standalone survey link/email — responder self-identified on form
+  EMBEDDED_FORM    // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
+  CLERK_OAUTH      // signup via Clerk webhook
+}
+
+enum ResponsePolicy {
+  ONCE
+  MULTIPLE
+  LATEST_OVERWRITES
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
@@ -170,6 +197,12 @@ model Brand {
   // Step 1.5 org-profile fields (Issue #170)
   siteDomain            String?
   logoUrl               String?
+  // Issue #231 — Survey response data model rework
+  memberIdentifierKind  MemberIdentifierKind   @default(EMAIL)   // R4
+  consentMode           ConsentMode            @default(EXPLICIT) // R16
+  consentTextDefault    String?                                  // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl      String?                                  // R16 — captured at brand onboarding
+  termsUrl              String?                                  // R16 — captured at brand onboarding
   // FK to SurveyTheme.id when set. Application code is responsible for the
   // referential integrity check; we do not declare a Prisma @relation here
   // because the existing `survey_themes` table is not in the migration history
@@ -283,6 +316,13 @@ model Member {
   id                   String               @id @default(cuid())
   brandId              String
   brand                Brand                @relation(fields: [brandId], references: [id])
+  // Issue #231 — polymorphic identifier (PR1)
+  // externalId is the canonical lookup column (lowercased + trimmed at insert/lookup).
+  // PR1 ships externalId as the canonical key alongside the existing email column.
+  // PR2 will make `email` nullable when auto-enrolling members for PHONE / CUSTOMER_ID brands.
+  // V0 is uniformly case-insensitive across all identifier kinds (R5).
+  externalId           String               // R4 — backfilled from LOWER(TRIM(email)) during migration
+  enrolledVia          MemberEnrolledVia    // R15 — backfilled to MANUAL_API for pre-existing rows
   email                String
   clerkUserId          String?
   firstName            String?
@@ -312,8 +352,14 @@ model Member {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
+  // PR1 keeps both unique constraints to stay strictly additive: every existing
+  // call site that uses brandId_email continues to work, and brandId_externalId
+  // is the new canonical lookup. PR2 drops @@unique([brandId, email]) at the
+  // same time it makes `email` nullable to support non-EMAIL identifier kinds.
   @@unique([brandId, email])
+  @@unique([brandId, externalId])               // R4 — new canonical lookup
   @@index([brandId])
+  @@index([brandId, externalId])                // R5 — canonical lookup index
   @@index([clerkUserId, brandId])
   @@index([brandId, healthScore])
   @@map("members")
@@ -567,6 +613,11 @@ model Survey {
   triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
   triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
   surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
+  // Issue #231 — Survey response data model rework
+  responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
+  consentTextOverride           String?                            // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
+  consentSuppressedAttestedBy   String?                            // R17 — admin user who attested
+  consentSuppressedAttestedAt   DateTime?                          // R17 — attestation timestamp
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -709,7 +760,9 @@ model SurveyResponse {
   campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
   caseFollowUps  CaseFollowUp[]   // cases opened from this response
 
-  @@unique([surveyId, memberId]) // One response per member per survey
+  // R2 — `@@unique([surveyId, memberId])` removed; multiple responses per member-per-survey
+  // are now policy-controlled by `Survey.responsePolicy` (R3) at the application layer.
+  @@index([surveyId, memberId]) // R3 enforcement lookups (ONCE / LATEST_OVERWRITES)
   @@index([brandId, completedAt])
   @@index([clusterId])
   @@map("survey_responses")
