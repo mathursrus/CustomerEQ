@@ -7,6 +7,7 @@ import identityProviderPlugin from './plugins/identityProvider.js'
 import authPlugin from './plugins/auth.js'
 import multiTenantPlugin from './plugins/multiTenant.js'
 import auditPlugin from './plugins/audit.js'
+import ipGeoPlugin from './plugins/ipGeo.js'
 import { initQueues } from './queues/bullmq.js'
 
 import programsRoutes from './routes/programs.js'
@@ -72,6 +73,7 @@ export async function buildApp() {
   await fastify.register(authPlugin)
   await fastify.register(multiTenantPlugin)
   await fastify.register(auditPlugin)
+  await fastify.register(ipGeoPlugin)
 
   // Initialize BullMQ queues with the Redis connection
   fastify.addHook('onReady', () => {

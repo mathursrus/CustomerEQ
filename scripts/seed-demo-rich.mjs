@@ -50,12 +50,15 @@ async function getThemeId() {
   return t?.id
 }
 
-// Enroll member (idempotent)
+// Enroll member (idempotent — Issue #231 PR2 R6).
+// API takes `memberId` (canonical identifier) plus an optional `email` PII
+// sidecar. For EMAIL brands the email value doubles as memberId.
 async function ensureMember(email, first, last, programId) {
   const r = await api('POST', '/v1/members/enroll', {
-    email, firstName: first, lastName: last, programId, consentGivenAt: '2026-01-01T00:00:00Z'
+    memberId: email, email, firstName: first, lastName: last, programId,
+    consentGivenAt: '2026-01-01T00:00:00Z',
   })
-  return r?.id || 'existing'
+  return r?.memberId || r?.id || 'existing'
 }
 
 // Random helpers
