@@ -1,7 +1,7 @@
 # Feature: BAML codegen — ESM-friendly relative imports
 Issue: #273
 Feature Spec: none (bug fix; issue body is canonical)
-PR: pending — auto-created on `phase:design` label
+PR: [#275](https://github.com/mathursrus/CustomerEQ/pull/275)
 
 ## Completeness Evidence
 
@@ -28,6 +28,34 @@ PR: pending — auto-created on `phase:design` label
 | `architecture.md` doesn't document BAML codegen-at-build-time as a build-pipeline pattern (gitignored regenerated client, version pinning in two places) | Missing from architecture | Add sub-bullet to §3.5 (Shared Layer) or §6 (Design Patterns) | address-feedback phase |
 | `architecture.md` doesn't document the "built-image module-resolution probe" CI gate this RFC introduces | Missing from architecture | Add line to §11 Validation Commands | address-feedback phase |
 | Production deployment violates §3.3 line 69 (worker deployed in `QUEUE_MODE=inline` despite arch doc saying it isn't) | Incorrectly followed (production state, NOT this RFC's design) | Out of scope — tracked in #274 | #274 |
+
+## Feedback History
+
+Inlined contents of `docs/evidence/273-technical-design-feedback.md` per FRAIM design-submission step 1 ("Feedback History"):
+
+### Round 1 Feedback
+*Received: 2026-05-04 (PR #275 conversation, prior to first-pass review)*
+
+#### Comment 1 - ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: design-question
+- **File**: `docs/rfcs/273-baml-esm-imports.md`
+- **Comment**: "The probe checking if the image is activated — should it be in CI or CD?"
+- **Status**: ADDRESSED
+- **Resolution**:
+  - Updated RFC's "Technical Details → CI safety net" section to explicitly carve out CI vs CD responsibilities. CI probe = code-load gate (cheap, runs at PR time, no prod infra). CD `Verify API health` (already exists in `deploy.yml:119-132`) = deployed-revision gate (env/secrets/connectivity). They are complementary, not redundant.
+  - Added rationale (the empirical 16-day-skipped-CD argument for shift-left) and explicit "what CI can't catch" so the carve-out is durable.
+  - Validation Plan and Test Matrix tables updated to reflect both probes' scope.
+
+#### Comment 2 - ADDRESSED
+- **Author**: manohar.madhira@outlook.com  
+- **Type**: design-question (same conversation, derived from Comment 1's analysis)
+- **File**: `docs/rfcs/273-baml-esm-imports.md`
+- **Comment**: Probe-target choice — `apps/api/dist/server.js` would risk false positives from module-load-time env-var reads. Narrow to `@customerEQ/ai`.
+- **Status**: ADDRESSED
+- **Resolution**:
+  - Probe target narrowed from `apps/api/dist/server.js` to `@customerEQ/ai` directly. Narrowest target that exercises the regression class with zero side effects.
+  - RFC's "CI safety net → Probe target" subsection documents the rationale (avoid false positives from env-var-read module-load paths in unrelated packages).
 
 ## Due Diligence Evidence
 
