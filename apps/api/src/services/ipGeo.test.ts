@@ -3,7 +3,7 @@ import {
   AzureMapsIpGeoProvider,
   NoopIpGeoProvider,
   selectIpGeoProvider,
-} from './ipGeo'
+} from './ipGeo.js'
 
 interface CapturedLog {
   obj: unknown
@@ -36,22 +36,23 @@ describe('AzureMapsIpGeoProvider', () => {
   })
 
   it('returns the ISO country code on a successful Azure Maps response', async () => {
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({ countryRegion: { isoCode: 'US' }, ipAddress: '1.2.3.4' }),
-    )
+    const calledUrls: string[] = []
+    const fetchMock: typeof globalThis.fetch = async (input) => {
+      calledUrls.push(typeof input === 'string' ? input : input.toString())
+      return jsonResponse({ countryRegion: { isoCode: 'US' }, ipAddress: '1.2.3.4' })
+    }
     const provider = new AzureMapsIpGeoProvider({
       subscriptionKey: 'test-key',
       logger,
-      fetch: fetchMock as unknown as typeof globalThis.fetch,
+      fetch: fetchMock,
     })
 
     const country = await provider.getCountryFromIp('1.2.3.4')
 
     expect(country).toBe('US')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const calledUrl = fetchMock.mock.calls[0]?.[0] as string
-    expect(calledUrl).toContain('subscription-key=test-key')
-    expect(calledUrl).toContain('ip=1.2.3.4')
+    expect(calledUrls).toHaveLength(1)
+    expect(calledUrls[0]).toContain('subscription-key=test-key')
+    expect(calledUrls[0]).toContain('ip=1.2.3.4')
     expect(logs).toEqual([])
   })
 
