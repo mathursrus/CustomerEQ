@@ -2,7 +2,7 @@
 
 Issue: #262  
 Owner: swavak@gmail.com  
-Status: **DRAFT — Awaiting answers to Open Questions before implementation**
+Status: **DRAFT — OQ-1/OQ-2 answered; awaiting OQ-1a and OQ-3 before implementation**
 
 ---
 
@@ -31,39 +31,30 @@ Clients with thousands of historical responses cannot feasibly re-enter them man
 
 ---
 
-## ⚠️ Open Questions — Must Be Answered Before UX Is Designed
+## ⚠️ Open Questions
 
-These are blocking unknowns. The implementation will be wrong if we proceed without them.
+### OQ-1: What survey tools do target clients currently use? ✅ ANSWERED
 
-### OQ-1: What survey tools do target clients currently use?
+**Answer (2026-05-03):** Top use case is **Google Reviews**. Second is **Excel** with standard/common header columns — clients will have some columns and not others, and may have a few extra ones.
 
-Each tool exports with completely different column names and semantics. Without knowing which tools are in scope, we cannot design the column mapping.
+**Architectural direction:** Build an extensible **source adapter library**. Each source type defines its own column mapping and normalisation rules server-side. The import UI asks "what source is this from?", selects the appropriate adapter, and runs it. Google Reviews becomes adapter v1; Excel (flexible/lenient) becomes adapter v2. Over time the library grows without re-engineering the core pipeline.
 
-**Known format examples (to be validated with clients):**
+**Critical implication for Google Reviews:** Google Reviews exports do **not** include email addresses. The current member-matching strategy (match by email) breaks for this source. Google Reviews provides: reviewer display name, star rating (1–5), review text, date. The adapter design must resolve:
 
-| Tool | Score column name | Respondent ID | Date column |
-|------|------------------|---------------|-------------|
-| SurveyMonkey | `How likely are you to recommend...` (long text) | `Respondent ID` | `Start Date` |
-| Typeform | `nps_score` or custom alias | `token` | `Submitted at` |
-| Qualtrics | `NPS_1`, `NPS_GROUP` | `ResponseId` | `RecordedDate` |
-| Custom Excel | Anything | Anything | Anything |
+> **OQ-1a (new):** For Google Reviews respondents with no email, do we: (a) skip loyalty-member linkage and store as anonymous historical records, or (b) attempt fuzzy name matching against existing members? Option (a) is safe and auditable; option (b) is risky and error-prone.
 
-**Question for owner:** Which tools do the first 3–5 target clients use? Can we get one anonymised sample export?
+**Recommended:** Option (a) — anonymous historical records for Google Reviews, with a `sourceKey` (reviewer display name + review date hash) for deduplication. Member linkage remains email-only for sources that provide it (Excel, SurveyMonkey, etc.).
 
 ---
 
-### OQ-2: Column mapping approach — fixed template or mapping wizard?
+### OQ-2: Column mapping approach — fixed template or mapping wizard? ✅ ANSWERED (direction)
 
-Two design approaches:
+**Answer (2026-05-03):** Neither a single rigid template nor a full mapping wizard. Use the **source adapter library** approach described in OQ-1: each source type has a server-side adapter that knows its column schema. The UI presents a source selector; the adapter handles the mapping. Extensible by adding new adapters without UI changes.
 
-| Approach | Description | Build effort | Client effort |
-|----------|-------------|--------------|---------------|
-| **A. Fixed template** | We publish a CSV template (e.g. `email, score, verbatim, completed_at`). Client reformats their export before uploading. | Low (1–2 days) | High — client must reformat; non-technical clients may struggle |
-| **B. Mapping wizard** | Client uploads their raw export. A UI step shows their column names and lets them drag/map to CustomerEQ fields. | High (1–2 weeks) | Low — no reformatting needed |
-
-**Recommended path:** Start with **Option A (fixed template)** for the first client — it validates the pipeline without the mapping UI investment. Only build Option B if clients consistently struggle to reformat.
-
-**Question for owner:** Is Option A acceptable for the initial release, or do we know already that clients cannot reformat their own data?
+**Build effort by adapter:**
+- Google Reviews adapter: ~2–3 days (fixed schema, normalise 1–5 → 0–10, no email)
+- Excel flexible adapter: ~2–3 days (lenient header matching, tolerate unknown columns, skip missing optionals)
+- Future adapters (SurveyMonkey, Typeform, Qualtrics): ~1–2 days each once the framework exists
 
 ---
 
@@ -80,9 +71,9 @@ Two interpretations, with different implementation implications:
 
 ---
 
-## User Experience (Draft — Subject to OQ answers)
+## User Experience (Updated for source adapter approach)
 
-*This section describes the UX assuming Option A (fixed template) and analytics continuity only. It will be updated once OQs are answered.*
+*OQ-3 (loyalty engine influence) still pending — this section assumes analytics continuity only and will be updated once answered.*
 
 ### UX Flow
 
@@ -91,47 +82,64 @@ They see a new "Import Historical Data" button in the page header.
 
 **Step 2 — Admin clicks the button.**  
 A modal opens with:
-- A brief explanation: *"Upload a CSV of historical responses. Download our template to see the required format."*
-- A link to download the CSV template (`email` required; `score`, `verbatim`, `completed_at`, `channel`, `external_id` optional).
-- A file picker (accepts `.csv`).
+- A source selector: *"Where is this data from?"* — dropdown with Google Reviews, Excel, and future adapters.
+- Source-specific instructions shown inline (e.g. for Google Reviews: "Export your reviews from Google Business Profile → Manage reviews → Export").
+- A file picker (accepts `.csv` or `.xlsx` depending on source).
 - A "Start Import" button.
 
 **Step 3 — Admin uploads the file.**  
 On submit:
-- File is validated for size (≤10 MB) and required `email` column.
-- A batch record is created.
-- Rows are enqueued for async processing.
+- File is validated for size (≤10 MB) and source-specific required columns.
+- A batch record is created with `sourceType` recorded.
+- Rows are enqueued for async processing through the appropriate adapter.
 - The modal shows a confirmation with the batch ID and row count.
 
 **Step 4 — Admin monitors progress.**  
 The survey detail page gets an "Import History" tab showing:
-- Each import batch: filename, status (pending / processing / complete / failed), total rows, processed rows, failed rows, started timestamp.
+- Each import batch: filename, source type, status (pending / processing / complete / failed), total rows, processed rows, failed rows, started timestamp.
 - A "Refresh" button for in-progress batches.
 - If there are failed rows, a count and a way to view the error details.
 
 **Step 5 — Import completes.**  
-Historical responses appear in the Responses tab (tagged "historical") and in the CX analytics dashboard alongside live responses.
+Historical responses appear in the Responses tab (tagged "historical · Google Reviews" or "historical · Excel") and in the CX analytics dashboard alongside live responses.
 
-### CSV Template Format
+---
 
-```
-email,score,verbatim,completed_at,channel,external_id
-jane@example.com,9,"Great service",2025-11-15,email,SM_12345
-john@example.com,4,,2025-10-02,link,
-```
+### Source Adapter: Google Reviews (v1)
 
-**Column definitions:**
+Google Business Profile exports a CSV with these columns (as of 2025):
 
-| Column | Required | Format | Notes |
-|--------|----------|--------|-------|
-| `email` | Yes | Valid email | Used to match existing Member or create stub |
-| `score` | No | 0–10 decimal | NPS: 0–10; CSAT: normalise to 0–10 before import |
-| `verbatim` | No | Free text | Open-ended response text; run through sentiment analysis |
-| `completed_at` | No | ISO 8601 date | Defaults to import date if missing |
-| `channel` | No | `email` / `link` / `sms` | Defaults to `link` |
-| `external_id` | No | String ≤ 200 chars | Respondent ID from source system; stored for deduplication reference |
+| Google column | Maps to | Notes |
+|---------------|---------|-------|
+| `Reviewer` | `verbatimAuthor` (display only) | Not used for member matching — no email available |
+| `Star Rating` | `score` | Normalised: ×2 → 0–10 scale |
+| `Review` | `verbatim` | Run through sentiment analysis |
+| `Date` | `completed_at` | ISO 8601 parse |
+| *(none)* | `channel` | Hardcoded to `review` |
+| `Review ID` (if present) | `externalId` | Deduplication key |
 
-**Score normalisation note (OQ-3 dependency):** If a client's data is on a 1–5 CSAT scale, they must normalise to 0–10 before uploading (e.g., multiply by 2). We do not auto-detect scale in Option A. This should be documented in the template download.
+**Member matching:** No email available. Records are stored as anonymous historical responses with `memberId = null` and `sourceKey = SHA256(Reviewer + Date)` for deduplication. Anonymous records contribute to analytics (NPS trend, sentiment clustering) but are excluded from loyalty engine calculations.
+
+> Pending OQ-1a answer: if fuzzy name matching against existing members is approved, this changes.
+
+---
+
+### Source Adapter: Excel / Generic CSV (v2)
+
+Lenient column matcher. Recognises common header name variants (case-insensitive, underscore/space/hyphen tolerant):
+
+| CustomerEQ field | Recognised header variants |
+|-----------------|---------------------------|
+| `email` | `email`, `email address`, `respondent_email`, `customer_email` |
+| `score` | `score`, `nps`, `nps_score`, `rating`, `csat`, `ces` |
+| `verbatim` | `verbatim`, `comment`, `feedback`, `response`, `open_ended` |
+| `completed_at` | `completed_at`, `date`, `submitted_at`, `response_date`, `timestamp` |
+| `channel` | `channel`, `source`, `medium` |
+| `external_id` | `external_id`, `respondent_id`, `id`, `response_id` |
+
+Unknown columns are silently ignored. Missing optional columns use defaults. `email` is still required for member matching in this adapter.
+
+Score normalisation: if max score in column ≤ 5, auto-normalise ×2. If max ≤ 7, normalise ×1.43. Otherwise assume 0–10.
 
 ---
 
@@ -201,8 +209,9 @@ The key CustomerEQ advantage for this feature is **member continuity**: we don't
 
 ## Open Questions Summary
 
-| ID | Question | Blocks | Owner |
-|----|----------|--------|-------|
-| OQ-1 | Which tools do first clients export from? Sample export available? | Column definitions, template design | Customer / Sales |
-| OQ-2 | Fixed template (Option A) or mapping wizard (Option B) for v1? | UX scope, build timeline | Product owner |
-| OQ-3 | Analytics continuity only, or should historical sentiment influence loyalty engine? | Technical scope (significant if yes) | Product owner |
+| ID | Question | Status | Blocks |
+|----|----------|--------|--------|
+| OQ-1 | Which tools do first clients export from? | ✅ Answered — Google Reviews (v1), Excel flexible (v2) | —  |
+| OQ-1a | For Google Reviews (no email): anonymous records or fuzzy name matching? | ⏳ Pending | Google Reviews adapter member-matching design |
+| OQ-2 | Fixed template vs mapping wizard? | ✅ Answered — source adapter library | — |
+| OQ-3 | Analytics continuity only, or should historical sentiment influence loyalty engine? | ⏳ Pending | Technical scope (significant if yes); anonymous Google Reviews records cannot contribute to loyalty engine without OQ-3 resolved |
