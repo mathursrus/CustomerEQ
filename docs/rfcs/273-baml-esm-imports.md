@@ -55,17 +55,43 @@ Acceptance criterion #3 in #273 says: *"CI gains a step that runs the built API 
 
 The existing CI runs lint, typecheck, unit tests, and `docker build`, but **never executes** the built image. Module-resolution errors at module-load time are invisible until Container Apps tries to activate the revision in prod.
 
-Add a step to the `docker-build` job in `ci.yml` that runs the built image with a one-shot import probe:
+#### CI vs CD — what each gate is responsible for
+
+The repo already has a CD-side gate: `Verify API health` in `.github/workflows/deploy.yml:119-132` curls `/healthz` against the deployed revision until it returns 200. That step has been **silently skipped on every CD since 2026-05-03** because the unrelated `Deploy Demo Storefront` step (#272) fails earlier and short-circuits the workflow. Relying on a CD-only gate has empirically proven fragile in this exact way.
+
+This RFC adds a **complementary**, not redundant, gate on the CI side. The two probes answer different questions:
+
+| | CI module-resolution probe (this RFC) | CD `Verify API health` (existing) |
+|---|---|---|
+| What it tests | Does the image's **code** load cleanly in isolation? | Does the **deployed revision** serve traffic against real prod infra? |
+| Catches | `ERR_MODULE_NOT_FOUND`, missing dist files, broken imports, syntax errors at module-load | Env-var misconfiguration, Key Vault/identity issues, DB/Redis connectivity, port/ingress wiring |
+| Runs against | Image just built in the same job, no real env | Deployed Container App revision against real Azure infra |
+| Cost | ~2 seconds, no DB / Redis / secrets | Real revision activation deadline (minutes) |
+| Failure mode | PR red, blocks merge | CD red, code already in main → revert/forward-fix |
+| Coverage of BAML-class regression | Yes, at PR time (shift-left) | Yes, at deploy time |
+| Coverage of env / secret / connectivity issues | No | Yes |
+
+CI alone would have caught the BAML regression on the PR that introduced it. CD alone is what's needed for the prod infra side and cannot be replaced by CI. **Both stay** — they're load-bearing for different failure modes.
+
+#### Probe target — narrow to `@customerEQ/ai`, not the whole app entry
+
+The probe **must not** import `apps/api/dist/server.js` (the full app entry). Importing that runs the entire module-load tree, including any module-load-time `process.env.X` reads, dotenv loads, or Fastify plugin initializations. In a CI job without prod env-vars, those would fail for reasons unrelated to module resolution and produce false positives.
+
+The CI probe imports `@customerEQ/ai` directly. That is the narrowest target that exercises the regression class we actually had (BAML codegen output's relative imports). It has no side effects beyond pure import resolution. Other packages' module-load contracts are already enforced by `pnpm build && pnpm typecheck` at the source level — adding a runtime equivalent for every package is overengineering for this fix.
 
 ```yaml
 - name: Verify API image module resolution
   run: |
     docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
       --input-type=module \
-      -e "await import('/app/apps/api/dist/server.js').catch(e => { console.error(e); process.exit(1) })"
+      -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 ```
 
-The same step is added for `ceq-worker:${{ github.sha }}`. Each runs in <2 seconds, has no DB/Redis dependency, and fails the CI job on any `ERR_MODULE_NOT_FOUND` / circular-import / missing-dist-file at module-load time. Stops the entire class of regression at PR time.
+The same step is added for `ceq-worker:${{ github.sha }}` — the worker has the same dependency on `@customerEQ/ai` and would surface the same regression independently.
+
+Each runs in <2 seconds, has no DB/Redis/env dependency, and fails the CI job on any `ERR_MODULE_NOT_FOUND` / circular-import / missing-dist-file inside the BAML codegen output or the `@customerEQ/ai` package's own module tree. Stops the entire class of regression at PR time.
+
+If the regression class ever broadens (e.g., a different package's codegen breaks similarly), add a second narrow probe for that package — don't widen this one to include unrelated module trees.
 
 ### Files modified
 
@@ -113,7 +139,7 @@ The remaining 5% is the unlikely possibility that some downstream consumer of `@
 |---|---|---|
 | BAML regenerated locally with new `module_format` | All relative imports in `src/generated/baml_client/*.ts` end in `.js` | Local: `pnpm --filter @customerEQ/ai run generate && grep -REn 'from "\\./[a-z_]+"' packages/ai/src/generated/baml_client/` returns no matches |
 | BAML rejects bogus value | Codegen errors fail-fast with a useful message | Spike confirmed (manual one-off) |
-| API/Worker images build and start with new BAML output | `node dist/server.js` (or worker entry) reaches the application's first log line without `ERR_MODULE_NOT_FOUND` | New CI step `Verify API image module resolution` (and worker equivalent). Local: `docker build -f Dockerfile.api -t ceq-api:test . && docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('/app/apps/api/dist/server.js').catch(e => { console.error(e); process.exit(1) })"` |
+| API/Worker images load `@customerEQ/ai` cleanly with the new BAML output | `node --input-type=module -e "await import('@customerEQ/ai')"` exits 0 without `ERR_MODULE_NOT_FOUND` | New CI step `Verify API image module resolution` (and worker equivalent). Local: `docker build -f Dockerfile.api -t ceq-api:test . && docker run --rm --entrypoint node ceq-api:test --input-type=module -e "await import('@customerEQ/ai').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"` |
 | API container deployed to prod activates cleanly | New revision `customereq-api--<NNNN>` reaches `Running, Healthy`; `0000111` deactivates | Post-merge: `az containerapp revision list --name customereq-api --query "[?properties.active]"` returns the new revision only |
 | CD's `Verify API health` step passes | `/healthz` returns 200 from the new revision | Post-merge: CD job log shows "API health check passed" |
 | Existing `@customerEQ/ai` consumers continue to work | All `packages/ai` unit + smoke tests pass; `apps/api` and `apps/worker` typecheck and build | Existing CI: `pnpm typecheck`, `pnpm test:smoke`, `docker-build` job |
@@ -123,7 +149,7 @@ The remaining 5% is the unlikely possibility that some downstream consumer of `@
 | Layer | Coverage |
 |---|---|
 | **Unit** | No new unit tests required. The change is configuration of an external code generator; its emitted output is itself the contract. Verifying the output by grep is more useful than mocking the generator. Existing `packages/ai` unit tests (`sentiment-baml-wiring.test.ts`, `sentiment.test.ts`, `analyzeResponse → BAML wiring` suites) continue to import from `@customerEQ/ai` and implicitly verify the import contract. |
-| **Integration** | **New CI steps in `.github/workflows/ci.yml` `docker-build` job**: `Verify API image module resolution` and `Verify Worker image module resolution`. Each builds the production image and runs `node --input-type=module -e "await import(<dist-entry>).catch(...)"` to confirm module-load succeeds. No DB, no Redis, no real boot. Fails CI on any module-resolution error at any layer. |
+| **Integration** | **New CI steps in `.github/workflows/ci.yml` `docker-build` job**: `Verify API image module resolution` and `Verify Worker image module resolution`. Each builds the production image and runs `node --input-type=module -e "await import('@customerEQ/ai')"` against it to confirm `@customerEQ/ai`'s module tree (including BAML codegen output) loads cleanly. No DB, no Redis, no env vars, no real boot. Probe target is **deliberately narrow** to `@customerEQ/ai` — the regression class this RFC fixes — so CI doesn't false-positive on env-var reads in unrelated module-load paths. |
 | **E2E** | Post-merge: the existing `Verify API health` step in `deploy.yml` (lines 119-132) curls `/healthz` with retries. No new E2E test needed; the gap was that this step kept being skipped, not that it was missing. |
 
 ## Risks & Mitigations

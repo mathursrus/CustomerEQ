@@ -6,9 +6,9 @@ PR: pending — auto-created on `phase:design` label
 ## Completeness Evidence
 
 - Issue tagged with label `phase:design`: Yes
-- Issue tagged with label `status:needs-review`: Pending — applied after this evidence file lands
+- Issue tagged with label `status:needs-review`: Yes
 - All files committed/synced to branch: Yes (`feature/issue-273-baml-js-extensions`)
-- PR comments addressed: none yet (PR not yet opened)
+- PR comments addressed: Round 1 (CI vs CD probe placement + narrow probe target) — see `docs/evidence/273-technical-design-feedback.md`
 
 ### Traceability Matrix
 
@@ -16,7 +16,7 @@ PR: pending — auto-created on `phase:design` label
 |---|---|---|---|
 | A new API revision built from current main activates cleanly and serves `/healthz` 200 | "Technical Details → The fix" + "Validation Plan" rows 3–4 | **Met** | Local docker-build + `node --input-type=module -e "await import(...)"` probe; post-merge `az containerapp revision list` check + CD `Verify API health` step |
 | `az containerapp revision list --name customereq-api --query "[?properties.active]"` shows a single active revision (the new one), with `0000111` deactivated | "Validation Plan" row 3 | **Met** | Post-merge CLI check after new revision activates; rollback path documented in "Risks & Mitigations" |
-| CI gains a step that runs the built API image's entrypoint long enough to confirm `@customerEQ/ai` imports resolve cleanly — so this regression is caught next time before reaching prod | "Technical Details → CI safety net" + "Test Matrix" Integration row | **Met** | New step `Verify API image module resolution` in `.github/workflows/ci.yml` `docker-build` job, runs `node --input-type=module -e "await import('/app/apps/api/dist/server.js')…"` against the built image. Same step added for worker image. |
+| CI gains a step that runs the built API image's entrypoint long enough to confirm `@customerEQ/ai` imports resolve cleanly — so this regression is caught next time before reaching prod | "Technical Details → CI safety net" + "Test Matrix" Integration row | **Met** | New step `Verify API image module resolution` in `.github/workflows/ci.yml` `docker-build` job, runs `node --input-type=module -e "await import('@customerEQ/ai')…"` against the built image. Probe target deliberately narrowed to `@customerEQ/ai` (not the full app entry) per Round 1 feedback — see feedback file. Same step added for worker image. CI is complementary to the existing CD `Verify API health` gate, not a replacement. |
 | Post-merge, every subsequent CD's `Verify API health` step passes | "Observability" + "Risks & Mitigations" row 3 | **Met** (conditional on #272) | Existing CD step `Verify API health` (`deploy.yml:119-132`) will run once the upstream `Deploy Demo Storefront` step is unblocked by #272. RFC notes this dependency explicitly. |
 
 **No `Unmet` rows.** All 4 acceptance criteria are addressed by the RFC.
