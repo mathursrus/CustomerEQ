@@ -173,6 +173,35 @@ The fix is materially smaller and safer than the alternative the issue body sket
 
 ---
 
+## Architecture Analysis
+
+Comparison of this RFC against `docs/architecture/architecture.md`.
+
+### Patterns Correctly Followed
+
+| Pattern | Location in architecture.md | How this RFC follows it |
+|---|---|---|
+| Node.js >= 22 with native ESM support | §2 Tech Stack, line 28 | The `module_format "esm"` setting emits imports compatible with Node 22 ESM strict resolution. Restores conformance that was silently broken by `bdfadf0`. |
+| Synchronous `@customerEQ/ai` load contract | §6 Design Patterns & Principles, line 401 (`POST /v1/members/:id/notes` calls `@customerEQ/ai` synchronously) | The API process must be able to import `@customerEQ/ai` at startup. This RFC restores that ability. |
+| Turborepo + pnpm 9 build orchestration | §2 Tech Stack, line 37 | No change to build orchestration — fix is purely in BAML codegen output emitted *by* the existing turbo-driven build. |
+| Smoke test before deploy | §11 Validation Commands area, line 474 (`pnpm build && pnpm typecheck && pnpm test`) | The new CI step (`Verify * image module resolution`) is a build-stage extension of the same principle: verify *load-time* contracts before shipping, not just compile-time and test-time. |
+| Single revision mode + post-deploy health gate | §8 Infrastructure (Container Apps deploy.yml `Verify API health`) | This RFC unblocks the existing health-gate step that has been silently skipped due to upstream workflow failures. No new pattern introduced. |
+
+### Patterns Missing from Architecture
+
+| Pattern | Why it matters | Suggested resolution |
+|---|---|---|
+| BAML codegen-at-build-time as a build-pipeline contract | After `bdfadf0`, `@customerEQ/ai` is built via `pnpm run generate && tsc`, where `generate` runs `npx @boundaryml/baml@<version> generate` and depends on the BAML version pinned in two places (`packages/ai/package.json` and `packages/ai/baml_src/generators.baml`). This non-obvious build behavior is **not documented in §3.5 (Shared Layer) or §6 (Design Patterns)**. The fact that the generated source is gitignored means a fresh checkout has no BAML output until `pnpm install` + a build runs — surprising for new contributors. | Add a sub-bullet to §3.5 or §6 in `architecture.md` documenting: (1) `@customerEQ/ai`'s `src/generated/baml_client/` is gitignored and regenerated on every build via `npx @boundaryml/baml@<pinned-version> generate`; (2) the `module_format "esm"` setting is required for Node 22 ESM resolution; (3) BAML version is pinned in both package.json and generators.baml and must be bumped together. Defer the actual edit to the address-feedback phase per FRAIM job rules. |
+| CI gate: built-image module-resolution probe | This RFC adds a new CI pattern — running the built Docker image with a one-shot dynamic-import probe to catch module-resolution failures before they reach prod. This pattern doesn't exist in §11 Validation Commands. It bridges the gap between unit tests (which run against source TS) and prod activation (which fails silently). | Add to §11 Validation Commands: a "Built-image module-resolution probe" step is part of CI's docker-build job for any service that ships a Node ESM bundle. Defer the architecture doc edit to address-feedback. |
+
+### Patterns Incorrectly Followed
+
+This RFC's design follows architecture.md correctly. **However**, while reviewing for gaps, surfaced one **production-state** violation of architecture.md that is *not* in scope here but is worth recording for traceability:
+
+- **§3.3 line 69** says: *"The worker process exists to drain BullMQ queues and is only deployed when `QUEUE_MODE=redis`. In `QUEUE_MODE=inline`, the same processor logic is invoked in-process from the API … the worker is not needed and is not run."*
+- **Production state**: `customereq-worker` Container App is provisioned and running with `QUEUE_MODE=inline`. It crash-loops continuously (#274 documents 290+ daily exits since 2026-04-18).
+- **Resolution**: Tracked in #274. Not in scope for this RFC. The CI step this RFC adds for the *worker image* serves as a regression-catcher for the day `QUEUE_MODE` flips back to `redis`; it does not justify or contradict the worker's current deployment state.
+
 ## Cross-references
 
 - **Source issue**: #273
@@ -180,5 +209,7 @@ The fix is materially smaller and safer than the alternative the issue body sket
   - #272 — `customereq-demo` Container App not provisioned. Independent fix; both are needed for the CD workflow to reach `Verify API health`.
   - #274 — Worker crash-loop + `QUEUE_MODE=inline` deploy gate. The BAML fix here unblocks the worker's *image build*, but the worker is still expected to exit early in inline mode — the architectural cleanup belongs in #274.
 - **Architecture touchpoints**:
-  - `docs/architecture/architecture.md:401` — `@customerEQ/ai` is called synchronously from `POST /v1/members/:id/notes` for sentiment analysis. The API process *must* be able to load `@customerEQ/ai` at startup; this fix restores that.
+  - `docs/architecture/architecture.md:28` — Node.js 22 + native ESM. The fix conforms.
+  - `docs/architecture/architecture.md:69` — worker deploy contract. Production violates it; tracked in #274.
+  - `docs/architecture/architecture.md:401` — `@customerEQ/ai` synchronous load contract. The fix restores it.
 - **Originating regression**: `bdfadf0` (2026-04-17), with `8fd2786`'s patch lost as collateral damage.
