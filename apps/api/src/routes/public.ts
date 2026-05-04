@@ -180,9 +180,16 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(422).send({ error: 'Member consent required' })
       }
 
-      // Check for duplicate response
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Check for duplicate response.
+      // #231 PR1: switched from findUnique({surveyId_memberId}) to findFirst —
+      // the @@unique([surveyId, memberId]) constraint was dropped per R2 to
+      // support multiple responses per member-per-survey. The duplicate-
+      // detection semantic ("any prior response from this member on this
+      // survey") is unchanged for now; PR2 replaces this whole block with
+      // Survey.responsePolicy enforcement (R3) that distinguishes ONCE /
+      // MULTIPLE / LATEST_OVERWRITES.
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id },
       })
       if (existing) {
         return reply.status(200).send({
@@ -392,9 +399,9 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(200).send({ skipped: true, reason: 'no_consent' })
       }
 
-      // Check if already responded
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Check if already responded — see #231 PR1 note above for findUnique→findFirst rationale.
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id },
       })
       if (existing) {
         return reply.status(200).send({ skipped: true, reason: 'already_responded' })

@@ -24,7 +24,12 @@ async function seed() {
       where: { brandId_email: { brandId: BRAND_ID, email } },
       update: {},
       create: {
-        brandId: BRAND_ID, email,
+        brandId: BRAND_ID,
+        email,
+        // Issue #231 PR1: externalId mirrors LOWER(TRIM(email)) per migration backfill;
+        // enrolledVia=MANUAL_API matches the seed-script channel.
+        externalId: email.trim().toLowerCase(),
+        enrolledVia: 'MANUAL_API',
         firstName: email.split('@')[0],
         lastName: 'Test',
         consentGivenAt: new Date(),
