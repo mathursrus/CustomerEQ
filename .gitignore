@@ -24,6 +24,18 @@ next-env.d.ts
 .vscode/
 .idea/
 
+# Claude Code per-user/per-machine settings (issue #286)
+.claude/settings.local.json
+
+# Playwright artifacts (issue #286)
+apps/web/test-results/
+
+# FRAIM-synced job stubs — populated by mcp__fraim__fraim_connect at session start;
+# per CLAUDE.md these directories don't exist in this repo (FRAIM MCP tools are the
+# source of truth for jobs/skills/rules). Issue #286.
+fraim/ai-employee/
+fraim/ai-manager/
+
 # OS
 .DS_Store
 Thumbs.db
