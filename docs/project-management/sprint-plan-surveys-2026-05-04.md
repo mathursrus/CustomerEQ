@@ -9,7 +9,7 @@ A primitive-dev customer should be able to (a) get responses in on a survey crea
 ## Capacity & Assumptions
 
 - **Window:** 3 weeks, 2026-05-05 → 2026-05-23.
-- **Owner:** Manohar (solo founder) + AI agents.
+- **Owner:** Manohar + AI agents.
 - **Total committed budget:** ~32 size points (1 = trivial, 10 = epic).
 - **Working pattern:** Day-1 ships the production migration; security and privacy fixes ship together where they share code surface; tiny credibility wins ([#246](https://github.com/mathursrus/CustomerEQ/issues/246) Option A, [#270](https://github.com/mathursrus/CustomerEQ/issues/270)) get pulled forward when their cost is < 1 day.
 - **Scope discipline (CLAUDE.md R1):** Every committed item directly extends hero [#6](https://github.com/mathursrus/CustomerEQ/issues/6)'s CX-to-loyalty surface or removes a known broken contract.
