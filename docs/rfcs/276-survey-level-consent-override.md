@@ -3,11 +3,11 @@
 Issue: [#276](https://github.com/mathursrus/CustomerEQ/issues/276)
 Spec: [`docs/feature-specs/276-survey-level-consent-override.md`](../feature-specs/276-survey-level-consent-override.md)
 Owner: manohar.madhira@outlook.com
-Status: Draft round 1
+Status: Draft round 2 (re-scoped per round-1 review)
 
 ## Customer
 
-The data + backend change unblocks the **marketing manager / survey owner** persona's existing surveys (which today return 400 on every response submit because of #231 PR1's `Brand.consentMode = EXPLICIT` default). The override surface (PATCH endpoint contract + schema fields + audit-log payload) is what the **#241 Survey Admin UX epic** will bind its survey-editor consent panel to once shipped.
+The data + backend change unblocks the **marketing manager / survey owner** persona's existing surveys (which today return 400 on every response submit because of #231 PR1's `Brand.consentMode = EXPLICIT` default). The schema columns this RFC adds are what the **#241 Survey Admin UX epic** will bind its survey-editor consent panel to once shipped — including the PATCH endpoint that writes them.
 
 ## Customer Problem being solved
 
@@ -15,20 +15,17 @@ Per spec §"Customer Problem being solved": #231 PR1 introduced a brand-wide con
 
 ## User Experience that will solve the problem
 
-This RFC ships **the data model, backend resolver, PATCH endpoint contract, audit-log payload, and one-shot data migration**. The survey-editor UX itself (settings panel + attestation modal + audit-trail badge) is owned by **#241** and binds to the API contract defined here.
+This RFC ships **schema (the new columns) + backend resolver (the read path) + one-shot data migration (the production unblock)**. The PATCH endpoint that *writes* the new columns, the per-route audit-plugin extension, and the survey-editor UX (settings panel + attestation modal + audit-trail badge) all belong to **#241** — they ship as one end-to-end flow rather than as field-by-field plumbing accreted across two issues.
 
-**API caller flow** (this is what #241's UI binds to; same shape for any other client that wants to set the override programmatically):
-
-1. Caller authenticates with a Clerk session (brand-scoped).
-2. Caller PATCHes `/v1/surveys/:id` with one of:
-   - `{ "consentMode": null }` → revert to inherit. Backend clears `consentMode`, `consentReason`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt`. 200.
-   - `{ "consentMode": "<mode-same-as-or-stricter-than-brand>" }` → no attestation needed. Backend sets `consentMode` and clears `consentReason`/`consentSuppressedAttested*`. 200.
-   - `{ "consentMode": "<mode-more-permissive-than-brand>", "consentReason": "<non-empty text>" }` → attestation required. Backend sets all four columns atomically using the authenticated user as the attester. 200.
-   - Same as above but missing `consentReason` → 422 with structured error.
-3. Subsequent `POST /v1/public/surveys/:id/respond` calls resolve via the resolver: if `Survey.consentMode` is non-null, it overrides; if null, the brand default applies.
-4. Audit log captures every consent-mode write with `metadata.consentMode`, `metadata.consentReason`, `metadata.previousConsentMode`, `actorUserId`, timestamp.
+This re-scope is the same logic that put the UX in #241: anything the survey-editor UI is the only caller of belongs with the UI. Spec R5/R6 (PATCH attestation contract) and R8 (audit-log payload) were originally drafted into #276 to make the API surface available before the UI; round-1 review correctly pointed out that no other caller needs them.
 
 **Migration flow** (one-shot, runs in CI/CD with `prisma migrate deploy`): every `Survey` row across all brands and all organizations where `consentMode IS NULL` is set to `IMPLIED_ON_SUBMIT` with `__migration_276__` as the attester and a fixed reason text naming the migration. Idempotent via `WHERE consentMode IS NULL`.
+
+**Read flow** (every survey-response submit, immediately after this RFC ships): the existing `POST /v1/public/surveys/:id/respond` endpoint already calls `getConsentTextForSurvey()`. The resolver gains the new survey-level field and uses it to compute `requiresExplicitConsent`. Behavior change is opt-out: if `survey.consentMode` is null, behavior is unchanged from #231 PR1.
+
+**Operational escape hatch until #241 ships**: survey owners who urgently need to tighten a specific survey to `EXPLICIT` (after the data migration sets it to `IMPLIED_ON_SUBMIT`) can:
+- Wait for #241 (per round-1 reviewer: prioritized immediately).
+- Or use ad-hoc admin SQL — the same path admins use today to set brand defaults via #277's Organization Settings landing.
 
 ## Technical Details
 
@@ -47,46 +44,43 @@ model Survey {
   consentSuppressedAttestedAt   DateTime?
 
   // Issue #276 (new)
-  consentMode                   ConsentMode?  // null = inherit Brand.consentMode
-  consentReason                 String?       // free-text justification when override is set
+  consentMode                   ConsentMode?                 // null = inherit Brand.consentMode
+  consentReason                 String?       @db.VarChar(500)  // override justification (cap 500 per round-1 decision #3)
 }
 ```
 
-No index needed — `consentMode` is read alongside the survey row in the resolver path; no standalone query filters on it.
+No index needed — `consentMode` is read alongside the survey row in the resolver path; no standalone query filters on it. The 500-char cap on `consentReason` is enforced at the column level so any future writer (the #241 PATCH endpoint, ad-hoc admin SQL, the data migration) is bounded by the same limit.
 
 ### Schema migration
 
-New migration `packages/database/prisma/migrations/<TIMESTAMP>_add_survey_consent_override/migration.sql`:
+New migration `packages/database/prisma/migrations/<TIMESTAMP>_add_survey_consent_override/migration.sql`. Schema change is permanent; data backfill lives in a separate file (per round-1 decision #1) so each file's purpose is inspectable in isolation.
 
 ```sql
 -- Issue #276 — survey-level consent mode override + reason text.
 -- Both columns are nullable additions; no data backfill in this migration.
--- The data migration (UPDATE existing rows to IMPLIED_ON_SUBMIT) lives in a
--- separate migration file so the schema change can land independently and
--- the data migration can be re-run safely (WHERE consentMode IS NULL).
---
 -- Idempotency follows the patterns established in #270 + #281: ALTER TABLE
 -- ADD COLUMN with IF NOT EXISTS so a `db push`-then-`migrate deploy` flow
 -- (where the column may already exist via push) does not error.
 
 ALTER TABLE "surveys"
   ADD COLUMN IF NOT EXISTS "consentMode" "ConsentMode",
-  ADD COLUMN IF NOT EXISTS "consentReason" TEXT;
+  ADD COLUMN IF NOT EXISTS "consentReason" VARCHAR(500);
 ```
 
 ### Data migration
 
-Separate migration `packages/database/prisma/migrations/<TIMESTAMP+1>_backfill_survey_consent_implied/migration.sql`:
+Separate migration `packages/database/prisma/migrations/<TIMESTAMP+1>_backfill_survey_consent_implied/migration.sql`. One-time activity (per round-1 decision #1).
 
 ```sql
 -- Issue #276 — backfill all NULL consentMode rows to IMPLIED_ON_SUBMIT so
 -- pre-existing surveys accept responses again (production hotfix). The
 -- WHERE clause makes this idempotent: a second run touches zero rows.
--- All brands, all organizations — per round-1 reviewer scope decision.
+-- All brands, all organizations — per round-1 reviewer spec decision (Q3).
 --
 -- Audit columns get a fixed system identifier (__migration_276__) so the
 -- audit-trail surface (#241) can distinguish "machine-set by hotfix" from
--- "human-set by survey owner".
+-- "human-set by survey owner". The reason text fits within the 500-char
+-- column cap (191 chars).
 
 UPDATE "surveys"
 SET
@@ -97,7 +91,7 @@ SET
 WHERE "consentMode" IS NULL;
 ```
 
-The two migrations land together in the implementation PR, in the correct timestamp order. Splitting them makes the schema-vs-data concerns inspectable separately and keeps each file's purpose obvious.
+Both migrations land together in the implementation PR, in the correct timestamp order.
 
 ### Resolver change (`apps/api/src/services/consentResolver.ts`)
 
@@ -130,43 +124,26 @@ requiresExplicitConsent: (survey.consentMode ?? brand.consentMode) === 'EXPLICIT
 
 The resolver's existing return shape doesn't need to change — `requiresExplicitConsent` is the only external-facing decision. The `survey-override` / `brand-default` source label remains accurate for the **text** sourcing (which is the field's purpose); we don't add a `consent-mode-source` label because consumers don't currently use it.
 
-### PATCH endpoint contract (`apps/api/src/routes/surveys.ts:145`)
+### PATCH endpoint contract — DEFERRED to #241
 
-The existing `PATCH /v1/surveys/:id` route accepts `UpdateSurveySchema` and applies a single `prisma.survey.update`. We extend the schema with the two new fields and inject a server-side validation step that:
+The PATCH endpoint that *writes* `Survey.consentMode` and `Survey.consentReason` (with the attestation guard, the 422-on-missing-reason error shape, and the same-vs-stricter-vs-more-permissive branching) belongs with the survey-editor UI in #241. No other caller writes these columns programmatically; coupling the API contract to the UI it serves is the right unit of work.
 
-1. Reads the survey + its brand (single query joined on `surveyId`).
-2. Computes `attestationRequired = (newConsentMode !== null) && morePermissiveThan(brand.consentMode, newConsentMode)` where the relation is `EXPLICIT < IMPLIED_ON_SUBMIT` (lower = stricter).
-3. If `attestationRequired` AND `consentReason` is missing/empty/whitespace-only → 422 with `{error: 'attestation_required', missing: ['consentReason']}`.
-4. If the request authenticated user is absent (shouldn't happen behind the auth middleware, but defense in depth) → 422 with `{error: 'attestation_required', missing: ['authenticatedUser']}`.
-5. Constructs the `data` object for the update:
-   - **Override → more permissive**: set `consentMode`, set `consentReason`, set `consentSuppressedAttestedBy = request.user.id`, set `consentSuppressedAttestedAt = new Date()`.
-   - **Override → same-as-or-stricter**: set `consentMode`, clear the other three to `null`.
-   - **Revert (`consentMode = null`)**: clear all four to `null`.
-6. Wraps the consent-mode-related write columns in a single Prisma `update` (Prisma's update is already atomic; no need for `$transaction` since there's only one row touched).
+**Binding decisions for #241 to honor when they design the PATCH endpoint** (so #241 doesn't re-litigate):
+- The four columns the PATCH writes/clears: `consentMode`, `consentReason`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt`. Reuse pattern (Q2 from spec round 1) is already in #231 PR1's schema.
+- More-permissive override requires both attestation AND a non-empty reason — see spec R5.
+- Same-or-stricter transitions (and revert to null) must clear all four columns to NULL — see spec R6.
+- 500-char column cap on `consentReason` is enforced at the schema level (this RFC), so the PATCH's Zod max can match (`z.string().min(1).max(500).optional()` after server-side trim-and-recheck for whitespace-only).
 
-Schema delta (Zod):
+### Audit-log payload — DEFERRED to #241
 
-```typescript
-const ConsentModeOverrideSchema = z.object({
-  consentMode: z.enum(['EXPLICIT', 'IMPLIED_ON_SUBMIT']).nullable().optional(),
-  consentReason: z.string().min(1).max(2000).optional(),
-})
+Same reasoning as the PATCH endpoint: the audit metadata extraction is bound to the writer. When #241 ships the PATCH, it should also ship the audit-plugin extension that captures `consentMode`, `consentReason`, `previousConsentMode` into `metadata`.
 
-const UpdateSurveySchema = ExistingUpdateSurveySchema.merge(ConsentModeOverrideSchema)
-```
+**Decisions to honor**:
+- Reviewer round-1 confirmed **Option A** (per-route metadata allowlist in the plugin) over inline calls in the route handler. The plugin gains a `survey.update.metadata: ['consentMode', 'consentReason', 'previousConsentMode']` config; the route handler computes `previousConsentMode` from a read-before-write (single-row, brand-scoped — TOCTOU window is acceptable; see Risks below for the same-shape rationale).
+- A small spike against the existing audit plugin's shape is recommended before committing to Option A — reviewer round-1 explicitly suggested this. If the plugin doesn't accommodate per-route allowlists cleanly, fall back to Option B (inline `request.audit.log(...)` call).
+- Test that the audit row carries `metadata.consentMode` and `metadata.consentReason` after every override write — see #241's design.
 
-`max(2000)` on the reason text — generous but bounded; prevents pathological audit-trail bloat. `min(1)` covers empty-string; we additionally trim-and-recheck server-side to catch whitespace-only.
-
-### Audit log payload (`apps/api/src/plugins/audit.ts`)
-
-The existing audit plugin auto-captures `survey.update` actions via `inferAction`. The change here is to make sure the consent-mode-related fields end up in `metadata`. Two options:
-
-- **Option A (recommended)**: extend the audit plugin's metadata-extraction to include the request-body fields it cares about + the previous values for those fields. This is the cleanest path for any future field that wants audit visibility — opt-in by name.
-- **Option B**: add the metadata in the route handler itself before/after the prisma update. More targeted; doesn't require touching the plugin.
-
-Recommendation: **Option A** with a per-route allowlist. Plugin gains a `survey.update.metadata: ['consentMode', 'consentReason', 'previousConsentMode']` config. Route handler computes `previousConsentMode` from the read-before-write (already in the flow per step 1 above). Plugin merges the allowlisted fields into `metadata`.
-
-If the plugin shape doesn't accommodate this cleanly during implementation, fall back to Option B (small inline call to `request.audit.log({ action: 'survey.update', metadata: {...} })` after the prisma write).
+The data migration (R7 below) writes to the same columns but does **not** go through the audit plugin (it runs at deploy time, not request time). The `__migration_276__` attribution in the column itself is the audit signal for those rows.
 
 ### UI changes
 
@@ -176,44 +153,41 @@ None in this RFC. The survey-editor consent panel + attestation modal + audit-tr
 
 | Failure | Behavior |
 |---|---|
-| Caller PATCHes more-permissive override without `consentReason` | 422 `{error: 'attestation_required', missing: ['consentReason']}` — caller (likely #241's modal) re-prompts. |
-| Caller PATCHes with whitespace-only `consentReason` | 422 same error — server trims before validation. |
-| Caller PATCHes a survey under a different brand | 404 (existing brand-scoped lookup at line 156-158 already filters; no change). |
-| Caller PATCHes with invalid `consentMode` value (typo) | 422 from Zod — existing failure path. |
-| `Brand.consentMode` is itself `null` (shouldn't happen — column is `NOT NULL DEFAULT 'EXPLICIT'`, but defensively) | The "more permissive than brand" check fires conservatively (treats null brand as `EXPLICIT`); attestation required. Documented as defensive-only. |
-| Audit log write fails after prisma write succeeds | Existing audit plugin behavior — log a warn, don't fail the request. The audit gap is observable via warn count; the survey row update is the source of truth. |
 | Migration runs on a DB that already has `consentMode` column from `db push` | `ADD COLUMN IF NOT EXISTS` is a no-op. (Lessons from #270 + #281.) |
-| Migration runs twice | `WHERE consentMode IS NULL` clause makes the second run a no-op (zero rows touched). |
+| Migration runs twice (re-run after a partial CI failure, or twice on a contributor laptop) | `WHERE consentMode IS NULL` clause makes the second run a no-op (zero rows touched; no `Survey.updatedAt` advances). |
+| `Brand.consentMode` is null (shouldn't happen — column is `NOT NULL DEFAULT 'EXPLICIT'` per #231 PR1) | Resolver treats null as `EXPLICIT` defensively (the existing `=== 'EXPLICIT'` check returns false for null, which today already correctly defaults to "explicit consent required"). No new failure path. |
+| Resolver receives a survey row with `consentMode = 'IMPLIED_ON_SUBMIT'` but `consentReason IS NULL` | Resolver doesn't read `consentReason`; the field is purely audit metadata. No failure. |
 
-No new timeouts — same Fastify request lifecycle as the existing PATCH endpoint.
+No new timeouts — same Fastify request lifecycle as the existing public-submit endpoint. PATCH endpoint failure modes belong with the PATCH endpoint design in #241.
 
 ### Telemetry & analytics
 
 | Metric | Source | Use |
 |---|---|---|
-| Count of `survey.update` audit-log rows where `metadata.consentMode` differs from `metadata.previousConsentMode` | Audit log table | Ops view of override frequency per brand. |
-| Count of pre-existing surveys still at `consentMode IS NULL` immediately after the data migration | Postgres query (one-shot, run as part of migration verification) | Confirms AC1: zero rows should remain NULL. |
-| Pino log line at warn level when the resolver sees a survey with `consentMode != null` resolving differently from brand | `consentResolver.ts` | Optional, low-volume; flag for observability if/when we want override-per-survey traffic counts. |
+| Count of pre-existing surveys still at `consentMode IS NULL` immediately after the data migration runs in CI | Postgres query (one-shot, part of migration verification in the CI gate from #270) | Confirms AC1: zero rows should remain NULL post-migration. |
+| Pino log line at info level when the resolver sees a survey with `consentMode != null` resolving differently from brand | `consentResolver.ts` (added in this RFC's resolver change) | Low-volume; surfaces override traffic without needing the audit-log table. Useful pre-#241 because the audit plugin doesn't yet capture override writes. |
 
-No new dashboards or alerts; existing audit-feed observability covers the surface.
+Audit-log-derived metrics (override frequency by brand, attestation patterns) are #241's once the audit-plugin extension lands. No new dashboards or alerts in #276.
 
 ## Confidence Level
 
-**92 / 100.** Schema delta is two nullable adds (Prisma idiom, well-tested pattern). Resolver change is one field + three substitutions in proven code. PATCH endpoint extension is a Zod schema merge + a guard that mirrors the existing 422 patterns in the same file. Migration is idempotent by construction. The 8-point haircut covers: (a) audit-plugin Option A vs B may need to flip during implementation if the plugin's existing shape doesn't accommodate per-route metadata allowlists; (b) the `previousConsentMode` capture in the route handler depends on the read-before-write pattern not introducing a TOCTOU window — Prisma's update by `where: { id }` is single-row and brand-scoped, so the window is real but the brand-isolation guarantee holds.
+**95 / 100.** Schema delta is two nullable adds (Prisma idiom, well-tested pattern). Resolver change is one field + three substitutions in proven code. Migrations are idempotent by construction (schema via `IF NOT EXISTS`, data via `WHERE consentMode IS NULL`). The 5-point haircut covers: (a) the column-level `VARCHAR(500)` constraint must be applied via Prisma's `@db.VarChar(500)` annotation cleanly — proven idiom but worth verifying the generated SQL on first migrate; (b) the resolver's behavior change is opt-out (null = unchanged behavior) so blast radius is bounded to surveys whose `consentMode` is actually set, all of which are touched by the data migration in this same RFC; (c) the data migration touches every survey row in the system once — for a small number of brands today it's a one-shot UPDATE, but if/when the row count grows to many millions before this ships, an explicit batch-with-IDs loop may be preferable.
+
+Confidence went up vs round 1 (was 92) because the round-1 re-scope removed the PATCH/audit surface where the `previousConsentMode` TOCTOU and audit-plugin Option-A-vs-B uncertainty lived; both moved cleanly to #241.
 
 ## Validation Plan
 
 | User Scenario | Expected outcome | Validation method |
 |---|---|---|
-| Survey owner PATCHes a survey to a more permissive mode with a non-empty reason | 200; `consentMode`, `consentReason`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt` all set; audit-log row with full metadata | Vitest API integration test against real DB |
-| Survey owner PATCHes a survey to a more permissive mode without a reason | 422 `{error: 'attestation_required', missing: ['consentReason']}`; row is unchanged | Same |
-| Survey owner PATCHes a survey to the brand's mode (no deviation) | 200; `consentMode` set; the other three columns cleared to NULL | Same |
-| Survey owner PATCHes `consentMode: null` (revert) | 200; all four columns cleared to NULL | Same |
 | Public submit endpoint receives a response on a survey whose `consentMode = IMPLIED_ON_SUBMIT` under a brand whose `consentMode = EXPLICIT`, without the `consent` field | 200; response persisted | Vitest API integration test against real DB |
 | Public submit endpoint receives a response on a survey whose `consentMode = EXPLICIT` under a brand whose `consentMode = IMPLIED_ON_SUBMIT`, without the `consent` field | 400; response rejected | Same |
+| Public submit endpoint receives a response on a survey whose `consentMode = NULL` under any brand | Behavior unchanged from #231 PR1 (driven by `brand.consentMode` only) | Same |
 | `prisma migrate deploy` on a fresh DB applies both new migrations cleanly | All migrations green; CI gate from #270 catches any regression | CI on the implementation PR |
-| Data migration re-run (idempotency) | First run sets every NULL row; second run is a no-op (no `Survey.updatedAt` advances) | Local psql replay + assertion query |
-| Embedded widget continues to work for any consent mode | Widget renders + submits successfully against test survey under each consent mode | Manual smoke (or Playwright if #241's E2E infra is in scope by impl time) |
+| Data migration re-run (idempotency) | First run sets every NULL row; second run is a no-op (no `Survey.updatedAt` advances; row count of touched rows is 0) | Local psql replay + assertion query (same shape as #270's psql-replay validation) |
+| Data migration preserves existing operator-set values | Seed three surveys (NULL, EXPLICIT, IMPLIED); run migration; assert only the NULL one is touched | Same |
+| Embedded widget continues to work for any consent mode | Widget renders + submits successfully against a test survey under each consent mode | Manual smoke (Playwright deferred to #241) |
+
+PATCH endpoint validation scenarios (more-permissive override, attestation guard, revert) are owned by #241 — they validate the contract that #241 ships.
 
 ## Test Matrix
 
@@ -221,33 +195,31 @@ No new dashboards or alerts; existing audit-feed observability covers the surfac
 
 | Suite | What | Where |
 |---|---|---|
-| Resolver — survey override | 4 cases: brand=EXPLICIT/survey=null/EXPLICIT/IMPLIED_ON_SUBMIT × the 3 non-suppressed branches | `apps/api/src/services/consentResolver.test.ts` (existing file; new `describe` block) |
-| PATCH validation logic | Pure function `morePermissiveThan(brandMode, newMode)` covers all 4 mode pairs + null cases | New `apps/api/src/routes/surveys.consent.test.ts` (or co-located) |
-| Audit metadata extraction (Option A) | The plugin extracts the allowlisted `consentMode` + `consentReason` from the request body and includes the previous value | `apps/api/src/plugins/audit.test.ts` extension |
+| Resolver — survey override | 4 cases: `(brand=EXPLICIT, survey=null)`, `(brand=EXPLICIT, survey=IMPLIED_ON_SUBMIT)`, `(brand=IMPLIED_ON_SUBMIT, survey=null)`, `(brand=IMPLIED_ON_SUBMIT, survey=EXPLICIT)` × the 3 non-suppressed branches in `consentResolver.ts`. The R17-suppressed branch is unchanged and re-asserts no behavior change. | `apps/api/src/services/consentResolver.test.ts` (existing file; new `describe` block) |
 
-### Integration (real DB, real audit table)
+### Integration (real DB)
 
 | Suite | What | Where |
 |---|---|---|
-| PATCH endpoint contract | All 4 PATCH scenarios from the Validation Plan above | `apps/api/test/integration/surveys-consent-override.test.ts` (new) |
-| Survey-response endpoint with override | The 2 public-submit scenarios from the Validation Plan | `apps/api/test/integration/public-survey-response.test.ts` (extend existing) |
-| Audit-log payload | Assert the audit row exists with full metadata after a more-permissive PATCH | Same as PATCH endpoint suite |
-| Migration | Run both migrations against a real ephemeral pgvector DB; assert idempotency | The CI gate from #270 + a one-shot local script that `psql ON_ERROR_STOP=1` replays the data migration twice |
+| Survey-response endpoint with override | The 3 public-submit scenarios from the Validation Plan above | `apps/api/test/integration/public-survey-response.test.ts` (extend existing) |
+| Migration idempotency | Run both migrations against a real ephemeral pgvector DB; replay the data migration via psql `ON_ERROR_STOP=1` and assert second run is a no-op | The CI gate from #270 + a one-shot local script (same pattern as the #270 fix verification) |
+| Migration preservation | Seed three rows (NULL, EXPLICIT, IMPLIED); run; assert only NULL touched | Same suite |
+| Migration column constraint | Insert a row with a 501-char `consentReason` (post-migration) and assert it errors with the VARCHAR(500) constraint | Same suite |
 
 ### E2E
 
-None added in this RFC. The end-to-end UX flow lives in #241 once that ships its consent panel — at that point #241 owns the Playwright spec. Pre-shipping #276 gets validated end-to-end via the integration tests + a manual smoke against the embedded widget.
+None in #276. End-to-end UX flow ships with #241's PATCH endpoint + UI — #241 owns the Playwright spec for the override flow. The data migration's smoke is "existing surveys accept responses again" — covered by the survey-response integration test suite above against migrated rows.
 
 ## Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| New schema migration is non-idempotent on `db push`-then-`migrate deploy` (the #270 / #281 class) | Low — `ADD COLUMN IF NOT EXISTS` is the documented idempotency-safe pattern | High — repeats production-blocking incidents | Use `IF NOT EXISTS` on the column add; CI gate from #270 catches regressions on every PR |
+| New schema migration is non-idempotent on `db push`-then-`migrate deploy` (the #270 / #281 class) | Low — `ADD COLUMN IF NOT EXISTS` is the documented idempotency-safe pattern | High — repeats production-blocking incidents | Use `IF NOT EXISTS` on both column adds; CI gate from #270 catches regressions on every PR |
 | Data migration clobbers a deliberate post-#231 operator-set `consentMode` value | Very low | Medium | `WHERE consentMode IS NULL` clause preserves any pre-set value. The reviewer accepted this scope on round 1 of the spec. |
-| Audit-plugin Option A doesn't compose cleanly with the existing plugin shape | Medium | Low — falls back to inline call (Option B) | Implementation phase decides; either option satisfies R8's audit requirement |
-| TOCTOU between read-before-write (`previousConsentMode` capture) and the prisma update | Low — single-row update, brand-scoped | Low — worst case is a stale `previousConsentMode` in audit metadata, not data corruption | Acceptable; if it matters later, wrap in `$transaction` with `findUnique` inside |
-| Prisma checksum-drift warning on the existing dev DBs whose schema was synced via `db push` | Low — `migrate deploy` warns only, doesn't fail | Low — operator just sees a warning | Document; the #270 retro covered the same shape |
-| Reason field is too short to be meaningful in audit | Medium | Low | `min(1)` validation catches empty/whitespace; #241's modal will likely add a placeholder + minimum-length nudge in UI; max(2000) caps pathological size |
+| Resolver behavior changes for surveys whose `consentMode` is null in unexpected ways | Very low — the change is opt-out (null = unchanged) | Medium | The resolver's null path is byte-for-byte equivalent to today's code (`brand.consentMode === 'EXPLICIT'`). Unit test suite asserts the 4 NULL-survey cases all resolve to the existing brand-only behavior. |
+| Prisma checksum-drift warning on existing dev DBs whose schema was synced via `db push` | Low — `migrate deploy` warns only, doesn't fail | Low — operator sees a warning | Document; the #270 retro covered the same shape |
+| Reason text inserted by a future writer (via #241 PATCH or admin SQL) exceeds 500 chars | Medium pre-#241; very low after | Low | Column-level `VARCHAR(500)` cap is enforced by Postgres; offending writes fail with a clean error. The data migration's text is 191 chars — well under. |
+| Data migration locks the surveys table during the UPDATE in a way that delays incoming response writes | Low — single UPDATE on a small table at deploy time | Low — brief lock, runs at off-hours; `migrate deploy` is the existing release cadence | Acceptable. If row count grows to many millions before this ships, switch to a batched ID-range UPDATE — flagged for the implementation PR's pre-flight to check the row count against a 1M threshold. |
 
 ## Spike Findings
 
@@ -291,15 +263,30 @@ None identified.
 
 ---
 
-## Decisions for the reviewer
+## Resolved Decisions (round 1)
 
-A short numbered set so reviewer can answer in one chat turn.
+All four reviewer decisions answered on round 1. Captured here so the implementation PR has a single source of truth.
 
-| # | Decision | Recommended | Alternative |
-|---|---|---|---|
-| 1 | **Migration split**: ship the schema migration and the data migration as **two** separate timestamped files (recommended), or **one** combined file? | Two files — schema vs data concerns are inspectable separately; the data migration is the one that's idempotent-by-WHERE; the schema migration is idempotent-by-IF-NOT-EXISTS. | One file with both ALTER TABLE and UPDATE under a single `BEGIN; … COMMIT;`. Simpler diff, but less inspectable. |
-| 2 | **Audit-plugin extension shape**: Option A (per-route metadata allowlist in the plugin) ← recommended; Option B (inline call in route handler). | A. Reusable for any future field that wants audit visibility. | B. Smaller surface; doesn't touch the plugin. |
-| 3 | **`consentReason` max length**: 2000 chars (recommended) vs 500 vs unbounded TEXT. | 2000. Generous; bounded enough to prevent pathological audit-trail bloat; short enough to render in a badge tooltip without truncation logic. | 500 (tighter UX) or unbounded (zero implementation cost, slightly more risk). |
-| 4 | **Resolver source label**: keep the existing `'survey-override' / 'brand-default'` labels on the **text** field (recommended), or also add a `consentModeSource` label? | Don't add. Consumers don't currently use a source label for the mode; only the `text` benefits because the text branches. Adding now is YAGNI. | Add `consentModeSource: 'survey-override' / 'brand-default'` for symmetry. |
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | Migration split | **Two timestamped files** — schema permanent, data migration is one-time. Implemented as written above. |
+| 2 | Audit-plugin extension shape | **Option A** (per-route metadata allowlist). **Deferred to #241** along with the PATCH endpoint. A spike against the existing audit plugin's shape is recommended before #241's design author commits — fall back to Option B if the plugin doesn't accommodate cleanly. |
+| 3 | `consentReason` max length | **500 chars**. Enforced at the schema level via `@db.VarChar(500)` (this RFC) so any future writer is bounded by the same limit. The data migration's system-reason text is 191 chars. |
+| 4 | Resolver source label | **Don't add** `consentModeSource`. The existing source label on `text` is unchanged. |
 
-If the reviewer prefers different answers, only Migration Split and Audit Plugin Option affect the implementation shape. The other two are local choices that the implementation can flex on.
+## Round 1 Scope Decision
+
+The original RFC included a PATCH endpoint contract + audit-log payload section. Round 1 reviewer (PR #282 line 20) asked: "Why is the API part of a one-time migration spec? Wouldn't this API design also be part of #241 for end-to-end flow?"
+
+**Resolution**: agreed. The PATCH endpoint and the audit-plugin extension are bound to the survey-editor UI in #241 — no other caller writes those columns programmatically. Moving both to #241 lets them ship as one end-to-end vertical slice rather than as field-by-field plumbing accreted across two issues.
+
+#276 now ships only:
+- Schema columns (`consentMode`, `consentReason VARCHAR(500)`)
+- Resolver field add + 3 substitutions
+- Schema migration (idempotent ALTER TABLE)
+- Data migration (idempotent UPDATE all NULL → IMPLIED_ON_SUBMIT)
+
+#241 will own:
+- PATCH endpoint extension (validation, attestation guard, 422 contract, atomic write)
+- Audit-plugin Option A extension
+- Survey-editor UX (panel, modal, badge)
