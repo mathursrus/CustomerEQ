@@ -14,44 +14,72 @@
 --   member_notes_brandId_memberId_createdAt_idx            dropped, may be gone
 
 -- ── 1. Fix cx_playbooks ──────────────────────────────────────────────────────
--- Table has 0 rows: DROP+ADD NOT NULL is safe.
--- Dropping the column auto-drops cx_playbooks_brandId_surveyType_idx.
+-- Recovery path: the broken parent migration left "surveyType" as TEXT.
+-- On a clean DB the parent migration ran to completion and "surveyType" is
+-- already the SurveyType enum, so this DROP+ADD must be conditional or it
+-- destroys data. Table-level idempotency check on column data_type — enum
+-- columns report 'USER-DEFINED'; only TEXT means the recovery is needed.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name  = 'cx_playbooks'
+      AND column_name = 'surveyType'
+      AND data_type   = 'text'
+  ) THEN
+    -- Dropping the TEXT column auto-drops cx_playbooks_brandId_surveyType_idx;
+    -- the CREATE INDEX IF NOT EXISTS below recreates it.
+    ALTER TABLE "cx_playbooks"
+      DROP COLUMN "surveyType",
+      ADD COLUMN  "surveyType" "SurveyType" NOT NULL;
+  END IF;
+END $$;
+
+-- Timestamp normalizations are individually idempotent (set-to-same-type and
+-- drop-default are no-ops if already in the target shape).
 ALTER TABLE "cx_playbooks"
-  DROP COLUMN "surveyType",
-  ADD COLUMN  "surveyType" "SurveyType" NOT NULL,
   ALTER COLUMN "deletedAt" SET DATA TYPE TIMESTAMP(3),
   ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMP(3),
   ALTER COLUMN "updatedAt" DROP DEFAULT,
   ALTER COLUMN "updatedAt" SET DATA TYPE TIMESTAMP(3);
 
-CREATE INDEX "cx_playbooks_brandId_surveyType_idx"
+CREATE INDEX IF NOT EXISTS "cx_playbooks_brandId_surveyType_idx"
   ON "cx_playbooks"("brandId", "surveyType");
 
 -- ── 2. Create survey_distributions ──────────────────────────────────────────
-CREATE TABLE "survey_distributions" (
-    "id"       TEXT          NOT NULL,
-    "surveyId" TEXT          NOT NULL,
-    "memberId" TEXT          NOT NULL,
-    "brandId"  TEXT          NOT NULL,
-    "sentAt"   TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "survey_distributions_pkey" PRIMARY KEY ("id")
-);
+-- On a clean DB the parent migration created this table; on the broken DB
+-- it didn't. Wrap CREATE TABLE in duplicate_table guard; use IF NOT EXISTS
+-- on the indexes; wrap each FK in duplicate_object guard.
+DO $$ BEGIN
+  CREATE TABLE "survey_distributions" (
+      "id"       TEXT          NOT NULL,
+      "surveyId" TEXT          NOT NULL,
+      "memberId" TEXT          NOT NULL,
+      "brandId"  TEXT          NOT NULL,
+      "sentAt"   TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "survey_distributions_pkey" PRIMARY KEY ("id")
+  );
+EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 
-CREATE INDEX "survey_distributions_surveyId_memberId_sentAt_idx"
+CREATE INDEX IF NOT EXISTS "survey_distributions_surveyId_memberId_sentAt_idx"
   ON "survey_distributions"("surveyId", "memberId", "sentAt");
 
-CREATE UNIQUE INDEX "survey_distributions_surveyId_memberId_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "survey_distributions_surveyId_memberId_key"
   ON "survey_distributions"("surveyId", "memberId");
 
-ALTER TABLE "survey_distributions"
-  ADD CONSTRAINT "survey_distributions_surveyId_fkey"
-  FOREIGN KEY ("surveyId") REFERENCES "surveys"("id")
-  ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survey_distributions"
+    ADD CONSTRAINT "survey_distributions_surveyId_fkey"
+    FOREIGN KEY ("surveyId") REFERENCES "surveys"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-ALTER TABLE "survey_distributions"
-  ADD CONSTRAINT "survey_distributions_memberId_fkey"
-  FOREIGN KEY ("memberId") REFERENCES "members"("id")
-  ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survey_distributions"
+    ADD CONSTRAINT "survey_distributions_memberId_fkey"
+    FOREIGN KEY ("memberId") REFERENCES "members"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── 3. Missing indexes ───────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS "surveys_brandId_triggerKey_status_idx"
