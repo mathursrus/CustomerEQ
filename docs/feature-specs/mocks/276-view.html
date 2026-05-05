@@ -61,6 +61,15 @@
   .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); }
   .btn-danger { background: white; color: #b91c1c; border-color: #fca5a5; }
   .btn-danger:hover { background: #fef2f2; }
+  /* Informational banner */
+  .info-banner { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #78350f; line-height: 1.5; }
+  .info-banner strong { color: #78350f; }
+  .info-banner a { color: #78350f; }
+  /* Reason textarea */
+  .modal-reason { display: block; width: 100%; min-height: 76px; padding: 10px 12px; margin-bottom: 16px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: inherit; font-size: 13px; resize: vertical; }
+  .modal-reason:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .modal-field-label { font-size: 13px; font-weight: 500; color: var(--text); display: block; margin-bottom: 6px; }
+  .modal-field-help { font-size: 12px; color: var(--text-muted); margin-top: -12px; margin-bottom: 12px; }
   /* Modal */
   .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
   .modal-backdrop.shown { display: flex; }
@@ -77,13 +86,17 @@
 </head>
 <body>
 <div class="frame">
+  <div class="info-banner">
+    <strong>Informational mock for issue #276 spec.</strong> The actual survey-editor UX (panel placement, radio rendering, modal copy, badge styling) is implemented in <a href="https://github.com/mathursrus/CustomerEQ/issues/241">#241 (Survey Admin UX epic)</a>. This file only sketches the API contract that #241 will bind to: a consent-mode field with three states (inherit / explicit / implied), an attestation step requiring identity + reason when overriding to a more permissive mode, and an audit-trail surface that includes the reason. #241 will refine the visible options (e.g., showing only the option that differs from the brand default).
+  </div>
+
   <p class="breadcrumb"><a href="#">Surveys</a> / <a href="#">Acme NPS Q2</a> / Settings</p>
   <h1>Acme NPS Q2</h1>
   <p class="subtitle">Settings &middot; consent &middot; distribution &middot; trigger rules</p>
 
   <div id="custom-consent-badge" class="badge" style="display:none;">
     <span class="dot"></span>
-    Custom consent: Implied on submit &middot; set by jane.doe@acme.com on 2026-05-04
+    <span id="badge-text">Custom consent: Implied on submit &middot; set by jane.doe@acme.com on 2026-05-04 &middot; reason: Marketing landing page micro-survey</span>
   </div>
 
   <div class="tabs" role="tablist">
@@ -132,6 +145,7 @@
     <div id="audit-trail" class="audit-trail">
       <div class="audit-trail-label">Audit trail</div>
       Attested by <strong>jane.doe@acme.com</strong> on <strong>2026-05-04 14:32 UTC</strong>.
+      <div style="margin-top: 6px;">Reason: <strong id="audit-reason">Marketing landing page micro-survey, response rate sensitivity</strong></div>
       <button class="btn-danger" type="button" style="margin-top: 10px;" onclick="revertToInherit()">Revert to brand default</button>
     </div>
 
@@ -157,9 +171,13 @@
       </ul>
       Saving will record your identity and the timestamp on the survey for the audit trail. Other surveys under this brand are unchanged.
     </div>
+    <label class="modal-field-label" for="reason-input">Reason for the override</label>
+    <p class="modal-field-help">Required. Stored on the survey for audit. Other admins / regulators can see this later.</p>
+    <textarea id="reason-input" class="modal-reason" placeholder="e.g., Low-friction NPS micro-survey on the marketing landing page; opt-in checkbox would tank response rate."></textarea>
+
     <label class="modal-attest">
       <input type="checkbox" id="attest-checkbox" />
-      <span class="modal-attest-text">I am authorizing this deviation from the brand default and understand it will be recorded.</span>
+      <span class="modal-attest-text">I am authorizing this deviation from the brand default and understand both my identity and this reason text will be recorded.</span>
     </label>
     <div class="modal-actions">
       <button class="btn-secondary" type="button" onclick="closeModal()">Cancel</button>
@@ -223,21 +241,27 @@
   function openModal() {
     document.getElementById('modal-backdrop').classList.add('shown');
     document.getElementById('attest-checkbox').checked = false;
+    document.getElementById('reason-input').value = '';
     document.getElementById('modal-confirm-btn').disabled = true;
   }
   function closeModal() {
     document.getElementById('modal-backdrop').classList.remove('shown');
   }
   function confirmAttestation() {
+    const reason = document.getElementById('reason-input').value.trim();
     closeModal();
-    commitSave(pendingMode, true);
+    commitSave(pendingMode, true, reason);
   }
 
-  document.getElementById('attest-checkbox').addEventListener('change', (e) => {
-    document.getElementById('modal-confirm-btn').disabled = !e.target.checked;
-  });
+  function syncModalConfirm() {
+    const checked = document.getElementById('attest-checkbox').checked;
+    const reasonOk = document.getElementById('reason-input').value.trim().length > 0;
+    document.getElementById('modal-confirm-btn').disabled = !(checked && reasonOk);
+  }
+  document.getElementById('attest-checkbox').addEventListener('change', syncModalConfirm);
+  document.getElementById('reason-input').addEventListener('input', syncModalConfirm);
 
-  function commitSave(mode, withAttestation = false) {
+  function commitSave(mode, withAttestation = false, reason = '') {
     savedMode = mode;
     syncSaveButton();
     const badge = document.getElementById('custom-consent-badge');
@@ -245,6 +269,11 @@
     if (withAttestation) {
       badge.style.display = 'inline-flex';
       auditTrail.classList.add('shown');
+      if (reason) {
+        document.getElementById('badge-text').textContent =
+          'Custom consent: Implied on submit · set by jane.doe@acme.com on 2026-05-04 · reason: ' + reason;
+        document.getElementById('audit-reason').textContent = reason;
+      }
     } else {
       badge.style.display = 'none';
       auditTrail.classList.remove('shown');

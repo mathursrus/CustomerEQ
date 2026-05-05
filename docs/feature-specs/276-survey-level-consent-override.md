@@ -6,16 +6,18 @@ Priority: **P0 — production blocked**
 
 ## Customer
 
-A brand admin or CX operator at a brand on CustomerEQ. Today the operator owns one or more `Survey` rows under a `Brand` whose `consentMode` was set to `EXPLICIT` by #231 PR1 (the brand-wide default). Their existing surveys cannot accept new responses because the `/v1/public/surveys/:id/respond` endpoint now rejects requests that don't include explicit consent in the body, and no client they distribute (embedded form widget, email-link landing page) sends that field yet.
+The primary owner is a **marketing manager** (or another manager who owns a specific Survey) at a brand on CustomerEQ. Their `Survey` rows live under a `Brand` whose `consentMode` was set to `EXPLICIT` by #231 PR1 (the brand-wide default), and their existing surveys cannot accept new responses because the `/v1/public/surveys/:id/respond` endpoint now rejects requests that don't include explicit consent in the body, and no client they distribute (embedded form widget, email-link landing page) sends that field yet.
+
+The brand-level / program-level consent default is owned by an **admin** (a different role, though the people may overlap in small orgs). Admin work — managing the brand's `consentMode` default itself — is **not** in scope here; that lives in the Organization Settings sibling under #277.
 
 A second persona this spec touches is the platform itself, acting as the "system" admin that runs the one-shot data migration unblocking pre-#231 surveys.
 
 ## Customer's Desired Outcome
 
-1. **Existing test surveys accept responses again** without the operator touching code, configuration, or each survey's settings.
-2. **Per-survey consent mode override.** When the operator has a justified reason to deviate from the brand default — e.g., a low-friction NPS micro-survey on a marketing landing page where an opt-in checkbox would tank response rate — they can set that single survey to `IMPLIED_ON_SUBMIT` (or to `EXPLICIT` if the brand default is `IMPLIED_ON_SUBMIT`) without flipping the entire brand.
+1. **Existing surveys accept responses again** without the survey owner touching code, configuration, or each survey's settings.
+2. **Per-survey consent mode override.** When the survey owner has a justified reason to deviate from the brand default — e.g., a low-friction NPS micro-survey on a marketing landing page where an opt-in checkbox would tank response rate — they can set that single survey to `IMPLIED_ON_SUBMIT` (or to `EXPLICIT` if the brand default is `IMPLIED_ON_SUBMIT`) without flipping the entire brand.
 3. **The override is honored end-to-end**: the consent resolver, the survey-response endpoint, and the embedded form all read the resolved consent mode (survey-level if set, brand-level otherwise), not just the brand-level value.
-4. **Choosing a more permissive mode than the brand default is gated.** Operators get an attestation step naming who authorized the deviation and when, so the audit trail can answer "who decided this survey doesn't require explicit consent" months later.
+4. **Choosing a more permissive mode than the brand default is gated.** Survey owners get an attestation step naming who authorized the deviation, when, **and why** — the audit trail must answer "who decided this survey doesn't require explicit consent, and what was their reason" months later.
 
 ## Customer Problem being solved
 
@@ -30,52 +32,50 @@ A second persona this spec touches is the platform itself, acting as the "system
 
 ## User Experience that will solve the problem
 
-### Persona A — brand admin sets a survey-level override (the durable UX)
+### Scope split: data + backend here; survey-editor UX in #241
 
-1. Operator navigates to **Surveys → [survey name] → Settings** in the admin app.
-2. New **"Consent collection"** panel inside the Settings tab shows three radio options:
-   - **Inherit from brand (current: Explicit)** — preselected for new surveys; the bracketed value reflects the brand's current `consentMode` so the operator sees what "inherit" actually means.
-   - **Require explicit consent** — opt-in checkbox shown to the respondent before submit.
-   - **Implied on submit** — the disclosure is shown but no checkbox; submitting the survey is the consent act.
-3. Choosing **the same mode as the brand** is a simple save, no extra step.
-4. Choosing a **more permissive mode than the brand** (e.g., picking *Implied on submit* on a brand defaulted to *Explicit*) opens an attestation modal:
-   - Title: "Confirm: more permissive than your brand default"
-   - Body: explains that this survey will collect responses under implied consent while the brand default requires explicit consent, names a few legitimate reasons (low-friction micro-surveys, internal employee NPS), and warns that the operator's identity + a timestamp will be recorded.
-   - Required: a "Yes, I am authorizing this deviation" checkbox + a Save action.
-5. On save: the API records `Survey.consentMode = IMPLIED_ON_SUBMIT`, `Survey.consentSuppressedAttestedBy = <Clerk user id>`, `Survey.consentSuppressedAttestedAt = NOW()`.
-6. The Settings tab subsequently displays a small badge next to the survey title — "Custom consent (Implied) — set by [user] on [date]" — so the deviation is visible at a glance without opening the modal again.
-7. Switching back to "Inherit from brand" or to a stricter mode does **not** require attestation; only loosening the policy does.
+This spec ships **the data model, backend resolver behavior, PATCH endpoint contract, and one-shot data migration** that make the override work end-to-end at the wire and DB level. The **survey-editor UX itself** — the consent panel inside the survey settings tab, the attestation modal, the audit-trail badge — belongs to **#241 (Survey Admin UX epic)**, which prioritizes the new survey experience as a coherent UX overhaul rather than letting it accrete one ad-hoc field at a time. Per the reviewer on round 1: it is acceptable for the new-survey UX to remain incomplete until #241 ships its UX surface.
 
-### Persona B — system admin runs the one-shot data migration (no UX, runs in CI/CD)
+What that means in practice:
+- The data migration in this spec unblocks production by setting every existing Survey to `IMPLIED_ON_SUBMIT` — survey owners get unblocked immediately with **no UI work required from them** (R7 below).
+- Once the override is needed via UI (post-#241), the API contract this spec defines (R5) is what #241 binds to. No backend rework required for #241 to ship the panel + modal.
 
-A repeatable, idempotent SQL migration sets every `Survey` row that:
-- Has `consentMode IS NULL` (i.e., currently inheriting), and
-- Was created before the #231 PR1 deploy timestamp (so we never clobber a deliberate post-#231 inherit choice)
+### Survey-editor UX deferred to #241
 
-…to `consentMode = 'IMPLIED_ON_SUBMIT'`, with `consentSuppressedAttestedBy = '__migration_276__'` and `consentSuppressedAttestedAt = NOW()` so the audit trail clearly attributes the change to the migration rather than to a human operator. The `WHERE consentMode IS NULL` clause makes the migration safe to re-run (lessons from #270).
+The mock at [`docs/feature-specs/mocks/276-view.html`](mocks/276-view.html) is **informational input to #241** — it sketches the panel + attestation modal + audit badge so the #241 spec author has a starting point. It is **not** a #276 deliverable and the actual UX decisions (where the panel sits, which radio options are visible, badge styling, copy) are #241's call. Notes from the round-1 review that #241 should pick up:
 
-### Mocks
+- The panel may show only the override option that **differs** from the brand default — not the option that's the same as the brand. (Round-1 reviewer feedback; cleaner UX than showing all three.)
+- The attestation modal must capture a **reason** text input alongside the "I'm authorizing" checkbox (R5 below requires the API field; the UI surface is #241's).
+- The audit-trail badge should display the reason text alongside the attester + timestamp.
 
-- [`docs/feature-specs/mocks/276-view.html`](mocks/276-view.html) — survey editor Settings tab with the new Consent collection panel and the attestation modal. Standalone HTML; open in any browser.
+### Persona — system admin runs the one-shot data migration (no UX, runs in CI/CD)
 
-### Design Standards Applied
+A repeatable, idempotent SQL migration sets every `Survey` row across all brands and all organizations that has `consentMode IS NULL` (i.e., currently inheriting) to `consentMode = 'IMPLIED_ON_SUBMIT'`, with:
+- `consentSuppressedAttestedBy = '__migration_276__'`
+- `consentSuppressedAttestedAt = NOW()`
+- `consentReason = 'Production hotfix #276 — pre-existing survey defaulting to IMPLIED_ON_SUBMIT to restore response collection. Override may be tightened by survey owner via #241 UX once shipped.'`
+
+The audit trail clearly attributes the change to the migration rather than to a human operator. The `WHERE consentMode IS NULL` clause makes the migration safe to re-run (lessons from #270).
+
+### Design Standards Applied (mock)
 
 - Source: `docs/architecture/architecture.md` (CustomerEQ admin design system — shadcn/Tailwind v4 stack per `fraim/config.json customizations.stack.ui`).
-- Mock follows the existing admin-shell layout used in `docs/feature-specs/mocks/231-brand-identifier-kind.html`: same sidebar pattern, same card / panel chrome, same primary-button / radio styling. Differences are limited to the new panel content; no novel components or tokens introduced.
+- Mock follows the existing admin-shell layout used in `docs/feature-specs/mocks/231-brand-identifier-kind.html`: same sidebar pattern, same card / panel chrome, same primary-button / radio styling. No novel components or tokens introduced.
+- The mock is informational input to #241; final design decisions (which options to show, modal copy, badge styling) belong to #241.
 
 ## Functional Requirements
 
 | ID | Requirement | Acceptance Criterion (Given/When/Then) |
 |----|---|---|
-| R1 | A `Survey` row SHALL carry an optional `consentMode` that, when non-null, overrides `Brand.consentMode` for that survey. When null, the survey inherits the brand's `consentMode`. | Given `Brand.consentMode = EXPLICIT` and `Survey.consentMode = IMPLIED_ON_SUBMIT`, when the consent resolver runs for a response on that survey, then the resolved mode is `IMPLIED_ON_SUBMIT`. |
+| R1 | A `Survey` row SHALL carry: (a) an optional `consentMode: ConsentMode?` that, when non-null, overrides `Brand.consentMode` for that survey (null = inherit); and (b) an optional `consentReason: String?` that captures the operator-supplied justification when the survey deviates from the brand default. | Given `Brand.consentMode = EXPLICIT`, `Survey.consentMode = IMPLIED_ON_SUBMIT`, `Survey.consentReason = 'Marketing landing page micro-survey, response rate sensitivity'`, when the consent resolver runs, the resolved mode is `IMPLIED_ON_SUBMIT` and the reason is queryable for audit. |
 | R2 | The consent resolver (`apps/api/src/services/consentResolver.ts`) SHALL resolve the effective mode as `survey.consentMode ?? brand.consentMode` and base its `requiresExplicitConsent` decision on that resolved value. | Existing unit tests for the resolver pass unchanged when survey.consentMode is null; new tests cover the override case for both directions (explicit-over-implied and implied-over-explicit). |
 | R3 | The survey-response endpoint (`POST /v1/public/surveys/:id/respond`) SHALL honor the resolved mode end-to-end — no separate read of `brand.consentMode`. | Given a survey with `consentMode = IMPLIED_ON_SUBMIT` under a brand with `consentMode = EXPLICIT`, when the endpoint receives a response **without** the `consent` field, then the response is accepted (HTTP 200) and persisted. |
 | R4 | The embedded form widget (`generateWidgetJs()` in `apps/api/src/routes/public.ts`) SHALL continue to function unchanged — the resolver-side change makes the widget transparently work for any consent mode without code change. | Smoke: widget served from a test brand-survey pair under each consent mode renders + submits successfully without modification. |
-| R5 | Setting a survey to a consent mode strictly more permissive than its brand SHALL require attestation: the API stores `consentSuppressedAttestedBy = <authenticated user id>` and `consentSuppressedAttestedAt = NOW()` atomically with the consent-mode update, and refuses the update if no authenticated user is present. | Given `Brand.consentMode = EXPLICIT`, when an admin PATCHes `Survey.consentMode` to `IMPLIED_ON_SUBMIT` without the attestation flag in the request body, the API returns 422 with a structured error explaining the attestation requirement. |
-| R6 | Setting a survey to the brand's mode (or to a stricter one) SHALL NOT require attestation. | Given `Brand.consentMode = IMPLIED_ON_SUBMIT`, when an admin PATCHes `Survey.consentMode` to `EXPLICIT`, the API accepts the change with no attestation payload required and clears `consentSuppressedAttestedBy/At` to NULL. |
-| R7 | A one-shot, idempotent data migration SHALL set every `Survey` row created before the #231 PR1 deploy timestamp to `consentMode = 'IMPLIED_ON_SUBMIT'`, attributing the change to a fixed system identifier `__migration_276__`. The migration MUST be safe to re-run (no row state changes on second run). | Run the migration twice in succession; row counts in `_prisma_migrations` increment by 1 on the first run and 0 on the second, and no `Survey.updatedAt` advances on the second run. |
-| R8 | The admin UI SHALL surface the override visibly when set: a badge on the survey row in the surveys list and a panel header in the survey settings, both naming the attesting user + timestamp. | Given a survey with attestation set, when the operator opens the survey list, then the survey row shows a "Custom consent" badge with hover tooltip displaying attester + timestamp. |
-| R9 | The Prisma model + migration SHALL be authored idempotently — `CREATE TYPE` reuse is unnecessary because no new enum is introduced (the existing `ConsentMode` enum is reused), and the new column add is a single `ALTER TABLE … ADD COLUMN "consentMode" "ConsentMode"` (nullable). The migration MUST follow the project's #270 idempotency norms (no unguarded DDL that breaks on `db push`-then-`migrate deploy`). | The new schema migration applies cleanly on a fresh DB and a `db push`'d DB. Verified via the new CI gate from #270 + a local `db push` → `migrate deploy` repro. |
+| R5 | Setting a survey to a consent mode strictly more permissive than its brand SHALL require BOTH attestation AND a non-empty reason: the API stores `consentSuppressedAttestedBy = <authenticated user id>`, `consentSuppressedAttestedAt = NOW()`, and `consentReason = <request body reason>` atomically with the consent-mode update. The endpoint refuses the update if no authenticated user is present, OR if the reason is missing/empty/whitespace-only. | Given `Brand.consentMode = EXPLICIT`, when a survey owner PATCHes `Survey.consentMode` to `IMPLIED_ON_SUBMIT` without the attestation flag OR without a `consentReason` field in the request body, the API returns 422 with a structured error naming the missing field(s). |
+| R6 | Setting a survey to the brand's mode (or to a stricter one) SHALL NOT require attestation or reason. The API SHALL clear `consentSuppressedAttestedBy/At` and `consentReason` to NULL on this transition. | Given `Brand.consentMode = IMPLIED_ON_SUBMIT`, when a survey owner PATCHes `Survey.consentMode` to `EXPLICIT`, the API accepts the change with no attestation payload required and the three audit columns are cleared. |
+| R7 | A one-shot, idempotent data migration SHALL set **every** `Survey` row across all brands and all organizations where `consentMode IS NULL` to `consentMode = 'IMPLIED_ON_SUBMIT'`, attributing the change to system identifier `__migration_276__` with a descriptive `consentReason` text naming the migration. The migration MUST be safe to re-run (no row state changes on second run). | Run the migration twice in succession; first run sets `consentMode = IMPLIED_ON_SUBMIT` on every `consentMode IS NULL` row across the DB and writes attestation + reason; second run is a no-op (no `Survey.updatedAt` advances; row count of touched rows is 0). |
+| R8 | The audit log SHALL capture the attesting user, timestamp, AND reason on every consent-mode override write. The audit-feed surface (existing audit plugin) SHALL include `consentReason` in its event payload so the override rationale is queryable months later. UI presentation of the badge / audit row is handled in #241. | Given a survey with attestation set, the audit-log row exists with `action = 'survey.update'`, `metadata.consentMode = 'IMPLIED_ON_SUBMIT'`, `metadata.consentReason` containing the operator's reason text, and `actorUserId = <test user>`. |
+| R9 | The Prisma model + migration SHALL be authored idempotently. The schema delta is two nullable column adds (`consentMode "ConsentMode"`, `consentReason TEXT`); no new enum is introduced. The migration MUST follow the project's #270 idempotency norms (no unguarded DDL that breaks on `db push`-then-`migrate deploy`). | The new schema migration applies cleanly on a fresh DB AND a `db push`'d DB. Verified via the new CI gate from #270 + a local `db push` → `migrate deploy` repro. |
 
 ### Open Decisions Resolved in this Spec
 
@@ -85,9 +85,9 @@ These are the three open questions from the issue body. **Recommended** answer i
 |---|---|---|---|---|
 | Q1 | **Override semantics** — enum with explicit `INHERIT_FROM_BRAND` value, OR nullable column where null = inherit? | **Nullable column.** `Survey.consentMode: ConsentMode?`. Null = inherit. | Add `INHERIT_FROM_BRAND` to `ConsentMode` enum. | Nullable-as-inherit is a Postgres / Prisma idiom that doesn't pollute the `ConsentMode` enum (which is also used by `Brand.consentMode`, where `INHERIT` would be nonsensical). Adding the enum value forces every `ConsentMode` consumer to handle a value that's only meaningful in a child context. Migration cost is identical. |
 | Q2 | **Authorization shape** — reuse `Survey.consentSuppressedAttestedBy/At` (added in #231 PR1 as placeholders) or introduce a new pair of columns? | **Reuse `consentSuppressedAttestedBy/At`.** | Add `Survey.consentModeOverrideBy/At`. | The #231 PR1 fields were explicitly designed as attestation hooks for survey-level consent deviation (see comment in `consentResolver.ts:14`). Reusing them keeps the audit shape unified and avoids two parallel "who attested what" columns. The semantics generalize cleanly: the attestation now records "who authorized any consent deviation on this survey" — both `consentTextOverride = ''` (suppress UI, R17 from #231) and `consentMode != null` deviating from brand. |
-| Q3 | **Migration scope** — set ALL existing `Survey` rows to `IMPLIED_ON_SUBMIT`, or only those with no responses yet? | **All existing surveys created BEFORE the #231 PR1 deploy timestamp.** Surveys created after that timestamp are left at `consentMode = NULL` (inherit) on the assumption they were created with the new brand-default behavior intentionally. | (a) All rows unconditionally; or (b) only rows with `responsesCount = 0`. | (a) risks clobbering deliberate post-#231 inherit choices. (b) is too narrow — a pre-#231 survey that managed to collect a few responses under the legacy flow would be left in a half-state where new responses still hit the EXPLICIT requirement. The "created before #231 PR1" boundary is a clean, single-pass criterion that matches the issue body's framing ("All surveys created before #231 were test fixtures"). |
+| Q3 | **Migration scope** — set ALL existing `Survey` rows to `IMPLIED_ON_SUBMIT`, or only those with no responses yet? | **All `Survey` rows across all organizations with `consentMode IS NULL`** (round-1 reviewer answer). Migration scope is unconditional — no timestamp boundary, no `responsesCount` filter. | (a) only rows created before #231 PR1; (b) only rows with `responsesCount = 0`. | The reviewer's framing: production is the immediate concern, every existing survey was effectively created under the legacy implied-consent assumption regardless of when, and survey owners can post-hoc tighten any specific survey to `EXPLICIT` via the override UI (when #241 ships) if their compliance posture demands it. The simplicity of the unconditional sweep is worth more than the marginal safety of the timestamp boundary. The `WHERE consentMode IS NULL` clause still preserves any deliberate operator-set value (no clobbering). |
 
-If the reviewer prefers a different answer on any of these, the spec can be re-cut without rework on R3-R9 — only the migration shape (Q3) and the schema column type (Q1) would change.
+(Q3 was originally recommended as the timestamp-bounded form; flipped to unconditional sweep on round-1 review.)
 
 ## Compliance Requirements
 
@@ -115,10 +115,10 @@ Per `fraim/config.json customizations.compliance.regulations`: `GDPR`, `CCPA`, `
 | **Unit (resolver)** | The resolver returns the survey-level mode when set and falls back to brand when null. | Vitest in `apps/api/src/services/consentResolver.test.ts`: 4 cases (brand=EXPLICIT/survey=null, brand=EXPLICIT/survey=IMPLIED, brand=IMPLIED/survey=null, brand=IMPLIED/survey=EXPLICIT). |
 | **API integration** | The survey-response endpoint accepts / rejects based on the resolved mode. | Vitest integration in `apps/api/test/integration/public-survey-response.test.ts` against a real DB; covers all four resolver cases against the endpoint's 200/400 contract. |
 | **API integration** | The PATCH survey endpoint enforces the attestation gate (R5/R6). | Same file: PATCHing to a more permissive mode without attestation returns 422; PATCHing to the same-or-stricter mode returns 200; clearing the override clears the attestation columns. |
-| **Migration** | The data migration is idempotent and bounds to pre-#231-PR1 rows. | Direct psql replay of the migration SQL twice with `ON_ERROR_STOP=1`; assert `_prisma_migrations` increments once and `Survey.updatedAt` does not advance on the second run. CI gate from #270 catches non-idempotency on fresh DB. |
-| **Migration** | The migration does not touch surveys created after the #231 PR1 deploy timestamp. | Seed two surveys (one pre-cutover, one post-cutover); run migration; assert pre-cutover survey gets `consentMode = IMPLIED_ON_SUBMIT`, post-cutover survey stays `consentMode = NULL`. |
-| **E2E** | Operator flow: open the new survey settings panel, switch to a more permissive mode, attest, save, see the badge. | Playwright spec under `apps/web/playwright/` — adds a `276-survey-consent-override.spec.ts`. Uses an existing seeded brand + survey (no new fixture infra needed). |
-| **Compliance verification** | Audit log captures the attesting user + timestamp. | Integration test asserts the audit-log row exists with `action = 'survey.update'`, `metadata.consentMode = 'IMPLIED_ON_SUBMIT'`, and `actorUserId = <test admin>`. |
+| **Migration** | The data migration is idempotent across the unconditional `consentMode IS NULL` sweep. | Direct psql replay of the migration SQL twice with `ON_ERROR_STOP=1`; assert `Survey.updatedAt` advances on the first run for affected rows and does NOT advance on the second run. CI gate from #270 catches non-idempotency on fresh DB. |
+| **Migration** | The migration preserves any pre-existing operator-set `consentMode`. | Seed three surveys: one with `consentMode = NULL`, one with `consentMode = EXPLICIT`, one with `consentMode = IMPLIED_ON_SUBMIT`; run migration; assert only the NULL row is touched and the other two are unchanged. |
+| **E2E (deferred to #241)** | Operator flow through the survey-editor UX (open settings panel, switch mode, attest with reason, save, see badge). | Out of scope for #276 — the survey-editor UX itself ships in #241; the API contract that #241 binds to is verified in the API integration tests above. |
+| **Compliance verification** | Audit log captures the attesting user, timestamp, AND reason. | Integration test asserts the audit-log row exists with `action = 'survey.update'`, `metadata.consentMode = 'IMPLIED_ON_SUBMIT'`, `metadata.consentReason` containing the supplied reason text, and `actorUserId = <test user>`. |
 | **Smoke (post-deploy)** | Pre-existing surveys accept responses again without manual intervention. | Curl the public endpoint against a known pre-#231 survey ID + manual confirmation in the admin UI that the badge shows the migration attribution. |
 
 ## Alternatives
@@ -169,7 +169,8 @@ The FRAIM phase warns that the `competitors` config is not set. Adding a `compet
 
 ## Out of Scope
 
-- **Brand-level Organization Settings page** that lets operators toggle the brand-wide `consentMode`. Filed as a sibling issue per #276 cross-refs; this spec assumes the brand default is set via Clerk-webhook auto-provision (#239) or ad-hoc admin SQL until that lands.
+- **Survey-editor UI for the consent panel** (radio options, attestation modal with reason input, audit-trail badge with reason) — belongs to **#241 (Survey Admin UX epic)**. The mock at `docs/feature-specs/mocks/276-view.html` is informational input to #241, not a #276 deliverable.
+- **Brand-level Organization Settings page** that lets admins toggle the brand-wide `consentMode`. Belongs to **#277 (Organization Settings umbrella)**; this spec assumes the brand default is set via Clerk-webhook auto-provision (#239) or ad-hoc admin SQL until that lands.
 - **Backfill of `consentTextOverride` text or `consentTextDefault` brand text** for pre-existing surveys. The migration sets the *mode* only; the disclosure text continues to fall back to the brand default (which may be empty for legacy brands — a separate operator-facing nudge is filed if needed).
-- **Cross-survey bulk operations** ("set all surveys in this program to Implied") — explicitly out of scope; surveys are configured one at a time.
-- **Audit-log dashboard** for viewing all consent-mode deviations across surveys — the audit plugin already captures the events; surfacing them in a UI is a separate observability ask.
+- **Cross-survey bulk operations** ("set all surveys in this program to Implied") — explicitly out of scope; surveys are configured one at a time via #241's editor.
+- **Audit-log dashboard** for viewing all consent-mode deviations across surveys — the audit plugin already captures the events (R8); surfacing them in a UI is a separate observability ask.

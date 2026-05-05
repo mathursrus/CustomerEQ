@@ -6,7 +6,19 @@
 
 ## Summary
 
-Spec for the per-survey override of `Brand.consentMode` plus the one-shot data migration that unblocks pre-#231 test surveys. All three open questions from the issue body answered with recommendation + alternative + tradeoff. UI mock authored. Compliance section maps GDPR / CCPA / SOC2 to specific controls. Competitive analysis kept honest and brief — not padded — because the feature is operational consent plumbing, not a customer-visible differentiator.
+Spec for the per-survey override of `Brand.consentMode` plus the one-shot data migration that unblocks pre-existing surveys. The spec ships **the data model + backend + migration**; the survey-editor UX itself belongs to **#241** (round-1 reviewer scope decision). The mock is informational input to #241, not a #276 deliverable.
+
+**Round-1 reviewer responses to open questions** (PR #282):
+- Q1 (override semantics) → Nullable column ✓ approved
+- Q2 (auth shape) → Reuse `consentSuppressedAttestedBy/At` ✓ approved
+- Q3 (migration scope) → **Flipped from recommended (timestamp boundary) to "all Survey rows across all organizations" (alternative a)**.
+
+**Round-1 reviewer additions**:
+- Persona is **marketing manager / survey owner** (admin owns brand/programs).
+- Override carries a `consentReason` text field captured at attestation time, stored on `Survey`, surfaced in the audit log, and shown in the badge.
+- Survey-editor UX (panel, modal, badge) deferred to #241; this spec defines only the API contract that #241 binds to.
+
+Compliance section maps GDPR / CCPA / SOC2 to specific controls. Competitive analysis kept honest and brief per project rule R3.
 
 ## Work Completed
 
