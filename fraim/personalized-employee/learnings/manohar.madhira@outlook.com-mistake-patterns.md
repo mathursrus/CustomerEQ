@@ -2,7 +2,7 @@
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
 
-**Last synthesized**: 2026-05-01
+**Last synthesized**: 2026-05-05
 
 ---
 
@@ -222,3 +222,102 @@ On #170 PR1 (2026-04-27), the implement-validate phase ran `pnpm build / typeche
 **First synthesized**: 2026-05-01
 
 On #170 PR1 (PR #197, 2026-04-27), the initial PR body buried the `signInUser` interface decision inside a 5-bullet "Deviations surfaced" paragraph: *"`signInUser` impl uses a forced cast over the Clerk SDK; @clerk/backend doesn't expose password sign-in. … **PR 2 decision**: replace with admin-API session create OR remove from interface entirely (recommended …)."* The prose form was invisible to the reviewer scan-reading the PR body — user asked *"I don't see where I should confirm the signInUser decision"* (cf. manager-coaching pending entry on user-asks-where-to-confirm). Cost: one extra round-trip (~5 min to update the PR body via `gh pr edit`). The validated-pattern memory `Decision-points-at-PR-body-bottom format for fast review` was already in L1 — it fired correctly for the implementation-scoping phase (4 pre-execution decisions surfaced as a numbered block; user answered all in one chat turn) — but did not fire when authoring the PR body itself. **Rule: any time the PR body contains a phrase like *"PR N decision:"*, *"decide later"*, *"needs reviewer input"*, or *"X or Y"* — surface as a numbered block at the bottom with `← recommended` defaults. Even one decision is worth its own block.**
+
+---
+
+#### [P-HIGH] Asserted facts about file / config / external-state contents without reading the primary source first
+
+**Score**: 8.0
+**Last seen**: 2026-05-04
+**Recurrences**: 3
+**First synthesized**: 2026-05-03
+
+Three recurrences in 8 days, plus a same-family pattern already in L1. (1) On issue #177 (2026-04-26), diagnosed a CI flake by attribution to commit `dfcce3f` — the commit that originally added the failing test — rather than running the test repeatedly under matching conditions and computing the theoretical failure rate. The user pushed back; empirical reproduction across 50+ runs showed the failure was a statistical-bound issue, not feature #83's. (2) On #231 PR #259 (2026-05-03), wrote in the spec: *"`fraim/config.json` does not declare regulations explicitly"* — false. The file declares GDPR/CCPA/SOC2/PCI-DSS at lines 49-66. Relied on a misleading FRAIM mentor warning ("regulations not configured") and propagated it as fact. The user explicitly framed this as the **second occurrence** and called out the deflection-to-the-mentor pattern. (3) On #231 PR #259 RFC drafting (2026-05-04), wrote a "File-level change list" table that included `apps/worker/src/jobs/erasure.ts` and `apps/api/src/services/dataExport.ts` as "modify" rows. Both files do not exist — the architecture doc claim about GDPR erasure/export was aspirational, not delivered. Caught only during phase-4 implementation pattern discovery via `find apps/worker/src -name "*.ts"`. Forced a mid-implementation re-scope plus a P1 follow-up issue. Sibling pattern in L1: *"Misdiagnosed a script hang as an external system issue"* (P-HIGH 8.0, #200) — same shape (don't trust externals; verify primary source) but specifically about script-debugging. **Umbrella rule**: before asserting any fact about the contents of a config file, settings file, log, schema, file path, or other primary source — read or `find` the file. Mentor warnings, architecture docs, and second-hand assertions are secondary signals; the file itself is authoritative. Deflecting a missed read to "the mentor said X" or "the architecture doc claims Y" is an attribution-to-externals failure mode that compounds. **Concrete checks**: (a) for any config/setting claim, run a Read on the named file and quote the relevant lines; (b) for any "X does not exist" claim, name the file/glob/scope and the actual search; (c) treat mentor warnings as *prompts to verify*, not conclusions to propagate; (d) **for any RFC table that claims "modify X" or "extend Y", run a verifying read of X / Y in the same drafting pass** — architecture documentation can be aspirational, its claims about delivered infrastructure are not a substitute for verifying the codebase.
+
+---
+
+#### [P-HIGH] Skipped FRAIM `seekMentoring` loop after completing discovery
+
+**Score**: 8.0
+**Last seen**: 2026-05-02
+**Recurrences**: 1
+**First synthesized**: 2026-05-03
+
+On issue #255 (a 2-line CI YAML fix), the agent did the upfront FRAIM discovery — `read project_rules.md` → `fraim_connect` → `list_fraim_jobs` → `get_fraim_job` for `feature-implementation` — but then skipped straight from "I have the plan" to "file issue → branch → fix → push → PR → merge" without calling `seekMentoring` between phases. The user corrected with "Make sure your following FRAIM." The fix shipped but bypassed the per-phase mentoring loop the job explicitly defines (13 phases, each with `seekMentoring` at transitions, evidence docs at scoping/code/submission). After correction, the agent walked phases retrospectively and was honest about which artifacts were missing. Distinct from existing L1 entry *"FRAIM discovery skipped or plan-mode entered before scanning job stubs"* — that's about NOT scanning at all; this is about scanning then bypassing the loop. **Rule**: after `get_fraim_job` returns the phase outline, immediately call `seekMentoring(currentPhase: "starting", status: "starting")` to enter the loop. Discovery is the prelude; the loop is the job. For trivial fixes that feel heavyweight, enter the loop and let the mentor confirm a lightweight evidence form is acceptable for the phase — do not bypass unilaterally.
+
+---
+
+#### [P-MED] Did not post per-thread replies on PR review comments when addressing feedback
+
+**Score**: 5.0
+**Last seen**: 2026-05-03
+**Recurrences**: 1
+**First synthesized**: 2026-05-03
+
+On issue #231 PR #259 (2026-05-03), addressed all 18 inline review comments via (a) feedback file at `docs/evidence/231-feature-specification-feedback.md`, (b) substantive spec edits in commit `867fdaf`, (c) cross-issue propagation comments on #225 / #239 / #241 / #3. But did NOT post replies on the original review-comment threads. User asked: *"Why didn't you add replies to my comments? Doesn't FRAIM specify you to do so?"* Honest answer: FRAIM's `address-feedback` phase specifies marking items ADDRESSED in the feedback FILE, not posting GitHub thread replies. The gap is on the agent. From the reviewer's seat, an unanswered thread looks abandoned; the reviewer has to dig into the commit log or the feedback file to find out whether each item was addressed and how. **Rule**: when addressing PR review comments, post a per-thread reply at resolution time (not just in the feedback file or commit message). Use `mcp__github__add_reply_to_pull_request_comment` or `gh api -X POST .../pulls/N/comments/<id>/replies`. Each reply cites the resolving commit SHA + a one-line summary. For "Agreed" comments, a brief "Acknowledged — Q3 position confirmed" still helps mark the thread closed. The feedback file remains the durable evidence record; PR-thread replies are the live communication channel.
+
+---
+
+#### [P-HIGH] Treated CI/CD log "Deploy: success" as activation-success proxy
+
+**Score**: 8.0
+**Last seen**: 2026-05-04
+**Recurrences**: 1
+**First synthesized**: 2026-05-04
+
+On 2026-05-04 during the post-merge investigation of #231 PR #267, the agent reported "PR #267 is very probably running in production" based solely on the CD workflow's `Deploy API/Worker/Web: success` log lines. The user asked for empirical confirmation; querying `az containerapp revision list --name customereq-api --query "[?properties.active]"` revealed `customereq-api--0000160` (PR #267 image) was `ActivationFailed` while `customereq-api--0000111` (April 17 image) was still serving traffic. Container Apps' Single revision mode silently keeps the previous active revision when a new one fails activation, and `az containerapp update --image …` returns success when Azure **accepts** the image — not when the new revision **activates**. This semantic mismatch hid the BAML codegen regression (#273) for **16 days** while every CD reported "Deploy: success." The CD workflow has a `Verify API health` step at the end that *would* have caught it, but it kept being skipped because the unrelated demo-storefront step (#272) failed earlier. **Rule**: when reporting whether a deploy reached prod, never rely solely on `Deploy: success` in the CD log. Verify via `az containerapp revision list --query "[?properties.active]"` (active revision SHA matches the merge commit AND state=Running, healthState=Healthy) or wait for the workflow's explicit `Verify API health` step. Sister-pattern to the L1 entry "Asserted facts about file/config without reading the primary source" — same shape (don't trust intermediate signals; verify primary state) but specifically about deploy logs.
+
+---
+
+#### [P-HIGH] Enum names described detection signal, not channel semantics
+
+**Score**: 8.0
+**Last seen**: 2026-05-03
+**Recurrences**: 1
+**First synthesized**: 2026-05-04
+
+On issue #231 PR #259 (2026-05-03), the channel-attribution enum values `SURVEY_RESPONSE` and `EMBEDDED_FORM` were named by trust framing ("URL-supplied = trusted = `SURVEY_RESPONSE`") rather than by channel semantics. The user pushed back across **four separate inline comments** on consecutive sections of the same RFC: *"Is this logic flipped or correct?"*, *"member_id via URL query would mean embedded, correct?"*, *"if customer knew the identity it would be embedded form"*, *"Consistently SURVEY_RESPONSE and EMBEDDED_FORM seem to be flipped"*. The user's reading was correct — `EMBEDDED_FORM` describes the channel (a form embedded in a host that supplies identity context, typically via URL param) and `SURVEY_RESPONSE` describes a standalone survey link where the responder self-identifies on the form. Round-1 fix flipped 8 strings across 3 files. **Rule**: when naming enum / type / state values that have human-readable names, the names must describe **what the value semantically represents** (the channel, the state, the kind), not the **detection signal** that distinguishes them. Before committing, do a "name-only sanity check": strip away implementation reasoning and read each value as a developer encountering it for the first time in code review. If your immediate intuition about which detection produces which value disagrees with the documented mapping, the names or the mapping is wrong — fix before submit. Trust framing ("URL is more trusted than body") is a valid separate property; do not let it leak into channel-shaped enum names.
+
+---
+
+#### [P-MED] Tested moral equivalent of CI command, not the exact docker invocation
+
+**Score**: 5.0
+**Last seen**: 2026-05-04
+**Recurrences**: 1
+**First synthesized**: 2026-05-04
+
+On #273 implementation (PR #275), the new CI step `Verify API image module resolution` ran `docker run --rm --entrypoint node ceq-api:<sha> --input-type=module -e "await import('@customerEQ/ai')..."`. Locally I had verified the BAML codegen output via `node --input-type=module -e "await import('./dist/index.js')"` from inside `packages/ai/` — which proved the codegen contract but NOT the workflow's exact invocation. CI surfaced `Cannot find package '@customerEQ/ai' imported from /app/[eval1]` because pnpm doesn't hoist workspace packages to `/app/node_modules`, so package-name resolution from a `node -e` synthetic eval module path failed. Cost: ~7 minutes of CI cycle wasted. The fix was a one-line probe-target change (`'@customerEQ/ai'` → `'/app/packages/ai/dist/index.js'`). **Rule**: when adding a CI step that runs a non-trivial command inside a built Docker image, locally execute the **exact** `docker build` + `docker run` against a test tag before pushing. Direct host-shell equivalents (importing the source dist by relative path, calling functions in a unit test) verify the codegen output but not the workflow's actual invocation contract. The cost of `docker build && docker run` against a test tag once is small; the cost of finding out via CI red is one wasted run plus a context switch.
+
+---
+
+#### [P-HIGH] Drafted downstream-surface scope into a P0 production hotfix instead of deferring
+
+**Score**: 8.0
+**Last seen**: 2026-05-05
+**Recurrences**: 2 (same PR, two phases)
+**First synthesized**: 2026-05-05
+
+On issue #276 (P0 production hotfix — pre-existing surveys broken by #231 PR1's `EXPLICIT` consent default), the spec round-1 draft included a full Persona A UI walkthrough (settings panel, attestation modal, audit-trail badge) for the survey-editor experience. Reviewer pulled that scope into #241 (Survey Admin UX epic) where the survey UX is owned end-to-end. Round 2 (the RFC) then re-imported the same shape: PATCH endpoint contract + audit-plugin extension + 422 contract + read-before-write `previousConsentMode` capture. Reviewer pulled THAT into #241 too with the exact same logic. Both expansions were cosmetic-future-proofing rather than what unblocks production. After round 2 the user wrote: *"for production bug fixes keep the scope very tight to fixing production. This overengineering of scope both in feature spec and in RFC wasted a number of hours of my review."* The minimum scope that unblocks production was always: schema columns (so the migration can write them), data migration (the actual unblock), resolver change (so the new column affects production behavior). PATCH + audit + UI are downstream surfaces with a natural-owner issue (#241) that was already prioritized. **Rule**: at spec-drafting time on a P0 hotfix, write the Customer Problem section first, then enumerate **only** the requirements that, if absent, would mean production stays broken. Anything that only enables a future UX surface goes in an "Out of Scope (deferred to #N)" section from the first draft, with a one-line rationale ("only the survey-editor UI in #N writes this column"), not buried in a Persona walkthrough that the reviewer has to surgically remove. Same discipline at RFC time: if the spec already deferred R5/R6/R8 to #241, the RFC must defer the corresponding technical surfaces by default. Surface "should we include the PATCH here for completeness?" as an explicit Decisions-for-Reviewer question rather than just including it. Sister-pattern to existing `Tight PR scope — no opportunistic scope creep` preference (P-HIGH 8.0); this is the scope-drafting variant for hotfix workflows specifically.
+
+---
+
+#### [P-MED] Audit-trail design omitted the WHY column — captured WHO + WHEN only
+
+**Score**: 5.0
+**Last seen**: 2026-05-05
+**Recurrences**: 1
+**First synthesized**: 2026-05-05
+
+On issue #276 spec round 1, the attestation surface for the new per-survey consent override captured WHO (`consentSuppressedAttestedBy`) and WHEN (`consentSuppressedAttestedAt`) but no WHY field. Reviewer flagged it three separate times across consecutive sections (outcome bullet → modal step → schema column row): *"Ideally the override will also carry a reason for the override"*, *"It should also capture the reason"*, *"And Survey.consentReason - the text used for override"*. The "with appropriate authorization" framing in the issue body implied an audit-quality bar that needed all three columns; the agent collapsed it into two. Adding the field after the fact required rework across R1 / R5 / R6 / R7 / R8 plus the mock's modal + audit row. **Rule**: when designing an attestation surface for a "deviating from the default" decision (consent mode, policy override, suppression), treat the reason text as a first-class column from the first draft — not an optional add. The regulator-style question "why did this happen" is the load-bearing one; WHO and WHEN are how you find the human, but WHY is what you're auditing. If you find yourself drafting a 2-column attestation table, stop and add the third column before committing. Sister-pattern to `PR-body decisions buried in prose` (P-MED) — both are completeness-of-shape failures.
+
+---
+
+#### [P-LOW] Migration-scope decision weighted "marginal safety" over "simplicity" without naming the axis
+
+**Score**: 3.0
+**Last seen**: 2026-05-05
+**Recurrences**: 1
+**First synthesized**: 2026-05-05
+
+On issue #276 spec round 1, Q3 (migration scope) was recommended as the timestamp-bounded form ("set every Survey row created BEFORE the #231 PR1 deploy timestamp") on the basis of *"don't clobber deliberate post-#231 inherit choices."* Reviewer flipped to the unconditional sweep ("All Surveys across all organizations"). The deciding observation: the `WHERE consentMode IS NULL` clause already preserves any operator-set value — the only thing the timestamp boundary protects against is a hypothetical post-#231 survey that intentionally inherits brand's EXPLICIT default, and even that survey is unblocked by the unconditional flip (operator can post-hoc tighten). The simplicity of the unconditional sweep was the better deciding axis but wasn't named in the open-question table. **Rule**: for migration-scope decisions on recovery / hotfix migrations, name **simplicity vs marginal safety** as the deciding axis explicitly in the open-questions table. The first instinct is to weight safety; on a hotfix the safety guards (idempotency `WHERE` clauses, no-clobber semantics) often already exist, and simplicity wins. Surface "simplicity vs marginal safety" as the candidate framing, not just "safety vs scope."
