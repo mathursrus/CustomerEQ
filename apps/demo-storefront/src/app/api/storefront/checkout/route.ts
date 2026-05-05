@@ -3,12 +3,11 @@ import type { CartItem } from '@/lib/cart'
 
 const API_URL = process.env.DEMO_API_URL ?? 'http://localhost:4000'
 const BRAND_ID = process.env.DEMO_BRAND_ID ?? 'cmn689ibu000089tqad1g234t'
+const API_KEY = process.env.DEMO_API_KEY
 
-const TEST_HEADERS = {
-  'Content-Type': 'application/json',
-  'X-Test-Brand-Id': BRAND_ID,
-  'X-Test-User-Id': 'demo-admin',
-}
+const TEST_HEADERS: Record<string, string> = API_KEY
+  ? { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY }
+  : { 'Content-Type': 'application/json', 'X-Test-Brand-Id': BRAND_ID, 'X-Test-User-Id': 'demo-admin' }
 
 interface CheckoutBody {
   email: string
