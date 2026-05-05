@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-04
-synthesized:
+synthesized: 2026-05-04
 ---
 
 # Postmortem: BAML codegen ESM-friendly imports (technical-design phase) — Issue #273
