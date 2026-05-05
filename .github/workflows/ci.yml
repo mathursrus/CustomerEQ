@@ -13,7 +13,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # pgvector/pgvector:pg16 — required by migration 20260403000000_add_kb_articles
+        # (CREATE EXTENSION vector). Mirrors local docker-compose per ADR-0002 / R20.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: customerEQ
           POSTGRES_PASSWORD: customerEQ
@@ -62,6 +64,15 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+
+      # Regression gate for #270: every prior CI run skipped `migrate deploy`,
+      # so a non-idempotent migration could land and only break on contributor
+      # `pnpm db:reset` and on prod restore-from-migrations. Running the full
+      # history against an empty postgres on every PR catches that class.
+      - name: Run migrations (regression gate for #270)
+        run: pnpm db:migrate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
