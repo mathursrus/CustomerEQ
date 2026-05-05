@@ -18,6 +18,9 @@
 
 export interface SurveyConsentInput {
   consentTextOverride: string | null
+  // Issue #276 — null = inherit Brand.consentMode; non-null overrides it for
+  // this survey. Resolution at the requiresExplicitConsent decision below.
+  consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT' | null
 }
 
 export interface BrandConsentInput {
@@ -68,7 +71,7 @@ export function getConsentTextForSurvey(
       text: survey.consentTextOverride,
       isSuppressed: false,
       sourcedFrom: 'survey-override',
-      requiresExplicitConsent: brand.consentMode === 'EXPLICIT',
+      requiresExplicitConsent: (survey.consentMode ?? brand.consentMode) === 'EXPLICIT',
       privacyPolicyUrl: brand.privacyPolicyUrl,
       termsUrl: brand.termsUrl,
     }
@@ -79,7 +82,7 @@ export function getConsentTextForSurvey(
       text: brand.consentTextDefault,
       isSuppressed: false,
       sourcedFrom: 'brand-default',
-      requiresExplicitConsent: brand.consentMode === 'EXPLICIT',
+      requiresExplicitConsent: (survey.consentMode ?? brand.consentMode) === 'EXPLICIT',
       privacyPolicyUrl: brand.privacyPolicyUrl,
       termsUrl: brand.termsUrl,
     }
@@ -93,7 +96,7 @@ export function getConsentTextForSurvey(
     text: null,
     isSuppressed: false,
     sourcedFrom: 'none',
-    requiresExplicitConsent: brand.consentMode === 'EXPLICIT',
+    requiresExplicitConsent: (survey.consentMode ?? brand.consentMode) === 'EXPLICIT',
     privacyPolicyUrl: brand.privacyPolicyUrl,
     termsUrl: brand.termsUrl,
   }

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Survey settings — Consent collection (Issue #276)</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --warning-bg: #fef3c7;
+    --warning-border: #fbbf24;
+    --warning-text: #78350f;
+    --info-bg: #ecfeff;
+    --info-border: #06b6d4;
+    --info-text: #155e75;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px 24px; }
+  .frame { max-width: 760px; margin: 0 auto; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+  h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+  .subtitle { color: var(--text-muted); margin: 0 0 20px; font-size: 14px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; margin-bottom: 20px; }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab { padding: 10px 16px; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 16px; }
+  .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .panel-header h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  .panel-header .panel-help { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: all .15s; }
+  .option:hover { border-color: var(--border-strong); }
+  .option.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .option input[type="radio"] { margin-top: 3px; accent-color: var(--accent); }
+  .option-body { flex: 1; }
+  .option-title { font-weight: 600; font-size: 15px; }
+  .option-title .inherit-value { color: var(--text-muted); font-weight: 400; font-size: 13px; }
+  .option-title .more-permissive { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--warning-text); background: var(--warning-bg); padding: 2px 8px; border-radius: 4px; vertical-align: middle; }
+  .option-desc { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .attestation-note { margin-top: 16px; padding: 12px 14px; background: var(--info-bg); border-left: 3px solid var(--info-border); border-radius: 4px; font-size: 13px; color: var(--info-text); display: none; }
+  .attestation-note.shown { display: block; }
+  .attestation-note strong { color: var(--info-text); }
+  .audit-trail { margin-top: 20px; padding: 14px 16px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text-muted); display: none; }
+  .audit-trail.shown { display: block; }
+  .audit-trail-label { font-weight: 600; color: var(--text); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+  button { font-family: inherit; font-size: 14px; font-weight: 500; padding: 10px 18px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-primary:disabled { background: #c7d2fe; cursor: not-allowed; }
+  .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); }
+  .btn-danger { background: white; color: #b91c1c; border-color: #fca5a5; }
+  .btn-danger:hover { background: #fef2f2; }
+  /* Informational banner */
+  .info-banner { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #78350f; line-height: 1.5; }
+  .info-banner strong { color: #78350f; }
+  .info-banner a { color: #78350f; }
+  /* Reason textarea */
+  .modal-reason { display: block; width: 100%; min-height: 76px; padding: 10px 12px; margin-bottom: 16px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: inherit; font-size: 13px; resize: vertical; }
+  .modal-reason:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .modal-field-label { font-size: 13px; font-weight: 500; color: var(--text); display: block; margin-bottom: 6px; }
+  .modal-field-help { font-size: 12px; color: var(--text-muted); margin-top: -12px; margin-bottom: 12px; }
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
+  .modal-backdrop.shown { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; max-width: 520px; width: 100%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+  .modal h3 { font-size: 18px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .modal h3::before { content: '⚠'; color: var(--warning-border); }
+  .modal-body { font-size: 14px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px; }
+  .modal-body ul { margin: 8px 0; padding-left: 20px; }
+  .modal-attest { display: flex; align-items: flex-start; gap: 10px; padding: 14px; background: var(--bg); border-radius: 8px; margin-bottom: 16px; cursor: pointer; }
+  .modal-attest input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); }
+  .modal-attest-text { font-size: 13px; color: var(--text); font-weight: 500; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="info-banner">
+    <strong>Informational mock for issue #276 spec.</strong> The actual survey-editor UX (panel placement, radio rendering, modal copy, badge styling) is implemented in <a href="https://github.com/mathursrus/CustomerEQ/issues/241">#241 (Survey Admin UX epic)</a>. This file only sketches the API contract that #241 will bind to: a consent-mode field with three states (inherit / explicit / implied), an attestation step requiring identity + reason when overriding to a more permissive mode, and an audit-trail surface that includes the reason. #241 will refine the visible options (e.g., showing only the option that differs from the brand default).
+  </div>
+
+  <p class="breadcrumb"><a href="#">Surveys</a> / <a href="#">Acme NPS Q2</a> / Settings</p>
+  <h1>Acme NPS Q2</h1>
+  <p class="subtitle">Settings &middot; consent &middot; distribution &middot; trigger rules</p>
+
+  <div id="custom-consent-badge" class="badge" style="display:none;">
+    <span class="dot"></span>
+    <span id="badge-text">Custom consent: Implied on submit &middot; set by jane.doe@acme.com on 2026-05-04 &middot; reason: Marketing landing page micro-survey</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <div class="tab" role="tab">Questions</div>
+    <div class="tab active" role="tab" aria-selected="true">Settings</div>
+    <div class="tab" role="tab">Distribution</div>
+    <div class="tab" role="tab">Responses</div>
+  </div>
+
+  <div class="card">
+    <div class="panel-header">
+      <div>
+        <h2>Consent collection</h2>
+        <p class="panel-help">How this survey collects consent from respondents. Defaults to your brand's setting.</p>
+      </div>
+    </div>
+
+    <div class="options" role="radiogroup" aria-label="Survey consent mode">
+      <label class="option selected">
+        <input type="radio" name="consentMode" value="INHERIT" checked />
+        <div class="option-body">
+          <div class="option-title">Inherit from brand <span class="inherit-value">(currently: Require explicit consent)</span></div>
+          <div class="option-desc">This survey uses whatever consent mode your brand is configured for. If you change the brand setting later, this survey follows.</div>
+        </div>
+      </label>
+      <label class="option">
+        <input type="radio" name="consentMode" value="EXPLICIT" />
+        <div class="option-body">
+          <div class="option-title">Require explicit consent</div>
+          <div class="option-desc">Show the consent disclosure plus an opt-in checkbox the respondent must tick before submit. Same as your brand default today.</div>
+        </div>
+      </label>
+      <label class="option">
+        <input type="radio" name="consentMode" value="IMPLIED_ON_SUBMIT" />
+        <div class="option-body">
+          <div class="option-title">Implied on submit <span class="more-permissive">More permissive than brand</span></div>
+          <div class="option-desc">Show the consent disclosure but no checkbox. Submitting the survey is the consent act. Useful for low-friction micro-surveys.</div>
+        </div>
+      </label>
+    </div>
+
+    <div id="attestation-note" class="attestation-note">
+      <strong>Heads up.</strong> This is more permissive than your brand default. We'll record your name and the time on save so the audit trail is clear.
+    </div>
+
+    <div id="audit-trail" class="audit-trail">
+      <div class="audit-trail-label">Audit trail</div>
+      Attested by <strong>jane.doe@acme.com</strong> on <strong>2026-05-04 14:32 UTC</strong>.
+      <div style="margin-top: 6px;">Reason: <strong id="audit-reason">Marketing landing page micro-survey, response rate sensitivity</strong></div>
+      <button class="btn-danger" type="button" style="margin-top: 10px;" onclick="revertToInherit()">Revert to brand default</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn-secondary" type="button">Cancel</button>
+      <button id="save-btn" class="btn-primary" type="button" disabled>Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Attestation modal — shown when picking a more permissive mode than the brand -->
+<div id="modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <h3 id="modal-title">Confirm: more permissive than your brand default</h3>
+    <div class="modal-body">
+      Your brand requires <strong>explicit consent</strong> by default. You're about to set this single survey to <strong>implied on submit</strong>, which means respondents will see the disclosure but won't tick a checkbox.
+      <br /><br />
+      Common reasons this is appropriate:
+      <ul>
+        <li>Low-friction NPS micro-surveys on a marketing landing page</li>
+        <li>Internal employee feedback where consent is part of the employment relationship</li>
+        <li>Post-purchase confirmation page where the purchase itself is the consent context</li>
+      </ul>
+      Saving will record your identity and the timestamp on the survey for the audit trail. Other surveys under this brand are unchanged.
+    </div>
+    <label class="modal-field-label" for="reason-input">Reason for the override</label>
+    <p class="modal-field-help">Required. Stored on the survey for audit. Other admins / regulators can see this later.</p>
+    <textarea id="reason-input" class="modal-reason" placeholder="e.g., Low-friction NPS micro-survey on the marketing landing page; opt-in checkbox would tank response rate."></textarea>
+
+    <label class="modal-attest">
+      <input type="checkbox" id="attest-checkbox" />
+      <span class="modal-attest-text">I am authorizing this deviation from the brand default and understand both my identity and this reason text will be recorded.</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" onclick="closeModal()">Cancel</button>
+      <button id="modal-confirm-btn" class="btn-primary" type="button" disabled onclick="confirmAttestation()">Confirm and save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Mock state — pretend the brand default is EXPLICIT.
+  const BRAND_MODE = 'EXPLICIT';
+  // Permissiveness rank: lower = stricter.
+  const RANK = { EXPLICIT: 0, IMPLIED_ON_SUBMIT: 1 };
+  let pendingMode = 'INHERIT';
+  let savedMode = 'INHERIT';
+
+  function resolveEffective(choice) {
+    return choice === 'INHERIT' ? BRAND_MODE : choice;
+  }
+  function isMorePermissiveThanBrand(choice) {
+    if (choice === 'INHERIT') return false;
+    return RANK[choice] > RANK[BRAND_MODE];
+  }
+
+  function syncSelectedClass() {
+    document.querySelectorAll('.option').forEach((opt) => opt.classList.remove('selected'));
+    const checked = document.querySelector('input[name="consentMode"]:checked');
+    if (checked) checked.closest('.option').classList.add('selected');
+  }
+
+  function syncSaveButton() {
+    const choice = document.querySelector('input[name="consentMode"]:checked').value;
+    const dirty = choice !== savedMode;
+    document.getElementById('save-btn').disabled = !dirty;
+  }
+
+  function syncAttestationNote() {
+    const choice = document.querySelector('input[name="consentMode"]:checked').value;
+    const note = document.getElementById('attestation-note');
+    if (isMorePermissiveThanBrand(choice)) note.classList.add('shown');
+    else note.classList.remove('shown');
+  }
+
+  document.querySelectorAll('input[name="consentMode"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      pendingMode = input.value;
+      syncSelectedClass();
+      syncAttestationNote();
+      syncSaveButton();
+    });
+  });
+
+  document.getElementById('save-btn').addEventListener('click', () => {
+    if (isMorePermissiveThanBrand(pendingMode)) {
+      openModal();
+    } else {
+      commitSave(pendingMode);
+    }
+  });
+
+  function openModal() {
+    document.getElementById('modal-backdrop').classList.add('shown');
+    document.getElementById('attest-checkbox').checked = false;
+    document.getElementById('reason-input').value = '';
+    document.getElementById('modal-confirm-btn').disabled = true;
+  }
+  function closeModal() {
+    document.getElementById('modal-backdrop').classList.remove('shown');
+  }
+  function confirmAttestation() {
+    const reason = document.getElementById('reason-input').value.trim();
+    closeModal();
+    commitSave(pendingMode, true, reason);
+  }
+
+  function syncModalConfirm() {
+    const checked = document.getElementById('attest-checkbox').checked;
+    const reasonOk = document.getElementById('reason-input').value.trim().length > 0;
+    document.getElementById('modal-confirm-btn').disabled = !(checked && reasonOk);
+  }
+  document.getElementById('attest-checkbox').addEventListener('change', syncModalConfirm);
+  document.getElementById('reason-input').addEventListener('input', syncModalConfirm);
+
+  function commitSave(mode, withAttestation = false, reason = '') {
+    savedMode = mode;
+    syncSaveButton();
+    const badge = document.getElementById('custom-consent-badge');
+    const auditTrail = document.getElementById('audit-trail');
+    if (withAttestation) {
+      badge.style.display = 'inline-flex';
+      auditTrail.classList.add('shown');
+      if (reason) {
+        document.getElementById('badge-text').textContent =
+          'Custom consent: Implied on submit · set by jane.doe@acme.com on 2026-05-04 · reason: ' + reason;
+        document.getElementById('audit-reason').textContent = reason;
+      }
+    } else {
+      badge.style.display = 'none';
+      auditTrail.classList.remove('shown');
+    }
+  }
+
+  function revertToInherit() {
+    document.querySelector('input[name="consentMode"][value="INHERIT"]').checked = true;
+    pendingMode = 'INHERIT';
+    syncSelectedClass();
+    syncAttestationNote();
+    commitSave('INHERIT', false);
+  }
+</script>
+</body>
+</html>
