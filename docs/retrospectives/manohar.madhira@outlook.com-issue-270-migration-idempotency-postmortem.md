@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-04
-synthesized:
+synthesized: 2026-05-05
 ---
 
 # Postmortem: Migration `20260430000000_patch_survey_distribution_gap` non-idempotent on fresh DB - Issue #270

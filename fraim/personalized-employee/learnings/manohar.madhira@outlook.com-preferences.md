@@ -2,7 +2,7 @@
 
 Patterns that describe how this user prefers to work, interact, and approach recurring decisions.
 
-**Last synthesized**: 2026-05-01
+**Last synthesized**: 2026-05-05
 
 ---
 
@@ -102,4 +102,15 @@ When given a structured list of pre-execution questions or open decisions, the u
 **First synthesized**: 2026-04-27
 
 The user does not manually close GitHub issues or PRs from the UI; closes happen either via merge auto-close (`Closes #N` in PR body) or via explicit asks ("merge and close"). On 2026-04-25, the agent incorrectly described issue #157 as having been "closed manually" based on a `commit_id: null` close event; the user clarified that this is never the case for them. Captured in feedback memory `feedback_user_does_not_manually_close.md`. Implication: when investigating a closed-without-merge state, do not jump to "user clicked close in UI" — the actor is more likely a CLI/script call from a previous session or another tool.
+
+---
+
+#### [P-MED] Treat documented baseline (CLAUDE.md / project_rules / .env.example) as given — don't ask the user to re-confirm
+
+**Score**: 5.0
+**Last seen**: 2026-05-05
+**Recurrences**: 3 (cumulative; 2026-04-20 origin + #270 prep + #276 prep both as no-ask wins)
+**First synthesized**: 2026-05-05
+
+On 2026-04-20 the agent asked the user whether the local DB and dev server were reachable for integration/E2E tests. The user pushed back: *"You already know that there is a local dev environment and dev server. Why are you asking me?"* The repo's project rules (#11 validation commands, #11a tests-must-never-skip), CLAUDE.md testing-rules section, and the open `.env.example` file all establish that a local dev environment and dev server exist; asking again wasted a turn and treated the user as a configuration source instead of consulting the documented baseline. The 2026-05-05 #270 prep and #276 prep cycles both validated the rule firing in the right direction: docker compose was already running from a prior session, the .env existed in the main workspace, and project rule R19 declares Docker-first local dev as the baseline — agent proceeded without re-asking. **Rule**: in a project whose CLAUDE.md / project_rules / `.env.example` already establish a baseline dev environment, treat that baseline as given. Before asking any setup question, check whether the repo's documentation already answers it: (a) CLAUDE.md test commands (`pnpm test:integration`, `pnpm test:e2e`) imply DB and dev server are part of the standard local environment; (b) `project_rules.md` rule #11 enumerates the four validation commands and #11a confirms tests fail (don't skip) when their dependencies are missing — meaning the dependencies are expected to be present; (c) `.env.example` exists with `DATABASE_URL` and similar placeholders. When all three signals point the same direction, just proceed. If a contributor's environment is misconfigured, that's the contributor's signal to fix their environment — not the agent's signal to have asked first. Captured durably in `feedback_dont_ask_about_baseline_dev_env.md`. Sister-pattern to existing `FRAIM discovery flow before any non-trivial action` (P-HIGH) — both are about consulting documented context before asking the user.
 
