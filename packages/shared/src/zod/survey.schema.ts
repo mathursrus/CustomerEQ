@@ -219,6 +219,20 @@ export function validateRuleOverlap(
   return errors
 }
 
+// ─── Issue #262: Historical Survey Import ────────────────────────────────────
+
+export const IMPORT_BATCH_STATUSES = ['pending', 'processing', 'complete', 'failed'] as const
+export type ImportBatchStatus = (typeof IMPORT_BATCH_STATUSES)[number]
+
+export const SOURCE_TYPES = ['excel', 'google_reviews'] as const
+export type ImportSourceType = (typeof SOURCE_TYPES)[number]
+
+export const InitiateImportSchema = z.object({
+  sourceType: z.enum(SOURCE_TYPES),
+})
+
+export type InitiateImportInput = z.infer<typeof InitiateImportSchema>
+
 // ─── Type Exports ────────────────────────────────────────────────────────────
 
 export type CreateSurveyInput = z.infer<typeof CreateSurveySchema>

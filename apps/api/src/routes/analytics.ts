@@ -657,8 +657,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           surveyId: r.surveyId,
           surveyName: r.survey.name,
           surveyType: r.survey.type,
-          memberName: [r.member.firstName, r.member.lastName].filter(Boolean).join(' ') || null,
-          memberEmail: r.member.email,
+          memberName: r.member ? [r.member.firstName, r.member.lastName].filter(Boolean).join(' ') || null : null,
+          memberEmail: r.member?.email ?? null,
           score: r.score,
           sentiment: r.sentiment,
           confidence: r.confidence,
@@ -1014,6 +1014,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         continue
       }
 
+      if (!r.memberId) { skipped++; continue }
       const eventType = `cx.${r.survey.type.toLowerCase()}_response`
       try {
         await processSentimentForResponse(

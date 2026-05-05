@@ -180,9 +180,9 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(422).send({ error: 'Member consent required' })
       }
 
-      // Check for duplicate response
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Check for duplicate live response (partial index covers importBatchId IS NULL)
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id, importBatchId: null },
       })
       if (existing) {
         return reply.status(200).send({
@@ -392,9 +392,9 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(200).send({ skipped: true, reason: 'no_consent' })
       }
 
-      // Check if already responded
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Check if already responded (live responses only)
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id, importBatchId: null },
       })
       if (existing) {
         return reply.status(200).send({ skipped: true, reason: 'already_responded' })

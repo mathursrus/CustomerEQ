@@ -15,6 +15,7 @@ import { createExternalSignalSyncProcessor } from './processors/externalSignalSy
 import { processExternalSignalIngestion } from './processors/externalSignalIngestion.js'
 import { processWebhookDelivery } from './processors/webhookDelivery.js'
 import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
+import { createSurveyImportProcessor } from './processors/surveyImport.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -104,6 +105,12 @@ const webhookDeliveryWorker = new Worker(
   { connection, concurrency: 10, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const surveyImportWorker = new Worker(
+  QUEUES.SURVEY_IMPORT,
+  createSurveyImportProcessor(connection),
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // SLA breach check — repeating job every 5 minutes
 const SLA_BREACH_QUEUE = 'sla-breach-check'
 const slaBreachQueue = new Queue(SLA_BREACH_QUEUE, { connection })
@@ -124,7 +131,7 @@ void slaBreachQueue.add(
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -151,6 +158,7 @@ logger.info(
       QUEUES.EXTERNAL_SIGNAL_SYNC,
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
       QUEUES.WEBHOOK_DELIVERY,
+      QUEUES.SURVEY_IMPORT,
       SLA_BREACH_QUEUE,
     ],
   },
@@ -175,6 +183,7 @@ async function shutdown(signal: string): Promise<void> {
     externalSignalSyncWorker.close(),
     externalSignalIngestionWorker.close(),
     webhookDeliveryWorker.close(),
+    surveyImportWorker.close(),
     slaBreachWorker.close(),
     slaBreachQueue.close(),
   ])

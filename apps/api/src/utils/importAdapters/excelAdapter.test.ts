@@ -162,7 +162,8 @@ describe('Excel adapter — unknown columns forwarded to rawAnswers', () => {
 describe('Excel adapter — validation errors', () => {
   it('returns validation error when no user/email column present', () => {
     const { validationErrors } = parseExcelRows(['score', 'verbatim'], [['8', 'Nice']], NOW)
-    expect(validationErrors).toContain(expect.stringContaining('email'))
+    expect(validationErrors.length).toBeGreaterThan(0)
+    expect(validationErrors[0]).toMatch(/email/i)
   })
 
   it('returns empty rows with validation error on missing email column', () => {

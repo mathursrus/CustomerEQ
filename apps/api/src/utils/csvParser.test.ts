@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsv, parseCsvWithHeaders, validateCsvHeaders } from './csvParser.js'
+import { parseCsv, parseCsvWithHeaders, parseCsvRaw } from './csvParser.js'
 
 describe('parseCsv', () => {
   it('parses a simple single-row CSV', () => {
@@ -63,16 +63,22 @@ describe('parseCsvWithHeaders', () => {
   })
 })
 
-describe('validateCsvHeaders', () => {
-  it('returns empty array when required columns present', () => {
-    expect(validateCsvHeaders(['email', 'score'])).toEqual([])
+describe('parseCsvRaw', () => {
+  it('returns separated headers and data rows', () => {
+    const { headers, rows } = parseCsvRaw('Email,Score\nfoo@example.com,9\nbar@example.com,7')
+    expect(headers).toEqual(['Email', 'Score'])
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toEqual(['foo@example.com', '9'])
   })
 
-  it('returns missing columns', () => {
-    expect(validateCsvHeaders(['score', 'verbatim'])).toEqual(['email'])
+  it('preserves original header casing', () => {
+    const { headers } = parseCsvRaw('Star Rating,Review\n5,Great')
+    expect(headers).toEqual(['Star Rating', 'Review'])
   })
 
-  it('is case-sensitive (headers should already be lowercased)', () => {
-    expect(validateCsvHeaders(['Email'])).toEqual(['email'])
+  it('returns empty arrays for empty input', () => {
+    const { headers, rows } = parseCsvRaw('')
+    expect(headers).toEqual([])
+    expect(rows).toEqual([])
   })
 })
