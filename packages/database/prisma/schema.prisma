@@ -617,8 +617,11 @@ model Survey {
   // Issue #231 — Survey response data model rework
   responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
   consentTextOverride           String?                            // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
-  consentSuppressedAttestedBy   String?                            // R17 — admin user who attested
-  consentSuppressedAttestedAt   DateTime?                          // R17 — attestation timestamp
+  consentSuppressedAttestedBy   String?                            // R17 / Issue #276 — admin/system who attested
+  consentSuppressedAttestedAt   DateTime?                          // R17 / Issue #276 — attestation timestamp
+  // Issue #276 — survey-level consent mode override
+  consentMode                   ConsentMode?                       // null → inherit Brand.consentMode
+  consentReason                 String?       @db.VarChar(500)     // operator/system justification when override is set
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 

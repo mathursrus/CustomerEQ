@@ -264,8 +264,9 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       const brandId = survey.brandId
 
       // Resolve consent expectations for this survey × brand pair.
+      // survey.consentMode (Issue #276) overrides brand.consentMode when non-null.
       const consentResolution = getConsentTextForSurvey(
-        { consentTextOverride: survey.consentTextOverride },
+        { consentTextOverride: survey.consentTextOverride, consentMode: survey.consentMode },
         survey.brand,
       )
 
