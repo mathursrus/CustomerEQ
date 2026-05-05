@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Brand setup — Member Identifier Kind (Issue #231)</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --warning-bg: #fef3c7;
+    --warning-border: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 40px 24px; }
+  .frame { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+  .subtitle { color: var(--text-muted); margin: 0 0 32px; font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  .section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 0 0 8px; }
+  .section-help { font-size: 14px; color: var(--text-muted); margin: 0 0 20px; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: all .15s; }
+  .option:hover { border-color: var(--border-strong); }
+  .option.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .option input[type="radio"] { margin-top: 3px; accent-color: var(--accent); }
+  .option-body { flex: 1; }
+  .option-title { font-weight: 600; font-size: 15px; }
+  .option-desc { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .option .recommended { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; vertical-align: middle; }
+  .lock-note { margin-top: 24px; padding: 12px 14px; background: var(--warning-bg); border-left: 3px solid var(--warning-border); border-radius: 4px; font-size: 13px; color: #78350f; }
+  .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+  button { font-family: inherit; font-size: 14px; font-weight: 500; padding: 10px 18px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>Brand setup — step 3 of 5</h1>
+  <p class="subtitle">How does your application identify customers?</p>
+  <div class="card">
+    <p class="section-label">Member Identifier</p>
+    <p class="section-help">CustomerEQ uses this value to recognize customers across surveys, points, and campaigns. Pick the identifier your application already uses for each customer.</p>
+    <div class="options" role="radiogroup" aria-label="Member identifier kind">
+      <label class="option selected">
+        <input type="radio" name="identifierKind" value="EMAIL" checked />
+        <div class="option-body">
+          <div class="option-title">Email <span class="recommended">Recommended</span></div>
+          <div class="option-desc">Most common. Customers identify themselves with their email address. Case-insensitive.</div>
+        </div>
+      </label>
+      <label class="option">
+        <input type="radio" name="identifierKind" value="PHONE" />
+        <div class="option-body">
+          <div class="option-title">Phone number</div>
+          <div class="option-desc">For SMS-led brands. CustomerEQ stores phone in E.164 format.</div>
+        </div>
+      </label>
+      <label class="option">
+        <input type="radio" name="identifierKind" value="CUSTOMER_ID" />
+        <div class="option-body">
+          <div class="option-title">Customer ID (your system of record)</div>
+          <div class="option-desc">Use this if your application already has stable customer IDs (UUIDs, account numbers, etc.).</div>
+        </div>
+      </label>
+    </div>
+    <div class="lock-note">
+      <strong>One-time choice.</strong> The identifier kind is locked in once your brand has any members enrolled. Migrating between kinds requires a CustomerEQ-supported data ops process.
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button">Back</button>
+      <button class="btn-primary" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+<script>
+  // Keep .selected styling in sync with the actual radio
+  document.querySelectorAll('input[name="identifierKind"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      document.querySelectorAll('.option').forEach((opt) => opt.classList.remove('selected'));
+      input.closest('.option').classList.add('selected');
+    });
+  });
+</script>
+</body>
+</html>

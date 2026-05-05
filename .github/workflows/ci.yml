@@ -13,7 +13,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # pgvector/pgvector:pg16 — required by migration 20260403000000_add_kb_articles
+        # (CREATE EXTENSION vector). Mirrors local docker-compose per ADR-0002 / R20.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: customerEQ
           POSTGRES_PASSWORD: customerEQ
@@ -65,6 +67,15 @@ jobs:
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
+      # Regression gate for #270: every prior CI run skipped `migrate deploy`,
+      # so a non-idempotent migration could land and only break on contributor
+      # `pnpm db:reset` and on prod restore-from-migrations. Running the full
+      # history against an empty postgres on every PR catches that class.
+      - name: Run migrations (regression gate for #270)
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+
       - name: Build
         run: pnpm build
 
@@ -107,9 +118,25 @@ jobs:
           context: .
           file: Dockerfile.api
           push: false
+          load: true
           tags: ceq-api:${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
+
+      # Module-resolution probe: catches BAML-class regressions (#273) at PR
+      # time by running the built image with a one-shot dynamic import of
+      # the @customerEQ/ai dist entry. Probe target is deliberately narrow —
+      # importing the full app entry would couple this gate to env-var reads
+      # and produce false positives in CI. We import the dist directly by
+      # path rather than by package name because pnpm doesn't hoist workspace
+      # packages to /app/node_modules; the dist path is stable across builds
+      # and exercises the exact module tree that crashed in #273. CI is
+      # complementary to the existing CD-side `Verify API health` gate.
+      - name: Verify API image module resolution
+        run: |
+          docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
+            --input-type=module \
+            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build worker image
         uses: docker/build-push-action@v6
@@ -117,9 +144,16 @@ jobs:
           context: .
           file: Dockerfile.worker
           push: false
+          load: true
           tags: ceq-worker:${{ github.sha }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,scope=worker,mode=max
+
+      - name: Verify Worker image module resolution
+        run: |
+          docker run --rm --entrypoint node ceq-worker:${{ github.sha }} \
+            --input-type=module \
+            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build web image
         uses: docker/build-push-action@v6

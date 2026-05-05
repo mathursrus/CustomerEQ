@@ -6,6 +6,8 @@ export async function createMember(opts: {
   brandId: string
   programId?: string // accepted for caller convenience but not stored on Member
   email?: string
+  externalId?: string // Issue #231 — defaults to LOWER(TRIM(email)) to match the migration backfill
+  enrolledVia?: 'MANUAL_API' | 'BULK_IMPORT' | 'SURVEY_RESPONSE' | 'EMBEDDED_FORM' | 'CLERK_OAUTH'
   firstName?: string
   lastName?: string
   pointsBalance?: number
@@ -14,10 +16,13 @@ export async function createMember(opts: {
 }) {
   const prisma = getTestPrisma()
   counter++
+  const email = opts.email ?? `member_${counter}_${Date.now()}@test.com`
   return prisma.member.create({
     data: {
       brandId: opts.brandId,
-      email: opts.email ?? `member_${counter}_${Date.now()}@test.com`,
+      email,
+      externalId: opts.externalId ?? email.trim().toLowerCase(),
+      enrolledVia: opts.enrolledVia ?? 'MANUAL_API',
       firstName: opts.firstName ?? `First${counter}`,
       lastName: opts.lastName ?? `Last${counter}`,
       pointsBalance: opts.pointsBalance ?? 0,
@@ -53,10 +58,13 @@ export async function createErasedMember(opts: {
 }) {
   const prisma = getTestPrisma()
   counter++
+  const email = opts.email ?? `erased_${counter}_${Date.now()}@test.com`
   return prisma.member.create({
     data: {
       brandId: opts.brandId,
-      email: opts.email ?? `erased_${counter}_${Date.now()}@test.com`,
+      email,
+      externalId: email.trim().toLowerCase(),  // Issue #231 — matches migration backfill
+      enrolledVia: 'MANUAL_API',
       firstName: opts.firstName ?? `ErasedFirst${counter}`,
       lastName: opts.lastName ?? `ErasedLast${counter}`,
       pointsBalance: 0,

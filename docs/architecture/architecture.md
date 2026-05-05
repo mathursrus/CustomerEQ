@@ -89,6 +89,14 @@ The platform is a multi-tenant loyalty engine with:
 - **Events**: Components fire custom DOM events (e.g., `ceq:reward-won`) so host pages can react.
 - **No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages.
 
+### 3.8. AI Layer (packages/ai)
+- **Responsibility**: BAML-driven LLM client wrappers and analysis helpers used by the API (synchronous note-creation sentiment per §6) and worker (asynchronous sentiment analysis, intent classification, clustering, anomaly detection).
+- **Key Modules**: `packages/ai/baml_src/*.baml` (BAML function definitions and generator config), `packages/ai/src/analysis/*.ts` (sentiment/intent/cluster wrappers around the generated client), `packages/ai/src/generated/baml_client/` (gitignored — see Build below).
+- **Build pipeline**: `pnpm build` runs `pnpm run generate && tsc`. The `generate` step invokes `npx @boundaryml/baml@<pinned-version> generate` which writes 13 files into `src/generated/baml_client/`. **The generated directory is gitignored** — every Docker build and every fresh checkout regenerates it. `tsc` then compiles the regenerated source into `dist/`.
+- **ESM imports contract (#273)**: `packages/ai/baml_src/generators.baml` must set `module_format "esm"` so BAML emits relative imports with `.js` extensions. Node 22's ESM strict resolver rejects extensionless relative imports at module-load time. This is a build-pipeline contract — without it, the BAML output crashes at container startup with `ERR_MODULE_NOT_FOUND` on `/app/packages/ai/dist/generated/baml_client/async_client`.
+- **BAML version pinning**: The BAML CLI version is pinned in two places that must move together: `packages/ai/package.json` (`@boundaryml/baml: <version>`) and `packages/ai/baml_src/generators.baml` (`version "<version>"`). Bumping one without the other produces codegen warnings and risks contract drift.
+- **CI gate**: The `docker-build` job in `.github/workflows/ci.yml` runs a built-image module-resolution probe against `ceq-api:<sha>` and `ceq-worker:<sha>` to catch regressions in this contract at PR time. See §7.4 Validation Commands.
+
 ---
 
 ## 4. Key Components & Modules
@@ -472,6 +480,18 @@ pnpm test:e2e    # Playwright E2E (requires running app)
 ```
 
 Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
+
+**Built-image module-resolution probe (CI gate, #273)**: The `docker-build` job in `.github/workflows/ci.yml` runs each just-built image with a one-shot dynamic import:
+
+```yaml
+- name: Verify <Image> image module resolution
+  run: |
+    docker run --rm --entrypoint node ceq-<image>:${{ github.sha }} \
+      --input-type=module \
+      -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+```
+
+This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist files at PR time, before the image reaches CD. Probe target is **deliberately narrow** to `@customerEQ/ai`'s dist — importing the full app entry would couple the gate to env-var reads and false-positive in CI. Complementary to the CD-side `Verify API health` step in `deploy.yml`, not a replacement.
 
 ---
 

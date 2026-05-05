@@ -16,6 +16,11 @@ export async function createSurvey(opts: {
   triggerCategory?: string | null
   triggerKey?: string | null
   surveyTypeOverride?: string | null
+  // Issue #231 PR2 — responsePolicy + per-survey consent override.
+  responsePolicy?: 'ONCE' | 'MULTIPLE' | 'LATEST_OVERWRITES'
+  consentTextOverride?: string | null
+  consentSuppressedAttestedBy?: string | null
+  consentSuppressedAttestedAt?: Date | null
 }) {
   const prisma = getTestPrisma()
   counter++
@@ -52,6 +57,10 @@ export async function createSurvey(opts: {
       triggerCategory: opts.triggerCategory ?? null,
       triggerKey: opts.triggerKey ?? null,
       surveyTypeOverride: opts.surveyTypeOverride ?? null,
+      responsePolicy: opts.responsePolicy ?? 'MULTIPLE',
+      consentTextOverride: opts.consentTextOverride ?? null,
+      consentSuppressedAttestedBy: opts.consentSuppressedAttestedBy ?? null,
+      consentSuppressedAttestedAt: opts.consentSuppressedAttestedAt ?? null,
     },
   })
 }

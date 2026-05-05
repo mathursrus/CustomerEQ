@@ -29,17 +29,31 @@ export const RecomputeHealthScoreSchema = z.object({
 // Enrollment Schemas
 // ---------------------------------------------------------------------------
 
+// Issue #231 PR2 — polymorphic identifier (R4), idempotent upsert (R6),
+// optional consentGivenAt with server-stamp fallback (R8).
+//
+// `memberId` is the canonical identifier value (lowercased + trimmed →
+// `Member.externalId`). For EMAIL brands an email-shaped memberId doubles as
+// the email PII sidecar; for non-EMAIL brands integrators may pass an opaque
+// memberId plus an optional `email`/`phone` PII sidecar.
+//
+// `consentGivenAt` is optional: integrators who pre-captured consent supply
+// the timestamp verbatim; auto-enroll paths and trusted-API callers omit it
+// and the server stamps `now()` (R8). The old `consentGiven: literal(true)`
+// checkbox confirmation is dropped — the API trusts integrators; the web-form
+// surface enforces consent-mode at the UI layer using `Brand.consentMode`.
 export const EnrollMemberSchema = z.object({
-  email: z.string().email('Valid email is required'),
+  programId: z.string().min(1, 'programId is required'),
+  memberId: z.string().min(1, 'memberId is required'),
+  email: z.string().email('email must be a valid email address').optional(),
+  phone: z.string().max(20).optional(),
   firstName: z.string().min(1).max(50).optional(),
   lastName: z.string().min(1).max(50).optional(),
-  phone: z.string().max(20).optional(),
-  consentGiven: z.literal(true, {
-    errorMap: () => ({ message: 'CONSENT_REQUIRED' }),
-  }),
-  consentGivenAt: z.string().datetime({ message: 'consentGivenAt must be an ISO 8601 datetime' }),
+  consentGivenAt: z
+    .string()
+    .datetime({ message: 'consentGivenAt must be an ISO 8601 datetime' })
+    .optional(),
   consentVersion: z.string().max(20).optional().default('privacy-v1.0'),
-  programId: z.string().min(1, 'programId is required'),
   emailOptIn: z.boolean().default(false),
   smsOptIn: z.boolean().default(false),
   clerkToken: z.string().optional(),
@@ -49,11 +63,21 @@ export type EnrollMemberInput = z.infer<typeof EnrollMemberSchema>
 
 export const EnrollMemberResponseSchema = z.object({
   memberId: z.string(),
-  email: z.string().email(),
+  email: z.string().email().nullable(),
   firstName: z.string().nullable(),
   pointsBalance: z.number(),
   programName: z.string(),
+  enrolledVia: z.enum([
+    'MANUAL_API',
+    'BULK_IMPORT',
+    'SURVEY_RESPONSE',
+    'EMBEDDED_FORM',
+    'CLERK_OAUTH',
+  ]),
   enrollmentBonusPending: z.boolean(),
+  // R6 idempotent re-enroll signal — true on 200 response, absent on 201.
+  updated: z.boolean().optional(),
+  updatedFields: z.array(z.string()).optional(),
 })
 
 export type EnrollMemberResponse = z.infer<typeof EnrollMemberResponseSchema>

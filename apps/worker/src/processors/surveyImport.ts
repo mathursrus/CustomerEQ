@@ -15,24 +15,27 @@ export function createSurveyImportProcessor(connection: ConnectionOptions) {
     logger.info({ batchId, rowIndex, email: email ?? 'anonymous' }, 'Processing import row')
 
     try {
-      // Resolve member — for Google Reviews email=null means always anonymous
+      // Resolve or auto-enroll member by email. Mirrors resolveOrEnrollMember (#231):
+      // externalId = email.toLowerCase().trim() — canonical lookup per R4/R5.
+      // Google Reviews: email=null → always anonymous (memberId stays null).
       let memberId: string | null = null
       if (email) {
-        let member = await prisma.member.findFirst({ where: { email, brandId } })
+        const externalId = email.toLowerCase().trim()
+        let member = await prisma.member.findUnique({
+          where: { brandId_externalId: { brandId, externalId } },
+        })
 
         if (!member) {
-          // Stub member — consentGivenAt null until they explicitly consent
-          // TODO: replace with shared auto-enrollment function once that PR merges
           member = await prisma.member.create({
-            data: { brandId, email },
+            data: { brandId, externalId, email, enrolledVia: 'BULK_IMPORT' },
           })
-          logger.info({ memberId: member.id, email }, 'Created stub member for import')
+          logger.info({ memberId: member.id, email }, 'Auto-enrolled member via bulk import')
         }
 
         if (member.consentGivenAt) {
           memberId = member.id
         }
-        // memberId stays null if consent not yet given; response is still recorded
+        // memberId stays null until explicit consent — response still recorded for analytics
       }
 
       // Dedup: skip if externalId already imported for this survey

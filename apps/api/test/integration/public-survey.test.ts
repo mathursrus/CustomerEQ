@@ -5,21 +5,20 @@ import {
   createBrand,
   createProgram,
   createConsentedMember,
-  createMember,
   createSurvey,
   unauthenticatedRequest,
   InMemoryQueue,
   getTestPrisma,
 } from '@customerEQ/config/test-utils'
 
-describe('Public Survey Flow — unauthenticated survey submission', () => {
+describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231 PR2)', () => {
   beforeEach(async () => {
     await seedTestDb()
     InMemoryQueue.clear()
   })
 
   // ---------------------------------------------------------------------------
-  // 1. Load public survey (ACTIVE only)
+  // GET /v1/public/surveys/:id — survey metadata
   // ---------------------------------------------------------------------------
 
   it('loads an active survey via GET /v1/public/surveys/:id with expected fields', async () => {
@@ -31,203 +30,488 @@ describe('Public Survey Flow — unauthenticated survey submission', () => {
       status: 'ACTIVE',
       incentivePoints: 50,
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request.get(`/v1/public/surveys/${survey.id}`)
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(survey.id)
-    expect(res.body.name).toBeDefined()
-    expect(res.body.type).toBeDefined()
-    expect(Array.isArray(res.body.questions)).toBe(true)
-    expect(res.body.questions.length).toBeGreaterThan(0)
-    expect(res.body.incentivePoints).toBe(50)
-    expect(res.body.brand).toBeDefined()
     expect(res.body.brand.name).toBe(brand.name)
+    expect(res.body.incentivePoints).toBe(50)
   })
-
-  // ---------------------------------------------------------------------------
-  // 2. Inactive (DRAFT) survey returns 404
-  // ---------------------------------------------------------------------------
 
   it('returns 404 for a DRAFT survey on the public endpoint', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const survey = await createSurvey({
-      brandId: brand.id,
-      programId: program.id,
-      status: 'DRAFT',
-    })
-    const request = unauthenticatedRequest()
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'DRAFT' })
 
-    const res = await request.get(`/v1/public/surveys/${survey.id}`)
-
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
     expect(res.status).toBe(404)
-    expect(res.body.error).toMatch(/not found|not active/i)
+  })
+
+  it('returns 404 for a CLOSED survey on the public endpoint', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'CLOSED' })
+
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
+    expect(res.status).toBe(404)
   })
 
   // ---------------------------------------------------------------------------
-  // 3. Submit response by email
+  // Existing-member submit (legacy memberEmail field still works as memberId)
   // ---------------------------------------------------------------------------
 
-  it('submits a response via email lookup on POST /v1/public/surveys/:id/respond', async () => {
-    const brand = await createBrand()
+  it('existing member — submits via legacy memberEmail and returns the new response shape', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const member = await createConsentedMember({
-      brandId: brand.id,
-      email: 'jane@example.com',
-    })
+    const member = await createConsentedMember({ brandId: brand.id, email: 'jane@example.com' })
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
       type: 'NPS',
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request
+    const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
       .send({
         memberEmail: 'jane@example.com',
-        answers: { q1: 9, q2: 'Absolutely love the product experience' },
+        answers: { q1: 9, q2: 'Loved it' },
         score: 9,
       })
 
     expect(res.status).toBe(201)
-    expect(res.body.responseId).toBeDefined()
-    expect(res.body.message).toBeDefined()
+    expect(res.body.surveyResponseId).toBeDefined()
+    expect(res.body.memberId).toBe(member.id)
+    expect(res.body.autoEnrolled).toBe(false)
+    expect(res.body.enrolledVia).toBeNull()
+    expect(res.body.responsePolicy).toBe('MULTIPLE')
 
-    // Verify the response was persisted
     const prisma = getTestPrisma()
     const dbResponse = await prisma.surveyResponse.findUnique({
-      where: { id: res.body.responseId },
+      where: { id: res.body.surveyResponseId },
     })
-    expect(dbResponse).not.toBeNull()
-    expect(dbResponse!.memberId).toBe(member.id)
-    expect(dbResponse!.score).toBe(9)
+    expect(dbResponse?.memberId).toBe(member.id)
+    expect(dbResponse?.score).toBe(9)
   })
 
   // ---------------------------------------------------------------------------
-  // 4. Unknown email returns 404
+  // Auto-enroll: SURVEY_RESPONSE channel (body-supplied identifier)
   // ---------------------------------------------------------------------------
 
-  it('returns 404 when the email does not match any member', async () => {
-    const brand = await createBrand()
+  it('auto-enrolls a new member when memberId comes from request body — enrolledVia = SURVEY_RESPONSE', async () => {
+    // IMPLIED_ON_SUBMIT brand bypasses the explicit-consent boolean requirement
+    // so we can exercise the auto-enroll path in isolation.
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
+      type: 'NPS',
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request
+    const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
       .send({
-        memberEmail: 'nobody@nowhere.com',
-        answers: { q1: 5 },
-        score: 5,
+        memberId: 'newbie@example.com',
+        firstName: 'New',
+        lastName: 'Bie',
+        answers: { q1: 10 },
+        score: 10,
       })
 
-    expect(res.status).toBe(404)
-    expect(res.body.error).toMatch(/not found/i)
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(true)
+    expect(res.body.enrolledVia).toBe('SURVEY_RESPONSE')
+
+    const prisma = getTestPrisma()
+    const member = await prisma.member.findUnique({
+      where: { brandId_externalId: { brandId: brand.id, externalId: 'newbie@example.com' } },
+    })
+    expect(member).not.toBeNull()
+    expect(member!.id).toBe(res.body.memberId)
+    expect(member!.enrolledVia).toBe('SURVEY_RESPONSE')
+    expect(member!.email).toBe('newbie@example.com')
+    expect(member!.consentGivenAt).not.toBeNull() // R8 server-stamped
   })
 
   // ---------------------------------------------------------------------------
-  // 5. Member without consent returns 422
+  // Auto-enroll: EMBEDDED_FORM channel (URL-query-supplied identifier)
   // ---------------------------------------------------------------------------
 
-  it('returns 422 when the member has not given consent', async () => {
-    const brand = await createBrand()
+  it('auto-enrolls a new member when memberId comes from URL query — enrolledVia = EMBEDDED_FORM', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const member = await createMember({
-      brandId: brand.id,
-      email: 'noconsent@example.com',
-    }) // no consent
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
+      type: 'NPS',
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request
-      .post(`/v1/public/surveys/${survey.id}/respond`)
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond?member_id=${encodeURIComponent('embed@example.com')}`)
       .send({
-        memberEmail: 'noconsent@example.com',
+        // Body intentionally has no memberId — URL query is the carrier.
+        answers: { q1: 8 },
+        score: 8,
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(true)
+    expect(res.body.enrolledVia).toBe('EMBEDDED_FORM')
+
+    const prisma = getTestPrisma()
+    const member = await prisma.member.findUnique({
+      where: { brandId_externalId: { brandId: brand.id, externalId: 'embed@example.com' } },
+    })
+    expect(member?.enrolledVia).toBe('EMBEDDED_FORM')
+  })
+
+  it('URL query takes priority when both URL query and body memberId are present', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond?member_id=url@example.com`)
+      .send({
+        memberId: 'body@example.com', // ignored
         answers: { q1: 7 },
         score: 7,
       })
 
-    expect(res.status).toBe(422)
-    expect(res.body.error).toMatch(/consent/i)
+    expect(res.status).toBe(201)
+    expect(res.body.enrolledVia).toBe('EMBEDDED_FORM')
+
+    const prisma = getTestPrisma()
+    const fromUrl = await prisma.member.findUnique({
+      where: { brandId_externalId: { brandId: brand.id, externalId: 'url@example.com' } },
+    })
+    const fromBody = await prisma.member.findUnique({
+      where: { brandId_externalId: { brandId: brand.id, externalId: 'body@example.com' } },
+    })
+    expect(fromUrl).not.toBeNull()
+    expect(fromBody).toBeNull()
+  })
+
+  it('returns 400 NO_IDENTIFIER when neither URL query nor body supplies an identifier', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ answers: { q1: 5 }, score: 5 })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('NO_IDENTIFIER')
   })
 
   // ---------------------------------------------------------------------------
-  // 6. Duplicate response
+  // R18 enrollment-signal capture
   // ---------------------------------------------------------------------------
 
-  it('returns duplicate=true when the same email submits to the same survey twice', async () => {
-    const brand = await createBrand()
+  it('R18 — auto-enroll emits an enrollment loyalty event with enrollmentSignals payload', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    await createConsentedMember({
-      brandId: brand.id,
-      email: 'repeat@example.com',
-    })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({
+        memberId: 'r18@example.com',
+        answers: { q1: 7 },
+        score: 7,
+      })
+
+    const loyaltyJobs = InMemoryQueue.getJobs('loyalty-events')
+    const enrollmentJob = loyaltyJobs.find(
+      (j) => (j.data as { eventType?: string }).eventType === 'enrollment',
+    )
+    expect(enrollmentJob).toBeDefined()
+
+    const payload = (enrollmentJob!.data as { payload: Record<string, unknown> }).payload
+    expect(payload.autoEnrolled).toBe(true)
+    expect(payload.enrolledVia).toBe('SURVEY_RESPONSE')
+    expect(payload.surveyId).toBe(survey.id)
+    const signals = payload.enrollmentSignals as { ipHash: string | null; ipCountryIso: string | null; capturedAt: string }
+    expect(signals).toBeDefined()
+    expect(typeof signals.capturedAt).toBe('string')
+    // ipHash may be null if request.ip is empty in test transport; ipCountryIso is null because AZURE_MAPS_KEY is unset.
+    expect(signals.ipCountryIso).toBeNull()
+  })
+
+  it('existing member — does NOT emit a fresh enrollment event on repeat survey responses', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'existing@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'existing@example.com', answers: { q1: 7 }, score: 7 })
+
+    const loyaltyJobs = InMemoryQueue.getJobs('loyalty-events')
+    const enrollmentJob = loyaltyJobs.find(
+      (j) => (j.data as { eventType?: string }).eventType === 'enrollment',
+    )
+    expect(enrollmentJob).toBeUndefined()
+  })
+
+  // ---------------------------------------------------------------------------
+  // R3 — responsePolicy enforcement
+  // ---------------------------------------------------------------------------
+
+  it('responsePolicy = ONCE — second submission returns 409 RESPONSE_ALREADY_EXISTS', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'once@example.com' })
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
+      responsePolicy: 'ONCE',
     })
-    const request = unauthenticatedRequest()
 
-    // First submission
-    const first = await request
+    const first = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'repeat@example.com', answers: { q1: 8 }, score: 8 })
+      .send({ memberId: 'once@example.com', answers: { q1: 8 }, score: 8 })
     expect(first.status).toBe(201)
 
-    // Second submission — duplicate
-    const second = await request
+    const second = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'repeat@example.com', answers: { q1: 10 }, score: 10 })
+      .send({ memberId: 'once@example.com', answers: { q1: 10 }, score: 10 })
 
-    expect(second.status).toBe(200)
-    expect(second.body.duplicate).toBe(true)
-    expect(second.body.responseId).toBe(first.body.responseId)
+    expect(second.status).toBe(409)
+    expect(second.body.error).toBe('RESPONSE_ALREADY_EXISTS')
+    expect(second.body.priorResponseId).toBe(first.body.surveyResponseId)
+  })
+
+  it('responsePolicy = MULTIPLE — second submission inserts a second row', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'multi@example.com' })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+      responsePolicy: 'MULTIPLE',
+    })
+
+    const r1 = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'multi@example.com', answers: { q1: 7 }, score: 7 })
+    const r2 = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'multi@example.com', answers: { q1: 9 }, score: 9 })
+
+    expect(r1.status).toBe(201)
+    expect(r2.status).toBe(201)
+    expect(r2.body.surveyResponseId).not.toBe(r1.body.surveyResponseId)
+
+    const prisma = getTestPrisma()
+    const responses = await prisma.surveyResponse.findMany({
+      where: { surveyId: survey.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(responses.length).toBe(2)
+    expect(responses[0]!.score).toBe(7)
+    expect(responses[1]!.score).toBe(9)
+  })
+
+  it('responsePolicy = LATEST_OVERWRITES — second submission updates the existing row in place', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'overwrite@example.com' })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+      responsePolicy: 'LATEST_OVERWRITES',
+    })
+
+    const r1 = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'overwrite@example.com', answers: { q1: 5 }, score: 5 })
+    const r2 = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'overwrite@example.com', answers: { q1: 10 }, score: 10 })
+
+    expect(r1.status).toBe(201)
+    expect(r2.status).toBe(201)
+    expect(r2.body.overwrote).toBe(true)
+    expect(r2.body.surveyResponseId).toBe(r1.body.surveyResponseId)
+
+    const prisma = getTestPrisma()
+    const responses = await prisma.surveyResponse.findMany({ where: { surveyId: survey.id } })
+    expect(responses.length).toBe(1)
+    expect(responses[0]!.score).toBe(10)
   })
 
   // ---------------------------------------------------------------------------
-  // 7. Incentive points in response
+  // R5 — case-insensitive lookup of existing members
   // ---------------------------------------------------------------------------
 
-  it('includes incentivePoints in the response when the survey has them', async () => {
-    const brand = await createBrand()
+  it('R5 — uppercase memberId resolves to existing lowercase externalId without creating a duplicate', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    await createConsentedMember({
-      brandId: brand.id,
-      email: 'incentive@example.com',
+    const member = await createConsentedMember({ brandId: brand.id, email: 'mixed@example.com' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'MIXED@example.COM', answers: { q1: 7 }, score: 7 })
+
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(false)
+    expect(res.body.memberId).toBe(member.id)
+
+    const prisma = getTestPrisma()
+    const allMembers = await prisma.member.findMany({ where: { brandId: brand.id } })
+    expect(allMembers.length).toBe(1)
+  })
+
+  // ---------------------------------------------------------------------------
+  // R16 — consent enforcement under EXPLICIT mode
+  // ---------------------------------------------------------------------------
+
+  it('EXPLICIT brand with consentTextDefault — body without consent:true returns 400 CONSENT_REQUIRED', async () => {
+    const brand = await createBrand({
+      consentMode: 'EXPLICIT',
+      consentTextDefault: 'I agree to the privacy policy.',
     })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'noconsent@example.com', answers: { q1: 7 }, score: 7 })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('CONSENT_REQUIRED')
+  })
+
+  it('EXPLICIT brand — consent:true accepts the submission', async () => {
+    const brand = await createBrand({
+      consentMode: 'EXPLICIT',
+      consentTextDefault: 'I agree to the privacy policy.',
+    })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({
+        memberId: 'consenter@example.com',
+        consent: true,
+        answers: { q1: 7 },
+        score: 7,
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(true)
+  })
+
+  // ---------------------------------------------------------------------------
+  // R17 — attest-and-suppress (empty-string consentTextOverride)
+  // ---------------------------------------------------------------------------
+
+  it('R17 — survey with empty-string consentTextOverride bypasses explicit-consent requirement', async () => {
+    const brand = await createBrand({
+      consentMode: 'EXPLICIT',
+      consentTextDefault: 'Brand-default consent text',
+    })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+      consentTextOverride: '',
+      consentSuppressedAttestedBy: 'admin@brand.com',
+      consentSuppressedAttestedAt: new Date(),
+    })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({
+        memberId: 'silentconsent@example.com',
+        answers: { q1: 8 },
+        score: 8,
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(true)
+  })
+
+  // ---------------------------------------------------------------------------
+  // R4 — identifier-shape rejection on PHONE brand
+  // ---------------------------------------------------------------------------
+
+  it('PHONE brand — non-E.164 memberId returns 400 IDENTIFIER_SHAPE_INVALID', async () => {
+    const brand = await createBrand({
+      consentMode: 'IMPLIED_ON_SUBMIT',
+      memberIdentifierKind: 'PHONE',
+    })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: 'not-a-phone', answers: { q1: 7 }, score: 7 })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('IDENTIFIER_SHAPE_INVALID')
+    expect(res.body.expectedKind).toBe('PHONE')
+  })
+
+  it('PHONE brand — E.164 memberId auto-enrolls', async () => {
+    const brand = await createBrand({
+      consentMode: 'IMPLIED_ON_SUBMIT',
+      memberIdentifierKind: 'PHONE',
+    })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    const res = await unauthenticatedRequest()
+      .post(`/v1/public/surveys/${survey.id}/respond`)
+      .send({ memberId: '+14155552671', answers: { q1: 7 }, score: 7 })
+
+    expect(res.status).toBe(201)
+    expect(res.body.autoEnrolled).toBe(true)
+
+    const prisma = getTestPrisma()
+    const member = await prisma.member.findUnique({
+      where: { brandId_externalId: { brandId: brand.id, externalId: '+14155552671' } },
+    })
+    expect(member).not.toBeNull()
+    // PHONE brands don't auto-derive an email PII sidecar from memberId.
+    expect(member!.email).toBeNull()
+  })
+
+  // ---------------------------------------------------------------------------
+  // Edge: incentive points + sentiment + 404 for missing survey
+  // ---------------------------------------------------------------------------
+
+  it('includes incentivePoints and enqueues the incentive event', async () => {
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    await createConsentedMember({ brandId: brand.id, email: 'incentive@example.com' })
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
       incentivePoints: 200,
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request
+    const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({
-        memberEmail: 'incentive@example.com',
-        answers: { q1: 7 },
-        score: 7,
-      })
+      .send({ memberId: 'incentive@example.com', answers: { q1: 7 }, score: 7 })
 
     expect(res.status).toBe(201)
     expect(res.body.incentivePoints).toBe(200)
 
-    // Verify incentive event was also enqueued
     const loyaltyJobs = InMemoryQueue.getJobs('loyalty-events')
     const incentiveJob = loyaltyJobs.find(
       (j) => (j.data as { payload?: { incentive?: boolean } }).payload?.incentive === true,
@@ -235,81 +519,38 @@ describe('Public Survey Flow — unauthenticated survey submission', () => {
     expect(incentiveJob).toBeDefined()
   })
 
-  // ---------------------------------------------------------------------------
-  // 8. Sentiment analysis enqueued for text answers
-  // ---------------------------------------------------------------------------
-
   it('enqueues sentiment analysis when the response contains open-ended text', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    await createConsentedMember({
-      brandId: brand.id,
-      email: 'feedback@example.com',
-    })
+    await createConsentedMember({ brandId: brand.id, email: 'feedback@example.com' })
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
       type: 'NPS',
     })
-    const request = unauthenticatedRequest()
 
-    const res = await request
+    const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
       .send({
-        memberEmail: 'feedback@example.com',
-        answers: {
-          q1: 6,
-          q2: 'The shipping was incredibly slow and customer support was unresponsive',
-        },
+        memberId: 'feedback@example.com',
+        answers: { q1: 6, q2: 'The shipping was incredibly slow' },
         score: 6,
       })
 
     expect(res.status).toBe(201)
 
     const sentimentJobs = InMemoryQueue.getJobs('sentiment-analysis')
-    expect(sentimentJobs.length).toBeGreaterThanOrEqual(1)
-
     const job = sentimentJobs.find(
-      (j) => (j.data as { surveyResponseId?: string }).surveyResponseId === res.body.responseId,
+      (j) => (j.data as { surveyResponseId?: string }).surveyResponseId === res.body.surveyResponseId,
     )
     expect(job).toBeDefined()
-    expect((job!.data as { text?: string }).text).toContain('shipping was incredibly slow')
   })
-
-  // ---------------------------------------------------------------------------
-  // Edge: CLOSED survey not loadable publicly
-  // ---------------------------------------------------------------------------
-
-  it('returns 404 for a CLOSED survey on the public endpoint', async () => {
-    const brand = await createBrand()
-    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const survey = await createSurvey({
-      brandId: brand.id,
-      programId: program.id,
-      status: 'CLOSED',
-    })
-    const request = unauthenticatedRequest()
-
-    const res = await request.get(`/v1/public/surveys/${survey.id}`)
-
-    expect(res.status).toBe(404)
-  })
-
-  // ---------------------------------------------------------------------------
-  // Edge: Submit to non-existent survey returns 404
-  // ---------------------------------------------------------------------------
 
   it('returns 404 when submitting to a non-existent survey', async () => {
-    const request = unauthenticatedRequest()
-
-    const res = await request
+    const res = await unauthenticatedRequest()
       .post('/v1/public/surveys/fake-survey-id/respond')
-      .send({
-        memberEmail: 'someone@example.com',
-        answers: { q1: 5 },
-        score: 5,
-      })
+      .send({ memberId: 'someone@example.com', answers: { q1: 5 }, score: 5 })
 
     expect(res.status).toBe(404)
   })
@@ -326,13 +567,12 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
   })
 
   it('matching rule enqueues a campaign trigger', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const member = await createConsentedMember({ brandId: brand.id, email: 'respondent@example.com' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
     const prisma = getTestPrisma()
 
-    // Create a campaign and survey rule that matches score 3 (detractor range 0–6)
     const campaign = await prisma.campaign.create({
       data: {
         brandId: brand.id,
@@ -362,30 +602,28 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
 
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'respondent@example.com', answers: { q1: 3 }, score: 3 })
+      .send({ memberId: 'respondent@example.com', answers: { q1: 3 }, score: 3 })
 
     expect(res.status).toBe(201)
+    expect(res.body.memberId).toBe(member.id)
 
-    // Allow the non-blocking rule evaluation to run
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     const triggerJobs = InMemoryQueue.getJobs('campaign-triggers')
-    expect(triggerJobs.length).toBeGreaterThanOrEqual(1)
     const job = triggerJobs.find(
       (j) => (j.data as { campaignId?: string }).campaignId === campaign.id,
     )
     expect(job).toBeDefined()
-    expect((job!.data as { surveyResponseId?: string }).surveyResponseId).toBe(res.body.responseId)
+    expect((job!.data as { surveyResponseId?: string }).surveyResponseId).toBe(res.body.surveyResponseId)
   })
 
   it('non-matching rule does NOT enqueue a campaign trigger', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     await createConsentedMember({ brandId: brand.id, email: 'promoter@example.com' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
     const prisma = getTestPrisma()
 
-    // Rule only matches detractors (0–6), but score is 9 (promoter)
     const campaign = await prisma.campaign.create({
       data: {
         brandId: brand.id,
@@ -414,7 +652,7 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
 
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'promoter@example.com', answers: { q1: 9 }, score: 9 })
+      .send({ memberId: 'promoter@example.com', answers: { q1: 9 }, score: 9 })
 
     expect(res.status).toBe(201)
 
@@ -428,7 +666,7 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
   })
 
   it('boundary score (scoreMax exact match) IS matched', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     await createConsentedMember({ brandId: brand.id, email: 'boundary@example.com' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
@@ -460,10 +698,9 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
       },
     })
 
-    // Score exactly at scoreMax boundary (6)
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'boundary@example.com', answers: { q1: 6 }, score: 6 })
+      .send({ memberId: 'boundary@example.com', answers: { q1: 6 }, score: 6 })
 
     expect(res.status).toBe(201)
 
@@ -475,14 +712,14 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
   })
 
   it('no rules seeded → no campaign trigger enqueued', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     await createConsentedMember({ brandId: brand.id, email: 'norules@example.com' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
 
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'norules@example.com', answers: { q1: 5 }, score: 5 })
+      .send({ memberId: 'norules@example.com', answers: { q1: 5 }, score: 5 })
 
     expect(res.status).toBe(201)
 
@@ -493,13 +730,12 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
   })
 
   it('INACTIVE campaign rule is skipped even when score matches', async () => {
-    const brand = await createBrand()
+    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     await createConsentedMember({ brandId: brand.id, email: 'inactive@example.com' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE', type: 'NPS' })
     const prisma = getTestPrisma()
 
-    // Campaign is PAUSED — rule should not trigger
     const campaign = await prisma.campaign.create({
       data: {
         brandId: brand.id,
@@ -528,7 +764,7 @@ describe('Response-to-Action Rule Wiring — survey rule evaluation on submissio
 
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberEmail: 'inactive@example.com', answers: { q1: 4 }, score: 4 })
+      .send({ memberId: 'inactive@example.com', answers: { q1: 4 }, score: 4 })
 
     expect(res.status).toBe(201)
 

@@ -20,11 +20,18 @@ async function seed() {
   ]
   const members = []
   for (const email of memberEmails) {
+    // Issue #231 PR2: lookup keyed on brandId_externalId (the canonical key
+    // after the email-unique drop). externalId is LOWER(TRIM(email)) per the
+    // migration backfill; enrolledVia=MANUAL_API marks this as integrator-API.
+    const externalId = email.trim().toLowerCase()
     const m = await p.member.upsert({
-      where: { brandId_email: { brandId: BRAND_ID, email } },
+      where: { brandId_externalId: { brandId: BRAND_ID, externalId } },
       update: {},
       create: {
-        brandId: BRAND_ID, email,
+        brandId: BRAND_ID,
+        email,
+        externalId,
+        enrolledVia: 'MANUAL_API',
         firstName: email.split('@')[0],
         lastName: 'Test',
         consentGivenAt: new Date(),

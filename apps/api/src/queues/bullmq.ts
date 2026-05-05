@@ -23,6 +23,7 @@ import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
+import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
 import { Prisma } from '@prisma/client'
@@ -402,8 +403,9 @@ async function resolveExternalSignalMember(
     }
   }
 
+  // #231 PR2: switch to canonical externalId lookup (R5 case-insensitive).
   const member = await prisma.member.findUnique({
-    where: { brandId_email: { brandId, email: memberEmail } },
+    where: { brandId_externalId: { brandId, externalId: memberEmail.trim().toLowerCase() } },
     select: { id: true, consentGivenAt: true },
   })
 
@@ -1064,17 +1066,19 @@ async function inlineWebhookDelivery(p: WebhookDeliveryPayload) {
 async function inlineSurveyImportRow(p: SurveyImportRowPayload) {
   const { batchId, surveyId, brandId, email, score, verbatim, completedAt, channel, externalId, rawAnswers } = p
 
-  // Resolve member by email if provided — auto-enrollment will extend this once that PR merges
+  // Resolve or auto-enroll member using the shared memberResolution service (#231)
   let memberId: string | null = null
   if (email) {
-    const member = await prisma.member.findUnique({
-      where: { brandId_email: { brandId, email } },
-      select: { id: true, consentGivenAt: true },
+    const result = await resolveOrEnrollMember(prisma, brandId, {
+      memberId: email,
+      email,
+      enrolledVia: 'BULK_IMPORT',
     })
-    if (member?.consentGivenAt) {
-      memberId = member.id
+    if (result.ok && result.member.consentGivenAt) {
+      memberId = result.member.id
     }
   }
+  // Google Reviews: email=null → always anonymous (memberId stays null)
 
   // Dedup on externalId within this survey (covers re-imports of the same source data)
   if (externalId) {

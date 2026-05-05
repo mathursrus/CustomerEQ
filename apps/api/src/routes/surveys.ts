@@ -221,9 +221,11 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(422).send({ error: 'Member consent required' })
     }
 
-    // Check for duplicate live response (partial index covers importBatchId IS NULL)
+    // Check for duplicate response — #231 PR1: findUnique → findFirst because
+    // the @@unique([surveyId, memberId]) constraint was dropped per R2. PR2
+    // replaces with Survey.responsePolicy enforcement (R3).
     const existing = await fastify.prisma.surveyResponse.findFirst({
-      where: { surveyId, memberId, importBatchId: null },
+      where: { surveyId, memberId },
     })
     if (existing) {
       return reply.status(200).send({ duplicate: true, responseId: existing.id })

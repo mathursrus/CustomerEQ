@@ -148,13 +148,16 @@ async function main() {
 
   const members = []
   for (const m of memberEmails) {
+    // Issue #231 PR2: API expects `memberId` (canonical identifier).
     const result = await api('POST', '/v1/members/enroll', {
+      memberId: m.email,
       email: m.email,
       firstName: m.firstName,
       lastName: m.lastName,
       programId: useProgramId,
     })
-    if (result?.id) members.push({ ...m, id: result.id })
+    if (result?.memberId) members.push({ ...m, id: result.memberId })
+    else if (result?.id) members.push({ ...m, id: result.id })
   }
   console.log(`  ✅ ${members.length} members enrolled\n`)
 

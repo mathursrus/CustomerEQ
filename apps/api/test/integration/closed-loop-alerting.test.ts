@@ -292,7 +292,12 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const program = await createProgram({ brandId: brand.id })
 
     const member = await prisma.member.create({
-      data: { brandId: brand.id, email: 'survey-member@test.com' },
+      data: {
+        brandId: brand.id,
+        email: 'survey-member@test.com',
+        externalId: 'survey-member@test.com',
+        enrolledVia: 'MANUAL_API',
+      },
     })
 
     const survey = await prisma.survey.create({
@@ -362,7 +367,12 @@ describe('Closed-Loop Alerting — alert rules + case management', () => {
     const program = await createProgram({ brandId: brand.id })
 
     const member = await prisma.member.create({
-      data: { brandId: brand.id, email: 'case-detail-member@test.com' },
+      data: {
+        brandId: brand.id,
+        email: 'case-detail-member@test.com',
+        externalId: 'case-detail-member@test.com',
+        enrolledVia: 'MANUAL_API',
+      },
     })
 
     // Create survey and response
