@@ -4,17 +4,17 @@
  *
  * Usage: pnpm seed:demo
  * Env:   DEMO_API_URL   (default: http://localhost:4000)
- *        DEMO_BRAND_ID  (default: cmn689ibu000089tqad1g234t)
+ *        DEMO_BRAND_ID  (default: cmn689ibu000089tqad1g234t)  — used locally only
+ *        DEMO_API_KEY   — API key for production; falls back to MCP_API_KEY
  */
 
 const API = process.env.DEMO_API_URL ?? 'http://localhost:4000'
 const BRAND_ID = process.env.DEMO_BRAND_ID ?? 'cmn689ibu000089tqad1g234t'
+const API_KEY = process.env.DEMO_API_KEY ?? process.env.MCP_API_KEY
 
-const AUTH_HEADERS = {
-  'Content-Type': 'application/json',
-  'X-Test-Brand-Id': BRAND_ID,
-  'X-Test-User-Id': 'demo-admin',
-}
+const AUTH_HEADERS: Record<string, string> = API_KEY
+  ? { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY }
+  : { 'Content-Type': 'application/json', 'X-Test-Brand-Id': BRAND_ID, 'X-Test-User-Id': 'demo-admin' }
 
 // ── Personas ──────────────────────────────────────────────────────────────────
 // Each persona maps to a named scenario in run-scenario.ts.
