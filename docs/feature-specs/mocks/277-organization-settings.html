@@ -318,7 +318,7 @@
           <div class="page-body">
             <div class="sections">
 
-              <!-- Section 1: Identity (now includes team size) -->
+              <!-- Section 1: Identity (name, logo, website, team size) -->
               <div class="section" id="s-identity">
                 <div class="section-head">
                   <div class="section-head-text">
@@ -367,7 +367,53 @@
                 </div>
               </div>
 
-              <!-- Section 2: Look & Feel -->
+              <!-- Section 2: Defaults (timezone + locale — operational defaults) -->
+              <div class="section" id="s-defaults">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Defaults</h2>
+                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Time zone</label>
+                    <select>
+                      <option value="America/Los_Angeles" selected>(UTC−07:00) America/Los_Angeles</option>
+                      <option value="America/Denver">(UTC−06:00) America/Denver</option>
+                      <option value="America/Chicago">(UTC−05:00) America/Chicago</option>
+                      <option value="America/New_York">(UTC−04:00) America/New_York</option>
+                      <option value="UTC">(UTC) UTC</option>
+                      <option value="Europe/London">(UTC+01:00) Europe/London</option>
+                      <option value="Europe/Paris">(UTC+02:00) Europe/Paris</option>
+                      <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
+                      <option value="Australia/Sydney">(UTC+10:00) Australia/Sydney</option>
+                    </select>
+                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps. Defaults to your browser time zone on first save.</p>
+                  </div>
+                  <div class="field">
+                    <label>Locale</label>
+                    <select>
+                      <option value="en-US" selected>English (United States) — en-US</option>
+                      <option value="en-GB">English (United Kingdom) — en-GB</option>
+                      <option value="es-MX">Español (México) — es-MX</option>
+                      <option value="es-ES">Español (España) — es-ES</option>
+                      <option value="fr-FR">Français (France) — fr-FR</option>
+                      <option value="de-DE">Deutsch (Deutschland) — de-DE</option>
+                      <option value="pt-BR">Português (Brasil) — pt-BR</option>
+                      <option value="ja-JP">日本語 (日本) — ja-JP</option>
+                    </select>
+                    <p class="field-help">Default language for survey copy, email copy, and the member portal. <strong>No surface consumes this yet</strong> — translation pipeline ships separately. Defaults to your browser language on first save.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Defaults</button>
+                </div>
+              </div>
+
+              <!-- Section 3: Look & Feel -->
               <div class="section" id="s-lookfeel">
                 <div class="section-head">
                   <div class="section-head-text">
@@ -578,6 +624,7 @@
             <aside class="toc">
               <p class="toc-label">On this page</p>
               <a href="#s-identity" class="active pending" title="Action needed">Identity</a>
+              <a href="#s-defaults">Defaults</a>
               <a href="#s-lookfeel">Look &amp; Feel</a>
               <a href="#s-members">Member identification</a>
               <a href="#s-consent" class="pending" title="Action needed">Consent &amp; legal</a>
@@ -673,6 +720,41 @@
                   <span class="dirty-note">Unsaved changes</span>
                   <button class="btn btn-ghost">Cancel</button>
                   <button class="btn btn-primary">Save Identity</button>
+                </div>
+              </div>
+
+              <!-- Defaults (clean — populated values shown, locale set to es-MX to demonstrate non-default selection) -->
+              <div class="section" id="s-defaults-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Defaults</h2>
+                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Time zone</label>
+                    <select>
+                      <option value="America/Los_Angeles">(UTC−07:00) America/Los_Angeles</option>
+                      <option value="America/New_York" selected>(UTC−04:00) America/New_York</option>
+                      <option value="UTC">(UTC) UTC</option>
+                      <option value="Europe/London">(UTC+01:00) Europe/London</option>
+                      <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
+                    </select>
+                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps.</p>
+                  </div>
+                  <div class="field">
+                    <label>Locale</label>
+                    <select>
+                      <option value="en-US">English (United States) — en-US</option>
+                      <option value="en-GB">English (United Kingdom) — en-GB</option>
+                      <option value="es-MX" selected>Español (México) — es-MX</option>
+                      <option value="es-ES">Español (España) — es-ES</option>
+                      <option value="fr-FR">Français (France) — fr-FR</option>
+                      <option value="de-DE">Deutsch (Deutschland) — de-DE</option>
+                    </select>
+                    <p class="field-help">Default language for survey copy, email copy, and the member portal. <strong>No surface consumes this yet</strong> — translation pipeline ships separately.</p>
+                  </div>
                 </div>
               </div>
 
@@ -885,6 +967,7 @@
             <aside class="toc">
               <p class="toc-label">On this page</p>
               <a href="#s-identity-pop" class="active">Identity</a>
+              <a href="#s-defaults-pop">Defaults</a>
               <a href="#s-lookfeel-pop">Look &amp; Feel</a>
               <a href="#s-members-pop">Member identification</a>
               <a href="#s-consent-pop">Consent &amp; legal</a>
