@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
-const API_URL = process.env.NEXT_PUBLIC_DEMO_API_URL ?? 'http://localhost:4000'
+const API_URL = process.env.NEXT_PUBLIC_DEMO_API_URL || 'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
 
 interface Question {
@@ -136,7 +136,7 @@ export default function SurveyPage() {
         )}
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800 text-left">
           <p className="font-semibold mb-1">Demo tip: watch the CX pipeline</p>
-          <p>Check the <a href="http://localhost:3000/admin/alerts/cases" className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href="http://localhost:3000/admin/campaigns" className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
+          <p>Check the <a href="https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io/admin/alerts/cases" className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href="https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io/admin/campaigns" className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
         </div>
       </div>
     )
