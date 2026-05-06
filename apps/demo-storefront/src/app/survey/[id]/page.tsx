@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
 
 interface Question {
   id: string
@@ -135,7 +136,7 @@ export default function SurveyPage() {
         )}
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800 text-left">
           <p className="font-semibold mb-1">Demo tip: watch the CX pipeline</p>
-          <p>Check the <a href="https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io/admin/alerts/cases" className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href="https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io/admin/campaigns" className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
+          <p>Check the <a href={`${ADMIN_URL}/admin/alerts/cases`} className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href={`${ADMIN_URL}/admin/campaigns`} className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
         </div>
       </div>
     )

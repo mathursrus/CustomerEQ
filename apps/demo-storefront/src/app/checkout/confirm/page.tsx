@@ -6,6 +6,8 @@ import { getCart, clearCart, type CartItem } from '@/lib/cart'
 import { getPersonaEmail } from '@/lib/persona'
 import type { CheckoutResult } from '@/app/api/storefront/checkout/route'
 
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+
 type State =
   | { phase: 'processing' }
   | { phase: 'success'; result: CheckoutResult; items: CartItem[] }
@@ -113,7 +115,7 @@ export default function CheckoutConfirmPage() {
         <p className="font-semibold mb-1">Demo tip: watch the pipeline</p>
         <p className="text-xs leading-relaxed">
           A <code>purchase</code> event was just fired to the CustomerEQ API.
-          Check the <a href="http://localhost:3000/admin" className="underline font-medium" target="_blank" rel="noreferrer">admin dashboard</a> to
+          Check the <a href={`${ADMIN_URL}/admin`} className="underline font-medium" target="_blank" rel="noreferrer">admin dashboard</a> to
           see loyalty points accumulate in real time.
         </p>
       </div>
