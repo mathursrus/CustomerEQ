@@ -87,6 +87,14 @@ ALTER TYPE "OrgSizeCategory" ADD VALUE IF NOT EXISTS 'SIZE_5000_PLUS';
 ALTER TABLE "brands"
   ADD COLUMN IF NOT EXISTS "timezone" TEXT NOT NULL DEFAULT 'UTC',
   ADD COLUMN IF NOT EXISTS "locale"   TEXT NOT NULL DEFAULT 'en-US';
+
+-- 4. Default-theme seeding support (§5). Add isStockDefault column + composite
+--    unique constraint that doubles as the seed-race guard.
+ALTER TABLE "survey_themes"
+  ADD COLUMN IF NOT EXISTS "isStockDefault" BOOLEAN NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "survey_themes_brandId_name_key"
+  ON "survey_themes" ("brandId", "name");
 ```
 
 Note: `ALTER TYPE … ADD VALUE` cannot run inside an existing transaction in older Postgres versions, but Postgres 12+ (we're on 16) lifts that restriction. `prisma migrate deploy` runs each migration file in its own transaction; this migration is safe.
@@ -182,7 +190,7 @@ type GetBrandProfileResponse = {
    - `prisma.theme.findMany({ where: { brandId } })` — full theme list
    - `prisma.member.count({ where: { brandId } })` — for locked-state computation
    - `process.env.SUPPORT_EMAIL ?? 'support@customereq.com'` — env resolution
-3. **First-run theme seeding** (R25): if the upsert created the brand (`brand.createdAt` was just now) AND `themes.length === 0`, the handler also creates the four default Theme rows (Indigo / Forest / Sunset / Slate) in the same `Promise.all`. Idempotent on `(brandId, name)`. This is the **per-brand seed** decision (see §5 below).
+3. **First-run theme seeding** (R25): if the upsert created the brand (`brand.createdAt` was just now) AND `themes.length === 0`, the handler also creates the four default `SurveyTheme` rows (Indigo / Forest / Sunset / Slate) in the same `Promise.all`. Idempotent on the new `@@unique([brandId, name])` composite added in §5; concurrent inserts produce a `unique_violation` (Prisma P2002) that the seed code catches and treats as "already seeded by a sibling request." This is the **per-brand seed** decision (see §5 below).
 
 #### 4.2 `PATCH /v1/admin/brand/profile`
 
@@ -229,7 +237,7 @@ Multipart upload. Validates PNG / SVG / JPEG (≤2 MB, min 64×64). Persists to 
 
 ### 5. Default-theme seeding decision
 
-**Decision: per-brand seed at provisioning** — the 4 default themes are written as 4 `Theme` rows for the brand on first lazy-upsert. Implemented in the GET handler (§4.1, step 3). Each row has `isStockDefault: true` (new boolean column added in this migration) so admin-edit-detection is straightforward.
+**Decision: per-brand seed at provisioning** — the 4 default themes are written as 4 `SurveyTheme` rows for the brand on first lazy-upsert. Implemented in the GET handler (§4.1, step 3). Each row has `isStockDefault: true` (new boolean column added in this migration) so admin-edit-detection is straightforward.
 
 | Frame | Position |
 |---|---|
@@ -237,15 +245,28 @@ Multipart upload. Validates PNG / SVG / JPEG (≤2 MB, min 64×64). Persists to 
 | **Global rows shared across brands** | Pros: 4 rows total instead of 4 × N. Cons: every "edit a default theme" becomes a copy-on-write to a brand-specific override; theme-list query becomes `(global stock themes) UNION (brand custom)` with awkward identity semantics; deleting a custom theme that overrides a global default has surprising fallback behavior. The complexity isn't worth saving 4 × N rows. |
 | **Hybrid (global stock + per-brand customizations)** | Pros: lowest storage. Cons: most complex of the three; copy-on-write semantics bleed into every theme-edit path; the existing `apps/web/src/app/(admin)/admin/settings/themes/` page would need refactoring to support the override concept. |
 
-**Schema addition for this decision:**
+**Schema additions for this decision** (on the existing `SurveyTheme` model — `Theme` was a placeholder name in earlier RFC drafts; the actual model is `SurveyTheme`):
+
 ```prisma
-model Theme {
-  // ... existing fields ...
-  isStockDefault Boolean @default(false)  // Issue #277 — true for the 4 seeded defaults; false for admin-created custom themes. Used by Look & Feel UI to label "Stock" vs "Custom".
+model SurveyTheme {
+  // ... existing fields, including `isDefault Boolean @default(false)` —
+  // distinct from `isStockDefault`: `isDefault` is the brand's chosen default
+  // (mutually exclusive per brand); `isStockDefault` is "shipped with the brand
+  // at provisioning" (4 rows per brand). ...
+
+  // Issue #277 — true for the 4 seeded stock themes (Indigo / Forest / Sunset / Slate);
+  // false for admin-created custom themes. Used by the Look & Feel UI to label "Stock"
+  // vs "Custom" in the theme picker.
+  isStockDefault Boolean @default(false)
+
+  // Issue #277 — enables the seed race-mitigation strategy (§7 Risks): concurrent
+  // first-GETs hit a unique-constraint violation that's safe to swallow. The model
+  // had no name unique constraint pre-#277.
+  @@unique([brandId, name])
 }
 ```
 
-Migration adds the column; first-run seeding sets it to `true` on the 4 seed rows.
+Migration adds the column **and** the composite unique constraint; first-run seeding sets `isStockDefault: true` on the 4 seed rows. The unique constraint is the seed-race guard.
 
 ### 6. Frontend page architecture
 
@@ -406,7 +427,7 @@ Co-located with the new package and components.
 |---|---|---|
 | Postgres `ALTER TYPE … ADD VALUE` semantics differ across versions | Low | We're on Postgres 16 (architecture.md §2). PG12+ allows ADD VALUE outside transactions; PG16's behavior is documented. Migration tested in dev compose first. |
 | Clerk's `afterCreateOrganizationUrl` prop is not honored on every Clerk plan / configuration | Low | Documented Clerk feature, present in current SDK version. Pre-flight: a small Playwright test that drives the OrganizationSwitcher create flow and asserts the redirect target. If Clerk changes the prop name, it's caught at PR time. |
-| Default-theme seeding race: two concurrent first-GETs both seed 4 rows (8 total) | Low | Wrap the seed in a `prisma.$transaction` with a `SELECT ... FOR UPDATE` on the brand row so only one request seeds. Alternatively, `@@unique([brandId, name])` on Theme rows turns the duplicate into a constraint violation that's safe to swallow. The unique-constraint approach is simpler — recommended. |
+| Default-theme seeding race: two concurrent first-GETs both seed 4 rows (8 total) | Low | The `@@unique([brandId, name])` constraint added to `SurveyTheme` in this RFC's schema diff (§5) is the guard: concurrent inserts produce a Postgres `unique_violation` (Prisma P2002) that the seed code catches and treats as "already seeded by a sibling request." No transaction with `SELECT ... FOR UPDATE` needed. |
 | `@customereq/consent-text` placement choice locks in import surface for #276 + future module | Medium | The package can be moved later (`@customereq/shared/consent-text` is a renaming, not a redesign). Choosing `packages/consent-text` is the lowest-friction starting point; moving is cheap. |
 | Member-count query on every GET — could be slow on large brands | Low | `prisma.member.count({ where: { brandId } })` uses the existing `(brandId)` index; sub-millisecond at any reasonable member count. If a brand grows to millions, switch to a cached counter. Not a v0 concern. |
 | `OrgSizeCategory` legacy values leak into UI selectors via stale caches | Low | Server validates incoming `teamSize` against `zOrgSizeCategoryNew` (only the 5 new values + PREFER_NOT_TO_SAY); legacy values reject with 400. UI only renders new values. Defense-in-depth at both layers. |
@@ -421,6 +442,42 @@ Co-located with the new package and components.
 | Redirect-on-org-create | Clerk `afterCreateOrganizationUrl` prop | Webhook (#239) — rejected as a dependency; remains additive optimization. Next.js middleware — rejected for hackiness. Client-side useEffect — rejected for round-trip cost. |
 | API surface | One PATCH endpoint for the whole row | Per-section PATCH endpoints — rejected because the audit / validation logic duplicates and the section-vs-field boundary is a UI concern, not an API one. |
 | Form state mgmt | React Hook Form + Zod resolver | Uncontrolled forms with manual state — rejected for inconsistency with the existing themes page pattern. |
+
+## Architecture Analysis
+
+Comparison of this RFC against `docs/architecture/architecture.md`. Pattern classification per the FRAIM technical-design phase 4 contract: **Correctly Followed** (architecture documents the pattern, RFC uses it correctly), **Missing from Architecture** (pattern used in RFC, not yet documented in architecture — candidate for an architecture-doc update during address-feedback), **Incorrectly Followed** (pattern documented but RFC violates it).
+
+### Patterns Correctly Followed
+
+| Pattern | Architecture reference | RFC use |
+|---|---|---|
+| Multi-tenant `brandId` from JWT only, never from request body | architecture §3.2 (`multiTenant` plugin) + §6 (Multi-Tenant Isolation) | §4 + §8 — all routes auth-gated; PATCH body has no `brandId`; rejected by `multiTenant` plugin if attempted |
+| Append-only `AuditEvent` writes for mutations | architecture §3.2 (`audit` plugin onResponse) | §9 — three audit events (`brand.profile.updated`, `brand.consent.mode_changed_to_implied`, `brand.identifier_kind_changed`) |
+| Zod 3.23 shared validation between API and frontend | architecture §2 + §3.5 | §4.2 + §6.3 — `zConsentText` exported from `packages/consent-text` consumed by both API PATCH validation and the frontend `pendingItems` computation |
+| Prisma 5.13 migrations forward-only and idempotent | architecture §2 + the `IF NOT EXISTS`-guarded SQL pattern from #276 RFC | §2 — `ADD COLUMN IF NOT EXISTS`, `ADD VALUE IF NOT EXISTS`, `CREATE UNIQUE INDEX IF NOT EXISTS` |
+| Fastify route module per resource (`apps/api/src/routes/<resource>.ts`) | architecture §3.2 + §4.1 | §4 — single `apps/api/src/routes/admin-brand-profile.ts` for all three endpoints |
+| Standard CRUD admin pattern (list / new / view / edit) | architecture §3.1 (Issue #157) | §6.1 — Organization Settings is **not** standard CRUD (it's a singleton-resource page, not a list); the four-route layout is correctly **not** applied here. Settings page mirrors the existing `apps/web/src/app/(admin)/admin/settings/themes/page.tsx` + `webhooks/page.tsx` shape, which is the right reference. |
+| `brandId` from JWT enforced by `multiTenant` plugin (R6 of project rules) | architecture §3.2 + repo project rule #6 | §8 — explicitly called out |
+
+### Patterns Missing from Architecture
+
+These are patterns the RFC introduces or relies on that are not yet documented in `docs/architecture/architecture.md`. Each is a candidate for an architecture-doc update during the `address-feedback` phase, pending user direction.
+
+| Pattern | Why it's needed | Suggested architecture update |
+|---|---|---|
+| **Per-route audit metadata allowlist** | Architecture §3.2 says the audit plugin does "fire-and-forget logging of mutations to AuditEvent table" but doesn't document how route-specific metadata (e.g., `attestation`, `memberCountAtChange`, `changedFields`) gets into the row. #276 RFC introduced the per-route allowlist pattern (`audit.ts` config keyed by `{routeId}.metadata: [allowedKeys]`); this RFC reuses it (§9). | Add to architecture §4.2 audit-plugin row: "Per-route metadata allowlist via `<route-id>.metadata` config keys; route handlers populate `request.audit.metadata`; the plugin filters to the allowlist before persisting." |
+| **Lazy-upsert provisioning at GET** | Architecture documents `multiTenant` rejection of body-supplied `brandId` and the existing webhook-driven provisioning at `/api/webhooks/identity-provider`, but doesn't document GET-side lazy-upsert as a pattern. #277 establishes it (§4.1) for the org-settings tenant-bootstrap flow. | Add to architecture §3.2: "**Lazy-upsert provisioning pattern:** GET endpoints that are the canonical landing target for newly-created tenants may upsert their tenant resource row keyed by JWT-extracted identifier (e.g. `clerkOrgId`). This is the redirect-target counterpart to the webhook-driven provisioning at `/api/webhooks/identity-provider` and survives webhook delivery failures. First seen in #277 (`GET /v1/admin/brand/profile`)." |
+| **Shared cross-package validator/renderer module** | Architecture documents `packages/embed` and `packages/shared` but doesn't describe the pattern of "extract a narrowly-scoped reusable runtime module into its own package consumed by web + api." `packages/consent-text` (this RFC §3) is a third instance of the pattern. | Add to architecture §3 (Architectural Layers): a brief subsection naming the pattern (alongside `embed` and the `consent-text` package added by #277): "Domain-narrow runtime packages — single-purpose packages with parser / validator / renderer triplets that web and api both consume; kept out of `packages/shared` to avoid bundle bloat in the worker." |
+| **React Hook Form + Zod resolver as the form-state convention** | Architecture §2 lists shadcn/ui + Tailwind v4 but doesn't name the form-state library. Existing #170 RFC + the existing `apps/web/src/app/(admin)/admin/settings/themes/page.tsx` use RHF + `@hookform/resolvers/zod`. This RFC §6.3 follows that convention. | Add a row to architecture §2 tech stack: "**Forms** | React Hook Form 7.x + `@hookform/resolvers/zod` | Standard for admin-portal forms — single source of truth for validation between API and frontend (Zod schemas reused). Per-section dirty state via RHF `formState.dirtyFields`." |
+| **Clerk's `afterCreateOrganizationUrl` as the post-create landing mechanism** | Architecture mentions Clerk OrganizationSwitcher implicitly (via the `/api/webhooks/identity-provider` row in §4.1) but doesn't document the `afterCreateOrganizationUrl` redirect contract. #277 §7 makes this central to first-run UX. | Add to architecture §3.1 admin-portal subsection: "Post-create landing for new Clerk organizations is set via `<OrganizationSwitcher afterCreateOrganizationUrl="..." />` in the admin shell layout. The redirect target's first GET is the lazy-upsert site (§3.2 lazy-upsert pattern)." |
+
+### Patterns Incorrectly Followed
+
+None identified. The RFC follows established patterns; the gaps above are documentation gaps, not violations.
+
+### Architecture-doc updates — gating
+
+Per the FRAIM technical-design phase 4 contract: **no architecture document updates are made in this phase.** Updates land in the `address-feedback` phase, gated by user direction (e.g., "yes, codify the per-route audit allowlist in architecture.md" vs. "leave it in the RFC body for now"). The five gaps above are flagged here for that decision.
 
 ## Implementation breakdown
 
