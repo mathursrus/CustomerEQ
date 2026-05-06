@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
-const API_URL = process.env.NEXT_PUBLIC_DEMO_API_URL || 'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
 
 interface Question {
@@ -51,7 +50,7 @@ export default function SurveyPage() {
       }
 
       try {
-        const res = await fetch(`${API_URL}/v1/public/surveys/${id}`)
+        const res = await fetch(`/api/storefront/survey/${id}`)
         if (!res.ok) {
           setState({ phase: 'error', message: 'Survey not found or not active.' })
           return
@@ -78,7 +77,7 @@ export default function SurveyPage() {
     setState({ phase: 'submitting' })
 
     try {
-      const res = await fetch(`${API_URL}/v1/public/surveys/${id}/respond`, {
+      const res = await fetch(`/api/storefront/survey/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link' }),
