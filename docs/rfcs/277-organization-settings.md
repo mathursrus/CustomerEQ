@@ -329,9 +329,9 @@ const pendingItems = useMemo(() => {
 
 Six entries; the `pending` style applies when any of the section's fields appear in `pendingItems`. CSS `position: sticky` with `top: 80px` (matches the existing settings page layout per the mock).
 
-### 7. Redirect-on-org-create implementation
+### 7. Redirect-on-org-create + OrganizationSwitcher integration
 
-**Decision: Clerk's built-in `afterCreateOrganizationUrl` prop on `<OrganizationSwitcher>`** (no Clerk webhook dependency, no Next.js middleware, no client-side `useEffect` redirect).
+**Decision: Clerk's built-in props on `<OrganizationSwitcher>`** (no Clerk webhook dependency, no Next.js middleware, no client-side `useEffect` redirect).
 
 The admin layout at `apps/web/src/app/(admin)/layout.tsx` currently has:
 ```tsx
@@ -342,17 +342,40 @@ The admin layout at `apps/web/src/app/(admin)/layout.tsx` currently has:
 />
 ```
 
-Add one prop:
+Three changes for #277:
 ```tsx
 <OrganizationSwitcher
   hidePersonal
-  afterCreateOrganizationUrl="/admin/settings/organization"  // R26 — Issue #277
+  afterCreateOrganizationUrl="/admin/settings/organization"   // R26 — post-create landing for new orgs
   afterSelectOrganizationUrl="/admin/members"
+  organizationProfileMode="redirect"                          // R6 — opt out of Clerk-hosted org profile
+  organizationProfileUrl="/admin/settings/organization"       // R6 — "Manage" link deep-links to our settings page
   appearance={...}
 />
 ```
 
-That is the entire redirect implementation. No webhook, no middleware, no race conditions — Clerk handles the redirect client-side after its create-org flow completes, and the redirect target's first GET runs the lazy-upsert (§4.1).
+That is the entire redirect / Manage-link implementation. No webhook, no middleware, no race conditions — Clerk handles the redirect client-side after its create-org flow completes, and the redirect target's first GET runs the lazy-upsert (§4.1). The `organizationProfileMode="redirect"` opt-out tells Clerk not to render its hosted org-profile modal; the `organizationProfileUrl` tells Clerk where to send the admin instead.
+
+**Sidebar entry (R5):** the existing admin sidebar in `layout.tsx` adds one entry under the **Settings** group as the **first item**:
+```tsx
+const navLinks: { href: string; label: string; section?: string }[] = [
+  // ...existing entries...
+  // ── Settings ──
+  { href: '/admin/settings/organization', label: 'Organization', section: 'Settings' },  // NEW (R5) — first item under Settings
+  { href: '/admin/settings/themes',       label: 'Themes',       section: 'Settings' },
+  { href: '/admin/settings/webhooks',     label: 'Webhooks',     section: 'Settings' },
+  // ...
+]
+```
+
+### 7a. IdentityProvider write-through for name changes (R8)
+
+When PATCH writes a new `Brand.name`, the route handler:
+1. Writes the DB row first inside the existing `prisma.$transaction` (DB is source of truth — architecture §6 "Append-Only" / "Transactional Integrity" patterns; same write-first principle).
+2. After the transaction commits, calls `fastify.identityProvider.updateOrgName({ orgId: brand.clerkOrgId, newName })` outside the transaction (best-effort, decoupled).
+3. If the provider call fails, the failure is queued for retry via the existing event pipeline (`enqueueIdentityProviderRetry({ orgId, newName, op: 'updateOrgName' })`) — fire-and-forget, with a `syncing-with-identity-provider` badge surfacing on the admin's name field until the retry succeeds.
+
+This follows the existing `IdentityProvider` boundary pattern from architecture §4.2 (introduced in #170 OD-5; ADR 0004): no direct `@clerk/*` imports in route handlers; `fastify.identityProvider` is the only entry point. The write-through is identical in shape to the `createUserWithOrg` retry pattern already shipped under #170 PR 2.
 
 | Frame | Position |
 |---|---|
