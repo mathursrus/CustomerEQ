@@ -54,6 +54,9 @@ export function StorefrontHeader() {
               </span>
             )}
           </Link>
+          <Link href="/surveys" className="text-xs text-gray-600 hover:text-gray-900 transition-colors">
+            Surveys
+          </Link>
           <Link href="/account" className="text-xs text-gray-600 hover:text-gray-900 transition-colors">
             Account
           </Link>
