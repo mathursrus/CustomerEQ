@@ -141,6 +141,19 @@ Round 3 (the corrective revision) re-pivots back to the round-1 schema move + ad
 - **Status**: ADDRESSED
 - **How addressed**: Round 3 (this commit) re-pivots the spec back to the round-1 shape — Survey-side schema columns + verify-and-backfill migration + renderer rebind. The round-2 misread (interpreting "data preservation is not critical" as "defer the schema move") is corrected. The mechanical fixes from round 2 (mock filename, false examples removed, `_count.surveys` clarified, no admin survey-builder UI) are kept; the schema/API/renderer changes from round 1 are restored, with the migration explicitly performing backfill so demos render identically. Coaching moment captured at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-07T08-00-00-misread-data-preservation-not-critical-as-defer-instead-of-backfill.md`.
 
+## Round 4 Feedback (DR3 resolution)
+
+*Received: 2026-05-07 inline comment on PR #295 spec line 215*
+
+### Comment 4.1 — ADDRESSED
+
+- **Author**: rmadhira86
+- **Type**: review_comment, [r3199688368](https://github.com/mathursrus/CustomerEQ/pull/295#discussion_r3199688368), spec line 215 (DR3 row)
+- **Comment**:
+  > Directly on Survey as columns
+- **Status**: ADDRESSED
+- **How addressed**: DR3 marked resolved in the Decisions table — option (a) typed columns directly on `Survey`. R3 already encodes the three typed columns; no other spec changes needed. The (b) `SurveyOverride` 1:1 row and (c) keys-in-`Survey.settings` options are retained in the Alternatives table for completeness but not pursued. Reviewer's reply cites the resolving SHA on the thread.
+
 ## Continuous Learning
 
 | Learning | Agent Rule Updates |
