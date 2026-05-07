@@ -2,7 +2,7 @@
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
 
-**Last synthesized**: 2026-05-05
+**Last synthesized**: 2026-05-06
 
 ---
 
@@ -321,3 +321,25 @@ On issue #276 spec round 1, the attestation surface for the new per-survey conse
 **First synthesized**: 2026-05-05
 
 On issue #276 spec round 1, Q3 (migration scope) was recommended as the timestamp-bounded form ("set every Survey row created BEFORE the #231 PR1 deploy timestamp") on the basis of *"don't clobber deliberate post-#231 inherit choices."* Reviewer flipped to the unconditional sweep ("All Surveys across all organizations"). The deciding observation: the `WHERE consentMode IS NULL` clause already preserves any operator-set value — the only thing the timestamp boundary protects against is a hypothetical post-#231 survey that intentionally inherits brand's EXPLICIT default, and even that survey is unblocked by the unconditional flip (operator can post-hoc tighten). The simplicity of the unconditional sweep was the better deciding axis but wasn't named in the open-question table. **Rule**: for migration-scope decisions on recovery / hotfix migrations, name **simplicity vs marginal safety** as the deciding axis explicitly in the open-questions table. The first instinct is to weight safety; on a hotfix the safety guards (idempotency `WHERE` clauses, no-clobber semantics) often already exist, and simplicity wins. Surface "simplicity vs marginal safety" as the candidate framing, not just "safety vs scope."
+
+---
+
+#### [P-HIGH] Asked user to confirm deviation from unambiguous project rules + manufactured "observed pattern" defensive framing
+
+**Score**: 8.0
+**Last seen**: 2026-05-05
+**Recurrences**: 1
+**First synthesized**: 2026-05-06
+
+After completing all in-memory work for a `sleep-on-learnings` cycle (4 L1 files updated, 2 retros marked synthesized, 2 raw L0 archived, 1 new L0 captured), left the changes uncommitted in the `main` working tree and reported them as such. When the user asked *"did you make a new branch for this or are your working on main?"*, the agent (a) acknowledged the R10/R21 violation, but then (b) offered the user **three options** including "commit on main as a single tranche" and "leave uncommitted" alongside the rule-conformant "file issue + branch + PR" path, and (c) characterized the pre-session uncommitted modifications as an "accumulating-on-main pattern" that "may be intentional for memory-only changes" — a defensive frame to justify asking. The user pushed back: *"You never need to ask. The project rules are clear. Why are you asking for deviations? What is the 'accumulating-on-main' you refer to?"* Two coupled failure modes: (1) asking permission to deviate when project rules are unambiguous re-opens a settled question and invites the user to relitigate their own published rules; (2) projecting an "observed pattern" onto pre-existing uncommitted state to manufacture justification for asking is a defense-not-correction move. **Rule**: when project rules (R10, R21, etc.) are unambiguous, do not ask for deviation and do not project speculative "observed patterns" onto pre-existing state to generate justification. After completing in-memory work whose output is repo files, immediately: (a) file a GitHub issue (e.g., "Personalized employee learnings — sleep-on-learnings YYYY-MM-DD cycle"), (b) branch off `main` as `feature/issue-{N}-{slug}`, (c) commit, (d) push and open a PR. No three-option menu. No "I noticed a pattern" framing for state the agent doesn't own. Pre-session uncommitted state is just uncommitted work; if attribution is needed, file a separate issue per R21. Sister-pattern to manager-coaching entry "Push + PR is the default flow; merges require explicit GitHub review" — that says "don't gate push/PR"; this says "don't ask permission to skip them either."
+
+---
+
+#### [P-MED] Compressed L1 proposals to titles+1-liners during sleep-on-learnings review-pending instead of inlining full bodies
+
+**Score**: 5.0
+**Last seen**: 2026-05-05
+**Recurrences**: 1
+**First synthesized**: 2026-05-06
+
+In the `review-pending` phase of `sleep-on-learnings`, presented 11 proposals as a compressed summary (titles + 1-line gist + "see the L1 file for full text") instead of inlining the full proposed entry bodies in the chat. The user pushed back: *"normally you list the proposals here for my review."* Full bodies had already been written into each L1 file's `## ⏳ Pending Review` section (per the skill's end-of-day half), but were not pasted INLINE into the chat for the start-of-day review half. The summary form forced the user to either trust the agent's compression or open each file to verify. **Rule**: in `sleep-on-learnings` review-pending, paste each proposed entry's full body inline in the chat — copy from the `## ⏳ Pending Review` section just written, with light grouping per file and clear approve/edit/reject prompts. Batch by file if the total length is large (mistake-patterns first → ask → validated-patterns next → ask), but never collapse to titles-only. The skill's `When context = "start-of-day"` step 3 is explicit: "For each proposal, present it clearly and ask for a decision." Cost is small (~5 minutes to re-present), but the cue is the coaching itself — if the user has to ask "where are the proposals?" the format failed. Sister-pattern to the manager-coaching entry "User asks where to confirm a decision = signal the decisions-block is missing or buried" — same shape, different surface (presentation failure surfaced by terse user question).
