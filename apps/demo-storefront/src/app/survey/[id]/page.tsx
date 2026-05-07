@@ -81,7 +81,7 @@ export default function SurveyPage() {
       const res = await fetch(`/api/storefront/survey/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link' }),
+        body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link', consent: true }),
       })
       const result = await res.json() as { duplicate?: boolean; incentivePoints?: number; error?: string }
 
