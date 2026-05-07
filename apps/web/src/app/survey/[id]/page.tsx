@@ -48,7 +48,9 @@ interface SurveyQuestion {
   skipRules?: SkipRule[]
 }
 
-interface SurveyTheme {
+// Issue #291 — BrandTheme is the brand-level visual identity only.
+// Per-survey thank-you fields moved to SurveyData; logo / brand-name moved to brand.
+interface BrandTheme {
   primaryColor?: string
   backgroundColor?: string
   textColor?: string
@@ -56,11 +58,6 @@ interface SurveyTheme {
   buttonTextColor?: string
   accentColor?: string
   fontFamily?: string
-  logoUrl?: string
-  brandName?: string
-  thankYouMessage?: string
-  thankYouRedirectUrl?: string
-  showIncentivePoints?: boolean
   borderRadius?: string
   cardStyle?: string
   maxWidth?: 'sm' | 'md' | 'lg'
@@ -70,10 +67,14 @@ interface SurveyData {
   id: string
   name: string
   type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
-  brand: { name: string }
+  brand: { name: string; logoUrl?: string | null }
   questions: SurveyQuestion[]
   incentivePoints?: number
-  theme?: SurveyTheme
+  // Issue #291 — per-survey overrides on Survey (was on BrandTheme).
+  thankYouMessage?: string
+  thankYouRedirectUrl?: string | null
+  showIncentivePoints?: boolean
+  theme?: BrandTheme
   hasCxRules?: boolean
 }
 
@@ -222,7 +223,7 @@ function pipeAnswers(
 /*  Theme CSS custom properties                                       */
 /* ------------------------------------------------------------------ */
 
-function buildThemeStyle(theme?: SurveyTheme): string {
+function buildThemeStyle(theme?: BrandTheme): string {
   const t = theme ?? {}
   return `
     :root {
@@ -343,10 +344,10 @@ export default function SurveyResponsePage() {
 
       setSubmitted(true)
 
-      // Redirect if theme says so
-      if (survey?.theme?.thankYouRedirectUrl) {
+      // Issue #291 — thankYouRedirectUrl moved from theme to Survey.
+      if (survey?.thankYouRedirectUrl) {
         setTimeout(() => {
-          window.location.href = survey!.theme!.thankYouRedirectUrl!
+          window.location.href = survey!.thankYouRedirectUrl!
         }, 2000)
       }
     } catch (err) {
@@ -361,7 +362,8 @@ export default function SurveyResponsePage() {
   const borderRadius = theme?.borderRadius ?? '0.75rem'
   const cardStyle = theme?.cardStyle ?? 'shadow-sm border border-gray-200'
   const maxWidthPx = MAX_WIDTH_MAP[theme?.maxWidth ?? ''] ?? '672px' // default ~max-w-2xl
-  const showIncentive = theme?.showIncentivePoints !== false // default true
+  // Issue #291 — showIncentivePoints moved from theme to Survey.
+  const showIncentive = survey?.showIncentivePoints !== false // default true
 
   /* ---------------------------------------------------------------- */
   /*  Render states                                                   */
@@ -410,7 +412,8 @@ export default function SurveyResponsePage() {
   }
 
   if (submitted) {
-    const thankYouMsg = theme?.thankYouMessage ?? 'Your feedback has been submitted successfully.'
+    // Issue #291 — thankYouMessage moved from theme to Survey.
+    const thankYouMsg = survey?.thankYouMessage ?? 'Your feedback has been submitted successfully.'
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--ceq-bg, #f9fafb)', fontFamily: 'var(--ceq-font, inherit)' }}>
         <style dangerouslySetInnerHTML={{ __html: buildThemeStyle(theme) }} />
@@ -443,7 +446,7 @@ export default function SurveyResponsePage() {
               <p className="mt-0.5 text-xs text-indigo-600">Based on your feedback, we&apos;re preparing a personalized reward for you. Keep an eye on your inbox.</p>
             </div>
           )}
-          {theme?.thankYouRedirectUrl && (
+          {survey?.thankYouRedirectUrl && (
             <p className="mt-4 text-xs text-gray-400">Redirecting you shortly...</p>
           )}
         </div>
@@ -472,11 +475,12 @@ export default function SurveyResponsePage() {
         }}
       >
         <div className="mx-auto" style={{ maxWidth: maxWidthPx }}>
-          {theme?.logoUrl && (
-            <img src={theme.logoUrl} alt={theme.brandName ?? survey.brand.name} className="mx-auto mb-4 h-10 object-contain" />
+          {/* Issue #291 — logoUrl moved from theme to Brand. */}
+          {survey.brand.logoUrl && (
+            <img src={survey.brand.logoUrl} alt={survey.brand.name} className="mx-auto mb-4 h-10 object-contain" />
           )}
           <p className="text-sm font-medium" style={{ opacity: 0.8 }}>
-            {theme?.brandName ?? survey.brand.name}
+            {survey.brand.name}
           </p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{survey.name}</h1>
           {showIncentive && survey.incentivePoints && (

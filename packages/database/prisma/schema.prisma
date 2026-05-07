@@ -203,17 +203,14 @@ model Brand {
   consentTextDefault    String?                                  // R16 — brand-wide disclosure / checkbox text
   privacyPolicyUrl      String?                                  // R16 — captured at brand onboarding
   termsUrl              String?                                  // R16 — captured at brand onboarding
-  // FK to SurveyTheme.id when set. Application code is responsible for the
-  // referential integrity check; we do not declare a Prisma @relation here
-  // because the existing `survey_themes` table is not in the migration history
-  // (pre-existing schema-vs-migrations drift). PR 5 / a follow-up drift fix
-  // restores the @relation once survey_themes has a backing migration.
+  // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
   defaultThemeId        String?
+  defaultTheme          BrandTheme?            @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
   sizeCategory          OrgSizeCategory?
   programs              Program[]
   members               Member[]
   surveys               Survey[]
-  surveyThemes          SurveyTheme[]
+  brandThemes           BrandTheme[]           @relation("BrandThemes")
   questionTemplates     QuestionTemplate[]
   alertRules            AlertRule[]
   caseFollowUps         CaseFollowUp[]
@@ -610,7 +607,7 @@ model Survey {
   distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
   incentivePoints    Int?             // Points awarded for completing the survey
   themeId            String?
-  theme              SurveyTheme?     @relation(fields: [themeId], references: [id])
+  theme              BrandTheme?      @relation(fields: [themeId], references: [id])
   triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
   triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
   surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
@@ -622,6 +619,10 @@ model Survey {
   // Issue #276 — survey-level consent mode override
   consentMode                   ConsentMode?                       // null → inherit Brand.consentMode
   consentReason                 String?       @db.VarChar(500)     // operator/system justification when override is set
+  // Issue #291 — per-survey thank-you copy/routing/toggle (moved from SurveyTheme)
+  thankYouMessage               String        @default("Thank you for your feedback!")
+  thankYouRedirectUrl           String?
+  showIncentivePoints           Boolean       @default(true)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -689,15 +690,15 @@ model SurveyRule {
   @@map("survey_rules")
 }
 
-model SurveyTheme {
+// Issue #291 — Renamed from SurveyTheme; brand-level visual identity only.
+// Per-survey overrides (thank-you copy, redirect URL, incentive-points toggle)
+// moved to Survey columns. Logo / brand-name fall through to Brand.logoUrl /
+// Brand.name. Default-theme flag replaced by Brand.defaultThemeId FK.
+model BrandTheme {
   id        String  @id @default(cuid())
   brandId   String
-  brand     Brand   @relation(fields: [brandId], references: [id])
+  brand     Brand   @relation("BrandThemes", fields: [brandId], references: [id])
   name      String
-  isDefault Boolean @default(false)
-
-  logoUrl   String?
-  brandName String?
 
   primaryColor    String @default("#6366f1")
   secondaryColor  String @default("#818cf8")
@@ -716,17 +717,14 @@ model SurveyTheme {
   borderRadius       String  @default("md")
   maxWidth           String  @default("md")
 
-  thankYouMessage     String  @default("Thank you for your feedback!")
-  thankYouRedirectUrl String?
-  showIncentivePoints Boolean @default(true)
-
-  surveys Survey[]
+  surveys          Survey[]
+  defaultForBrands Brand[]  @relation("BrandDefaultTheme")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brandId])
-  @@map("survey_themes")
+  @@map("brand_themes")
 }
 
 model QuestionTemplate {

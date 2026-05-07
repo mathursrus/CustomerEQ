@@ -26,7 +26,12 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const brandId = request.brandId
-    const { name, programId, type, questions, settings, incentivePoints, themeId, triggerCategory, triggerKey, surveyTypeOverride } = parse.data
+    const {
+      name, programId, type, questions, settings, incentivePoints, themeId,
+      triggerCategory, triggerKey, surveyTypeOverride,
+      // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
+      thankYouMessage, thankYouRedirectUrl, showIncentivePoints,
+    } = parse.data
 
     // Verify program belongs to this brand
     const program = await fastify.prisma.program.findFirst({
@@ -49,6 +54,9 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         triggerCategory: triggerCategory ?? null,
         triggerKey: triggerKey ?? null,
         surveyTypeOverride: surveyTypeOverride ?? null,
+        thankYouMessage,
+        thankYouRedirectUrl: thankYouRedirectUrl ?? null,
+        showIncentivePoints,
       },
     })
 
@@ -162,7 +170,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Verify theme belongs to brand if provided
     if (parse.data.themeId) {
-      const theme = await fastify.prisma.surveyTheme.findFirst({
+      const theme = await fastify.prisma.brandTheme.findFirst({
         where: { id: parse.data.themeId, brandId: request.brandId },
       })
       if (!theme) {

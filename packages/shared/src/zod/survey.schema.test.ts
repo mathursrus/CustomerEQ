@@ -8,8 +8,8 @@ import {
   SurveyQuestionSchema,
   SkipRuleSchema,
   SkipConditionSchema,
-  CreateSurveyThemeSchema,
-  UpdateSurveyThemeSchema,
+  CreateBrandThemeSchema,
+  UpdateBrandThemeSchema,
   CreateQuestionTemplateSchema,
   QUESTION_TYPES,
   SurveyRuleInputSchema,
@@ -446,32 +446,28 @@ describe('SubmitSurveyResponseSchema', () => {
   })
 })
 
-// ─── CreateSurveyThemeSchema ────────────────────────────────────────────────
+// ─── CreateBrandThemeSchema (Issue #291 — was CreateSurveyThemeSchema) ──────
 
-describe('CreateSurveyThemeSchema', () => {
+describe('CreateBrandThemeSchema', () => {
   it('accepts minimal theme with just a name', () => {
-    const result = CreateSurveyThemeSchema.safeParse({ name: 'Corporate Blue' })
+    const result = CreateBrandThemeSchema.safeParse({ name: 'Corporate Blue' })
     expect(result.success).toBe(true)
   })
 
-  it('applies default colors', () => {
-    const result = CreateSurveyThemeSchema.safeParse({ name: 'Test' })
+  it('applies default colors and layout', () => {
+    const result = CreateBrandThemeSchema.safeParse({ name: 'Test' })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.primaryColor).toBe('#6366f1')
       expect(result.data.backgroundColor).toBe('#ffffff')
       expect(result.data.fontFamily).toBe('system-ui')
       expect(result.data.cardStyle).toBe('shadow')
-      expect(result.data.showIncentivePoints).toBe(true)
     }
   })
 
-  it('accepts full theme with all fields', () => {
-    const result = CreateSurveyThemeSchema.safeParse({
+  it('accepts full theme with all brand-level fields', () => {
+    const result = CreateBrandThemeSchema.safeParse({
       name: 'Acme Brand',
-      isDefault: true,
-      logoUrl: 'https://acme.com/logo.png',
-      brandName: 'Acme Corp',
       primaryColor: '#1a56db',
       secondaryColor: '#3b82f6',
       backgroundColor: '#f0f5ff',
@@ -485,31 +481,20 @@ describe('CreateSurveyThemeSchema', () => {
       cardStyle: 'border',
       borderRadius: 'lg',
       maxWidth: 'lg',
-      thankYouMessage: 'Thanks! You earned {{points}} points.',
-      thankYouRedirectUrl: 'https://acme.com/thanks',
-      showIncentivePoints: true,
     })
     expect(result.success).toBe(true)
   })
 
   it('rejects invalid hex color', () => {
-    const result = CreateSurveyThemeSchema.safeParse({
+    const result = CreateBrandThemeSchema.safeParse({
       name: 'Bad Theme',
       primaryColor: 'not-a-color',
     })
     expect(result.success).toBe(false)
   })
 
-  it('rejects HTTP logo URL (requires HTTPS)', () => {
-    const result = CreateSurveyThemeSchema.safeParse({
-      name: 'Insecure',
-      logoUrl: 'http://example.com/logo.png',
-    })
-    expect(result.success).toBe(false)
-  })
-
   it('accepts 3-digit hex colors', () => {
-    const result = CreateSurveyThemeSchema.safeParse({
+    const result = CreateBrandThemeSchema.safeParse({
       name: 'Short Hex',
       primaryColor: '#f00',
     })
@@ -517,31 +502,116 @@ describe('CreateSurveyThemeSchema', () => {
   })
 
   it('rejects empty theme name', () => {
-    const result = CreateSurveyThemeSchema.safeParse({ name: '' })
+    const result = CreateBrandThemeSchema.safeParse({ name: '' })
     expect(result.success).toBe(false)
+  })
+
+  it('strips dropped per-survey fields (#291) from input', () => {
+    // logoUrl, brandName, thankYouMessage, thankYouRedirectUrl,
+    // showIncentivePoints, isDefault all moved off the brand-theme model.
+    // Zod's default object passthrough is "strip" — extra keys silently dropped.
+    const result = CreateBrandThemeSchema.safeParse({
+      name: 'Migrated',
+      logoUrl: 'https://acme.com/logo.png',
+      brandName: 'Acme Corp',
+      thankYouMessage: 'should-not-appear',
+      thankYouRedirectUrl: 'https://acme.com/thanks',
+      showIncentivePoints: true,
+      isDefault: true,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect('logoUrl' in result.data).toBe(false)
+      expect('brandName' in result.data).toBe(false)
+      expect('thankYouMessage' in result.data).toBe(false)
+      expect('thankYouRedirectUrl' in result.data).toBe(false)
+      expect('showIncentivePoints' in result.data).toBe(false)
+      expect('isDefault' in result.data).toBe(false)
+    }
   })
 })
 
-// ─── UpdateSurveyThemeSchema ────────────────────────────────────────────────
+// ─── UpdateBrandThemeSchema (Issue #291 — was UpdateSurveyThemeSchema) ──────
 
-describe('UpdateSurveyThemeSchema', () => {
+describe('UpdateBrandThemeSchema', () => {
   it('accepts partial update with single color', () => {
-    const result = UpdateSurveyThemeSchema.safeParse({ primaryColor: '#ff0000' })
+    const result = UpdateBrandThemeSchema.safeParse({ primaryColor: '#ff0000' })
     expect(result.success).toBe(true)
   })
 
   it('accepts empty object (no changes)', () => {
-    const result = UpdateSurveyThemeSchema.safeParse({})
+    const result = UpdateBrandThemeSchema.safeParse({})
     expect(result.success).toBe(true)
   })
 
-  it('does not accept isDefault (use separate endpoint)', () => {
-    const result = UpdateSurveyThemeSchema.safeParse({ isDefault: true })
-    // isDefault is omitted from the partial, so it should be stripped
+  it('strips dropped per-survey fields (#291)', () => {
+    const result = UpdateBrandThemeSchema.safeParse({
+      logoUrl: 'https://acme.com/logo.png',
+      thankYouMessage: 'X',
+      isDefault: true,
+    })
     expect(result.success).toBe(true)
     if (result.success) {
+      expect('logoUrl' in result.data).toBe(false)
+      expect('thankYouMessage' in result.data).toBe(false)
       expect('isDefault' in result.data).toBe(false)
     }
+  })
+})
+
+// ─── #291: Survey-level thank-you fields on CreateSurveySchema / UpdateSurveySchema ─
+
+describe('Survey schemas — thank-you fields (Issue #291)', () => {
+  const validSurveyBase = {
+    name: 'NPS',
+    programId: 'p1',
+    type: 'NPS' as const,
+    questions: [{ id: 'q1', text: 'Q', type: 'rating' as const, required: true }],
+  }
+
+  it('CreateSurveySchema applies thankYouMessage default', () => {
+    const result = CreateSurveySchema.safeParse(validSurveyBase)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.thankYouMessage).toBe('Thank you for your feedback!')
+      expect(result.data.showIncentivePoints).toBe(true)
+      expect(result.data.thankYouRedirectUrl).toBeUndefined()
+    }
+  })
+
+  it('CreateSurveySchema accepts custom thankYouMessage and showIncentivePoints', () => {
+    const result = CreateSurveySchema.safeParse({
+      ...validSurveyBase,
+      thankYouMessage: 'Thanks for your time!',
+      showIncentivePoints: false,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.thankYouMessage).toBe('Thanks for your time!')
+      expect(result.data.showIncentivePoints).toBe(false)
+    }
+  })
+
+  it('CreateSurveySchema accepts thankYouRedirectUrl when valid HTTPS', () => {
+    const result = CreateSurveySchema.safeParse({
+      ...validSurveyBase,
+      thankYouRedirectUrl: 'https://acme.com/rewards',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('CreateSurveySchema rejects thankYouMessage > 500 chars', () => {
+    const result = CreateSurveySchema.safeParse({
+      ...validSurveyBase,
+      thankYouMessage: 'x'.repeat(501),
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('UpdateSurveySchema accepts the three thank-you fields independently', () => {
+    expect(UpdateSurveySchema.safeParse({ thankYouMessage: 'X' }).success).toBe(true)
+    expect(UpdateSurveySchema.safeParse({ thankYouRedirectUrl: 'https://x.test' }).success).toBe(true)
+    expect(UpdateSurveySchema.safeParse({ showIncentivePoints: false }).success).toBe(true)
   })
 })
 

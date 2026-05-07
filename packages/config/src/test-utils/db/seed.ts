@@ -22,7 +22,7 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
   await deleteAll((prisma as any).caseFollowUp)
   await deleteAll((prisma as any).alertRule)
   await deleteAll((prisma as any).questionTemplate)
-  await deleteAll((prisma as any).surveyTheme)
+  await deleteAll((prisma as any).brandTheme)
   await deleteAll(prisma.campaignEvent)
   await deleteAll(prisma.loyaltyEvent)
   await deleteAll(prisma.redemption)
