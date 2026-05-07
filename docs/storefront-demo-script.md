@@ -89,7 +89,7 @@ The header shows a high points balance and Platinum badge immediately.
 
 > "This is an example of a CX-triggered campaign. It fires whenever an NPS score of 6 or below is submitted, and automatically awards 200 recovery points. StarBrew configured this once — no engineering work for every new detractor."
 
-5. Navigate: **Alerts → Rules** → show the **"NPS Detractor Alert"** rule.
+5. Navigate: **Alerts** → on the Case Management page, click **"Manage Rules"** (top right) → show the **"NPS Detractor Alert"** rule.
 
 > "And on the CX side, every detractor also opens a case for the CX team with a 4-hour SLA. One bad score triggers both a loyalty recovery and a human follow-up. Automatically."
 
@@ -126,7 +126,7 @@ This is the hero scene. Take your time.
 >
 > All of that happened in under 2 seconds, with zero code from StarBrew."
 
-9. Navigate: **Alerts → Cases** → show Sara's open case with SLA timer.
+9. Navigate: **Alerts** → show Sara's open case with SLA timer.
 10. Navigate: **Campaigns** → show the Detractor Recovery campaign's **triggered count** incremented.
 
 > "The CX team sees the case here. The loyalty team sees the campaign fire. One submission, both loops closed."
@@ -191,8 +191,8 @@ pnpm seed:demo
 | What to show | Admin path |
 |---|---|
 | Member profile + Recent Activity | Customers → [search name] → click profile |
-| Alert cases | Alerts → Cases |
-| Alert rules | Alerts → Rules |
+| Alert cases | Alerts (sidebar) |
+| Alert rules | Alerts → "Manage Rules" button (top right) |
 | Recovery campaign | Campaigns → "Detractor Recovery — 200 Bonus StarPoints" |
 | NPS survey link | Surveys → Post-Visit NPS → Share Link |
 | CX sentiment clusters | CX Insights |
