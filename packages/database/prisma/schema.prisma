@@ -118,8 +118,9 @@ enum ExternalSourceType {
 enum OrgSizeCategory {
   SIZE_1_10
   SIZE_11_50
-  SIZE_51_200
-  SIZE_201_PLUS
+  SIZE_51_300
+  SIZE_301_5000
+  SIZE_5000_PLUS
   PREFER_NOT_TO_SAY
 }
 
@@ -206,7 +207,10 @@ model Brand {
   // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
   defaultThemeId        String?
   defaultTheme          BrandTheme?            @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
-  sizeCategory          OrgSizeCategory?
+  // Issue #277 — Organization Settings: orgSize (renamed from sizeCategory), timezone, locale.
+  orgSize               OrgSizeCategory?
+  timezone              String                 @default("UTC")
+  locale                String                 @default("en-US")
   programs              Program[]
   members               Member[]
   surveys               Survey[]
