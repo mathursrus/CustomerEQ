@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
-const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 interface Question {
   id: string

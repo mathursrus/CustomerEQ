@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { getPersonaEmail, getPersona } from '@/lib/persona'
 import type { MemberData } from '@/app/api/storefront/member/route'
 
-const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 const TIER_THRESHOLDS = [
   { name: 'Bronze', min: 0, max: 2499, color: '#CD7F32' },

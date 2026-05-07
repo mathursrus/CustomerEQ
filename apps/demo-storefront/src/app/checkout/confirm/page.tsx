@@ -6,7 +6,7 @@ import { getCart, clearCart, type CartItem } from '@/lib/cart'
 import { getPersonaEmail } from '@/lib/persona'
 import type { CheckoutResult } from '@/app/api/storefront/checkout/route'
 
-const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq-web.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 type State =
   | { phase: 'processing' }
