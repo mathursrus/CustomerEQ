@@ -146,12 +146,10 @@ async function main() {
   await api('PATCH', `/v1/programs/${programId}`, { status: 'ACTIVE' })
   console.log('  ✓ Earning rules added; program activated\n')
 
-  // ── 3. Survey theme ─────────────────────────────────────────────────────────
-  console.log('3/9  Creating survey theme…')
+  // ── 3. Brand theme (Issue #291 — was SurveyTheme; brand-level visual identity only) ─
+  console.log('3/9  Creating brand theme…')
   const themeRes = await api<{ id: string }>('POST', '/v1/themes', {
     name: 'StarBrew Theme',
-    isDefault: false,
-    brandName: 'StarBrew Coffee',
     primaryColor: '#00704A',
     secondaryColor: '#CBA258',
     backgroundColor: '#F9F5F0',
@@ -165,13 +163,12 @@ async function main() {
     cardStyle: 'shadow',
     borderRadius: 'lg',
     maxWidth: 'md',
-    thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
-    showIncentivePoints: true,
   })
   const themeId = themeRes?.id
   console.log(`  ✓ Theme: StarBrew Theme (${themeId ?? 'created'})\n`)
 
   // ── 4. NPS survey ───────────────────────────────────────────────────────────
+  // Issue #291 — thankYouMessage / showIncentivePoints moved from BrandTheme to Survey.
   console.log('4/9  Creating surveys…')
   const npsSurveyRes = await api<{ id: string }>('POST', '/v1/surveys', {
     name: 'Post-Visit NPS',
@@ -179,6 +176,8 @@ async function main() {
     type: 'NPS',
     themeId,
     incentivePoints: 50,
+    thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
+    showIncentivePoints: true,
     questions: [
       {
         id: 'q1',
@@ -212,6 +211,8 @@ async function main() {
     type: 'CSAT',
     themeId,
     incentivePoints: 25,
+    thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
+    showIncentivePoints: true,
     questions: [
       {
         id: 'q1',

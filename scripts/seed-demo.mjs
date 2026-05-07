@@ -71,12 +71,10 @@ async function main() {
   const useProgramId = activeProgram?.id || programId
   console.log(`  Using program: ${activeProgram?.name || 'Diamond Loyalty Club'} (${useProgramId})\n`)
 
-  // ─── 2. Create Theme ────────────────────────────────────────────────────
-  console.log('2️⃣  Creating branded survey theme...')
+  // ─── 2. Create Brand Theme (Issue #291 — was SurveyTheme; brand-level visual identity only) ─
+  console.log('2️⃣  Creating branded brand theme...')
   const theme = await api('POST', '/v1/themes', {
     name: 'Diamond Brand Theme',
-    isDefault: true,
-    brandName: 'CustomerEQ Demo',
     primaryColor: '#1e40af',
     secondaryColor: '#3b82f6',
     backgroundColor: '#f0f9ff',
@@ -90,13 +88,19 @@ async function main() {
     cardStyle: 'shadow',
     borderRadius: 'lg',
     maxWidth: 'md',
-    thankYouMessage: 'Thank you for being a valued Diamond member! Your feedback helps us improve.',
-    showIncentivePoints: true,
   })
   const themeId = theme?.id
   console.log(`  ✅ Theme: ${themeId || 'created'}\n`)
 
+  // Issue #291 — isDefault flag replaced by Brand.defaultThemeId FK; the
+  // dedicated default endpoint writes the brand row in a single statement.
+  if (themeId) {
+    await api('POST', `/v1/themes/${themeId}/default`, {})
+    console.log(`  ✅ Set as brand default theme\n`)
+  }
+
   // ─── 3. Create Surveys ──────────────────────────────────────────────────
+  // Issue #291 — thankYouMessage / showIncentivePoints moved from BrandTheme to Survey.
   console.log('3️⃣  Creating surveys...')
 
   const npsSurvey = await api('POST', '/v1/surveys', {
@@ -105,6 +109,8 @@ async function main() {
     type: 'NPS',
     themeId,
     incentivePoints: 50,
+    thankYouMessage: 'Thank you for being a valued Diamond member! Your feedback helps us improve.',
+    showIncentivePoints: true,
     questions: [
       { id: 'q1', text: 'On a scale of 0-10, how likely are you to recommend us to a friend?', type: 'rating', required: true, config: { min: 0, max: 10, labels: { left: 'Not at all likely', right: 'Extremely likely' } } },
       { id: 'q2', text: 'What is the primary reason for your score?', type: 'text', required: false, config: { placeholder: 'Tell us more...', maxLength: 500 } },
@@ -120,6 +126,8 @@ async function main() {
     type: 'CSAT',
     themeId,
     incentivePoints: 25,
+    thankYouMessage: 'Thank you for being a valued Diamond member! Your feedback helps us improve.',
+    showIncentivePoints: true,
     questions: [
       { id: 'q1', text: 'How satisfied were you with your support experience? (1-5)', type: 'rating', required: true, config: { min: 1, max: 5, labels: { left: 'Very Unsatisfied', right: 'Very Satisfied' } } },
       { id: 'q2', text: 'What could we do to improve your support experience?', type: 'text', required: false, config: { placeholder: 'Your feedback helps us improve...' } },

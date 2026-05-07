@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 
+// Issue #291 — BrandTheme is brand-level visual identity only.
+// Per-survey thank-you fields (thankYouMessage, thankYouRedirectUrl,
+// showIncentivePoints) moved to Survey columns. Logo / brandName moved
+// to Brand. isDefault replaced by Brand.defaultThemeId FK; the API now
+// returns isDefault as a derived value (computed server-side from
+// brand.defaultThemeId === theme.id), and this form does NOT include it
+// in any save payload.
 export interface ThemeFormInitialData {
   name?: string
-  isDefault?: boolean
-  logoUrl?: string | null
-  brandName?: string | null
+  isDefault?: boolean // server-derived; read-only here
   primaryColor?: string
   secondaryColor?: string
   backgroundColor?: string
@@ -23,16 +28,10 @@ export interface ThemeFormInitialData {
   cardStyle?: 'flat' | 'shadow' | 'border'
   borderRadius?: 'none' | 'sm' | 'md' | 'lg'
   maxWidth?: 'sm' | 'md' | 'lg'
-  thankYouMessage?: string
-  thankYouRedirectUrl?: string | null
-  showIncentivePoints?: boolean
 }
 
 interface ThemeFormState {
   name: string
-  isDefault: boolean
-  logoUrl: string
-  brandName: string
   primaryColor: string
   secondaryColor: string
   backgroundColor: string
@@ -46,16 +45,10 @@ interface ThemeFormState {
   cardStyle: 'flat' | 'shadow' | 'border'
   borderRadius: 'none' | 'sm' | 'md' | 'lg'
   maxWidth: 'sm' | 'md' | 'lg'
-  thankYouMessage: string
-  thankYouRedirectUrl: string
-  showIncentivePoints: boolean
 }
 
 const DEFAULT_THEME: ThemeFormState = {
   name: '',
-  isDefault: false,
-  logoUrl: '',
-  brandName: '',
   primaryColor: '#6366f1',
   secondaryColor: '#8b5cf6',
   backgroundColor: '#ffffff',
@@ -69,9 +62,6 @@ const DEFAULT_THEME: ThemeFormState = {
   cardStyle: 'shadow',
   borderRadius: 'md',
   maxWidth: 'md',
-  thankYouMessage: 'Thank you for your feedback!',
-  thankYouRedirectUrl: '',
-  showIncentivePoints: false,
 }
 
 const FONT_OPTIONS = ['system-ui', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Poppins']
@@ -84,9 +74,6 @@ function fromInitialData(data: ThemeFormInitialData | undefined): ThemeFormState
   if (!data) return DEFAULT_THEME
   return {
     name: data.name ?? '',
-    isDefault: data.isDefault ?? false,
-    logoUrl: data.logoUrl ?? '',
-    brandName: data.brandName ?? '',
     primaryColor: data.primaryColor ?? '#6366f1',
     secondaryColor: data.secondaryColor ?? '#8b5cf6',
     backgroundColor: data.backgroundColor ?? '#ffffff',
@@ -100,9 +87,6 @@ function fromInitialData(data: ThemeFormInitialData | undefined): ThemeFormState
     cardStyle: data.cardStyle ?? 'shadow',
     borderRadius: data.borderRadius ?? 'md',
     maxWidth: data.maxWidth ?? 'md',
-    thankYouMessage: data.thankYouMessage ?? 'Thank you for your feedback!',
-    thankYouRedirectUrl: data.thankYouRedirectUrl ?? '',
-    showIncentivePoints: data.showIncentivePoints ?? false,
   }
 }
 
@@ -151,6 +135,10 @@ function ChipGroup<T extends string>({ options, value, onChange, disabled }: { o
   )
 }
 
+// Issue #291 — preview no longer renders the brand-name placeholder header
+// (logo / brand-name moved off the brand-theme model) or the thank-you
+// screen preview (thank-you copy moved to Survey columns). Survey-question
+// preview is unchanged.
 function SurveyPreview({ theme }: { theme: ThemeFormState }) {
   const radius = BORDER_RADIUS_MAP[theme.borderRadius]
   const mw = MAX_WIDTH_MAP[theme.maxWidth]
@@ -166,22 +154,6 @@ function SurveyPreview({ theme }: { theme: ThemeFormState }) {
       style={{ backgroundColor: theme.backgroundColor, fontFamily: theme.fontFamily }}
     >
       <div style={{ maxWidth: mw, margin: '0 auto' }}>
-        <div className="flex items-center gap-3 mb-6">
-          {theme.logoUrl ? (
-            <img src={theme.logoUrl} alt="Logo" className="h-10 w-10 object-contain rounded" />
-          ) : (
-            <div
-              className="h-10 w-10 rounded flex items-center justify-center text-sm font-bold"
-              style={{ backgroundColor: theme.primaryColor, color: theme.buttonTextColor }}
-            >
-              {(theme.brandName || 'B').charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span style={{ color: theme.textColor, fontSize: HEADING_SIZE_MAP[theme.headingSize], fontWeight: 700 }}>
-            {theme.brandName || 'Brand Name'}
-          </span>
-        </div>
-
         <div
           className="mb-4 p-5"
           style={{ borderRadius: radius, boxShadow: cardShadow, border: cardBorder, backgroundColor: theme.backgroundColor }}
@@ -199,42 +171,17 @@ function SurveyPreview({ theme }: { theme: ThemeFormState }) {
                   width: '36px',
                   height: '36px',
                   borderRadius: radius,
-                  backgroundColor: i === 9 ? theme.buttonColor : `${theme.primaryColor}15`,
-                  color: i === 9 ? theme.buttonTextColor : theme.textColor,
-                  border: `1px solid ${theme.primaryColor}30`,
+                  border: `1px solid ${theme.primaryColor}40`,
+                  backgroundColor: theme.backgroundColor,
+                  color: theme.textColor,
+                  fontSize: BODY_SIZE_MAP[theme.bodySize],
+                  fontFamily: theme.fontFamily,
                 }}
               >
                 {i}
               </button>
             ))}
           </div>
-          <div className="flex justify-between mt-1.5" style={{ fontSize: BODY_SIZE_MAP[theme.bodySize], color: `${theme.textColor}99` }}>
-            <span>Not likely</span>
-            <span>Very likely</span>
-          </div>
-        </div>
-
-        <div
-          className="mb-4 p-5"
-          style={{ borderRadius: radius, boxShadow: cardShadow, border: cardBorder, backgroundColor: theme.backgroundColor }}
-        >
-          <p style={{ color: theme.textColor, fontSize: HEADING_SIZE_MAP[theme.headingSize], fontWeight: 600, marginBottom: '0.75rem' }}>
-            Tell us more about your experience
-          </p>
-          <textarea
-            readOnly
-            rows={3}
-            placeholder="Type your feedback here..."
-            className="w-full resize-none px-3 py-2"
-            style={{
-              borderRadius: radius,
-              border: `1px solid ${theme.primaryColor}40`,
-              backgroundColor: theme.backgroundColor,
-              color: theme.textColor,
-              fontSize: BODY_SIZE_MAP[theme.bodySize],
-              fontFamily: theme.fontFamily,
-            }}
-          />
         </div>
 
         <div className="mb-6">
@@ -245,25 +192,6 @@ function SurveyPreview({ theme }: { theme: ThemeFormState }) {
           >
             Submit Feedback
           </button>
-        </div>
-
-        <div
-          className="p-5"
-          style={{ borderRadius: radius, boxShadow: cardShadow, border: cardBorder, backgroundColor: `${theme.accentColor}10` }}
-        >
-          <p style={{ color: theme.textColor, fontSize: HEADING_SIZE_MAP[theme.headingSize], fontWeight: 600, marginBottom: '0.5rem' }}>
-            {theme.thankYouMessage || 'Thank you!'}
-          </p>
-          {theme.showIncentivePoints && (
-            <p style={{ color: theme.accentColor, fontSize: BODY_SIZE_MAP[theme.bodySize], fontWeight: 500 }}>
-              You earned loyalty points for your feedback!
-            </p>
-          )}
-          {theme.thankYouRedirectUrl && (
-            <p className="mt-2" style={{ color: `${theme.textColor}80`, fontSize: BODY_SIZE_MAP[theme.bodySize] }}>
-              Redirecting to: {theme.thankYouRedirectUrl}
-            </p>
-          )}
         </div>
       </div>
     </div>
@@ -282,12 +210,19 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
   const isViewOnly = mode === 'view'
 
   const [theme, setTheme] = useState<ThemeFormState>(() => fromInitialData(initialData))
+  // Issue #291 — isDefault is server-derived (Brand.defaultThemeId === theme.id),
+  // not part of the editable form state. Local state mirrors the server value
+  // and updates optimistically when "Set as Default" is clicked.
+  const [isDefault, setIsDefault] = useState<boolean>(() => initialData?.isDefault ?? false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (initialData) setTheme(fromInitialData(initialData))
+    if (initialData) {
+      setTheme(fromInitialData(initialData))
+      setIsDefault(initialData.isDefault ?? false)
+    }
   }, [initialData])
 
   function update<K extends keyof ThemeFormState>(key: K, value: ThemeFormState[K]) {
@@ -304,12 +239,10 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
     setError(null)
     try {
       const token = await getToken()
-      const body = {
-        ...theme,
-        logoUrl: theme.logoUrl || null,
-        brandName: theme.brandName || null,
-        thankYouRedirectUrl: theme.thankYouRedirectUrl || null,
-      }
+      // Issue #291 — body shape matches CreateBrandThemeSchema / UpdateBrandThemeSchema:
+      // colors + typography + layout + name only. No logoUrl / brandName / thank-you /
+      // isDefault keys; those are handled by other surfaces.
+      const body = { ...theme }
       const url = mode === 'edit' ? `${API_URL}/v1/themes/${themeId}` : `${API_URL}/v1/themes`
       const method = mode === 'edit' ? 'PATCH' : 'POST'
       const res = await fetch(url, {
@@ -360,6 +293,9 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
     setError(null)
     try {
       const token = await getToken()
+      // Issue #291 — POST /v1/themes/:id/default now writes Brand.defaultThemeId
+      // in a single statement. The previous updateMany-clear-then-update-set
+      // pair on SurveyTheme.isDefault is gone.
       const res = await fetch(`${API_URL}/v1/themes/${themeId}/default`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -368,7 +304,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error ?? 'Failed to set as default')
       }
-      update('isDefault', true)
+      setIsDefault(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to set as default')
     }
@@ -383,7 +319,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
           <div className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-lg font-bold text-gray-900">{heading}</h1>
-              {theme.isDefault && (
+              {isDefault && (
                 <span className="inline-flex rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                   Default
                 </span>
@@ -396,6 +332,8 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
               </div>
             )}
 
+            {/* Issue #291 — Brand section keeps Theme Name only.
+                Logo URL row and Brand Name row dropped (those fields moved to Brand). */}
             <section className="mb-6">
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Brand</h2>
               <div className="space-y-3">
@@ -406,26 +344,6 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
                     value={theme.name}
                     onChange={(e) => update('name', e.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
-                  <input
-                    type="text"
-                    value={theme.logoUrl}
-                    onChange={(e) => update('logoUrl', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
-                    placeholder="https://..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
-                  <input
-                    type="text"
-                    value={theme.brandName}
-                    onChange={(e) => update('brandName', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
-                    placeholder="Your Company"
                   />
                 </div>
               </div>
@@ -488,51 +406,11 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
               </div>
             </section>
 
-            <section className="mb-6">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Thank You</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                  <textarea
-                    value={theme.thankYouMessage}
-                    onChange={(e) => update('thankYouMessage', e.target.value)}
-                    rows={2}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Redirect URL</label>
-                  <input
-                    type="text"
-                    value={theme.thankYouRedirectUrl}
-                    onChange={(e) => update('thankYouRedirectUrl', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
-                    placeholder="https://..."
-                  />
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={theme.showIncentivePoints}
-                    onChange={(e) => update('showIncentivePoints', e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-60"
-                  />
-                  <span className="text-sm text-gray-700">Show incentive points</span>
-                </label>
-              </div>
-            </section>
-
-            <section className="mb-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={theme.isDefault}
-                  onChange={(e) => update('isDefault', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-60"
-                />
-                <span className="text-sm font-medium text-gray-700">Set as default theme</span>
-              </label>
-            </section>
+            {/* Issue #291 — "Thank You" section dropped entirely;
+                fields moved to Survey columns. Admin sets per-survey via API
+                (survey-builder UI is a follow-on issue, not in #291's scope). */}
+            {/* Issue #291 — "Set as default theme" form-level checkbox dropped;
+                "Set as Default" button below remains and writes Brand.defaultThemeId. */}
 
             {!isViewOnly && (
               <div className="space-y-2">
@@ -545,7 +423,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
                   {saving ? 'Saving...' : mode === 'edit' ? 'Save Changes' : 'Save Theme'}
                 </button>
 
-                {mode === 'edit' && !theme.isDefault && (
+                {mode === 'edit' && !isDefault && (
                   <button
                     type="button"
                     onClick={handleSetDefault}

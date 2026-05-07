@@ -155,7 +155,12 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           type: true,
           questions: true,
           incentivePoints: true,
-          brand: { select: { name: true } },
+          // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
+          thankYouMessage: true,
+          thankYouRedirectUrl: true,
+          showIncentivePoints: true,
+          // Issue #291 — brand.logoUrl exposed so renderer can rebind theme.logoUrl → survey.brand.logoUrl.
+          brand: { select: { name: true, logoUrl: true } },
           theme: true,
           _count: { select: { surveyRules: true } },
         },
