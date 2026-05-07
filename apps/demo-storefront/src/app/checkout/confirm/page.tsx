@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getCart, clearCart, type CartItem } from '@/lib/cart'
 import { getPersonaEmail } from '@/lib/persona'
@@ -14,7 +15,14 @@ type State =
   | { phase: 'error'; message: string }
 
 export default function CheckoutConfirmPage() {
+  const router = useRouter()
   const [state, setState] = useState<State>({ phase: 'processing' })
+
+  useEffect(() => {
+    const onPersonaChange = () => router.push('/')
+    window.addEventListener('ceq_persona_changed', onPersonaChange)
+    return () => window.removeEventListener('ceq_persona_changed', onPersonaChange)
+  }, [router])
 
   useEffect(() => {
     async function runCheckout() {
