@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CustomerEQ — Organization Settings — Mocks (Issue #277)</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --surface-muted: #f4f4f5;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #71717a;
+    --text-subtle: #a1a1aa;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-soft: #eef2ff;
+    --success: #16a34a;
+    --success-soft: #dcfce7;
+    --warning: #d97706;
+    --warning-soft: #fef3c7;
+    --warning-strong: #92400e;
+    --danger: #dc2626;
+    --danger-soft: #fee2e2;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; }
+
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 16px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 64px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* Admin shell */
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); position: relative; }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .org-switcher { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .admin-top .org-switcher .org-pill { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 14px; color: var(--text); font-weight: 500; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 720px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav a:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 32px 40px; background: var(--bg); }
+
+  /* Page header */
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+  .page-header p { font-size: 14px; color: var(--text-muted); margin: 0; max-width: 720px; }
+
+  /* Two-column with sticky right-nav */
+  .page-body { display: grid; grid-template-columns: 1fr 220px; gap: 28px; align-items: start; }
+  .sections { display: flex; flex-direction: column; gap: 20px; }
+  .toc { position: sticky; top: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow-sm); }
+  .toc-label { font-size: 11px; font-weight: 600; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 6px; }
+  .toc a { display: block; padding: 5px 10px; color: var(--text-muted); text-decoration: none; font-size: 13px; border-left: 2px solid transparent; }
+  .toc a:hover { color: var(--text); }
+  .toc a.active { color: var(--primary); font-weight: 500; border-left-color: var(--primary); background: var(--primary-soft); }
+
+  /* Section card */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .section-head { padding: 16px 22px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; cursor: default; }
+  .section-head .section-head-text { flex: 1; }
+  .section-head h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  .section-head .section-help { font-size: 13px; color: var(--text-muted); margin: 0; }
+  .section-head .chevron { color: var(--text-muted); font-size: 12px; user-select: none; }
+  .section.collapsible .section-head { cursor: pointer; }
+  .section.collapsible.collapsed .section-body, .section.collapsible.collapsed .section-foot { display: none; }
+  .section.collapsible.collapsed .section-head { padding-bottom: 16px; }
+  .section.collapsible.collapsed .chevron { transform: rotate(-90deg); display: inline-block; }
+  .section-body { padding: 4px 22px 18px; display: flex; flex-direction: column; gap: 18px; }
+  .section-foot { display: none; align-items: center; gap: 8px; padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface-muted); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+  .section-foot .dirty-note { font-size: 12px; color: var(--text-muted); margin-right: auto; display: flex; align-items: center; gap: 6px; }
+  .section-foot .dirty-note::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+  .section.dirty .section-foot { display: flex; }
+
+  /* Field rows */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .field .field-help { font-size: 12px; color: var(--text-muted); margin: 0; }
+  .field .req { color: var(--danger); margin-left: 2px; }
+  .field input[type="text"], .field input[type="url"], .field input[type="email"], .field textarea, .field select {
+    width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: white; color: var(--text); font-family: inherit;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: 2px solid var(--primary-soft); outline-offset: 0; border-color: var(--primary); }
+  .field textarea { resize: vertical; min-height: 86px; line-height: 1.5; font-family: var(--mono); font-size: 13px; }
+  .field-warning { font-size: 12px; color: var(--warning-strong); margin: 4px 0 0; display: flex; align-items: flex-start; gap: 6px; }
+  .field-warning::before { content: "!"; width: 14px; height: 14px; background: var(--warning); color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .field-warning.soft { color: var(--text-muted); }
+  .field-warning.soft::before { background: var(--text-subtle); }
+  .field-error { font-size: 12px; color: var(--danger); margin: 4px 0 0; display: flex; align-items: flex-start; gap: 6px; font-weight: 500; }
+  .field-error::before { content: "!"; width: 14px; height: 14px; background: var(--danger); color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .field input.error, .field textarea.error { border-color: var(--danger); }
+  .field input.error:focus, .field textarea.error:focus { outline-color: var(--danger-soft); border-color: var(--danger); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; font-size: 13px; border-radius: var(--radius-sm); font-weight: 500; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: background 100ms, border-color 100ms; font-family: inherit; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary[disabled] { background: var(--text-subtle); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-ghost:hover { background: var(--surface-muted); }
+  .btn-link { background: transparent; color: var(--primary); padding: 0; border: none; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .btn-link:hover { text-decoration: underline; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Logo upload */
+  .logo-row { display: flex; gap: 16px; align-items: center; }
+  .logo-thumb { width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
+  .logo-thumb.empty { background: var(--surface-muted); border: 1px dashed var(--border-strong); color: var(--text-subtle); font-size: 18px; font-weight: 500; }
+  .logo-actions { display: flex; flex-direction: column; gap: 4px; }
+
+  /* Look & Feel — top action banner + theme list + bottom helper */
+  .lf-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--primary-soft); border: 1px solid #c7d2fe; border-radius: var(--radius-sm); }
+  .lf-actions .lf-actions-text { font-size: 13px; color: #312e81; }
+  .theme-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: white; max-height: 240px; overflow-y: auto; }
+  .theme-row { display: grid; grid-template-columns: 20px 1fr auto auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .theme-row:last-child { border-bottom: none; }
+  .theme-row:hover { background: var(--surface-muted); }
+  .theme-row.selected { background: var(--primary-soft); }
+  .theme-row input[type="radio"] { margin: 0; accent-color: var(--primary); }
+  .theme-row .name { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .theme-row .swatches { display: inline-flex; gap: 4px; }
+  .theme-row .swatch { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.06); }
+  .theme-row .preview-link { font-size: 12px; color: var(--primary); text-decoration: none; }
+  .theme-row .preview-link:hover { text-decoration: underline; }
+
+  /* Radio group cards */
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: white; }
+  .radio-card:hover { border-color: var(--border-strong); }
+  .radio-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+  .radio-card.disabled { cursor: not-allowed; opacity: 0.6; background: var(--surface-muted); }
+  .radio-card.disabled:hover { border-color: var(--border); }
+  .radio-card.disabled.selected { opacity: 1; background: var(--surface-muted); border-color: var(--border-strong); }
+  .radio-card input[type="radio"] { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+  .radio-card .body { flex: 1; }
+  .radio-card .title { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .radio-card .desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .radio-card .pill { font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 4px; background: var(--primary-soft); color: var(--primary); }
+  .radio-card .pill.muted { background: var(--surface-muted); color: var(--text-muted); }
+  .inline-note { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
+
+  /* Locked notice (member identifier with members enrolled) */
+  .locked-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 8px; }
+  .locked-notice .locked-notice-text { font-size: 13px; color: var(--text); line-height: 1.5; flex: 1; }
+  .locked-notice .locked-notice-text strong { font-weight: 600; }
+  .locked-notice .locked-icon { width: 28px; height: 28px; border-radius: 50%; background: white; border: 1px solid var(--border-strong); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+
+  /* Size pills */
+  .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill-radio { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: 14px; font-size: 13px; cursor: pointer; background: white; }
+  .pill-radio.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 500; }
+  .pill-radio input { display: none; }
+
+  /* Status badges */
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 10px; }
+  .badge-success { background: var(--success-soft); color: var(--success); }
+  .badge-warning { background: var(--warning-soft); color: var(--warning-strong); }
+  .badge-info { background: var(--primary-soft); color: var(--primary); }
+  .badge-muted { background: var(--surface-muted); color: var(--text-muted); }
+
+  /* Consent text editor: toolbar + textarea + preview */
+  .consent-editor { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; background: white; }
+  .consent-editor:focus-within { border-color: var(--primary); outline: 2px solid var(--primary-soft); }
+  .consent-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--surface-muted); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .consent-toolbar .toolbar-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 12px; font-weight: 500; background: white; color: var(--text); border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer; font-family: inherit; }
+  .consent-toolbar .toolbar-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .consent-toolbar .toolbar-btn .icon { font-size: 11px; font-weight: 700; }
+  .consent-toolbar .toolbar-spacer { flex: 1; }
+  .consent-toolbar .toolbar-link { font-size: 12px; color: var(--text-muted); background: transparent; border: none; cursor: pointer; padding: 4px 6px; font-family: inherit; }
+  .consent-toolbar .toolbar-link:hover { color: var(--primary); text-decoration: underline; }
+  .consent-editor textarea { border: none; border-radius: 0; outline: none; min-height: 80px; resize: vertical; padding: 12px 14px; font-family: var(--mono); font-size: 13px; }
+  .consent-editor textarea:focus { outline: none; border: none; }
+  .token { display: inline; font-family: var(--mono); background: var(--primary-soft); color: var(--primary); padding: 1px 5px; border-radius: 3px; font-size: 12px; font-weight: 500; }
+
+  /* Consent preview */
+  .preview-card { background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .preview-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: white; border-bottom: 1px solid var(--border); }
+  .preview-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+  .preview-label::before { content: "👁"; font-size: 13px; }
+  .preview-mode { font-size: 11px; color: var(--text-subtle); font-style: italic; }
+  .preview-body { padding: 14px; }
+  .preview-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--text); }
+  .preview-consent input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+  .preview-text { font-size: 13px; line-height: 1.5; color: var(--text); margin: 0; }
+  .preview-link { color: var(--primary); text-decoration: underline; }
+  .preview-link.broken { color: var(--text-subtle); text-decoration: underline dashed; }
+  .preview-empty { font-size: 13px; color: var(--text-subtle); font-style: italic; }
+
+  /* Identifier (read-only) rows */
+  .identifiers { display: flex; flex-direction: column; gap: 8px; }
+  .id-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .id-row .id-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .id-row .id-value { font-family: var(--mono); font-size: 12px; color: var(--text); user-select: all; word-break: break-all; }
+  .id-row .id-copy { font-size: 12px; color: var(--text); background: white; border: 1px solid var(--border-strong); padding: 4px 9px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-family: inherit; }
+  .id-row .id-copy:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+
+  /* Modal */
+  .scene.modal-scene { background: rgba(15, 23, 42, 0.55); padding: 64px 24px; }
+  .scene.modal-scene .scene-label { background: white; }
+  .modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-width: 520px; width: 100%; margin: 0 auto; overflow: hidden; }
+  .modal-head { padding: 20px 24px 14px; }
+  .modal-head h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .modal-head p { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .modal-body { padding: 6px 24px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-muted); }
+  .modal-info { background: var(--primary-soft); border-left: 3px solid var(--primary); padding: 10px 14px; border-radius: 4px; font-size: 13px; color: #312e81; line-height: 1.45; }
+  .modal-attestation-box { background: var(--surface-muted); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); border: 1px solid var(--border); }
+  .modal-attestation-box strong { color: var(--text); }
+  .modal-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; }
+  .modal-checkbox input { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+
+  /* Toast */
+  .toast { position: absolute; right: 28px; top: 76px; background: var(--text); color: white; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 8px; z-index: 10; }
+  .toast .check { width: 16px; height: 16px; background: var(--success); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+
+  /* Pending-action banner — non-dismissible, tied to data state */
+  .pending-banner { display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; background: var(--warning-soft); border: 1px solid #fde68a; border-left: 3px solid var(--warning); border-radius: var(--radius); margin-bottom: 20px; }
+  .pending-banner .pending-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--warning); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .pending-banner .pending-body { flex: 1; }
+  .pending-banner h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--warning-strong); }
+  .pending-banner ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .pending-banner li { font-size: 13px; color: var(--warning-strong); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; line-height: 1.5; }
+  .pending-banner li::before { content: "•"; color: var(--warning); margin-right: 6px; flex-shrink: 0; }
+  .pending-banner li > span { flex: 1; }
+  .pending-banner li a { font-size: 12px; font-weight: 500; color: var(--warning-strong); text-decoration: none; padding: 3px 8px; border: 1px solid #fbbf24; border-radius: 4px; background: white; flex-shrink: 0; white-space: nowrap; }
+  .pending-banner li a:hover { background: var(--warning); color: white; border-color: var(--warning); }
+
+  /* TOC pending indicator */
+  .toc a.pending { position: relative; }
+  .toc a.pending::after { content: "●"; color: var(--warning); font-size: 9px; margin-left: 6px; vertical-align: middle; }
+
+  code { font-family: var(--mono); font-size: 12px; background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+  .kbd { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>CustomerEQ — Organization Settings (Issue #277) — Mocks</h1>
+  <div class="nav">
+    <a href="#scene-empty">Empty</a>
+    <a href="#scene-populated">Populated (locked)</a>
+    <a href="#scene-implied-attestation">IMPLIED attestation</a>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- SCENE 1 — Empty state (first run)                              -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-empty">
+  <div class="scene-label"><strong>Scene 1 — Incomplete state</strong> &nbsp; Route: <code>/admin/settings/organization</code> &nbsp; Brand row lazy-upserted on first <code>GET /v1/admin/brand/profile</code>. Two required fields are empty (org <code>name</code> and <code>privacyPolicyUrl</code>) — illustrating both first-run state and admin-cleared state. <strong>Non-dismissible banner</strong> at top lists every missing required field generically (no feature-specific framing) — scales to any new required fields added later. TOC marks every section with pending items via <code>●</code>. Field-level red error renders alongside, independent of the banner. Member identifier section is editable (zero members enrolled). Developer & Support reference is collapsed by default.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Signed in as <strong>jordan@example.com</strong> <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <a href="#">Dashboard</a>
+          <div class="admin-nav-group">CX</div>
+          <a href="#">Surveys</a>
+          <a href="#">Alerts</a>
+          <a href="#">Health Score</a>
+          <div class="admin-nav-group">Loyalty</div>
+          <a href="#">Programs</a>
+          <a href="#">Members</a>
+          <a href="#">Campaigns</a>
+          <div class="admin-nav-group">Settings</div>
+          <a href="#" class="active">Organization</a>
+          <a href="#">Integrations</a>
+          <a href="#">Webhooks</a>
+          <a href="#">Themes</a>
+          <a href="#">Developer</a>
+        </nav>
+        <main class="admin-main">
+          <div class="page-header">
+            <h1>Organization settings</h1>
+            <p>Your organization's preferences and configuration. Sections save independently — edit one at a time without committing the whole page.</p>
+          </div>
+
+          <div class="pending-banner" role="status">
+            <span class="pending-icon" aria-hidden="true">!</span>
+            <div class="pending-body">
+              <h3>Action needed — 2 settings incomplete</h3>
+              <ul>
+                <li>
+                  <span><strong>Organization name</strong> is empty — required to identify your organization across CustomerEQ.</span>
+                  <a href="#s-identity">Jump to section →</a>
+                </li>
+                <li>
+                  <span><strong>Privacy policy URL</strong> is empty — required by Explicit consent mode and referenced by the <code>{{privacy}}</code> link in your consent text.</span>
+                  <a href="#s-consent">Jump to section →</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="page-body">
+            <div class="sections">
+
+              <!-- Section 1: Identity (name, logo, website, org size) -->
+              <div class="section" id="s-identity">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Identity</h2>
+                    <p class="section-help">How your organization appears to members and on integration surfaces.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Organization name <span class="req">*</span></label>
+                    <input type="text" value="" class="error" placeholder="e.g., Acme Coffee">
+                    <p class="field-error">Required.</p>
+                    <p class="field-help">Pre-filled from your sign-up. Renaming syncs to your identity provider in the background.</p>
+                  </div>
+                  <div class="field">
+                    <label>Logo</label>
+                    <div class="logo-row">
+                      <div class="logo-thumb empty">+</div>
+                      <div class="logo-actions">
+                        <button type="button" class="btn btn-ghost btn-sm">Upload PNG, SVG, or JPEG</button>
+                        <p class="field-help">Used on your customer-facing surfaces — member portals, emails, surveys.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label>Website</label>
+                    <input type="text" placeholder="acmecoffee.com">
+                    <p class="field-help">Hostname only — no <code>https://</code> or path. Used in widget snippets and email footers.</p>
+                  </div>
+                  <div class="field">
+                    <label>Org size <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
+                    <div class="pill-row" role="radiogroup" aria-label="Org size">
+                      <label class="pill-radio"><input type="radio" name="size-empty"> 1–10</label>
+                      <label class="pill-radio"><input type="radio" name="size-empty"> 11–50</label>
+                      <label class="pill-radio"><input type="radio" name="size-empty"> 51–300</label>
+                      <label class="pill-radio"><input type="radio" name="size-empty"> 301–5000</label>
+                      <label class="pill-radio"><input type="radio" name="size-empty"> 5000+</label>
+                      <label class="pill-radio"><input type="radio" name="size-empty"> Prefer not to say</label>
+                    </div>
+                    <p class="field-help">Helps us optimize your experience. Not shown anywhere else.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Identity</button>
+                </div>
+              </div>
+
+              <!-- Section 2: Defaults (timezone + locale — operational defaults) -->
+              <div class="section" id="s-defaults">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Defaults</h2>
+                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Time zone</label>
+                    <select>
+                      <option value="America/Los_Angeles" selected>(UTC−07:00) America/Los_Angeles</option>
+                      <option value="America/Denver">(UTC−06:00) America/Denver</option>
+                      <option value="America/Chicago">(UTC−05:00) America/Chicago</option>
+                      <option value="America/New_York">(UTC−04:00) America/New_York</option>
+                      <option value="UTC">(UTC) UTC</option>
+                      <option value="Europe/London">(UTC+01:00) Europe/London</option>
+                      <option value="Europe/Paris">(UTC+02:00) Europe/Paris</option>
+                      <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
+                      <option value="Australia/Sydney">(UTC+10:00) Australia/Sydney</option>
+                    </select>
+                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps. Defaults to your browser time zone on first save.</p>
+                  </div>
+                  <div class="field">
+                    <label>Locale</label>
+                    <select>
+                      <option value="en-US" selected>English (United States) — en-US</option>
+                      <option value="en-GB">English (United Kingdom) — en-GB</option>
+                      <option value="es-MX">Español (México) — es-MX</option>
+                      <option value="es-ES">Español (España) — es-ES</option>
+                      <option value="fr-FR">Français (France) — fr-FR</option>
+                      <option value="de-DE">Deutsch (Deutschland) — de-DE</option>
+                      <option value="pt-BR">Português (Brasil) — pt-BR</option>
+                      <option value="ja-JP">日本語 (日本) — ja-JP</option>
+                    </select>
+                    <p class="field-help">Default language for survey copy, email copy, and the member portal. Defaults to your browser language on first save.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Defaults</button>
+                </div>
+              </div>
+
+              <!-- Section 3: Look & Feel -->
+              <div class="section" id="s-lookfeel">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Look &amp; Feel</h2>
+                    <p class="section-help">The default theme used across customer-facing surfaces.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <div class="lf-actions">
+                      <span class="lf-actions-text">Customize the stock themes or create a new one in <strong>Settings → Themes</strong>.</span>
+                      <a href="#" class="btn btn-ghost btn-sm">Open Themes →</a>
+                    </div>
+                    <label style="margin-top: 12px;">Default theme</label>
+                    <div class="theme-list" role="radiogroup" aria-label="Default theme">
+                      <label class="theme-row selected">
+                        <input type="radio" name="theme-empty" value="indigo" checked>
+                        <span class="name">Indigo</span>
+                        <span class="swatches"><span class="swatch" style="background:#4f46e5"></span><span class="swatch" style="background:#7c3aed"></span><span class="swatch" style="background:#eef2ff"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-empty" value="forest">
+                        <span class="name">Forest</span>
+                        <span class="swatches"><span class="swatch" style="background:#16a34a"></span><span class="swatch" style="background:#65a30d"></span><span class="swatch" style="background:#dcfce7"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-empty" value="sunset">
+                        <span class="name">Sunset</span>
+                        <span class="swatches"><span class="swatch" style="background:#ea580c"></span><span class="swatch" style="background:#d97706"></span><span class="swatch" style="background:#fed7aa"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-empty" value="slate">
+                        <span class="name">Slate</span>
+                        <span class="swatches"><span class="swatch" style="background:#475569"></span><span class="swatch" style="background:#334155"></span><span class="swatch" style="background:#e2e8f0"></span></span>
+                        <span></span>
+                      </label>
+                    </div>
+                    <p class="field-help">The selected theme's colors and fonts will be used on all customer-facing surfaces — surveys, member portals, and rich-format emails.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Look &amp; Feel</button>
+                </div>
+              </div>
+
+              <!-- Section 3: Member identification -->
+              <div class="section" id="s-members">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Member identification</h2>
+                    <p class="section-help">How CustomerEQ recognizes your customers across surveys, points, and campaigns.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <div class="radio-group" role="radiogroup" aria-label="Member identifier kind">
+                      <label class="radio-card selected">
+                        <input type="radio" name="ik-empty" value="EMAIL" checked>
+                        <div class="body">
+                          <div class="title">Email <span class="pill">Recommended</span></div>
+                          <div class="desc">Most common. Customers identify themselves with their email address. Case-insensitive matching.</div>
+                        </div>
+                      </label>
+                      <label class="radio-card">
+                        <input type="radio" name="ik-empty" value="PHONE">
+                        <div class="body">
+                          <div class="title">Phone number</div>
+                          <div class="desc">For SMS-led brands. Stored in E.164 format (e.g., <code>+15551234567</code>).</div>
+                        </div>
+                      </label>
+                      <label class="radio-card">
+                        <input type="radio" name="ik-empty" value="CUSTOMER_ID">
+                        <div class="body">
+                          <div class="title">Customer ID (your system of record)</div>
+                          <div class="desc">Use this if your application already issues stable customer IDs (UUIDs, account numbers).</div>
+                        </div>
+                      </label>
+                    </div>
+                    <p class="inline-note">This option cannot be changed after a member is enrolled in your organization.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save</button>
+                </div>
+              </div>
+
+              <!-- Section 4: Consent & legal -->
+              <div class="section" id="s-consent">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Consent &amp; legal</h2>
+                    <p class="section-help">How members consent to receive surveys and where your policies live. Brand-wide default — individual surveys can override.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Consent mode</label>
+                    <div class="radio-group" role="radiogroup" aria-label="Consent mode">
+                      <label class="radio-card selected">
+                        <input type="radio" name="cm-empty" value="EXPLICIT" checked>
+                        <div class="body">
+                          <div class="title">Explicit (opt-in checkbox) <span class="pill">Default</span></div>
+                          <div class="desc">Members see a consent checkbox before they can submit a survey response.</div>
+                        </div>
+                      </label>
+                      <label class="radio-card">
+                        <input type="radio" name="cm-empty" value="IMPLIED_ON_SUBMIT">
+                        <div class="body">
+                          <div class="title">Implied on submit <span class="pill muted">Requires legal attestation</span></div>
+                          <div class="desc">No checkbox; submitting a response is treated as consent. Your privacy policy must disclose this.</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label>Consent text</label>
+                    <div class="consent-editor">
+                      <div class="consent-toolbar">
+                        <button type="button" class="toolbar-btn" data-insert="privacy"><span class="icon">+</span> Privacy link</button>
+                        <button type="button" class="toolbar-btn" data-insert="terms"><span class="icon">+</span> Terms link</button>
+                        <span class="toolbar-spacer"></span>
+                        <button type="button" class="toolbar-link">Reset to default</button>
+                      </div>
+                      <textarea>By submitting this response, you agree we may use your feedback to improve our products and follow up if needed. See our {{privacy}} for details.</textarea>
+                    </div>
+                    <p class="field-help">Use the buttons above to insert <code>{{privacy}}</code> or <code>{{terms}}</code> tokens — they render as hyperlinks to your policy URLs. Edit the text inside the quotes to customize the link label (e.g., <code>{{privacy:"data policy"}}</code>, <code>{{privacy:"aviso de privacidad"}}</code>).</p>
+
+                    <p class="field-warning">Privacy policy URL is empty — the <code>{{privacy}}</code> link in your preview won't work until you set it below.</p>
+
+                    <div class="preview-card" style="margin-top: 6px;">
+                      <div class="preview-head">
+                        <span class="preview-label">Preview — what members see</span>
+                        <span class="preview-mode">Explicit · with checkbox</span>
+                      </div>
+                      <div class="preview-body">
+                        <label class="preview-consent">
+                          <input type="checkbox" disabled>
+                          <span>By submitting this response, you agree we may use your feedback to improve our products and follow up if needed. See our <a href="#" class="preview-link broken" title="Privacy policy URL not set">Privacy Policy</a> for details.</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label>Privacy policy URL <span class="req">*</span></label>
+                    <input type="url" placeholder="https://acmecoffee.com/privacy">
+                    <p class="field-help">Linked from every consent surface and the member portal footer. Required when consent mode is Explicit.</p>
+                  </div>
+
+                  <div class="field">
+                    <label>Terms and Conditions URL <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
+                    <input type="url" placeholder="https://acmecoffee.com/terms">
+                    <p class="field-help">Optionally referenced in your consent text via the Terms link button.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Consent &amp; legal</button>
+                </div>
+              </div>
+
+              <!-- Section 5: Developer & Support reference (collapsed by default) -->
+              <div class="section collapsible collapsed" id="s-devsupport">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Developer &amp; Support reference <span class="badge badge-muted">Read only</span></h2>
+                    <p class="section-help">IDs CustomerEQ uses to refer to your organization. Useful when contacting support or integrating from your backend. No action required from admins.</p>
+                  </div>
+                  <span class="chevron">▼</span>
+                </div>
+                <div class="section-body">
+                  <div class="identifiers">
+                    <div class="id-row">
+                      <span class="id-label">Brand ID</span>
+                      <span class="id-value">brand_01HMVZ3K8X2YPQ7E4F5G6H7J8K</span>
+                      <button class="id-copy" type="button">Copy</button>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Clerk org ID</span>
+                      <span class="id-value">org_2ZxR1qB7mNc8VkLpA3sT9wYj4X</span>
+                      <button class="id-copy" type="button">Copy</button>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Created</span>
+                      <span class="id-value">2026-05-05 09:14 UTC</span>
+                      <span></span>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Support contact</span>
+                      <span class="id-value"><a href="mailto:support@customereq.com" class="preview-link">support@customereq.com</a></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <aside class="toc">
+              <p class="toc-label">On this page</p>
+              <a href="#s-identity" class="active pending" title="Action needed">Identity</a>
+              <a href="#s-defaults">Defaults</a>
+              <a href="#s-lookfeel">Look &amp; Feel</a>
+              <a href="#s-members">Member identification</a>
+              <a href="#s-consent" class="pending" title="Action needed">Consent &amp; legal</a>
+              <a href="#s-devsupport">Developer &amp; Support</a>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 2 — Populated (locked member identifier, IMPLIED, expanded developer ref) -->
+<!-- ============================================================= -->
+<section class="scene" id="scene-populated">
+  <div class="scene-label"><strong>Scene 2 — Populated state</strong> &nbsp; All fields saved. Identity shown <em>dirty</em> to demonstrate the dirty-state pattern. Member identification is <strong>locked</strong> because <code>Member.count(brandId) = 1,284</code> — radios are non-editable, support contact is shown. Consent mode = <code>IMPLIED_ON_SUBMIT</code> (preview shows no checkbox). Developer &amp; Support reference is expanded.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Signed in as <strong>jordan@example.com</strong> <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="toast"><span class="check">✓</span> Look &amp; Feel saved.</div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <a href="#">Dashboard</a>
+          <div class="admin-nav-group">CX</div>
+          <a href="#">Surveys</a>
+          <a href="#">Alerts</a>
+          <a href="#">Health Score</a>
+          <div class="admin-nav-group">Loyalty</div>
+          <a href="#">Programs</a>
+          <a href="#">Members</a>
+          <a href="#">Campaigns</a>
+          <div class="admin-nav-group">Settings</div>
+          <a href="#" class="active">Organization</a>
+          <a href="#">Integrations</a>
+          <a href="#">Webhooks</a>
+          <a href="#">Themes</a>
+          <a href="#">Developer</a>
+        </nav>
+        <main class="admin-main">
+          <div class="page-header">
+            <h1>Organization settings</h1>
+            <p>Preferences and configuration for <strong>Acme Coffee Roasters</strong>. Sections save independently — edit one at a time without committing the whole page.</p>
+          </div>
+
+          <div class="page-body">
+            <div class="sections">
+
+              <!-- Identity (DIRTY) -->
+              <div class="section dirty" id="s-identity-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Identity</h2>
+                    <p class="section-help">How your organization appears to members and on integration surfaces.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Organization name <span class="req">*</span></label>
+                    <input type="text" value="Acme Coffee Roasters">
+                    <p class="field-help">Renaming will sync to your identity provider in the background.</p>
+                  </div>
+                  <div class="field">
+                    <label>Logo</label>
+                    <div class="logo-row">
+                      <div class="logo-thumb">AC</div>
+                      <div class="logo-actions">
+                        <button type="button" class="btn btn-ghost btn-sm">Replace</button>
+                        <p class="field-help">Used on your customer-facing surfaces — member portals, emails, surveys.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label>Website</label>
+                    <input type="text" value="acmecoffee.com">
+                  </div>
+                  <div class="field">
+                    <label>Org size</label>
+                    <div class="pill-row">
+                      <label class="pill-radio"><input type="radio" name="size-pop"> 1–10</label>
+                      <label class="pill-radio selected"><input type="radio" name="size-pop" checked> 11–50</label>
+                      <label class="pill-radio"><input type="radio" name="size-pop"> 51–300</label>
+                      <label class="pill-radio"><input type="radio" name="size-pop"> 301–5000</label>
+                      <label class="pill-radio"><input type="radio" name="size-pop"> 5000+</label>
+                      <label class="pill-radio"><input type="radio" name="size-pop"> Prefer not to say</label>
+                    </div>
+                    <p class="field-help">Helps us optimize your experience. Not shown anywhere else.</p>
+                  </div>
+                </div>
+                <div class="section-foot">
+                  <span class="dirty-note">Unsaved changes</span>
+                  <button class="btn btn-ghost">Cancel</button>
+                  <button class="btn btn-primary">Save Identity</button>
+                </div>
+              </div>
+
+              <!-- Defaults (clean — populated values shown, locale set to es-MX to demonstrate non-default selection) -->
+              <div class="section" id="s-defaults-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Defaults</h2>
+                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Time zone</label>
+                    <select>
+                      <option value="America/Los_Angeles">(UTC−07:00) America/Los_Angeles</option>
+                      <option value="America/New_York" selected>(UTC−04:00) America/New_York</option>
+                      <option value="UTC">(UTC) UTC</option>
+                      <option value="Europe/London">(UTC+01:00) Europe/London</option>
+                      <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
+                    </select>
+                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps.</p>
+                  </div>
+                  <div class="field">
+                    <label>Locale</label>
+                    <select>
+                      <option value="en-US">English (United States) — en-US</option>
+                      <option value="en-GB">English (United Kingdom) — en-GB</option>
+                      <option value="es-MX" selected>Español (México) — es-MX</option>
+                      <option value="es-ES">Español (España) — es-ES</option>
+                      <option value="fr-FR">Français (France) — fr-FR</option>
+                      <option value="de-DE">Deutsch (Deutschland) — de-DE</option>
+                    </select>
+                    <p class="field-help">Default language for survey copy, email copy, and the member portal.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Look & Feel (clean, with custom + stock themes) -->
+              <div class="section" id="s-lookfeel-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Look &amp; Feel</h2>
+                    <p class="section-help">The default theme used across customer-facing surfaces.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <div class="lf-actions">
+                      <span class="lf-actions-text">Customize the stock themes or create a new one in <strong>Settings → Themes</strong>.</span>
+                      <a href="#" class="btn btn-ghost btn-sm">Open Themes →</a>
+                    </div>
+                    <label style="margin-top: 12px;">Default theme</label>
+                    <div class="theme-list" role="radiogroup">
+                      <label class="theme-row selected">
+                        <input type="radio" name="theme-pop" checked>
+                        <span class="name">Acme brand <span class="badge badge-info">Custom</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#7a3416"></span><span class="swatch" style="background:#c47338"></span><span class="swatch" style="background:#fef9f3"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-pop">
+                        <span class="name">Acme dark <span class="badge badge-info">Custom</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#1c1917"></span><span class="swatch" style="background:#a8602f"></span><span class="swatch" style="background:#292524"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-pop">
+                        <span class="name">Indigo <span class="badge badge-muted">Stock</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#4f46e5"></span><span class="swatch" style="background:#7c3aed"></span><span class="swatch" style="background:#eef2ff"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-pop">
+                        <span class="name">Forest <span class="badge badge-muted">Stock</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#16a34a"></span><span class="swatch" style="background:#65a30d"></span><span class="swatch" style="background:#dcfce7"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-pop">
+                        <span class="name">Sunset <span class="badge badge-muted">Stock</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#ea580c"></span><span class="swatch" style="background:#d97706"></span><span class="swatch" style="background:#fed7aa"></span></span>
+                        <span></span>
+                      </label>
+                      <label class="theme-row">
+                        <input type="radio" name="theme-pop">
+                        <span class="name">Slate <span class="badge badge-muted">Stock</span></span>
+                        <span class="swatches"><span class="swatch" style="background:#475569"></span><span class="swatch" style="background:#334155"></span><span class="swatch" style="background:#e2e8f0"></span></span>
+                        <span></span>
+                      </label>
+                    </div>
+                    <p class="field-help">The selected theme's colors and fonts will be used on all customer-facing surfaces — surveys, member portals, and rich-format emails.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Member identification — LOCKED (members enrolled) -->
+              <div class="section" id="s-members-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Member identification</h2>
+                    <p class="section-help">How CustomerEQ recognizes your customers across surveys, points, and campaigns.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <div class="radio-group" role="radiogroup" aria-label="Member identifier kind" aria-disabled="true">
+                      <label class="radio-card selected disabled">
+                        <input type="radio" name="ik-pop" disabled checked>
+                        <div class="body">
+                          <div class="title">Email <span class="pill">In use</span></div>
+                          <div class="desc">Customers identify themselves with their email address. Case-insensitive matching.</div>
+                        </div>
+                      </label>
+                      <label class="radio-card disabled">
+                        <input type="radio" name="ik-pop" disabled>
+                        <div class="body">
+                          <div class="title">Phone number</div>
+                          <div class="desc">For SMS-led brands. Stored in E.164 format.</div>
+                        </div>
+                      </label>
+                      <label class="radio-card disabled">
+                        <input type="radio" name="ik-pop" disabled>
+                        <div class="body">
+                          <div class="title">Customer ID (your system of record)</div>
+                          <div class="desc">Use this if your application already issues stable customer IDs.</div>
+                        </div>
+                      </label>
+                    </div>
+                    <div class="locked-notice">
+                      <span class="locked-icon" aria-hidden="true">🔒</span>
+                      <div class="locked-notice-text">
+                        <strong>1,284+ members are already enrolled.</strong> The member identifier kind cannot be changed once members exist. Contact CustomerEQ Support to request a managed migration.
+                      </div>
+                      <a href="mailto:support@customereq.com?subject=Request%20to%20change%20member%20identifier%20kind" class="btn btn-ghost btn-sm">Contact support →</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Consent & legal — IMPLIED selected, populated -->
+              <div class="section" id="s-consent-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Consent &amp; legal</h2>
+                    <p class="section-help">How members consent to receive surveys and where your policies live. Brand-wide default — individual surveys can override.</p>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="field">
+                    <label>Consent mode <span class="badge badge-success">✓ Attested 2026-04-30 · jordan@example.com</span></label>
+                    <div class="radio-group" role="radiogroup">
+                      <label class="radio-card">
+                        <input type="radio" name="cm-pop">
+                        <div class="body">
+                          <div class="title">Explicit (opt-in checkbox)</div>
+                          <div class="desc">Members see a consent checkbox before each survey response.</div>
+                        </div>
+                      </label>
+                      <label class="radio-card selected">
+                        <input type="radio" name="cm-pop" checked>
+                        <div class="body">
+                          <div class="title">Implied on submit <span class="pill">Active</span></div>
+                          <div class="desc">No checkbox; submitting a response is treated as consent.</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label>Consent text <span style="color: var(--text-subtle); font-weight: 400;">(optional in Implied mode)</span></label>
+                    <div class="consent-editor">
+                      <div class="consent-toolbar">
+                        <button type="button" class="toolbar-btn"><span class="icon">+</span> Privacy link</button>
+                        <button type="button" class="toolbar-btn"><span class="icon">+</span> Terms link</button>
+                        <span class="toolbar-spacer"></span>
+                        <button type="button" class="toolbar-link">Reset to default</button>
+                      </div>
+                      <textarea>By submitting your response, you agree that Acme Coffee Roasters may use your feedback to improve our products and contact you about it. See our {{privacy:"privacy notice"}} and {{terms}} for full details.</textarea>
+                    </div>
+                    <p class="field-help">Tokens render as hyperlinks. The text inside the quotes is the label members see — edit it to customize per language or voice (e.g., <code>"privacy notice"</code>, <code>"data policy"</code>, <code>"aviso de privacidad"</code>). Both <code>{{privacy}}</code> and <code>{{privacy:"…"}}</code> are valid; the bare form falls back to the default label.</p>
+
+                    <div class="preview-card" style="margin-top: 6px;">
+                      <div class="preview-head">
+                        <span class="preview-label">Preview — what members see</span>
+                        <span class="preview-mode">Implied · no checkbox</span>
+                      </div>
+                      <div class="preview-body">
+                        <p class="preview-text">By submitting your response, you agree that Acme Coffee Roasters may use your feedback to improve our products and contact you about it. See our <a href="https://acmecoffee.com/privacy" class="preview-link">privacy notice</a> and <a href="https://acmecoffee.com/terms" class="preview-link">Terms and Conditions</a> for full details.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label>Privacy policy URL <span class="req">*</span></label>
+                    <input type="url" value="https://acmecoffee.com/privacy">
+                    <p class="field-help">Linked from every consent surface and the member portal footer.</p>
+                  </div>
+
+                  <div class="field">
+                    <label>Terms and Conditions URL <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
+                    <input type="url" value="https://acmecoffee.com/terms">
+                    <p class="field-help">Optionally referenced in your consent text via the Terms link button.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Developer & Support reference (EXPANDED in this scene) -->
+              <div class="section collapsible" id="s-devsupport-pop">
+                <div class="section-head">
+                  <div class="section-head-text">
+                    <h2>Developer &amp; Support reference <span class="badge badge-muted">Read only</span></h2>
+                    <p class="section-help">IDs CustomerEQ uses to refer to your organization. Useful when contacting support or integrating from your backend. No action required from admins.</p>
+                  </div>
+                  <span class="chevron">▼</span>
+                </div>
+                <div class="section-body">
+                  <div class="identifiers">
+                    <div class="id-row">
+                      <span class="id-label">Brand ID</span>
+                      <span class="id-value">brand_01HMVZ3K8X2YPQ7E4F5G6H7J8K</span>
+                      <button class="id-copy" type="button">Copy</button>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Clerk org ID</span>
+                      <span class="id-value">org_2ZxR1qB7mNc8VkLpA3sT9wYj4X</span>
+                      <button class="id-copy" type="button">Copy</button>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Created</span>
+                      <span class="id-value">2026-05-05 09:14 UTC</span>
+                      <span></span>
+                    </div>
+                    <div class="id-row">
+                      <span class="id-label">Support contact</span>
+                      <span class="id-value"><a href="mailto:support@customereq.com" class="preview-link">support@customereq.com</a></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <aside class="toc">
+              <p class="toc-label">On this page</p>
+              <a href="#s-identity-pop" class="active">Identity</a>
+              <a href="#s-defaults-pop">Defaults</a>
+              <a href="#s-lookfeel-pop">Look &amp; Feel</a>
+              <a href="#s-members-pop">Member identification</a>
+              <a href="#s-consent-pop">Consent &amp; legal</a>
+              <a href="#s-devsupport-pop">Developer &amp; Support</a>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- SCENE 3 — IMPLIED consent attestation modal                    -->
+<!-- ============================================================= -->
+<section class="scene modal-scene" id="scene-implied-attestation">
+  <div class="scene-label"><strong>Scene 3 — IMPLIED consent attestation modal</strong> &nbsp; Trigger: admin switches <code>consentMode</code> from <code>EXPLICIT</code> to <code>IMPLIED_ON_SUBMIT</code>. Captures attestation, free-text justification, and explicit checkbox confirmation. Persisted to <code>AuditEvent.metadata.attestation</code>. Identifier-kind change has <strong>no equivalent modal</strong> — that path is locked behind support contact once members exist.</div>
+  <div class="modal" role="dialog" aria-labelledby="m-impl-title">
+    <div class="modal-head">
+      <h3 id="m-impl-title">Switch to Implied consent?</h3>
+      <p>Requires a legal-review attestation. We'll record this in your audit log.</p>
+    </div>
+    <div class="modal-body">
+      <div class="modal-info">
+        With <strong>Implied on submit</strong>, the consent checkbox is removed from your surveys. Your privacy policy must disclose that submitting a response constitutes consent. CustomerEQ does not provide legal review — confirm with your privacy counsel before proceeding.
+      </div>
+
+      <div class="modal-attestation-box">
+        Attesting as <strong>Jordan Patel</strong> &lt;jordan@example.com&gt; — captured from your session.
+      </div>
+
+      <div class="field">
+        <label>Reason for switching <span style="color: var(--text-subtle); font-weight: 400;">(visible in your audit log)</span></label>
+        <textarea style="font-family: var(--font); font-size: 14px;" placeholder="e.g., Privacy counsel reviewed and approved the implied-consent disclosure in our privacy policy on 2026-05-01. Ticket LEGAL-482."></textarea>
+      </div>
+
+      <label class="modal-checkbox">
+        <input type="checkbox">
+        <span>I confirm that <strong>Acme Coffee Roasters</strong>' privacy policy discloses implied consent on survey submission, and that legal counsel has approved this change.</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" type="button">Cancel</button>
+      <button class="btn btn-primary" type="button" disabled>Switch to Implied</button>
+    </div>
+  </div>
+</section>
+
+<footer style="padding: 24px 16px; text-align: center; color: var(--text-subtle); font-size: 12px; border-top: 1px solid var(--border); margin-top: 32px;">
+  Mock for issue #277 — CustomerEQ Organization Settings. Viewport target: 1440×900 (desktop). Use <span class="kbd">Cmd</span>/<span class="kbd">Ctrl</span>+<span class="kbd">F</span> to jump to <code>#scene-empty</code>, <code>#scene-populated</code>, or <code>#scene-implied-attestation</code>.
+</footer>
+
+<script>
+  // Theme row + radio card + pill radio selection sync (visual-only, skip disabled).
+  document.querySelectorAll('input[type="radio"]:not([disabled])').forEach((input) => {
+    input.addEventListener('change', () => {
+      const groupName = input.name;
+      document.querySelectorAll(`input[name="${groupName}"]`).forEach((sib) => {
+        const card = sib.closest('.theme-row, .radio-card, .pill-radio');
+        if (card) card.classList.remove('selected');
+      });
+      const card = input.closest('.theme-row, .radio-card, .pill-radio');
+      if (card) card.classList.add('selected');
+    });
+  });
+
+  // TOC link active state + smooth scroll.
+  document.querySelectorAll('.toc a').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      link.closest('.toc').querySelectorAll('a').forEach((a) => a.classList.remove('active'));
+      link.classList.add('active');
+    });
+  });
+
+  // Copy-to-clipboard buttons.
+  document.querySelectorAll('.id-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.parentElement.querySelector('.id-value').textContent.trim();
+      navigator.clipboard?.writeText(value);
+      const original = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = original; }, 1200);
+    });
+  });
+
+  // Collapsible Developer & Support section toggle.
+  document.querySelectorAll('.section.collapsible .section-head').forEach((head) => {
+    head.addEventListener('click', () => {
+      head.closest('.section').classList.toggle('collapsed');
+    });
+  });
+
+  // Toolbar buttons — insert {{kind:"Label"}} at cursor in nearest textarea.
+  // If text is selected, wrap it as the label. If no selection, insert the default label
+  // and pre-select it so the admin can immediately type to override.
+  document.querySelectorAll('.consent-toolbar .toolbar-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const editor = btn.closest('.consent-editor');
+      const ta = editor.querySelector('textarea');
+      const isPrivacy = btn.textContent.includes('Privacy');
+      const kind = isPrivacy ? 'privacy' : 'terms';
+      const defaultLabel = isPrivacy ? 'Privacy Policy' : 'Terms and Conditions';
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selection = ta.value.slice(start, end).trim();
+      const label = selection || defaultLabel;
+      const prefix = `{{${kind}:"`;
+      const token = `${prefix}${label}"}}`;
+      ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+      ta.focus();
+      if (selection) {
+        // Wrapped a selection — place cursor after the token.
+        ta.selectionStart = ta.selectionEnd = start + token.length;
+      } else {
+        // Inserted default — pre-select the inner label for immediate override typing.
+        const innerStart = start + prefix.length;
+        ta.selectionStart = innerStart;
+        ta.selectionEnd = innerStart + label.length;
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
