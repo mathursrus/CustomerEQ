@@ -220,9 +220,14 @@
   the existing <code>Set as Default</code> button (after panel, secondary action) still works. Its <code>onClick</code> still calls <code>POST /v1/themes/:id/default</code>, but the handler's write target switches from a per-row <code>isDefault</code> boolean to <code>Brand.defaultThemeId</code> in a single statement. The "Default" badge in the heading is now backed by <code>brand.defaultThemeId === theme.id</code> rather than <code>theme.isDefault</code>. The right-side preview pane (not drawn here) drops its brand-name placeholder and thank-you screen preview; its survey-question preview is unchanged.
 </div>
 
+<div class="footnote" style="margin-top: 8px; background: #ecfccb; border-color: #84cc16; color: #365314;">
+  <strong>Schema-side scope (not pictured here — happens in the migration + renderer):</strong>
+  the three thank-you fields move to typed columns on <code>Survey</code> (<code>thankYouMessage</code>, <code>thankYouRedirectUrl</code>, <code>showIncentivePoints</code>); the migration <em>backfills</em> demo customisations from <code>survey_themes</code> to the corresponding <code>surveys</code> rows so Acme / StarBrew / Diamond render identically post-migration. The renderer rebinds <code>theme.logoUrl</code> → <code>survey.brand.logoUrl</code>, <code>theme.brandName</code> → <code>survey.brand.name</code>, and the three thank-you reads to the new <code>survey.*</code> columns. Public survey API response gains <code>brand.logoUrl</code>.
+</div>
+
 <div class="footnote" style="margin-top: 8px; background: #fef3c7; border-color: #fcd34d; color: #78350f;">
   <strong>Out of scope for #291 (deferred):</strong>
-  the survey-builder admin UI for <code>thankYouMessage</code> / <code>thankYouRedirectUrl</code> / <code>showIncentivePoints</code>. The schema columns and the <code>PATCH /v1/surveys/:id</code> body fields ship in #291 (R3, R8); the admin section that exposes them in <code>/admin/surveys/:id/edit</code> is a separate issue, owned by whoever picks up Survey Admin UX (likely under #241).
+  the survey-builder admin UI for the three new <code>Survey</code> columns. <code>POST /v1/surveys</code> and <code>PATCH /v1/surveys/:id</code> accept the fields on the body so admins can set them via API today; the survey-edit form section that exposes them in <code>/admin/surveys/:id/edit</code> is a separate issue, owned by whoever picks up Survey Admin UX (likely under #241).
 </div>
 
 </body>
