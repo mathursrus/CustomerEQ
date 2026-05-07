@@ -3,6 +3,8 @@
 Issue: [#277](https://github.com/mathursrus/CustomerEQ/issues/277)
 Spec: [`docs/feature-specs/277-organization-settings.md`](../feature-specs/277-organization-settings.md)
 PR: [#290](https://github.com/mathursrus/CustomerEQ/pull/290) (spec + design ship together)
+Implementation tracking: [#292](https://github.com/mathursrus/CustomerEQ/issues/292) (4 PR slices under one umbrella)
+Blocked by: [#291](https://github.com/mathursrus/CustomerEQ/issues/291) (`BrandTheme` split — Slice 4 only; Slices 1–3 are independent)
 Owner: manohar.madhira@outlook.com
 Status: Draft
 
@@ -35,16 +37,12 @@ This RFC covers the implementation strategy for **all** spec deliverables in #27
 **This RFC adds / changes:**
 
 ```prisma
-// Existing enum — additive change. Old values kept for historical compatibility
-// (no production rows exist with the old values because #170 never shipped a UI
-// that wrote to sizeCategory; defensive only). New values land alongside.
+// Reshaped enum — drop pre-#277 superseded values (SIZE_51_200, SIZE_201_PLUS) since
+// no production rows hold them (no UI ever wrote to sizeCategory). Resulting set is
+// the six buckets per spec F5: 1–10 / 11–50 / 51–300 / 301–5000 / 5000+ / Prefer not to say.
 enum OrgSizeCategory {
-  // Legacy values — kept for compat, never produced by new UI / API.
   SIZE_1_10
   SIZE_11_50
-  SIZE_51_200       // legacy — superseded by SIZE_51_300
-  SIZE_201_PLUS     // legacy — superseded by SIZE_301_5000 / SIZE_5000_PLUS
-  // New values (Issue #277)
   SIZE_51_300
   SIZE_301_5000
   SIZE_5000_PLUS
@@ -54,18 +52,16 @@ enum OrgSizeCategory {
 model Brand {
   // ... existing fields unchanged ...
 
-  // Issue #277 — column rename + 2 new columns
-  // (Prisma `@map` on the renamed column avoids a destructive SQL ALTER COLUMN
-  // RENAME and lets the migration be a pure-rename migration.)
-  teamSize    OrgSizeCategory? @map("sizeCategory")  // was `sizeCategory` — column physically renamed in migration; @map kept temporarily to ease forward-only deployment, then dropped in the next migration cycle once the rename is canonical
+  // Issue #277 — column rename + 2 new columns.
+  // Column physically renamed in the migration (sizeCategory → orgSize); no @map needed
+  // post-migration because the Prisma field name matches the SQL column name.
+  orgSize     OrgSizeCategory?                        // R24 — renamed from sizeCategory; matches schema element ("the organization's size") rather than the ambiguous "team"
   timezone    String           @default("UTC")        // R23 — IANA tz; resolved from browser hint at first save with UTC fallback
   locale      String           @default("en-US")      // R23 — BCP 47; resolved from navigator.language with en-US fallback
 }
 ```
 
-**Why keep legacy enum values:** Postgres `ALTER TYPE … RENAME VALUE` and `DROP VALUE` are destructive and require recreating the type for non-trivial reshape. Since (a) zero production rows are expected to hold `SIZE_51_200` or `SIZE_201_PLUS` (no UI ever wrote to the column) and (b) the migration cost of a clean reshape (recreate enum, migrate column, drop old enum) is real but the value of removing the legacy values is zero, we keep them as deprecated-but-allowed and gate on application code never producing them. This also means `prisma migrate deploy` runs as a single, additive ALTER TYPE that can't fail mid-way.
-
-**Why `@map("sizeCategory")` then drop later:** A column rename via `prisma migrate` generates a `ALTER TABLE … RENAME COLUMN` SQL — clean and forward-only. The `@map` is **not** needed because we are renaming. (Drop the `@map` annotation from the Prisma model in the same migration.) The above schema snippet is the post-rename state; the migration SQL below does the actual rename.
+**Why drop the superseded enum values rather than keep them as deprecated:** PR #290 review (L45) directed removal — there is no production data, so the additive-keep-for-compat hedge buys nothing. A clean six-value enum reads correctly to anyone arriving at the schema later, and the type-recreate migration is one-time work bounded by the empty-data state. Postgres `ALTER TYPE … DROP VALUE` doesn't exist, so the migration uses the standard create-new-type-and-swap pattern (§2 below).
 
 ### 2. Schema migration
 
@@ -73,33 +69,42 @@ New migration: `packages/database/prisma/migrations/<TIMESTAMP>_org_settings_277
 
 ```sql
 -- Issue #277 — Organization Settings schema additions.
--- All changes are forward-only and idempotent under repeated `migrate deploy`.
+-- All changes are forward-only. Safe under repeated `migrate deploy` because the
+-- column-rename and enum-recreate steps are one-shot (Prisma migration framework
+-- records them in `_prisma_migrations` and won't re-run). New columns use IF NOT EXISTS.
 
--- 1. Rename column sizeCategory → teamSize (no data loss; column is unindexed and unconstrained).
-ALTER TABLE "brands" RENAME COLUMN "sizeCategory" TO "teamSize";
+-- 1. Rename column sizeCategory → orgSize (no data loss; column is unindexed and unconstrained).
+ALTER TABLE "brands" RENAME COLUMN "sizeCategory" TO "orgSize";
 
--- 2. Add new enum values (non-destructive; old values remain for historical compat).
-ALTER TYPE "OrgSizeCategory" ADD VALUE IF NOT EXISTS 'SIZE_51_300';
-ALTER TYPE "OrgSizeCategory" ADD VALUE IF NOT EXISTS 'SIZE_301_5000';
-ALTER TYPE "OrgSizeCategory" ADD VALUE IF NOT EXISTS 'SIZE_5000_PLUS';
+-- 2. Reshape OrgSizeCategory enum: drop pre-#277 superseded values (SIZE_51_200, SIZE_201_PLUS),
+--    keep the six canonical buckets. Postgres lacks ALTER TYPE … DROP VALUE so this is
+--    a create-new-type-and-swap migration. Safe because no production rows hold OrgSizeCategory
+--    (UI never wrote to sizeCategory; pre-#277 column was always NULL).
+ALTER TABLE "brands" ALTER COLUMN "orgSize" TYPE TEXT;
+ALTER TYPE "OrgSizeCategory" RENAME TO "OrgSizeCategory_old";
+CREATE TYPE "OrgSizeCategory" AS ENUM (
+  'SIZE_1_10',
+  'SIZE_11_50',
+  'SIZE_51_300',
+  'SIZE_301_5000',
+  'SIZE_5000_PLUS',
+  'PREFER_NOT_TO_SAY'
+);
+ALTER TABLE "brands"
+  ALTER COLUMN "orgSize" TYPE "OrgSizeCategory" USING "orgSize"::"OrgSizeCategory";
+DROP TYPE "OrgSizeCategory_old";
 
 -- 3. Add new columns with safe defaults.
 ALTER TABLE "brands"
   ADD COLUMN IF NOT EXISTS "timezone" TEXT NOT NULL DEFAULT 'UTC',
   ADD COLUMN IF NOT EXISTS "locale"   TEXT NOT NULL DEFAULT 'en-US';
 
--- 4. Default-theme seeding support (§5). Add isStockDefault column + composite
---    unique constraint that doubles as the seed-race guard.
-ALTER TABLE "survey_themes"
-  ADD COLUMN IF NOT EXISTS "isStockDefault" BOOLEAN NOT NULL DEFAULT false;
-
-CREATE UNIQUE INDEX IF NOT EXISTS "survey_themes_brandId_name_key"
-  ON "survey_themes" ("brandId", "name");
+-- (Default-theme seeding support — `survey_themes.isStockDefault` column and
+--  `@@unique([brandId, name])` constraint — moved to #291's BrandTheme split RFC.
+--  See §5 for rationale.)
 ```
 
-Note: `ALTER TYPE … ADD VALUE` cannot run inside an existing transaction in older Postgres versions, but Postgres 12+ (we're on 16) lifts that restriction. `prisma migrate deploy` runs each migration file in its own transaction; this migration is safe.
-
-No data backfill is needed — every existing Brand row gets `'UTC'` and `'en-US'` from the column default. No row currently sets `sizeCategory`, so the rename is metadata-only.
+No data backfill is needed — every existing Brand row gets `'UTC'` and `'en-US'` from the column default. The `orgSize` column is empty post-rename (no row ever held a value), so the enum-swap `USING` cast handles only NULL → NULL.
 
 ### 3. Shared package — `@customereq/consent-text`
 
@@ -154,7 +159,7 @@ type GetBrandProfileResponse = {
     name: string
     siteDomain: string | null
     logoUrl: string | null
-    teamSize: OrgSizeCategory | null      // R24
+    orgSize: OrgSizeCategory | null       // R24
     timezone: string                       // R23 — never null, has default
     locale: string                         // R23 — never null, has default
     defaultThemeId: string | null
@@ -190,7 +195,7 @@ type GetBrandProfileResponse = {
    - `prisma.theme.findMany({ where: { brandId } })` — full theme list
    - `prisma.member.count({ where: { brandId } })` — for locked-state computation
    - `process.env.SUPPORT_EMAIL ?? 'support@customereq.com'` — env resolution
-3. **First-run theme seeding** (R25): if the upsert created the brand (`brand.createdAt` was just now) AND `themes.length === 0`, the handler also creates the four default `SurveyTheme` rows (Indigo / Forest / Sunset / Slate) in the same `Promise.all`. Idempotent on the new `@@unique([brandId, name])` composite added in §5; concurrent inserts produce a `unique_violation` (Prisma P2002) that the seed code catches and treats as "already seeded by a sibling request." This is the **per-brand seed** decision (see §5 below).
+3. **First-run theme seeding** (R25) is owned by [#291](https://github.com/mathursrus/CustomerEQ/issues/291)'s `BrandTheme` split. The GET handler in #277 does NOT seed any theme rows — that responsibility moves with the model split. Slice 4 (frontend) consumes whatever shape #291 lands. See §5.
 
 #### 4.2 `PATCH /v1/admin/brand/profile`
 
@@ -199,7 +204,7 @@ const PatchBrandProfileBodySchema = z.object({
   name:                  z.string().trim().min(1).max(120).optional(),
   siteDomain:            z.string().regex(/^[a-z0-9.-]+$/).optional().nullable(),
   logoUrl:               z.string().url().optional().nullable(),
-  teamSize:              zOrgSizeCategoryNew.optional().nullable(),  // only the 5 new values + PREFER_NOT_TO_SAY accepted from clients
+  orgSize:               zOrgSizeCategory.optional().nullable(),     // six canonical buckets (1–10 / 11–50 / 51–300 / 301–5000 / 5000+ / PREFER_NOT_TO_SAY)
   timezone:              z.string().regex(/^[A-Za-z_/+-]+$/).optional(),
   locale:                z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/).optional(),
   defaultThemeId:        z.string().cuid().optional().nullable(),
@@ -221,7 +226,7 @@ const PatchBrandProfileBodySchema = z.object({
 **Server-side cross-field validation** (additional to Zod):
 - `consentMode === 'EXPLICIT'` AND `consentTextDefault` lacks a `{{privacy}}` token → **400** (R19).
 - `memberIdentifierKind` change AND `Member.count(brandId) > 0` → **409 `MEMBER_IDENTIFIER_KIND_LOCKED`** (R10) — short-circuits before any other validation so the client gets a precise error code.
-- `teamSize` legacy values (`SIZE_51_200`, `SIZE_201_PLUS`) — server rejects with 400 even though the enum allows them, since they are deprecated (the Zod schema `zOrgSizeCategoryNew` only contains the new 5 values + PREFER_NOT_TO_SAY).
+- `orgSize` — enum reshape (§2) drops superseded values, so Zod accepts only the six canonical buckets and Postgres rejects anything else at the type-cast boundary; no app-layer legacy-value check needed.
 
 **Audit-event payload** (per-route metadata allowlist, pattern from #276 RFC):
 ```typescript
@@ -235,38 +240,18 @@ const PatchBrandProfileBodySchema = z.object({
 
 Multipart upload. Validates PNG / SVG / JPEG (≤2 MB, min 64×64). Persists to existing asset path. Returns the URL; the client chains it into the next PATCH so the upload + the field write are one user-visible save (per spec). No audit event for upload-without-write — the audit happens when the URL is patched onto the brand.
 
-### 5. Default-theme seeding decision
+### 5. Default-theme seeding — deferred to #291
 
-**Decision: per-brand seed at provisioning** — the 4 default themes are written as 4 `SurveyTheme` rows for the brand on first lazy-upsert. Implemented in the GET handler (§4.1, step 3). Each row has `isStockDefault: true` (new boolean column added in this migration) so admin-edit-detection is straightforward.
+**Decision: deferred to [#291 — `BrandTheme` split prerequisite](https://github.com/mathursrus/CustomerEQ/issues/291).**
 
-| Frame | Position |
-|---|---|
-| **Per-brand seed (chosen)** | Pros: each brand owns its themes — admin can edit Indigo's accent color and that change is brand-local; theme-list query is a simple `findMany({ where: { brandId } })` with no cross-brand fallback logic. Cons: 4× row count on `themes` table (negligible at any reasonable brand count). Storage cost is microscopic; query simplicity wins. |
-| **Global rows shared across brands** | Pros: 4 rows total instead of 4 × N. Cons: every "edit a default theme" becomes a copy-on-write to a brand-specific override; theme-list query becomes `(global stock themes) UNION (brand custom)` with awkward identity semantics; deleting a custom theme that overrides a global default has surprising fallback behavior. The complexity isn't worth saving 4 × N rows. |
-| **Hybrid (global stock + per-brand customizations)** | Pros: lowest storage. Cons: most complex of the three; copy-on-write semantics bleed into every theme-edit path; the existing `apps/web/src/app/(admin)/admin/settings/themes/` page would need refactoring to support the override concept. |
+PR #290 review (L240, L248) surfaced that the existing `SurveyTheme` model conflates brand-level visual identity (logo, colors, brand name, default flag) with per-survey rendering overrides (thank-you message, redirect URL, incentive-points display). Six fields belong on `Brand` or `Survey`, not on a survey-level theme record. Issue #291 owns the model split and is the home for the four-default-theme seed scope.
 
-**Schema additions for this decision** (on the existing `SurveyTheme` model — `Theme` was a placeholder name in earlier RFC drafts; the actual model is `SurveyTheme`):
+**Implications for #277 implementation:**
+- **Slice 1 (schema migration)** does NOT add `survey_themes.isStockDefault`, does NOT create the `@@unique([brandId, name])` constraint, and does NOT add the `Brand.defaultThemeId → SurveyTheme.id` foreign-key relation. (The existing `Brand.defaultThemeId` column added under #170 PR1 stays as-is — a `String?` without `@relation`. Whether it gets repointed at `BrandTheme.id` is #291's call.)
+- **Slice 4 (frontend)** consumes the post-#291 model for the Look & Feel section. R25 (4 default themes available at first run) is satisfied by #291's seeding mechanism, whatever shape it takes.
+- This makes #292 Slice 4 **blocked by #291**; Slices 1–3 are independent.
 
-```prisma
-model SurveyTheme {
-  // ... existing fields, including `isDefault Boolean @default(false)` —
-  // distinct from `isStockDefault`: `isDefault` is the brand's chosen default
-  // (mutually exclusive per brand); `isStockDefault` is "shipped with the brand
-  // at provisioning" (4 rows per brand). ...
-
-  // Issue #277 — true for the 4 seeded stock themes (Indigo / Forest / Sunset / Slate);
-  // false for admin-created custom themes. Used by the Look & Feel UI to label "Stock"
-  // vs "Custom" in the theme picker.
-  isStockDefault Boolean @default(false)
-
-  // Issue #277 — enables the seed race-mitigation strategy (§7 Risks): concurrent
-  // first-GETs hit a unique-constraint violation that's safe to swallow. The model
-  // had no name unique constraint pre-#277.
-  @@unique([brandId, name])
-}
-```
-
-Migration adds the column **and** the composite unique constraint; first-run seeding sets `isStockDefault: true` on the 4 seed rows. The unique constraint is the seed-race guard.
+The earlier draft of this section evaluated three seed-mechanism alternatives (per-brand, global-shared, hybrid). That decision is moved to #291's RFC. R25's spec contract — "all four pickable from first paint" — is unchanged.
 
 ### 6. Frontend page architecture
 
@@ -333,7 +318,7 @@ Six entries; the `pending` style applies when any of the section's fields appear
 
 **Decision: Clerk's built-in props on `<OrganizationSwitcher>`** (no Clerk webhook dependency, no Next.js middleware, no client-side `useEffect` redirect).
 
-The admin layout at `apps/web/src/app/(admin)/layout.tsx` currently has:
+The admin layout at `apps/web/src/app/(admin)/layout.tsx` currently has (line 56):
 ```tsx
 <OrganizationSwitcher
   hidePersonal
@@ -341,20 +326,24 @@ The admin layout at `apps/web/src/app/(admin)/layout.tsx` currently has:
   appearance={...}
 />
 ```
+
+The `afterSelectOrganizationUrl="/admin/members"` prop pre-dates #277. Per Clerk's docs, it sets *"the full URL or path to navigate to after a successful Organization switch"* — i.e., when a returning admin uses the dropdown to switch between orgs, Clerk drops them on `/admin/members` (the existing admin home). #277 leaves this prop unchanged; new admins land on `/admin/settings/organization` via the new `afterCreateOrganizationUrl` prop, returning admins continue to land on `/admin/members` per existing behavior.
 
 Three changes for #277:
 ```tsx
 <OrganizationSwitcher
   hidePersonal
-  afterCreateOrganizationUrl="/admin/settings/organization"   // R26 — post-create landing for new orgs
-  afterSelectOrganizationUrl="/admin/members"
-  organizationProfileMode="redirect"                          // R6 — opt out of Clerk-hosted org profile
-  organizationProfileUrl="/admin/settings/organization"       // R6 — "Manage" link deep-links to our settings page
+  afterCreateOrganizationUrl="/admin/settings/organization"   // R26 — post-create landing for new orgs (NEW in #277)
+  afterSelectOrganizationUrl="/admin/members"                 // existing — unchanged; returning-admin landing
+  organizationProfileMode="redirect"                          // R6 — opt out of Clerk-hosted org profile (NEW)
+  organizationProfileUrl="/admin/settings/organization"       // R6 — "Manage" link deep-links to our settings page (NEW)
   appearance={...}
 />
 ```
 
 That is the entire redirect / Manage-link implementation. No webhook, no middleware, no race conditions — Clerk handles the redirect client-side after its create-org flow completes, and the redirect target's first GET runs the lazy-upsert (§4.1). The `organizationProfileMode="redirect"` opt-out tells Clerk not to render its hosted org-profile modal; the `organizationProfileUrl` tells Clerk where to send the admin instead.
+
+**Verifying artifact for `afterCreateOrganizationUrl`:** Clerk's official component reference ([clerk.com/docs/react/reference/components/organization/organization-switcher](https://clerk.com/docs/react/reference/components/organization/organization-switcher)) describes the prop verbatim as *"The full URL or path to navigate to after creating a new Organization."* PR #290 review (L495) flagged this as a row needing a spike before adoption; the documentation re-read + a codebase grep (apps/web has zero existing `afterCreateOrganizationUrl` usage to conflict with) clears the spike. End-to-end browser validation is owned by #292 Slice 4's E2E tests.
 
 **Sidebar entry (R5):** the existing admin sidebar in `layout.tsx` adds one entry under the **Settings** group as the **first item**:
 ```tsx
@@ -448,20 +437,19 @@ Co-located with the new package and components.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Postgres `ALTER TYPE … ADD VALUE` semantics differ across versions | Low | We're on Postgres 16 (architecture.md §2). PG12+ allows ADD VALUE outside transactions; PG16's behavior is documented. Migration tested in dev compose first. |
-| Clerk's `afterCreateOrganizationUrl` prop is not honored on every Clerk plan / configuration | Low | Documented Clerk feature, present in current SDK version. Pre-flight: a small Playwright test that drives the OrganizationSwitcher create flow and asserts the redirect target. If Clerk changes the prop name, it's caught at PR time. |
-| Default-theme seeding race: two concurrent first-GETs both seed 4 rows (8 total) | Low | The `@@unique([brandId, name])` constraint added to `SurveyTheme` in this RFC's schema diff (§5) is the guard: concurrent inserts produce a Postgres `unique_violation` (Prisma P2002) that the seed code catches and treats as "already seeded by a sibling request." No transaction with `SELECT ... FOR UPDATE` needed. |
+| Postgres enum recreate (drop superseded values) breaks an existing dependent query plan | Low | The `OrgSizeCategory` column is unindexed and unconstrained; the type-swap pattern (cast to TEXT, recreate type, cast back) is standard. Migration tested in dev compose first; integration tests in #292 Slice 1 verify the post-migration enum shape. |
+| Clerk's `afterCreateOrganizationUrl` prop is not honored on every Clerk plan / configuration | Low | Documented Clerk feature ([reference](https://clerk.com/docs/react/reference/components/organization/organization-switcher)). Pre-flight: an E2E Playwright test in #292 Slice 4 drives the OrganizationSwitcher create flow and asserts the redirect target. If Clerk changes the prop name, it's caught at PR time. |
+| Default-theme seeding race | — | Risk moves with #291's `BrandTheme` split RFC. Not a #277 concern. |
 | `@customereq/consent-text` placement choice locks in import surface for #276 + future module | Medium | The package can be moved later (`@customereq/shared/consent-text` is a renaming, not a redesign). Choosing `packages/consent-text` is the lowest-friction starting point; moving is cheap. |
 | Member-count query on every GET — could be slow on large brands | Low | `prisma.member.count({ where: { brandId } })` uses the existing `(brandId)` index; sub-millisecond at any reasonable member count. If a brand grows to millions, switch to a cached counter. Not a v0 concern. |
-| `OrgSizeCategory` legacy values leak into UI selectors via stale caches | Low | Server validates incoming `teamSize` against `zOrgSizeCategoryNew` (only the 5 new values + PREFER_NOT_TO_SAY); legacy values reject with 400. UI only renders new values. Defense-in-depth at both layers. |
 
 ## Alternatives considered
 
 | Decision | Chosen | Alternative considered |
 |---|---|---|
-| Default-theme seeding | Per-brand seed at provisioning (4 rows) | Global stock + per-brand override (rejected for query / identity complexity) |
+| Default-theme seeding | Deferred to [#291](https://github.com/mathursrus/CustomerEQ/issues/291) — model + seed mechanism move with the `BrandTheme` split (PR #290 L240/L248) | Per-brand seed of 4 `SurveyTheme` rows at provisioning (rejected — built against the wrong model; #291 is the prerequisite refactor) |
 | Consent-text package placement | New `packages/consent-text` | Inside `@customereq/shared` (rejected for blast radius — DOM-adjacent code in worker bundles) |
-| Migration strategy for OrgSizeCategory | Additive: ADD VALUE for 3 new values, keep 2 legacy values for compat, gate at app layer | Destructive: recreate enum + migrate column (rejected — needless complexity since no production rows hold the legacy values) |
+| Migration strategy for OrgSizeCategory | Recreate enum (drop 2 superseded values, keep 6 canonical buckets) — see §2 | Additive ADD VALUE keeping legacy values (rejected per PR #290 L45 — no data, additive hedge buys nothing) |
 | Redirect-on-org-create | Clerk `afterCreateOrganizationUrl` prop | Webhook (#239) — rejected as a dependency; remains additive optimization. Next.js middleware — rejected for hackiness. Client-side useEffect — rejected for round-trip cost. |
 | API surface | One PATCH endpoint for the whole row | Per-section PATCH endpoints — rejected because the audit / validation logic duplicates and the section-vs-field boundary is a UI concern, not an API one. |
 | Form state mgmt | React Hook Form + Zod resolver | Uncontrolled forms with manual state — rejected for inconsistency with the existing themes page pattern. |
@@ -484,23 +472,23 @@ Comparison of this RFC against `docs/architecture/architecture.md`. Pattern clas
 
 ### Patterns Missing from Architecture
 
-These are patterns the RFC introduces or relies on that are not yet documented in `docs/architecture/architecture.md`. Each is a candidate for an architecture-doc update during the `address-feedback` phase, pending user direction.
+These are patterns the RFC introduces or relies on that are not yet documented in `docs/architecture/architecture.md`. PR #290 review resolved direction on each row; the **Status** column reflects the resolution and the architecture-doc updates land in the same commit as this RFC revision.
 
-| Pattern | Why it's needed | Suggested architecture update |
-|---|---|---|
-| **Per-route audit metadata allowlist** | Architecture §3.2 says the audit plugin does "fire-and-forget logging of mutations to AuditEvent table" but doesn't document how route-specific metadata (e.g., `attestation`, `memberCountAtChange`, `changedFields`) gets into the row. #276 RFC introduced the per-route allowlist pattern (`audit.ts` config keyed by `{routeId}.metadata: [allowedKeys]`); this RFC reuses it (§9). | Add to architecture §4.2 audit-plugin row: "Per-route metadata allowlist via `<route-id>.metadata` config keys; route handlers populate `request.audit.metadata`; the plugin filters to the allowlist before persisting." |
-| **Lazy-upsert provisioning at GET** | Architecture documents `multiTenant` rejection of body-supplied `brandId` and the existing webhook-driven provisioning at `/api/webhooks/identity-provider`, but doesn't document GET-side lazy-upsert as a pattern. #277 establishes it (§4.1) for the org-settings tenant-bootstrap flow. | Add to architecture §3.2: "**Lazy-upsert provisioning pattern:** GET endpoints that are the canonical landing target for newly-created tenants may upsert their tenant resource row keyed by JWT-extracted identifier (e.g. `clerkOrgId`). This is the redirect-target counterpart to the webhook-driven provisioning at `/api/webhooks/identity-provider` and survives webhook delivery failures. First seen in #277 (`GET /v1/admin/brand/profile`)." |
-| **Shared cross-package validator/renderer module** | Architecture documents `packages/embed` and `packages/shared` but doesn't describe the pattern of "extract a narrowly-scoped reusable runtime module into its own package consumed by web + api." `packages/consent-text` (this RFC §3) is a third instance of the pattern. | Add to architecture §3 (Architectural Layers): a brief subsection naming the pattern (alongside `embed` and the `consent-text` package added by #277): "Domain-narrow runtime packages — single-purpose packages with parser / validator / renderer triplets that web and api both consume; kept out of `packages/shared` to avoid bundle bloat in the worker." |
-| **React Hook Form + Zod resolver as the form-state convention** | Architecture §2 lists shadcn/ui + Tailwind v4 but doesn't name the form-state library. Existing #170 RFC + the existing `apps/web/src/app/(admin)/admin/settings/themes/page.tsx` use RHF + `@hookform/resolvers/zod`. This RFC §6.3 follows that convention. | Add a row to architecture §2 tech stack: "**Forms** | React Hook Form 7.x + `@hookform/resolvers/zod` | Standard for admin-portal forms — single source of truth for validation between API and frontend (Zod schemas reused). Per-section dirty state via RHF `formState.dirtyFields`." |
-| **Clerk's `afterCreateOrganizationUrl` as the post-create landing mechanism** | Architecture mentions Clerk OrganizationSwitcher implicitly (via the `/api/webhooks/identity-provider` row in §4.1) but doesn't document the `afterCreateOrganizationUrl` redirect contract. #277 §7 makes this central to first-run UX. | Add to architecture §3.1 admin-portal subsection: "Post-create landing for new Clerk organizations is set via `<OrganizationSwitcher afterCreateOrganizationUrl="..." />` in the admin shell layout. The redirect target's first GET is the lazy-upsert site (§3.2 lazy-upsert pattern)." |
+| Pattern | Why it's needed | Architecture update | Status (PR #290 review) |
+|---|---|---|---|
+| **Per-route audit metadata allowlist** | Architecture §3.2 says the audit plugin does "fire-and-forget logging of mutations to AuditEvent table" but doesn't document how route-specific metadata (e.g., `attestation`, `memberCountAtChange`, `changedFields`) gets into the row. #276 RFC introduced the per-route allowlist pattern (`audit.ts` config keyed by `{routeId}.metadata: [allowedKeys]`); this RFC reuses it (§9). | Add to architecture §4.2 audit-plugin row: "Per-route metadata allowlist via `<route-id>.metadata` config keys; route handlers populate `request.audit.metadata`; the plugin filters to the allowlist before persisting." | **Agreed** — applied (L491). |
+| **Lazy-upsert provisioning at GET** | Architecture documents `multiTenant` rejection of body-supplied `brandId` and the existing webhook-driven provisioning at `/api/webhooks/identity-provider`, but doesn't document GET-side lazy-upsert as a pattern. #277 establishes it (§4.1) for the org-settings tenant-bootstrap flow. | Add to architecture §3.2: "**Lazy-upsert provisioning pattern:** GET endpoints that are the canonical landing target for newly-created tenants may upsert their tenant resource row keyed by JWT-extracted identifier (e.g. `clerkOrgId`). This is the redirect-target counterpart to the webhook-driven provisioning at `/api/webhooks/identity-provider` and survives webhook delivery failures. First seen in #277 (`GET /v1/admin/brand/profile`)." | **Agreed** — applied (L492). |
+| **Shared cross-package validator/renderer module** | Architecture documents `packages/embed` and `packages/shared` but doesn't describe the pattern of "extract a narrowly-scoped reusable runtime module into its own package consumed by web + api." `packages/consent-text` (this RFC §3) is a third instance of the pattern. | Add to architecture §3 (Architectural Layers): a brief subsection naming the pattern (alongside `embed` and the `consent-text` package added by #277): "Domain-narrow runtime packages — single-purpose packages with parser / validator / renderer triplets that web and api both consume; kept out of `packages/shared` to avoid bundle bloat in the worker." | **Agreed** — applied (L493). |
+| **React Hook Form + Zod resolver as the form-state convention** | Architecture §2 lists shadcn/ui + Tailwind v4 but doesn't name the form-state library. Existing #170 RFC + the existing `apps/web/src/app/(admin)/admin/settings/themes/page.tsx` use RHF + `@hookform/resolvers/zod`. This RFC §6.3 follows that convention. | Add a row to architecture §2 tech stack: "**Forms** | React Hook Form 7.x + `@hookform/resolvers/zod` | Standard for admin-portal forms — single source of truth for validation between API and frontend (Zod schemas reused). Per-section dirty state via RHF `formState.dirtyFields`." | **No reviewer objection** — applied (L494; assumed agreed by silence on this row). |
+| **Clerk's `afterCreateOrganizationUrl` as the post-create landing mechanism** | Architecture mentions Clerk OrganizationSwitcher implicitly (via the `/api/webhooks/identity-provider` row in §4.1) but doesn't document the `afterCreateOrganizationUrl` redirect contract. #277 §7 makes this central to first-run UX. | Add to architecture §3.1 admin-portal subsection: "Post-create landing for new Clerk organizations is set via `<OrganizationSwitcher afterCreateOrganizationUrl="..." />` in the admin shell layout. The redirect target's first GET is the lazy-upsert site (§3.2 lazy-upsert pattern)." | **Spike-then-apply** — Clerk docs verify `afterCreateOrganizationUrl` semantics ([reference link](https://clerk.com/docs/react/reference/components/organization/organization-switcher)); apps/web grep finds zero existing usage; documentation-verified (L495). Applied. |
 
 ### Patterns Incorrectly Followed
 
 None identified. The RFC follows established patterns; the gaps above are documentation gaps, not violations.
 
-### Architecture-doc updates — gating
+### Architecture-doc updates — applied
 
-Per the FRAIM technical-design phase 4 contract: **no architecture document updates are made in this phase.** Updates land in the `address-feedback` phase, gated by user direction (e.g., "yes, codify the per-route audit allowlist in architecture.md" vs. "leave it in the RFC body for now"). The five gaps above are flagged here for that decision.
+PR #290 review resolved all five rows above (4 agreed, 1 spike-cleared, 1 silent-as-agreed). The architecture-doc edits land in the same commit as this RFC revision (`docs/architecture/architecture.md`) — see commit message for the per-row update map. No further gating needed.
 
 ## Implementation breakdown
 
@@ -511,17 +499,17 @@ This is the input to the **implementation issue scoping** decision. The work bre
 | **Slice 1: Schema migration** | `packages/database/prisma/schema.prisma` + 1 migration file | ~30 | None — can land first |
 | **Slice 2: Shared package** | `packages/consent-text/*` (new package, 6 src files + tests) | ~250 | None — can land in parallel with Slice 1 |
 | **Slice 3: Backend** | `apps/api/src/routes/admin-brand-profile.ts` + audit-plugin allowlist + integration tests | ~400 | Slices 1 + 2 |
-| **Slice 4: Frontend** | `apps/web/src/app/(admin)/admin/settings/organization/*` + `apps/web/src/components/admin/AdminPendingBanner.tsx` + 1-prop layout edit + E2E tests | ~600 | Slice 3 |
+| **Slice 4: Frontend** | `apps/web/src/app/(admin)/admin/settings/organization/*` + `apps/web/src/components/admin/AdminPendingBanner.tsx` + 1-prop layout edit + E2E tests | ~600 | Slice 3 + #291 (`BrandTheme` model for Look & Feel) |
 
-**Recommendation: split into 4 implementation issues**, one per slice. Slices 1 + 2 land in parallel; Slice 3 unblocks once they're merged; Slice 4 unblocks once Slice 3 is merged. This preserves R10 (Branch + PR convention: one issue per branch) and lets reviewers focus on one concern per PR (schema, package, backend, frontend) instead of one ~1300-LOC bundle.
+**Decision: 4 PRs / 4 branches under a single implementation issue ([#292](https://github.com/mathursrus/CustomerEQ/issues/292)).** PR #290 review (L516) directed away from 4 separate top-level implementation issues to avoid traceability fragmentation. The umbrella-issue pattern preserves R10 (every branch tied to an issue) while keeping spec → implementation traceability in one place: each branch is named `feature/issue-292-org-settings-<slice>`, the first three PRs use "Refs #292" in the body, and Slice 4 uses "Closes #292."
 
-The alternative — single umbrella issue — keeps spec→implementation traceability tight in one PR but creates an unreviewable bundle. The 4-slice split has equally tight traceability (each implementation PR's title and body link back to #277) without the review-fatigue cost.
+The alternative — one mega-PR — was rejected as an unreviewable bundle (~1300 LOC, four distinct concerns: schema, package, backend, frontend). The 4-slice split keeps each PR focused on one concern and lets Slices 1 + 2 land in parallel.
 
 ## Forward-looking notes
 
 - **#239 (Clerk webhook)** lands additively; when it does, the webhook's `organization.created` handler also runs the same lazy-upsert SQL. The redirect-on-create flow keeps working unchanged.
 - **#264 (GDPR erasure job)** — when filed, its scope explicitly excludes `Brand` rows (no member PII). The compliance section of the spec has the forward-looking AC.
-- **#170 (onboarding epic)** — when broken down, its Step 1.5 wizard reuses the same `Brand.timezone`, `Brand.locale`, `Brand.teamSize` columns. No re-migration needed.
+- **#170 (onboarding epic)** — when broken down, its Step 1.5 wizard reuses the same `Brand.timezone`, `Brand.locale`, `Brand.orgSize` columns. No re-migration needed.
 - **#44 (multi-brand-per-org)** — when filed, this page becomes the per-Brand settings page with a Brand picker added above the section list. The field set does not change.
 - **Future Survey-creation simplification module** — imports `@customereq/consent-text` for live preview at survey-builder scope (R18). Cross-package import-graph check fails at PR time if the module duplicates the regex / validator.
 

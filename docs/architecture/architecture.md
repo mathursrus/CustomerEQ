@@ -37,12 +37,15 @@ The platform is a multi-tenant loyalty engine with:
 | **Build** | Turborepo + pnpm 9 | Monorepo task orchestration with caching; pnpm for strict dependency isolation |
 | **Logging** | Pino v9 | Structured JSON logging, low-overhead, Fastify's native logger |
 | **Validation** | Zod 3.23 | Runtime schema validation shared between API request parsing and frontend forms |
+| **Forms** | React Hook Form 7.x + `@hookform/resolvers/zod` | Standard for admin-portal forms — single source of truth for validation between API and frontend (Zod schemas reused). Per-section dirty state via RHF `formState.dirtyFields`. (Issue #277) |
 | **Infra** | Azure (API/worker/DB/cache) + Vercel (frontend) | Azure credits for backend; Vercel for zero-ops Next.js with first-party App Router support |
 | **IaC** | Terraform | Provider-agnostic — manages both Azure resources and Vercel project config |
 
 ---
 
 ## 3. Architectural Layers
+
+**Domain-narrow runtime packages.** Alongside the layer organization below, a recurring pattern is to extract a single-purpose runtime module — typically a parser / validator / renderer triplet — into its own package consumed by both web and api. `packages/embed` (CDN-distributed Web Components) and `packages/consent-text` (Issue #277 — token parser, Zod validator, HTML+React renderer for consent disclosures) are examples. These packages are kept out of `packages/shared` to avoid bundle bloat in the worker (which has no DOM-adjacent code) and to keep blast-radius small when their internal shape evolves. Add a new domain-narrow package when the candidate code is (a) consumed by ≥2 apps, (b) has no value in the worker bundle, and (c) has clear internal-shape stability.
 
 ### 3.1. Presentation Layer (apps/web)
 - **Responsibility**: Marketing site (SSR/SSG), admin portal (program/campaign/analytics management), member portal (dashboard, rewards catalog, redemptions).
@@ -53,12 +56,14 @@ The platform is a multi-tenant loyalty engine with:
 - **Context-aware navigation**: CX metric click-throughs use `searchParams` to pre-populate campaign/survey builder forms without a separate API round-trip (e.g., `filter=detractors&maxNps=6` pre-fills the campaign builder audience segment). (Issue #78)
 - **Client-side utilities**: Pure, web-only functions (e.g. recommendation lookups, formatting helpers) are co-located in `apps/web/src/utils/` — not exported to `packages/shared`. Use this location for functions that have no server-side or cross-package use case. (Issue #79)
 - **Standard CRUD admin pattern**: All admin route-based CRUD entities follow the four-route layout `/admin/{entity}` (list), `/admin/{entity}/new` (create), `/admin/{entity}/[id]` (view-only), `/admin/{entity}/[id]/edit` (edit). The view route wraps the form in `<ViewOnlyBanner entityLabel="…" />` (`apps/web/src/components/ui/view-only-banner.tsx`). Each entity has a single `{Entity}Form` component accepting `mode: 'create' | 'edit' | 'view'` that derives `isViewOnly = mode === 'view'` and disables interactive controls; submit actions are hidden when `isViewOnly`. The list page exposes a clickable name `Link` to the view route plus a separate row-action "Edit" link to the edit route. Reference implementation: `apps/web/src/app/(admin)/admin/programs/`. See ADR `docs/architecture/adr/0001-admin-crud-route-pattern.md`. (Issue #157)
+- **Post-create landing for new Clerk organizations**: `<OrganizationSwitcher afterCreateOrganizationUrl="…" />` in the admin shell layout (`apps/web/src/app/(admin)/layout.tsx`) sets where Clerk navigates the admin after the create-organization dialog completes. The redirect target's first GET is the lazy-upsert site (see §3.2 lazy-upsert pattern). The companion props `organizationProfileMode="redirect"` + `organizationProfileUrl` opt out of Clerk's hosted org-profile modal so the "Manage" link deep-links to our settings page. (Issue #277)
 
 ### 3.2. API Layer (apps/api)
 - **Responsibility**: RESTful API (versioned at `/v1/`), request validation (Zod), authentication (Clerk JWT), multi-tenant scoping, event ingestion, campaign trigger evaluation, audit logging.
 - **Key Modules**: `apps/api/src/routes/` (domain routes), `apps/api/src/plugins/` (auth, multiTenant, audit, prisma, redis), `apps/api/src/queues/` (BullMQ queue factories)
 - **Entry Point**: `apps/api/src/server.ts` -> `app.ts` (Fastify factory)
 - **Plugin Registration Order**: CORS -> Sensible -> Prisma -> Redis -> Auth -> MultiTenant -> Audit
+- **Lazy-upsert provisioning pattern**: GET endpoints that are the canonical landing target for newly-created tenants may upsert their tenant resource row keyed by JWT-extracted identifier (e.g. `clerkOrgId`). This is the redirect-target counterpart to the webhook-driven provisioning at `/api/webhooks/identity-provider` and survives webhook delivery failures. The handler must be idempotent (re-runnable on every GET) and write only the bootstrap row, never user-supplied state. First seen in `GET /v1/admin/brand/profile` (Issue #277).
 
 ### 3.3. Event Processing Layer (apps/worker)
 - **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, external signal sync/ingestion, and outbound webhook delivery.
@@ -203,7 +208,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **auth** | `preHandler` | Session verification (delegates to `fastify.identityProvider.getSession()`), extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. **Route configs**: `public: true` skips auth entirely; `allowNoOrg: true` (Issue #170 PR 2) accepts sessions with `orgId === null` and decorates `clerkUserId` only — `brandId` is decorated only when `orgId` is non-null AND the brand exists. Used by `POST /api/auth/signup/finish` for the OAuth new-user-without-org case. (Issue #170 OD-5: no direct `@clerk/*` imports — see ADR 0004.) |
 | **identityProvider** | decorator | Single boundary for all identity-provider interactions (`createUserWithOrg`, `getSession`, `parseWebhook`, OAuth, `inviteMember`, etc.). `ClerkIdentityProvider` is the only concrete impl today; ESLint `no-restricted-imports` enforces the boundary. Issue #170 OD-5; ADR 0004. |
 | **multiTenant** | `preValidation` | Rejects any request body containing `brandId` — must come from JWT only |
-| **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
+| **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table. **Per-route metadata allowlist** (Issue #276 / Issue #277): route handlers populate `request.audit.metadata`; the plugin reads a per-route allowlist via `<route-id>.metadata` config keys and filters to the allowlist before persisting. Prevents accidental over-capture (e.g., raw bodies, secret-bearing fields) while letting per-route audit needs (`attestation`, `memberCountAtChange`, `changedFields`) flow into the row. |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
 | **redis** | decorator | IORedis client for queues and idempotency, graceful quit on shutdown. Decorates `fastify.redis` as `null` when `QUEUE_MODE=inline`; all callers must null-guard. |
 | **memberAuth** | helper | Lightweight member JWT verification for public endpoints. Uses `Authorization: Bearer <token>` header with Clerk `verifyToken()`. Returns member email/sub claims. Unlike org-level auth plugin, does not require Clerk organization context. Used by `/v1/public/campaigns/:id/play`. |

@@ -43,20 +43,21 @@ Every spec requirement R1–R26 mapped to the RFC section + data model that impl
 | **R21** — consentTextDefault seeded with default copy on lazy-upsert (containing `{{privacy}}` token); editable thereafter | RFC §4.1 (DEFAULT_CONSENT_TEXT constant set at upsert time) | Met | E2E test 1 (lazy-upsert defaults) asserts seeded text |
 | **R22** — GET returns Brand row + read-only fields + supportEmail + theme list + memberCount in single response | RFC §4.1 (`GetBrandProfileResponse` shape + `Promise.all` for parallel reads) | Met | API integration test: GET response shape |
 | **R23** — Brand schema includes `timezone` (IANA, NOT NULL, default `UTC`) and `locale` (BCP 47, NOT NULL, default `en-US`); lazy-upsert prefers browser hints | RFC §1 (schema diff) + §2 (migration SQL) + §4.1 (header-hint resolution at upsert) | Met | API integration test: GET on freshly-created brand returns hint-resolved timezone/locale; falls back to UTC/en-US when no hints |
-| **R24** — rename `Brand.sizeCategory` → `Brand.teamSize`; `OrgSizeCategory` enum unchanged in name | RFC §1 (schema diff) + §2 (migration SQL `ALTER TABLE … RENAME COLUMN`) | Met | Migration applied in CI; Prisma client regen confirms `teamSize` field |
-| **R25** — 4 default themes (Indigo / Forest / Sunset / Slate) available at first run; mechanism (per-brand seed vs. global) is design output | RFC §5 (decision: per-brand seed at provisioning + `isStockDefault` boolean + `@@unique([brandId, name])` constraint) | Met | E2E: scene-empty assertion that 4 themes are pickable from first paint |
+| **R24** — rename `Brand.sizeCategory` → `Brand.orgSize`; `OrgSizeCategory` enum reshaped (drop pre-#277 superseded values) | RFC §1 (schema diff) + §2 (migration SQL: column rename + enum recreate via type-swap) | Met | Migration applied in CI; Prisma client regen confirms `orgSize` field; integration test rejects superseded enum values. **Round 2 update**: rename target changed from `teamSize` to `orgSize` and enum reshape from additive-with-legacy to drop-superseded per PR #290 review (L33/L60/L79/L45). |
+| **R25** — 4 default themes (Indigo / Forest / Sunset / Slate) available at first run | RFC §5 (deferred to [#291](https://github.com/mathursrus/CustomerEQ/issues/291) — `BrandTheme` split prerequisite) | Met (mechanism deferred) | E2E coverage moves to #291 + #292 Slice 4. **Round 2 update**: per PR #290 review (L240/L248), the seed mechanism and underlying theme model are owned by #291; #277's contract remains "all four pickable from first paint" against whatever model #291 lands. |
 | **R26** — redirect admin to `/admin/settings/organization` on Clerk org-created event | RFC §7 (`afterCreateOrganizationUrl` prop) | Met | E2E test driving the OrganizationSwitcher create flow asserts redirect target |
 
 **Result:** All 26 requirements mapped to a concrete RFC section + data model. **0 Unmet rows.** Design-completeness review passes.
 
-### Architecture Gaps Documented for User Review
+### Architecture Gaps — Resolved in Round 2 (PR #290 review)
 
-Per the architecture-gap-review phase (RFC § Architecture Analysis):
+All five gap rows from the original RFC §Architecture Analysis are resolved and the architecture-doc updates land in the same commit as Round 2 of the RFC:
 
-1. **Per-route audit metadata allowlist pattern** — used by RFC §9; #276 RFC introduced; not yet in `architecture.md`. Suggested: add to architecture §4.2 audit-plugin row.
-2. **Lazy-upsert provisioning at GET** — RFC §3.7 + §4.1; new pattern for #277. Suggested: add to architecture §3.2 alongside the existing webhook-driven provisioning.
-3. **Domain-narrow runtime packages** (`packages/consent-text`, alongside `packages/embed`) — third instance of the pattern. Suggested: add to architecture §3 architectural-layers section.
-4. **React Hook Form + Zod resolver** as the form-state convention — used in #170 + this RFC; not in architecture §2 tech stack. Suggested: add a row.
+1. **Per-route audit metadata allowlist pattern** — Agreed (L491). Applied to `architecture.md` §4.2 audit-plugin row.
+2. **Lazy-upsert provisioning at GET** — Agreed (L492). Applied to `architecture.md` §3.2 as a bullet alongside the existing webhook-driven provisioning.
+3. **Domain-narrow runtime packages** (`packages/consent-text`, alongside `packages/embed`) — Agreed (L493). Applied to `architecture.md` §3 introduction as a sibling pattern to the layer organization.
+4. **React Hook Form + Zod resolver** — No reviewer objection on PR #290's L494 thread (silent-as-agreed for a low-stakes documentation row). Applied to `architecture.md` §2 tech stack table.
+5. **Clerk's `afterCreateOrganizationUrl`** — Spike-then-apply (L495). Documentation re-read against Clerk's official `<OrganizationSwitcher>` reference + apps/web grep cleared the spike (verifying artifact: https://clerk.com/docs/react/reference/components/organization/organization-switcher; codebase has zero existing usage). Applied to `architecture.md` §3.1 admin-portal subsection.
 5. **Clerk `afterCreateOrganizationUrl` + `organizationProfileUrl`** as post-create-landing + Manage-redirect mechanism — used in RFC §7. Suggested: add to architecture §3.1 admin-portal subsection.
 
 These gaps are documented; **no architecture-document edits were made in this phase**. Updates land during `address-feedback` (RFC phase 7), gated by user direction in PR review.
