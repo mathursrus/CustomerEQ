@@ -12,6 +12,7 @@ import {
 } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
 import { enqueueEvent, enqueueNotification, enqueueHealthScoreComputation } from '../queues/bullmq.js'
+import { resolveOrEnrollMember } from '../services/memberResolution.js'
 
 function formatEventLabel(
   eventType: string,
@@ -50,19 +51,23 @@ function formatEventLabel(
 }
 
 const membersRoutes: FastifyPluginAsync = async (fastify) => {
-  // POST /v1/members/enroll — public route (new member has no org JWT yet)
+  // POST /v1/members/enroll — public route (new member has no org JWT yet).
+  //
+  // Issue #231 PR2: rewrite for the polymorphic identifier model.
+  // - Lookup keyed on `(brandId, externalId)` derived from `memberId` (R4/R5).
+  // - Idempotent upsert: re-enroll with the same memberId returns 200 with
+  //   `updated`/`updatedFields` rather than 409 (R6). Bulk-import scripts
+  //   can replay the same payload and get last-write-wins.
+  // - `consentGivenAt` is optional; server-stamps `now()` if absent (R8).
+  // - `enrolledVia = MANUAL_API` for this channel; immutable post-create (R15).
+  // - Identifier-shape validation per `Brand.memberIdentifierKind` (R4) — a
+  //   PHONE brand rejects a non-E.164 memberId with 400.
+  //
   // brandId is derived from programId lookup, never from request body.
   // clerkToken (optional) is verified internally to capture clerkUserId.
   fastify.post('/members/enroll', { config: { public: true } }, async (request, reply) => {
     const parse = EnrollMemberSchema.safeParse(request.body)
     if (!parse.success) {
-      const consentIssue = parse.error.errors.find((e) => e.path.includes('consentGiven'))
-      if (consentIssue) {
-        return reply.status(422).send({
-          error: 'CONSENT_REQUIRED',
-          message: 'You must accept the privacy policy and terms to enroll.',
-        })
-      }
       return reply.status(422).send({
         error: 'Validation failed',
         message: parse.error.errors.map((e) => e.message).join(', '),
@@ -94,81 +99,114 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
 
     const brandId = program.brandId
 
-    // Duplicate check — return 409 per spec R3
-    const existing = await fastify.prisma.member.findUnique({
-      where: { brandId_email: { brandId, email: data.email } },
-    })
-    if (existing) {
-      return reply.status(409).send({
-        error: 'EMAIL_ALREADY_ENROLLED',
-        message: 'This email is already enrolled in this program.',
-      })
-    }
-
-    let member: Awaited<ReturnType<typeof fastify.prisma.member.create>>
+    let result: Awaited<ReturnType<typeof resolveOrEnrollMember>>
     try {
-      member = await fastify.prisma.member.create({
-        data: {
-          brandId,
+      result = await resolveOrEnrollMember(fastify.prisma, brandId, {
+        memberId: data.memberId,
+        email: data.email,
+        phone: data.phone,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        consentGivenAt: data.consentGivenAt ? new Date(data.consentGivenAt) : undefined,
+        consentVersion: data.consentVersion,
+        emailOptIn: data.emailOptIn,
+        smsOptIn: data.smsOptIn,
+        clerkUserId,
+        enrolledVia: 'MANUAL_API',
+      })
+    } catch (err: unknown) {
+      // Race-condition duplicate (P2002 unique constraint) — another concurrent
+      // enroll won the create. Re-resolve via a single follow-up call which
+      // will hit the existing-member branch this time.
+      const e = err as { code?: string }
+      if (e?.code === 'P2002') {
+        result = await resolveOrEnrollMember(fastify.prisma, brandId, {
+          memberId: data.memberId,
           email: data.email,
-          clerkUserId: clerkUserId ?? undefined,
-          firstName: data.firstName ?? undefined,
-          lastName: data.lastName ?? undefined,
-          phone: data.phone ?? undefined,
-          pointsBalance: 0,
-          status: 'ACTIVE',
-          consentGivenAt: new Date(data.consentGivenAt),
+          phone: data.phone,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          consentGivenAt: data.consentGivenAt ? new Date(data.consentGivenAt) : undefined,
           consentVersion: data.consentVersion,
           emailOptIn: data.emailOptIn,
           smsOptIn: data.smsOptIn,
-        },
-      })
-    } catch (err: unknown) {
-      // Race-condition duplicate (P2002 unique constraint)
-      const e = err as { code?: string }
-      if (e?.code === 'P2002') {
-        return reply.status(409).send({
-          error: 'EMAIL_ALREADY_ENROLLED',
-          message: 'This email is already enrolled in this program.',
+          clerkUserId,
+          enrolledVia: 'MANUAL_API',
         })
+      } else {
+        throw err
       }
-      throw err
     }
 
+    if (!result.ok) {
+      return reply.status(400).send({
+        error: result.error.code,
+        message: result.error.message,
+        expectedKind: result.error.expectedKind,
+      })
+    }
+
+    const { member, created, updatedFields } = result
     const ingestedAt = new Date().toISOString()
 
-    // Enqueue enrollment loyalty event (non-blocking) — worker handles bonus points
-    enqueueEvent({
-      brandId,
-      memberId: member.id,
-      eventType: 'enrollment',
-      payload: { programId: program.id, programName: program.name },
-      idempotencyKey: `enrollment:${member.id}`,
-      ingestedAt,
-    }).catch((err: unknown) => {
-      fastify.log.error({ err, memberId: member.id }, 'Failed to enqueue enrollment event')
-    })
+    if (created) {
+      // Enqueue enrollment loyalty event (non-blocking) — worker handles bonus points.
+      // Only fired on first enrollment; re-enroll is a no-op for the loyalty pipeline.
+      enqueueEvent({
+        brandId,
+        memberId: member.id,
+        eventType: 'enrollment',
+        payload: { programId: program.id, programName: program.name },
+        idempotencyKey: `enrollment:${member.id}`,
+        ingestedAt,
+      }).catch((err: unknown) => {
+        fastify.log.error({ err, memberId: member.id }, 'Failed to enqueue enrollment event')
+      })
 
-    // Enqueue welcome notification (non-blocking)
-    enqueueNotification({
-      memberId: member.id,
-      brandId,
-      channel: 'email',
-      message: `Welcome to ${program.name}! You're now enrolled and earning points.`,
-      metadata: { programName: program.name, enrollmentBonusPending: true },
-    }).catch((err: unknown) => {
-      fastify.log.error({ err, memberId: member.id }, 'Failed to enqueue welcome notification')
-    })
+      // Welcome notification — first enrollment only. The address goes to the
+      // member's email if known; PHONE / CUSTOMER_ID brands without an email
+      // skip notification at the API layer (worker no-ops on null channel).
+      if (member.email) {
+        enqueueNotification({
+          memberId: member.id,
+          brandId,
+          channel: 'email',
+          message: `Welcome to ${program.name}! You're now enrolled and earning points.`,
+          metadata: { programName: program.name, enrollmentBonusPending: true },
+        }).catch((err: unknown) => {
+          fastify.log.error({ err, memberId: member.id }, 'Failed to enqueue welcome notification')
+        })
+      }
 
-    fastify.log.info({ memberId: member.id, brandId, programId: program.id }, 'member.enrolled')
+      fastify.log.info({ memberId: member.id, brandId, programId: program.id }, 'member.enrolled')
 
-    return reply.status(201).send({
+      return reply.status(201).send({
+        memberId: member.id,
+        email: member.email,
+        firstName: member.firstName ?? null,
+        pointsBalance: member.pointsBalance,
+        programName: program.name,
+        enrolledVia: member.enrolledVia,
+        enrollmentBonusPending: true,
+      })
+    }
+
+    // R6 idempotent re-enroll — return 200 with the change set.
+    fastify.log.info(
+      { memberId: member.id, brandId, programId: program.id, updatedFields },
+      'member.reenrolled',
+    )
+
+    return reply.status(200).send({
       memberId: member.id,
       email: member.email,
       firstName: member.firstName ?? null,
       pointsBalance: member.pointsBalance,
       programName: program.name,
-      enrollmentBonusPending: true,
+      enrolledVia: member.enrolledVia,
+      enrollmentBonusPending: false,
+      updated: updatedFields.length > 0,
+      updatedFields,
     })
   })
 

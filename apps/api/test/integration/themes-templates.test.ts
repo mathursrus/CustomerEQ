@@ -106,23 +106,34 @@ describe('Themes & Templates API', () => {
   // 5. Set theme as default
   // ---------------------------------------------------------------------------
 
-  it('sets theme as default via POST /v1/themes/:id/default', async () => {
+  it('sets theme as default via POST /v1/themes/:id/default (Issue #291 — writes Brand.defaultThemeId)', async () => {
     const brand = await createBrand()
     const request = authenticatedRequest(brand.id)
 
-    const theme1Res = await request.post('/v1/themes').send({ ...themePayload, isDefault: true })
+    // Issue #291 — `isDefault` is no longer accepted on create; it's a server-derived
+    // value computed from `brand.defaultThemeId === theme.id`. The dedicated
+    // `POST /v1/themes/:id/default` endpoint writes `Brand.defaultThemeId` directly.
+    const theme1Res = await request.post('/v1/themes').send(themePayload)
     const theme2Res = await request.post('/v1/themes').send({ ...themePayload, name: 'Alt Theme' })
     const theme1Id = theme1Res.body.id
     const theme2Id = theme2Res.body.id
 
-    // Set theme2 as default
-    const res = await request.post(`/v1/themes/${theme2Id}/default`)
+    // Both newly-created themes start as non-default.
+    expect(theme1Res.body.isDefault).toBe(false)
+    expect(theme2Res.body.isDefault).toBe(false)
 
+    // Set theme1 as default → theme1.isDefault should derive to true.
+    await request.post(`/v1/themes/${theme1Id}/default`)
+    let theme1Detail = await request.get(`/v1/themes/${theme1Id}`)
+    expect(theme1Detail.body.isDefault).toBe(true)
+
+    // Move default to theme2.
+    const res = await request.post(`/v1/themes/${theme2Id}/default`)
     expect(res.status).toBe(200)
     expect(res.body.isDefault).toBe(true)
 
-    // theme1 should no longer be default
-    const theme1Detail = await request.get(`/v1/themes/${theme1Id}`)
+    // theme1 should no longer be default (derived from brand.defaultThemeId).
+    theme1Detail = await request.get(`/v1/themes/${theme1Id}`)
     expect(theme1Detail.body.isDefault).toBe(false)
   })
 

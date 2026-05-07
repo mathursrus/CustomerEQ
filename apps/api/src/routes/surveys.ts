@@ -26,7 +26,12 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const brandId = request.brandId
-    const { name, programId, type, questions, settings, incentivePoints, themeId, triggerCategory, triggerKey, surveyTypeOverride } = parse.data
+    const {
+      name, programId, type, questions, settings, incentivePoints, themeId,
+      triggerCategory, triggerKey, surveyTypeOverride,
+      // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
+      thankYouMessage, thankYouRedirectUrl, showIncentivePoints,
+    } = parse.data
 
     // Verify program belongs to this brand
     const program = await fastify.prisma.program.findFirst({
@@ -49,6 +54,9 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         triggerCategory: triggerCategory ?? null,
         triggerKey: triggerKey ?? null,
         surveyTypeOverride: surveyTypeOverride ?? null,
+        thankYouMessage,
+        thankYouRedirectUrl: thankYouRedirectUrl ?? null,
+        showIncentivePoints,
       },
     })
 
@@ -162,7 +170,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Verify theme belongs to brand if provided
     if (parse.data.themeId) {
-      const theme = await fastify.prisma.surveyTheme.findFirst({
+      const theme = await fastify.prisma.brandTheme.findFirst({
         where: { id: parse.data.themeId, brandId: request.brandId },
       })
       if (!theme) {
@@ -214,9 +222,11 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(422).send({ error: 'Member consent required' })
     }
 
-    // Check for duplicate response
-    const existing = await fastify.prisma.surveyResponse.findUnique({
-      where: { surveyId_memberId: { surveyId, memberId } },
+    // Check for duplicate response — #231 PR1: findUnique → findFirst because
+    // the @@unique([surveyId, memberId]) constraint was dropped per R2. PR2
+    // replaces with Survey.responsePolicy enforcement (R3).
+    const existing = await fastify.prisma.surveyResponse.findFirst({
+      where: { surveyId, memberId },
     })
     if (existing) {
       return reply.status(200).send({ duplicate: true, responseId: existing.id })

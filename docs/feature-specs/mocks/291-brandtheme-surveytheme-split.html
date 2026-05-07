@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#291 Theme editor — drop fields (before / after) — CustomerEQ Mock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; color: #111827; padding: 24px; }
+
+  .legend { max-width: 1080px; margin: 0 auto 16px; padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #374151; }
+  .legend strong { color: #111827; }
+  .legend .swatch-removed { display: inline-block; width: 12px; height: 12px; background: #fee2e2; border: 1px solid #fca5a5; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1080px; margin: 0 auto; }
+  .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+  .panel-label { padding: 8px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .panel-label.before { background: #1f2937; color: #fff; }
+  .panel-label.after  { background: #065f46; color: #fff; }
+  .panel-body { padding: 20px; }
+
+  /* Editor heading */
+  .heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .heading h1 { font-size: 16px; font-weight: 700; color: #111827; }
+  .badge-default { display: inline-block; padding: 2px 8px; background: #e0e7ff; color: #4338ca; border-radius: 999px; font-size: 11px; font-weight: 500; }
+
+  /* Section */
+  section { margin-bottom: 18px; }
+  .section-title { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+  .field input[type="text"],
+  .field textarea { width: 100%; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; }
+  .field textarea { min-height: 44px; resize: vertical; }
+  .field input[type="checkbox"] { width: 14px; height: 14px; vertical-align: middle; }
+  .field.checkbox-row label { display: inline; font-weight: 500; vertical-align: middle; margin-left: 6px; margin-bottom: 0; }
+
+  /* Color row */
+  .color-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .color-row label { flex: 1; font-size: 12px; color: #374151; }
+  .color-row input[type="color"] { width: 28px; height: 28px; border: 1px solid #d1d5db; border-radius: 6px; }
+  .color-row .hex { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6b7280; width: 60px; text-align: right; }
+
+  /* Chip group placeholder */
+  .chips { display: flex; gap: 4px; }
+  .chips span { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 11px; color: #374151; }
+  .chips span.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+  /* Removed-row treatment */
+  .removed { background: #fee2e2; border-radius: 6px; padding: 6px 8px; opacity: 0.85; position: relative; }
+  .removed::after { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 1px; background: #b91c1c; }
+  .removed input,
+  .removed textarea { background: #fff; pointer-events: none; }
+  .removed-tag { display: inline-block; background: #b91c1c; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; vertical-align: middle; margin-left: 6px; }
+  .removed-section { padding: 10px; background: #fee2e2; border: 1px dashed #fca5a5; border-radius: 8px; }
+  .removed-section .section-title { color: #b91c1c; }
+
+  /* Action buttons */
+  .actions { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid #f3f4f6; }
+  .btn { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid transparent; cursor: pointer; text-align: center; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-secondary { background: #fff; color: #6366f1; border-color: #6366f1; }
+  .btn-danger { background: #fff; color: #dc2626; border-color: #fecaca; }
+
+  /* Footnote */
+  .footnote { max-width: 1080px; margin: 16px auto 0; padding: 12px 16px; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 8px; font-size: 12px; color: #155e75; }
+  .footnote strong { color: #0e7490; }
+  .footnote code { background: #fff; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <strong>#291 — drop 6 fields from the theme editor.</strong> Side-by-side: <em>before</em> on the left (current <code>ThemeForm.tsx</code> layout, all 6 rows present), <em>after</em> on the right (same layout, 6 rows literally removed).
+  <span class="swatch-removed"></span> Red rows on the left mark what disappears; the right panel shows the resulting state. <strong>No layout change</strong> — sections that retain at least one input keep their header and position.
+</div>
+
+<section class="pair" id="scene-theme-editor-after">
+
+  <!-- ────────── BEFORE ────────── -->
+  <div class="panel">
+    <div class="panel-label before">Before — current ThemeForm.tsx</div>
+    <div class="panel-body">
+
+      <div class="heading">
+        <h1>Edit Theme</h1>
+        <span class="badge-default">Default</span>
+      </div>
+
+      <section>
+        <div class="section-title">Brand</div>
+        <div class="field">
+          <label>Theme Name</label>
+          <input type="text" value="Corporate Blue">
+        </div>
+        <div class="field removed">
+          <label>Logo URL <span class="removed-tag">DROPPED</span></label>
+          <input type="text" value="https://acme.com/logo.png">
+        </div>
+        <div class="field removed">
+          <label>Brand Name <span class="removed-tag">DROPPED</span></label>
+          <input type="text" value="Acme Corp">
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">Colors</div>
+        <div class="color-row"><label>Primary</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Secondary</label><input type="color" value="#3b82f6"><span class="hex">#3b82f6</span></div>
+        <div class="color-row"><label>Background</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Text</label><input type="color" value="#111827"><span class="hex">#111827</span></div>
+        <div class="color-row"><label>Button</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Button text</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Accent</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+      </section>
+
+      <section>
+        <div class="section-title">Typography</div>
+        <div class="field"><label>Font Family</label><input type="text" value="Inter"></div>
+        <div class="field"><label>Heading Size</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+        <div class="field"><label>Body Size</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+      </section>
+
+      <section>
+        <div class="section-title">Layout</div>
+        <div class="field"><label>Card Style</label><div class="chips"><span>flat</span><span class="active">shadow</span><span>border</span></div></div>
+        <div class="field"><label>Border Radius</label><div class="chips"><span>none</span><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+        <div class="field"><label>Max Width</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+      </section>
+
+      <section class="removed-section">
+        <div class="section-title">Thank You <span class="removed-tag">SECTION DROPPED</span></div>
+        <div class="field">
+          <label>Message</label>
+          <textarea>Thanks! You earned {{points}} points.</textarea>
+        </div>
+        <div class="field">
+          <label>Redirect URL</label>
+          <input type="text" value="https://acme.com/rewards">
+        </div>
+        <div class="field checkbox-row">
+          <input type="checkbox" checked id="b-show-points"><label for="b-show-points">Show incentive points</label>
+        </div>
+      </section>
+
+      <section class="removed">
+        <div class="field checkbox-row" style="margin: 0;">
+          <input type="checkbox" checked id="b-is-default"><label for="b-is-default">Set as default theme <span class="removed-tag">DROPPED</span></label>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button class="btn btn-primary">Save Changes</button>
+        <button class="btn btn-secondary">Set as Default</button>
+        <button class="btn btn-danger">Delete Theme</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────── AFTER ────────── -->
+  <div class="panel">
+    <div class="panel-label after">After — 6 rows removed, layout unchanged</div>
+    <div class="panel-body">
+
+      <div class="heading">
+        <h1>Edit Theme</h1>
+        <span class="badge-default">Default</span>
+      </div>
+
+      <section>
+        <div class="section-title">Brand</div>
+        <div class="field">
+          <label>Theme Name</label>
+          <input type="text" value="Corporate Blue">
+        </div>
+        <!-- Logo URL row dropped -->
+        <!-- Brand Name row dropped -->
+      </section>
+
+      <section>
+        <div class="section-title">Colors</div>
+        <div class="color-row"><label>Primary</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Secondary</label><input type="color" value="#3b82f6"><span class="hex">#3b82f6</span></div>
+        <div class="color-row"><label>Background</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Text</label><input type="color" value="#111827"><span class="hex">#111827</span></div>
+        <div class="color-row"><label>Button</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Button text</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Accent</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+      </section>
+
+      <section>
+        <div class="section-title">Typography</div>
+        <div class="field"><label>Font Family</label><input type="text" value="Inter"></div>
+        <div class="field"><label>Heading Size</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+        <div class="field"><label>Body Size</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+      </section>
+
+      <section>
+        <div class="section-title">Layout</div>
+        <div class="field"><label>Card Style</label><div class="chips"><span>flat</span><span class="active">shadow</span><span>border</span></div></div>
+        <div class="field"><label>Border Radius</label><div class="chips"><span>none</span><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+        <div class="field"><label>Max Width</label><div class="chips"><span>sm</span><span class="active">md</span><span>lg</span></div></div>
+      </section>
+
+      <!-- Thank You section dropped entirely -->
+      <!-- Set-as-default-theme checkbox row dropped -->
+
+      <div class="actions">
+        <button class="btn btn-primary">Save Changes</button>
+        <button class="btn btn-secondary">Set as Default</button>
+        <button class="btn btn-danger">Delete Theme</button>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<div class="footnote">
+  <strong>Behavior unchanged that may not be obvious from the visual diff:</strong>
+  the existing <code>Set as Default</code> button (after panel, secondary action) still works. Its <code>onClick</code> still calls <code>POST /v1/themes/:id/default</code>, but the handler's write target switches from a per-row <code>isDefault</code> boolean to <code>Brand.defaultThemeId</code> in a single statement. The "Default" badge in the heading is now backed by <code>brand.defaultThemeId === theme.id</code> rather than <code>theme.isDefault</code>. The right-side preview pane (not drawn here) drops its brand-name placeholder and thank-you screen preview; its survey-question preview is unchanged.
+</div>
+
+<div class="footnote" style="margin-top: 8px; background: #ecfccb; border-color: #84cc16; color: #365314;">
+  <strong>Schema-side scope (not pictured here — happens in the migration + renderer):</strong>
+  the three thank-you fields move to typed columns on <code>Survey</code> (<code>thankYouMessage</code>, <code>thankYouRedirectUrl</code>, <code>showIncentivePoints</code>); the migration <em>backfills</em> demo customisations from <code>survey_themes</code> to the corresponding <code>surveys</code> rows so Acme / StarBrew / Diamond render identically post-migration. The renderer rebinds <code>theme.logoUrl</code> → <code>survey.brand.logoUrl</code>, <code>theme.brandName</code> → <code>survey.brand.name</code>, and the three thank-you reads to the new <code>survey.*</code> columns. Public survey API response gains <code>brand.logoUrl</code>.
+</div>
+
+<div class="footnote" style="margin-top: 8px; background: #fef3c7; border-color: #fcd34d; color: #78350f;">
+  <strong>Out of scope for #291 (deferred):</strong>
+  the survey-builder admin UI for the three new <code>Survey</code> columns. <code>POST /v1/surveys</code> and <code>PATCH /v1/surveys/:id</code> accept the fields on the body so admins can set them via API today; the survey-edit form section that exposes them in <code>/admin/surveys/:id/edit</code> is a separate issue, owned by whoever picks up Survey Admin UX (likely under #241).
+</div>
+
+</body>
+</html>

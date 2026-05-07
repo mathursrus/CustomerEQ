@@ -4,19 +4,49 @@ import { z } from 'zod'
 import { DemoRequestSchema, NPS, evaluateSurveyRule } from '@customerEQ/shared'
 import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueCampaignTrigger } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
+import { resolveOrEnrollMember } from '../services/memberResolution.js'
+import { getConsentTextForSurvey } from '../services/consentResolver.js'
+import { buildEnrollmentSignals } from '../services/enrollmentSignals.js'
 
 const API_BASE_URL =
   process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
 
-// Schema for public survey response submission (uses memberEmail, not memberId)
+// Issue #231 PR2 — survey response submission schema.
+//
+// Identifier shape:
+//   - `memberId` (request body) is optional because the URL query param
+//     `member_id` is an equally valid carrier (used by host-embedded surveys
+//     where the host SDK supplies identity in the URL). The handler enforces
+//     "at least one of URL query / body memberId is required" — see channel
+//     attribution rule.
+//   - `memberEmail` is preserved for back-compat with the existing widget.js
+//     embed payload, which today posts `{ memberEmail, answers, score }`.
+//     Treated as the memberId when no explicit memberId is supplied.
+//
+// Consent:
+//   - `consent: true` is required when Brand.consentMode = EXPLICIT and the
+//     survey isn't using the R17 attest-and-suppress empty-string override.
+//     Otherwise consent is server-stamped (R8).
 const PublicSurveyResponseSchema = z.object({
-  memberEmail: z.string().email('Valid email is required'),
+  memberId: z.string().min(1).optional(),
+  // Legacy back-compat: existing widget.js sends this; treat as memberId.
+  memberEmail: z.string().email().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().max(20).optional(),
+  firstName: z.string().min(1).max(50).optional(),
+  lastName: z.string().min(1).max(50).optional(),
+  consent: z.boolean().optional(),
+  consentVersion: z.string().max(20).optional(),
   answers: z.record(z.unknown()).refine(
     (val) => Object.keys(val).length > 0,
     { message: 'At least one answer is required' },
   ),
   score: z.number().min(0, 'Score must be at least 0').max(10, 'Score must be at most 10').optional(),
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
+})
+
+const RespondQuerySchema = z.object({
+  member_id: z.string().min(1).optional(),
 })
 
 // Schema for webhook-triggered survey distribution
@@ -125,7 +155,12 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           type: true,
           questions: true,
           incentivePoints: true,
-          brand: { select: { name: true } },
+          // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
+          thankYouMessage: true,
+          thankYouRedirectUrl: true,
+          showIncentivePoints: true,
+          // Issue #291 — brand.logoUrl exposed so renderer can rebind theme.logoUrl → survey.brand.logoUrl.
+          brand: { select: { name: true, logoUrl: true } },
           theme: true,
           _count: { select: { surveyRules: true } },
         },
@@ -141,12 +176,43 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
   )
 
   // POST /v1/public/surveys/:id/respond — submit response (public, no auth)
-  // Uses memberEmail to look up member instead of JWT-based memberId
+  //
+  // Issue #231 PR2 — auto-enroll on first response + responsePolicy enforcement.
+  //
+  // Channel attribution rule (R10/R15) — the `enrolledVia` set on a newly
+  // auto-enrolled member depends on where the identifier was supplied:
+  //
+  //   - URL query `?member_id=…`        → EMBEDDED_FORM
+  //   - Request body `memberId`         → SURVEY_RESPONSE
+  //   - URL query takes priority when both are present.
+  //   - Legacy `memberEmail` body field is treated as a body-supplied memberId.
+  //
+  // The names describe the *channel*: EMBEDDED_FORM = host application embedded
+  // the survey and supplied identity; SURVEY_RESPONSE = standalone survey link
+  // and the responder self-identified on the form. URL-vs-body is the detection
+  // signal, not a security gate.
+  //
+  // responsePolicy enforcement (R3):
+  //   ONCE              → 409 if a prior response exists.
+  //   MULTIPLE          → always insert a new row (default for new surveys).
+  //   LATEST_OVERWRITES → upsert: keep one row per member, replacing answers/score.
+  //
+  // R18 enrollment-signal capture: the auto-enroll loyalty event payload
+  // includes `enrollmentSignals = { ipHash, ipCountryIso, capturedAt }`.
   fastify.post(
     '/public/surveys/:id/respond',
     { config: { public: true } },
     async (request, reply) => {
       const { id: surveyId } = request.params as { id: string }
+
+      const queryParse = RespondQuerySchema.safeParse(request.query)
+      if (!queryParse.success) {
+        return reply.status(422).send({
+          error: 'Validation failed',
+          message: queryParse.error.errors.map((e) => e.message).join(', '),
+        })
+      }
+
       const parse = PublicSurveyResponseSchema.safeParse(request.body)
       if (!parse.success) {
         return reply.status(422).send({
@@ -156,11 +222,45 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         })
       }
 
-      const { memberEmail, answers, score, channel } = parse.data
+      const data = parse.data
+      const queryMemberId = queryParse.data.member_id?.trim()
+      const bodyMemberId = (data.memberId ?? data.memberEmail ?? '').trim()
 
-      // Find the survey (must be active)
+      // Channel attribution: URL query wins, then body. No identifier at all
+      // is a 400 — auto-enroll requires *something* to identify the responder.
+      let identifierValue: string
+      let enrolledVia: 'EMBEDDED_FORM' | 'SURVEY_RESPONSE'
+      if (queryMemberId) {
+        identifierValue = queryMemberId
+        enrolledVia = 'EMBEDDED_FORM'
+      } else if (bodyMemberId) {
+        identifierValue = bodyMemberId
+        enrolledVia = 'SURVEY_RESPONSE'
+      } else {
+        return reply.status(400).send({
+          error: 'NO_IDENTIFIER',
+          message:
+            'Survey response requires an identifier — supply ?member_id=… in the URL or memberId/memberEmail in the body.',
+        })
+      }
+
+      const { answers, score, channel } = data
+
+      // Find the survey (must be active) — also need brand consent fields.
       const survey = await fastify.prisma.survey.findFirst({
         where: { id: surveyId, status: 'ACTIVE' },
+        include: {
+          brand: {
+            select: {
+              id: true,
+              consentMode: true,
+              consentTextDefault: true,
+              privacyPolicyUrl: true,
+              termsUrl: true,
+              memberIdentifierKind: true,
+            },
+          },
+        },
       })
       if (!survey) {
         return reply.status(404).send({ error: 'Survey not found or not active' })
@@ -168,27 +268,68 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
       const brandId = survey.brandId
 
-      // Look up member by email within the survey's brand
-      const member = await fastify.prisma.member.findFirst({
-        where: { email: memberEmail, brandId, deletedAt: null },
-        select: { id: true, consentGivenAt: true },
-      })
-      if (!member) {
-        return reply.status(404).send({ error: 'Member not found for this email' })
-      }
-      if (!member.consentGivenAt) {
-        return reply.status(422).send({ error: 'Member consent required' })
+      // Resolve consent expectations for this survey × brand pair.
+      // survey.consentMode (Issue #276) overrides brand.consentMode when non-null.
+      const consentResolution = getConsentTextForSurvey(
+        { consentTextOverride: survey.consentTextOverride, consentMode: survey.consentMode },
+        survey.brand,
+      )
+
+      // EXPLICIT mode + not suppressed → consent boolean is required in body.
+      // The R17 attest-and-suppress path bypasses this requirement (the brand
+      // admin attested in writing during survey setup that responders have
+      // prior consent in their own system).
+      if (consentResolution.requiresExplicitConsent && data.consent !== true) {
+        return reply.status(400).send({
+          error: 'CONSENT_REQUIRED',
+          message:
+            'This survey requires explicit consent. Set "consent": true in the request body.',
+        })
       }
 
-      // Check for duplicate response
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Auto-enroll or resolve existing member. The `consentGivenAt` is
+      // server-stamped to now() on first enrollment (R8 + Compliance §);
+      // existing members' consentGivenAt is preserved unless the integrator
+      // re-attests by sending an explicit consentGivenAt (not exposed on
+      // this public-form path).
+      const enrollResult = await resolveOrEnrollMember(fastify.prisma, brandId, {
+        memberId: identifierValue,
+        email: data.email,
+        phone: data.phone,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        consentVersion: data.consentVersion,
+        enrolledVia,
       })
-      if (existing) {
-        return reply.status(200).send({
-          duplicate: true,
-          responseId: existing.id,
-          message: 'You have already responded to this survey',
+
+      if (!enrollResult.ok) {
+        return reply.status(400).send({
+          error: enrollResult.error.code,
+          message: enrollResult.error.message,
+          expectedKind: enrollResult.error.expectedKind,
+        })
+      }
+
+      const member = enrollResult.member
+      const autoEnrolled = enrollResult.created
+
+      // R3 — responsePolicy enforcement. Default is MULTIPLE for new surveys
+      // (see migration 20260504000000); legacy unique constraint already
+      // dropped in PR1.
+      const policy = survey.responsePolicy ?? 'MULTIPLE'
+      let priorResponse: { id: string } | null = null
+      if (policy === 'ONCE' || policy === 'LATEST_OVERWRITES') {
+        priorResponse = await fastify.prisma.surveyResponse.findFirst({
+          where: { surveyId, memberId: member.id },
+          select: { id: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      }
+      if (policy === 'ONCE' && priorResponse) {
+        return reply.status(409).send({
+          error: 'RESPONSE_ALREADY_EXISTS',
+          priorResponseId: priorResponse.id,
+          message: 'This survey accepts only one response per member.',
         })
       }
 
@@ -204,25 +345,83 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       // Extract open-ended text
       const openEndedText = extractOpenEndedText(answers)
 
-      // Create response + update count in transaction
-      const [response] = await fastify.prisma.$transaction([
-        fastify.prisma.surveyResponse.create({
+      // Create or overwrite response, plus increment responsesCount on new rows.
+      let response: { id: string }
+      if (policy === 'LATEST_OVERWRITES' && priorResponse) {
+        // Update in place — single row per member-survey under this policy.
+        response = await fastify.prisma.surveyResponse.update({
+          where: { id: priorResponse.id },
           data: {
-            surveyId,
-            memberId: member.id,
-            brandId,
             answers: answers as Prisma.InputJsonValue,
             score: score ?? null,
             channel,
           },
-        }),
-        fastify.prisma.survey.update({
-          where: { id: surveyId },
-          data: { responsesCount: { increment: 1 } },
-        }),
-      ])
+          select: { id: true },
+        })
+      } else {
+        const created = await fastify.prisma.$transaction([
+          fastify.prisma.surveyResponse.create({
+            data: {
+              surveyId,
+              memberId: member.id,
+              brandId,
+              answers: answers as Prisma.InputJsonValue,
+              score: score ?? null,
+              channel,
+            },
+          }),
+          fastify.prisma.survey.update({
+            where: { id: surveyId },
+            data: { responsesCount: { increment: 1 } },
+          }),
+        ])
+        response = created[0]
+      }
 
       const ingestedAt = new Date().toISOString()
+
+      // R18 — capture enrollment signals on auto-enroll *only*. Existing
+      // members' enrollment signals were captured at their original enroll
+      // moment; we don't re-capture on every survey response.
+      if (autoEnrolled) {
+        const ip = (request.ip ?? null) as string | null
+        const ipCountryIso = await fastify.ipGeoProvider.getCountryFromIp(ip ?? '')
+        const enrollmentSignals = buildEnrollmentSignals({
+          ip,
+          brandId,
+          ipCountryIso,
+        })
+
+        // Synchronous-fork-of-event-driven (architecture §6 — to be added in
+        // PR2): the auto-enroll DB insert + this enrollment loyalty event are
+        // gated by the resolveOrEnrollMember call above so the rule pipeline
+        // sees a coherent member-then-event ordering.
+        enqueueEvent({
+          brandId,
+          memberId: member.id,
+          eventType: 'enrollment',
+          payload: {
+            programId: null,
+            programName: null,
+            autoEnrolled: true,
+            enrolledVia,
+            surveyId,
+            enrollmentSignals,
+          },
+          idempotencyKey: `enrollment:${member.id}`,
+          ingestedAt,
+        }).catch((err: unknown) => {
+          fastify.log.error(
+            { err, memberId: member.id, brandId, surveyId },
+            'Failed to enqueue auto-enrollment event',
+          )
+        })
+
+        fastify.log.info(
+          { memberId: member.id, brandId, enrolledVia, surveyId, ipCountryIso },
+          'member.auto_enrolled',
+        )
+      }
 
       // Build event payload with score fields for campaign triggers
       const eventPayload: Record<string, unknown> = {
@@ -346,8 +545,15 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         })
       }
 
+      const wasOverwrite = policy === 'LATEST_OVERWRITES' && Boolean(priorResponse)
+
       return reply.status(201).send({
-        responseId: response.id,
+        surveyResponseId: response.id,
+        memberId: member.id,
+        autoEnrolled,
+        enrolledVia: autoEnrolled ? enrolledVia : null,
+        responsePolicy: policy,
+        overwrote: wasOverwrite,
         jobId,
         message: 'Thank you for your feedback!',
         incentivePoints: survey.incentivePoints ?? 0,
@@ -380,21 +586,29 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Survey not found or not active' })
       }
 
-      // Find member
-      const member = await fastify.prisma.member.findFirst({
-        where: { email: memberEmail, brandId: survey.brandId, deletedAt: null },
-        select: { id: true, consentGivenAt: true, email: true },
+      // Issue #231 PR2: lookup keyed on canonical externalId (R5
+      // case-insensitive). For EMAIL brands externalId mirrors lower(trim(email))
+      // per the migration backfill, so a webhook arriving with the email value
+      // resolves to the same member regardless of case.
+      const member = await fastify.prisma.member.findUnique({
+        where: {
+          brandId_externalId: {
+            brandId: survey.brandId,
+            externalId: memberEmail.trim().toLowerCase(),
+          },
+        },
+        select: { id: true, consentGivenAt: true, email: true, deletedAt: true },
       })
-      if (!member) {
+      if (!member || member.deletedAt) {
         return reply.status(200).send({ skipped: true, reason: 'member_not_found' })
       }
       if (!member.consentGivenAt) {
         return reply.status(200).send({ skipped: true, reason: 'no_consent' })
       }
 
-      // Check if already responded
-      const existing = await fastify.prisma.surveyResponse.findUnique({
-        where: { surveyId_memberId: { surveyId, memberId: member.id } },
+      // Check if already responded — see #231 PR1 note above for findUnique→findFirst rationale.
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id },
       })
       if (existing) {
         return reply.status(200).send({ skipped: true, reason: 'already_responded' })

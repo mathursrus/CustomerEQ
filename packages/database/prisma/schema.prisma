@@ -118,8 +118,9 @@ enum ExternalSourceType {
 enum OrgSizeCategory {
   SIZE_1_10
   SIZE_11_50
-  SIZE_51_200
-  SIZE_201_PLUS
+  SIZE_51_300
+  SIZE_301_5000
+  SIZE_5000_PLUS
   PREFER_NOT_TO_SAY
 }
 
@@ -161,6 +162,33 @@ enum ExternalMatchStatus {
   REJECTED
 }
 
+// ─── Issue #231: Survey response data model rework ────────────────────────────
+
+enum MemberIdentifierKind {
+  EMAIL
+  PHONE
+  CUSTOMER_ID
+}
+
+enum ConsentMode {
+  EXPLICIT
+  IMPLIED_ON_SUBMIT
+}
+
+enum MemberEnrolledVia {
+  MANUAL_API       // integrator POST /v1/members/enroll
+  BULK_IMPORT      // bulk migration import
+  SURVEY_RESPONSE  // auto-enrolled via standalone survey link/email — responder self-identified on form
+  EMBEDDED_FORM    // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
+  CLERK_OAUTH      // signup via Clerk webhook
+}
+
+enum ResponsePolicy {
+  ONCE
+  MULTIPLE
+  LATEST_OVERWRITES
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
@@ -170,17 +198,23 @@ model Brand {
   // Step 1.5 org-profile fields (Issue #170)
   siteDomain            String?
   logoUrl               String?
-  // FK to SurveyTheme.id when set. Application code is responsible for the
-  // referential integrity check; we do not declare a Prisma @relation here
-  // because the existing `survey_themes` table is not in the migration history
-  // (pre-existing schema-vs-migrations drift). PR 5 / a follow-up drift fix
-  // restores the @relation once survey_themes has a backing migration.
+  // Issue #231 — Survey response data model rework
+  memberIdentifierKind  MemberIdentifierKind   @default(EMAIL)   // R4
+  consentMode           ConsentMode            @default(EXPLICIT) // R16
+  consentTextDefault    String?                                  // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl      String?                                  // R16 — captured at brand onboarding
+  termsUrl              String?                                  // R16 — captured at brand onboarding
+  // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
   defaultThemeId        String?
-  sizeCategory          OrgSizeCategory?
+  defaultTheme          BrandTheme?            @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
+  // Issue #277 — Organization Settings: orgSize (renamed from sizeCategory), timezone, locale.
+  orgSize               OrgSizeCategory?
+  timezone              String                 @default("UTC")
+  locale                String                 @default("en-US")
   programs              Program[]
   members               Member[]
   surveys               Survey[]
-  surveyThemes          SurveyTheme[]
+  brandThemes           BrandTheme[]           @relation("BrandThemes")
   questionTemplates     QuestionTemplate[]
   alertRules            AlertRule[]
   caseFollowUps         CaseFollowUp[]
@@ -283,7 +317,17 @@ model Member {
   id                   String               @id @default(cuid())
   brandId              String
   brand                Brand                @relation(fields: [brandId], references: [id])
-  email                String
+  // Issue #231 — polymorphic identifier (PR1)
+  // externalId is the canonical lookup column (lowercased + trimmed at insert/lookup).
+  // PR1 ships externalId as the canonical key alongside the existing email column.
+  // PR2 will make `email` nullable when auto-enrolling members for PHONE / CUSTOMER_ID brands.
+  // V0 is uniformly case-insensitive across all identifier kinds (R5).
+  externalId           String               // R4 — canonical lookup column (lowercased + trimmed)
+  enrolledVia          MemberEnrolledVia    // R15 — set at create time per channel attribution
+  // PR2 (#231): email is now nullable. Auto-enrolled members on PHONE /
+  // CUSTOMER_ID brands have no email at create time; the field is populated
+  // later if/when the integrator provides one (R6 idempotent upsert).
+  email                String?
   clerkUserId          String?
   firstName            String?
   lastName             String?
@@ -312,8 +356,12 @@ model Member {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
-  @@unique([brandId, email])
+  // PR2 (#231): @@unique([brandId, email]) dropped — externalId is now the
+  // canonical lookup. email is a PII sidecar populated when identifierKind=EMAIL
+  // (and may be set via the late-arriving update path R6 for non-EMAIL brands).
+  @@unique([brandId, externalId])               // R4 — canonical lookup
   @@index([brandId])
+  @@index([brandId, externalId])                // R5 — canonical lookup index
   @@index([clerkUserId, brandId])
   @@index([brandId, healthScore])
   @@map("members")
@@ -563,10 +611,22 @@ model Survey {
   distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
   incentivePoints    Int?             // Points awarded for completing the survey
   themeId            String?
-  theme              SurveyTheme?     @relation(fields: [themeId], references: [id])
+  theme              BrandTheme?      @relation(fields: [themeId], references: [id])
   triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
   triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
   surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
+  // Issue #231 — Survey response data model rework
+  responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
+  consentTextOverride           String?                            // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
+  consentSuppressedAttestedBy   String?                            // R17 / Issue #276 — admin/system who attested
+  consentSuppressedAttestedAt   DateTime?                          // R17 / Issue #276 — attestation timestamp
+  // Issue #276 — survey-level consent mode override
+  consentMode                   ConsentMode?                       // null → inherit Brand.consentMode
+  consentReason                 String?       @db.VarChar(500)     // operator/system justification when override is set
+  // Issue #291 — per-survey thank-you copy/routing/toggle (moved from SurveyTheme)
+  thankYouMessage               String        @default("Thank you for your feedback!")
+  thankYouRedirectUrl           String?
+  showIncentivePoints           Boolean       @default(true)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -634,15 +694,15 @@ model SurveyRule {
   @@map("survey_rules")
 }
 
-model SurveyTheme {
+// Issue #291 — Renamed from SurveyTheme; brand-level visual identity only.
+// Per-survey overrides (thank-you copy, redirect URL, incentive-points toggle)
+// moved to Survey columns. Logo / brand-name fall through to Brand.logoUrl /
+// Brand.name. Default-theme flag replaced by Brand.defaultThemeId FK.
+model BrandTheme {
   id        String  @id @default(cuid())
   brandId   String
-  brand     Brand   @relation(fields: [brandId], references: [id])
+  brand     Brand   @relation("BrandThemes", fields: [brandId], references: [id])
   name      String
-  isDefault Boolean @default(false)
-
-  logoUrl   String?
-  brandName String?
 
   primaryColor    String @default("#6366f1")
   secondaryColor  String @default("#818cf8")
@@ -661,17 +721,14 @@ model SurveyTheme {
   borderRadius       String  @default("md")
   maxWidth           String  @default("md")
 
-  thankYouMessage     String  @default("Thank you for your feedback!")
-  thankYouRedirectUrl String?
-  showIncentivePoints Boolean @default(true)
-
-  surveys Survey[]
+  surveys          Survey[]
+  defaultForBrands Brand[]  @relation("BrandDefaultTheme")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brandId])
-  @@map("survey_themes")
+  @@map("brand_themes")
 }
 
 model QuestionTemplate {
@@ -709,7 +766,9 @@ model SurveyResponse {
   campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
   caseFollowUps  CaseFollowUp[]   // cases opened from this response
 
-  @@unique([surveyId, memberId]) // One response per member per survey
+  // R2 — `@@unique([surveyId, memberId])` removed; multiple responses per member-per-survey
+  // are now policy-controlled by `Survey.responsePolicy` (R3) at the application layer.
+  @@index([surveyId, memberId]) // R3 enforcement lookups (ONCE / LATEST_OVERWRITES)
   @@index([brandId, completedAt])
   @@index([clusterId])
   @@map("survey_responses")

@@ -68,15 +68,20 @@ export class CustomerEQ {
   }
 
   // ── Members ────────────────────────────────────────────────────────────
+  // Issue #231 PR2: API now takes `memberId` (the canonical identifier) plus
+  // optional PII sidecars. For EMAIL brands the email value doubles as the
+  // memberId. consentGiven literal-true was dropped — the server stamps
+  // consent if absent (R8); re-enrolling the same identifier returns 200
+  // with last-write-wins on profile fields (R6).
   enrollMember({ email, firstName, lastName, programId }) {
     return this.request('POST', '/v1/members/enroll', {
       publicRoute: true,
       body: {
+        memberId: email,
         email,
         firstName,
         lastName,
         programId,
-        consentGiven: true,
         consentGivenAt: new Date().toISOString(),
       },
     })

@@ -37,12 +37,15 @@ The platform is a multi-tenant loyalty engine with:
 | **Build** | Turborepo + pnpm 9 | Monorepo task orchestration with caching; pnpm for strict dependency isolation |
 | **Logging** | Pino v9 | Structured JSON logging, low-overhead, Fastify's native logger |
 | **Validation** | Zod 3.23 | Runtime schema validation shared between API request parsing and frontend forms |
+| **Forms** | React Hook Form 7.x + `@hookform/resolvers/zod` | Standard for admin-portal forms — single source of truth for validation between API and frontend (Zod schemas reused). Per-section dirty state via RHF `formState.dirtyFields`. (Issue #277) |
 | **Infra** | Azure (API/worker/DB/cache) + Vercel (frontend) | Azure credits for backend; Vercel for zero-ops Next.js with first-party App Router support |
 | **IaC** | Terraform | Provider-agnostic — manages both Azure resources and Vercel project config |
 
 ---
 
 ## 3. Architectural Layers
+
+**Domain-narrow runtime packages.** Alongside the layer organization below, a recurring pattern is to extract a single-purpose runtime module — typically a parser / validator / renderer triplet — into its own package consumed by both web and api. `packages/embed` (CDN-distributed Web Components) and `packages/consent-text` (Issue #277 — token parser, Zod validator, HTML+React renderer for consent disclosures) are examples. These packages are kept out of `packages/shared` to avoid bundle bloat in the worker (which has no DOM-adjacent code) and to keep blast-radius small when their internal shape evolves. Add a new domain-narrow package when the candidate code is (a) consumed by ≥2 apps, (b) has no value in the worker bundle, and (c) has clear internal-shape stability.
 
 ### 3.1. Presentation Layer (apps/web)
 - **Responsibility**: Marketing site (SSR/SSG), admin portal (program/campaign/analytics management), member portal (dashboard, rewards catalog, redemptions).
@@ -53,12 +56,14 @@ The platform is a multi-tenant loyalty engine with:
 - **Context-aware navigation**: CX metric click-throughs use `searchParams` to pre-populate campaign/survey builder forms without a separate API round-trip (e.g., `filter=detractors&maxNps=6` pre-fills the campaign builder audience segment). (Issue #78)
 - **Client-side utilities**: Pure, web-only functions (e.g. recommendation lookups, formatting helpers) are co-located in `apps/web/src/utils/` — not exported to `packages/shared`. Use this location for functions that have no server-side or cross-package use case. (Issue #79)
 - **Standard CRUD admin pattern**: All admin route-based CRUD entities follow the four-route layout `/admin/{entity}` (list), `/admin/{entity}/new` (create), `/admin/{entity}/[id]` (view-only), `/admin/{entity}/[id]/edit` (edit). The view route wraps the form in `<ViewOnlyBanner entityLabel="…" />` (`apps/web/src/components/ui/view-only-banner.tsx`). Each entity has a single `{Entity}Form` component accepting `mode: 'create' | 'edit' | 'view'` that derives `isViewOnly = mode === 'view'` and disables interactive controls; submit actions are hidden when `isViewOnly`. The list page exposes a clickable name `Link` to the view route plus a separate row-action "Edit" link to the edit route. Reference implementation: `apps/web/src/app/(admin)/admin/programs/`. See ADR `docs/architecture/adr/0001-admin-crud-route-pattern.md`. (Issue #157)
+- **Post-create landing for new Clerk organizations**: `<OrganizationSwitcher afterCreateOrganizationUrl="…" />` in the admin shell layout (`apps/web/src/app/(admin)/layout.tsx`) sets where Clerk navigates the admin after the create-organization dialog completes. The redirect target's first GET is the lazy-upsert site (see §3.2 lazy-upsert pattern). The companion props `organizationProfileMode="redirect"` + `organizationProfileUrl` opt out of Clerk's hosted org-profile modal so the "Manage" link deep-links to our settings page. (Issue #277)
 
 ### 3.2. API Layer (apps/api)
 - **Responsibility**: RESTful API (versioned at `/v1/`), request validation (Zod), authentication (Clerk JWT), multi-tenant scoping, event ingestion, campaign trigger evaluation, audit logging.
 - **Key Modules**: `apps/api/src/routes/` (domain routes), `apps/api/src/plugins/` (auth, multiTenant, audit, prisma, redis), `apps/api/src/queues/` (BullMQ queue factories)
 - **Entry Point**: `apps/api/src/server.ts` -> `app.ts` (Fastify factory)
 - **Plugin Registration Order**: CORS -> Sensible -> Prisma -> Redis -> Auth -> MultiTenant -> Audit
+- **Lazy-upsert provisioning pattern**: GET endpoints that are the canonical landing target for newly-created tenants may upsert their tenant resource row keyed by JWT-extracted identifier (e.g. `clerkOrgId`). This is the redirect-target counterpart to the webhook-driven provisioning at `/api/webhooks/identity-provider` and survives webhook delivery failures. The handler must be idempotent (re-runnable on every GET) and write only the bootstrap row, never user-supplied state. First seen in `GET /v1/admin/brand/profile` (Issue #277).
 
 ### 3.3. Event Processing Layer (apps/worker)
 - **Responsibility**: Asynchronous processing of loyalty events, campaign trigger execution, notification delivery, feedback clustering, sentiment analysis, alert evaluation, health score computation, external signal sync/ingestion, and outbound webhook delivery.
@@ -71,6 +76,7 @@ The platform is a multi-tenant loyalty engine with:
 ### 3.4. Data Layer (packages/database)
 - **Responsibility**: Schema definition (Prisma), migrations, database client singleton.
 - **Key Modules**: `packages/database/prisma/schema.prisma` (core loyalty, CX, survey, AI, and external signal models), `packages/database/src/` (client exports)
+- **Hand-edited Prisma migrations (`prisma migrate dev --create-only` + manual SQL edit)**: Use this flow whenever the migration needs (a) a model or table rename, (b) backfill of values between an `ADD COLUMN` and a `DROP COLUMN`, or (c) recovery from a partial migration that shipped. Prisma's auto-generation defaults to DROP-and-CREATE on renames in non-interactive contexts and never emits `UPDATE` statements for backfills — both wrong shapes for these cases. The canonical hand-edit ordering is `ADD COLUMN → BACKFILL UPDATE → DROP COLUMN`; renames precede backfills so the `UPDATE ... FROM` reads from the renamed table. The reference examples in-tree are `20260430000000_patch_survey_distribution_gap/migration.sql` (recovery from a partial run via idempotent `DO $$ ... END $$` PL/pgSQL guards) and `<timestamp>_brandtheme_surveytheme_split/migration.sql` (issue #291 — single forward migration with rename + backfill + drop in one ordered diff). Forward-only is the project default; rollback is via a follow-up forward migration, not a `down` script.
 
 ### 3.5. Shared Layer (packages/shared + packages/config)
 - **Responsibility**: Cross-app type contracts (Zod schemas, TypeScript interfaces, queue name constants, pure evaluation helpers), shared test infrastructure (factories, mocks, helpers).
@@ -88,6 +94,14 @@ The platform is a multi-tenant loyalty engine with:
 - **Theming**: CSS custom properties (`--ceq-font-family`, `--ceq-primary-color`, `--ceq-background-color`) pierce Shadow DOM for brand customization.
 - **Events**: Components fire custom DOM events (e.g., `ceq:reward-won`) so host pages can react.
 - **No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages.
+
+### 3.8. AI Layer (packages/ai)
+- **Responsibility**: BAML-driven LLM client wrappers and analysis helpers used by the API (synchronous note-creation sentiment per §6) and worker (asynchronous sentiment analysis, intent classification, clustering, anomaly detection).
+- **Key Modules**: `packages/ai/baml_src/*.baml` (BAML function definitions and generator config), `packages/ai/src/analysis/*.ts` (sentiment/intent/cluster wrappers around the generated client), `packages/ai/src/generated/baml_client/` (gitignored — see Build below).
+- **Build pipeline**: `pnpm build` runs `pnpm run generate && tsc`. The `generate` step invokes `npx @boundaryml/baml@<pinned-version> generate` which writes 13 files into `src/generated/baml_client/`. **The generated directory is gitignored** — every Docker build and every fresh checkout regenerates it. `tsc` then compiles the regenerated source into `dist/`.
+- **ESM imports contract (#273)**: `packages/ai/baml_src/generators.baml` must set `module_format "esm"` so BAML emits relative imports with `.js` extensions. Node 22's ESM strict resolver rejects extensionless relative imports at module-load time. This is a build-pipeline contract — without it, the BAML output crashes at container startup with `ERR_MODULE_NOT_FOUND` on `/app/packages/ai/dist/generated/baml_client/async_client`.
+- **BAML version pinning**: The BAML CLI version is pinned in two places that must move together: `packages/ai/package.json` (`@boundaryml/baml: <version>`) and `packages/ai/baml_src/generators.baml` (`version "<version>"`). Bumping one without the other produces codegen warnings and risks contract drift.
+- **CI gate**: The `docker-build` job in `.github/workflows/ci.yml` runs a built-image module-resolution probe against `ceq-api:<sha>` and `ceq-worker:<sha>` to catch regressions in this contract at PR time. See §7.4 Validation Commands.
 
 ---
 
@@ -195,7 +209,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 | **auth** | `preHandler` | Session verification (delegates to `fastify.identityProvider.getSession()`), extracts `brandId` + `clerkUserId` from org token. Test mode: `X-Test-Brand-Id`/`X-Test-User-Id` headers in dev/test. **Route configs**: `public: true` skips auth entirely; `allowNoOrg: true` (Issue #170 PR 2) accepts sessions with `orgId === null` and decorates `clerkUserId` only — `brandId` is decorated only when `orgId` is non-null AND the brand exists. Used by `POST /api/auth/signup/finish` for the OAuth new-user-without-org case. (Issue #170 OD-5: no direct `@clerk/*` imports — see ADR 0004.) |
 | **identityProvider** | decorator | Single boundary for all identity-provider interactions (`createUserWithOrg`, `getSession`, `parseWebhook`, OAuth, `inviteMember`, etc.). `ClerkIdentityProvider` is the only concrete impl today; ESLint `no-restricted-imports` enforces the boundary. Issue #170 OD-5; ADR 0004. |
 | **multiTenant** | `preValidation` | Rejects any request body containing `brandId` — must come from JWT only |
-| **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table |
+| **audit** | `onResponse` | Fire-and-forget logging of mutations (POST/PATCH/DELETE/PUT) to `AuditEvent` table. **Per-route metadata allowlist** (Issue #276 / Issue #277): route handlers populate `request.audit.metadata`; the plugin reads a per-route allowlist via `<route-id>.metadata` config keys and filters to the allowlist before persisting. Prevents accidental over-capture (e.g., raw bodies, secret-bearing fields) while letting per-route audit needs (`attestation`, `memberCountAtChange`, `changedFields`) flow into the row. |
 | **prisma** | decorator | Singleton Prisma client, graceful disconnect on shutdown |
 | **redis** | decorator | IORedis client for queues and idempotency, graceful quit on shutdown. Decorates `fastify.redis` as `null` when `QUEUE_MODE=inline`; all callers must null-guard. |
 | **memberAuth** | helper | Lightweight member JWT verification for public endpoints. Uses `Authorization: Bearer <token>` header with Clerk `verifyToken()`. Returns member email/sub claims. Unlike org-level auth plugin, does not require Clerk organization context. Used by `/v1/public/campaigns/:id/play`. |
@@ -472,6 +486,18 @@ pnpm test:e2e    # Playwright E2E (requires running app)
 ```
 
 Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
+
+**Built-image module-resolution probe (CI gate, #273)**: The `docker-build` job in `.github/workflows/ci.yml` runs each just-built image with a one-shot dynamic import:
+
+```yaml
+- name: Verify <Image> image module resolution
+  run: |
+    docker run --rm --entrypoint node ceq-<image>:${{ github.sha }} \
+      --input-type=module \
+      -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
+```
+
+This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist files at PR time, before the image reaches CD. Probe target is **deliberately narrow** to `@customerEQ/ai`'s dist — importing the full app entry would couple the gate to env-var reads and false-positive in CI. Complementary to the CD-side `Verify API health` step in `deploy.yml`, not a replacement.
 
 ---
 

@@ -34,9 +34,8 @@ const MOCK_THEME = {
   cardStyle: 'shadow',
   borderRadius: 'md',
   maxWidth: 'md',
-  thankYouMessage: 'Thanks for your feedback!',
-  thankYouRedirectUrl: null,
-  showIncentivePoints: false,
+  // Issue #291 — thankYouMessage / thankYouRedirectUrl / showIncentivePoints
+  // moved to Survey columns; no longer part of the BrandTheme fixture.
 }
 
 test.describe('Themes CRUD pattern — list → view → edit', () => {
