@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#291 BrandTheme / SurveyTheme split — CustomerEQ Mock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; color: #111827; }
+
+  /* Scene chrome */
+  .scene { border-bottom: 8px solid #e5e7eb; }
+  .scene-label { padding: 10px 24px; background: #1f2937; color: #fff; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .scene-label .anchor { color: #a5b4fc; font-family: ui-monospace, Menlo, monospace; }
+  .scene-note { padding: 8px 24px; background: #fef3c7; color: #78350f; font-size: 12px; }
+  .scene-note strong { font-weight: 600; }
+
+  /* Top bar */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  .top-bar-left { display: flex; align-items: center; gap: 16px; }
+  .top-bar-left a { font-size: 13px; color: #6366f1; text-decoration: none; }
+  .top-bar-left input { font-size: 18px; font-weight: 600; border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; width: 280px; }
+  .top-bar-actions { display: flex; gap: 8px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Theme editor layout */
+  .layout { display: grid; grid-template-columns: 360px 1fr; min-height: 520px; }
+  .config-panel { background: #fff; border-right: 1px solid #e5e7eb; }
+  .preview-panel { background: #f9fafb; padding: 32px; display: flex; flex-direction: column; align-items: center; }
+
+  .tabs { display: flex; border-bottom: 1px solid #e5e7eb; }
+  .tab { flex: 1; padding: 12px; font-size: 13px; font-weight: 500; text-align: center; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+  .tab.removed { color: #b91c1c; text-decoration: line-through; cursor: not-allowed; opacity: 0.6; }
+
+  .tab-content { padding: 20px; }
+  .field-group { margin-bottom: 16px; }
+  .field-group label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+  .field-group input[type="text"],
+  .field-group input[type="url"],
+  .field-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+  .field-group .helper { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+  .color-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+  .color-row:last-child { border-bottom: none; }
+  .color-row label { flex: 1; font-size: 13px; color: #374151; }
+  .color-row input[type="color"] { width: 32px; height: 32px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; }
+  .color-row .hex { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #6b7280; width: 64px; text-align: right; }
+
+  /* Removed-section overlay */
+  .removed-block { position: relative; padding: 14px; margin-top: 12px; border: 1px dashed #fca5a5; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 12px; }
+  .removed-block strong { display: block; font-size: 13px; margin-bottom: 4px; }
+
+  /* Survey preview card */
+  .preview-card { width: 100%; max-width: 480px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+  .preview-q { font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 8px; }
+  .preview-help { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+  .preview-scale { display: flex; gap: 6px; }
+  .preview-scale span { width: 32px; height: 32px; border: 1px solid #d1d5db; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #374151; }
+  .preview-scale span.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .preview-btn { margin-top: 16px; padding: 10px 18px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  /* Theme list */
+  .list-card { margin: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+  .list-header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+  .list-header h2 { font-size: 16px; font-weight: 600; color: #111827; }
+  .list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .list-table th { text-align: left; padding: 10px 16px; background: #f9fafb; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb; }
+  .list-table td { padding: 12px 16px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+  .list-table tr:last-child td { border-bottom: none; }
+  .badge-default { display: inline-block; padding: 2px 8px; background: #e0e7ff; color: #4338ca; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .swatches { display: flex; gap: 4px; }
+  .swatch { width: 18px; height: 18px; border: 1px solid #e5e7eb; border-radius: 4px; }
+  .row-action { color: #6366f1; font-size: 12px; cursor: pointer; background: none; border: none; padding: 0; }
+  .row-action:hover { text-decoration: underline; }
+
+  /* Survey builder mock */
+  .builder { padding: 24px; max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin: 24px; }
+  .builder h1 { font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+  .builder .breadcrumb { font-size: 13px; color: #6366f1; margin-bottom: 16px; }
+  .builder-section { padding: 16px 0; border-top: 1px solid #f3f4f6; }
+  .builder-section:first-of-type { border-top: none; }
+  .builder-section-title { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 12px; }
+  .builder-row { display: grid; grid-template-columns: 200px 1fr; gap: 16px; padding: 8px 0; align-items: center; }
+  .builder-row label { font-size: 13px; color: #374151; font-weight: 500; }
+  .builder-row label .helper { display: block; font-weight: 400; color: #6b7280; font-size: 12px; margin-top: 2px; }
+  .builder-row input[type="text"],
+  .builder-row input[type="url"],
+  .builder-row input[type="number"],
+  .builder-row textarea,
+  .builder-row select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .builder-row textarea { min-height: 60px; resize: vertical; }
+  .builder-row .checkbox { display: flex; align-items: center; gap: 8px; }
+  .builder-row .checkbox input[type="checkbox"] { width: 16px; height: 16px; }
+  .new-tag { display: inline-block; padding: 1px 6px; background: #d1fae5; color: #065f46; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- SCENE 1 — Theme editor AFTER prune                                      -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="scene" id="scene-theme-editor">
+  <div class="scene-label">Scene 1 — Theme editor (after prune) <span class="anchor">#scene-theme-editor</span></div>
+  <div class="scene-note">
+    <strong>Diff vs. #36 mock:</strong> the <em>Brand</em> tab and <em>Thank You</em> tab are removed (struck-through above the panel for emphasis). The "Set as default theme" checkbox at the bottom of the form is removed; the row-level "Set as default" action on the list view (Scene 2) replaces it. Only Colors, Typography, Layout remain inside the editor.
+  </div>
+
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <a href="#">← Back to Themes</a>
+      <input type="text" value="Corporate Blue">
+    </div>
+    <div class="top-bar-actions">
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-primary">Save Theme</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="config-panel">
+      <div class="tabs">
+        <div class="tab removed" title="Removed in #291 — moves to Brand (#277 F2)">Brand</div>
+        <div class="tab active">Colors</div>
+        <div class="tab">Typography</div>
+        <div class="tab">Layout</div>
+        <div class="tab removed" title="Removed in #291 — moves to Survey (Scene 3)">Thank You</div>
+      </div>
+
+      <div class="tab-content">
+        <div class="color-row"><label>Primary</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Secondary</label><input type="color" value="#3b82f6"><span class="hex">#3b82f6</span></div>
+        <div class="color-row"><label>Background</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Text</label><input type="color" value="#111827"><span class="hex">#111827</span></div>
+        <div class="color-row"><label>Button</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+        <div class="color-row"><label>Button text</label><input type="color" value="#ffffff"><span class="hex">#ffffff</span></div>
+        <div class="color-row"><label>Accent</label><input type="color" value="#1a56db"><span class="hex">#1a56db</span></div>
+
+        <div class="removed-block">
+          <strong>Removed: "Set as default theme" checkbox</strong>
+          The form-level <code>isDefault</code> control is gone. To make this theme the brand default, click "Set as default" on the row in the theme list (Scene 2). Backend: <code>POST /v1/themes/:id/default</code> writes <code>Brand.defaultThemeId</code> directly.
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-panel">
+      <div class="preview-card" style="font-family: 'Inter', system-ui;">
+        <div class="preview-q" style="color: #111827;">How likely are you to recommend us?</div>
+        <div class="preview-help">Drag to choose a score from 0 to 10</div>
+        <div class="preview-scale">
+          <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span>
+          <span>5</span><span>6</span><span>7</span><span>8</span><span class="active">9</span><span>10</span>
+        </div>
+        <button class="preview-btn" style="background: #1a56db;">Submit</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- SCENE 2 — Theme list with row-level "Set as default" action             -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="scene" id="scene-theme-list">
+  <div class="scene-label">Scene 2 — Theme list (set-default action) <span class="anchor">#scene-theme-list</span></div>
+  <div class="scene-note">
+    <strong>Default badge backed by FK:</strong> the "Default" pill renders when <code>brand.defaultThemeId === theme.id</code> — derived, not stored on the theme row. Row action "Set as default" calls <code>POST /v1/themes/:id/default</code> which writes <code>Brand.defaultThemeId</code> in a single statement.
+  </div>
+
+  <div class="list-card">
+    <div class="list-header">
+      <h2>Themes</h2>
+      <button class="btn btn-primary">Create Theme</button>
+    </div>
+    <table class="list-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Default</th>
+          <th>Colors</th>
+          <th>Surveys</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Corporate Blue</strong></td>
+          <td><span class="badge-default">Default</span></td>
+          <td><div class="swatches"><span class="swatch" style="background:#1a56db"></span><span class="swatch" style="background:#3b82f6"></span><span class="swatch" style="background:#fff"></span><span class="swatch" style="background:#f59e0b"></span></div></td>
+          <td>4</td>
+          <td><span style="color:#9ca3af;font-size:12px">— Already default</span></td>
+        </tr>
+        <tr>
+          <td>Forest</td>
+          <td></td>
+          <td><div class="swatches"><span class="swatch" style="background:#065f46"></span><span class="swatch" style="background:#10b981"></span><span class="swatch" style="background:#fff"></span><span class="swatch" style="background:#fbbf24"></span></div></td>
+          <td>0</td>
+          <td><button class="row-action">Set as default</button></td>
+        </tr>
+        <tr>
+          <td>Sunset</td>
+          <td></td>
+          <td><div class="swatches"><span class="swatch" style="background:#dc2626"></span><span class="swatch" style="background:#f59e0b"></span><span class="swatch" style="background:#fff7ed"></span><span class="swatch" style="background:#7c3aed"></span></div></td>
+          <td>1</td>
+          <td><button class="row-action">Set as default</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- SCENE 3 — Survey builder with new "Thank you" section                   -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="scene" id="scene-survey-builder">
+  <div class="scene-label">Scene 3 — Survey builder (Thank-you section, new) <span class="anchor">#scene-survey-builder</span></div>
+  <div class="scene-note">
+    <strong>Three fields move from theme to survey:</strong> <code>thankYouMessage</code>, <code>thankYouRedirectUrl</code>, <code>showIncentivePoints</code>. They slot next to the existing Incentive Points field on the survey-edit form. Saved via <code>PATCH /v1/surveys/:id</code> (R8).
+  </div>
+
+  <div class="builder">
+    <div class="breadcrumb">← Surveys</div>
+    <h1>NPS — Post-purchase</h1>
+
+    <div class="builder-section">
+      <div class="builder-section-title">Basics</div>
+      <div class="builder-row">
+        <label>Name</label>
+        <input type="text" value="NPS — Post-purchase">
+      </div>
+      <div class="builder-row">
+        <label>Type</label>
+        <select><option>NPS</option><option>CSAT</option><option>CES</option></select>
+      </div>
+      <div class="builder-row">
+        <label>Theme<span class="helper">Brand-level visual style</span></label>
+        <select><option>Corporate Blue (default)</option><option>Forest</option><option>Sunset</option><option>None — CustomerEQ defaults</option></select>
+      </div>
+      <div class="builder-row">
+        <label>Incentive points<span class="helper">Awarded on completion</span></label>
+        <input type="number" value="50">
+      </div>
+    </div>
+
+    <div class="builder-section">
+      <div class="builder-section-title">Thank you<span class="new-tag">NEW (#291)</span></div>
+      <div class="builder-row">
+        <label>Message<span class="helper">Shown on the completion page · ≤500 chars</span></label>
+        <textarea>Thanks! You earned {{points}} points.</textarea>
+      </div>
+      <div class="builder-row">
+        <label>Redirect URL<span class="helper">Optional — respondent is sent here after the message</span></label>
+        <input type="url" value="https://acme.com/rewards" placeholder="https://...">
+      </div>
+      <div class="builder-row">
+        <label>Show incentive points<span class="helper">Render the "you earned X points" tile</span></label>
+        <div class="checkbox">
+          <input type="checkbox" id="show-incentive" checked>
+          <label for="show-incentive" style="font-weight:400">Visible on the completion page</label>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
