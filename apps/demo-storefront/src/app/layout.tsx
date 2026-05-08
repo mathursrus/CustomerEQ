@@ -9,6 +9,7 @@ const SECONDARY_COLOR = process.env.NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR ?? '#
 export const metadata: Metadata = {
   title: BRAND_NAME,
   description: `${BRAND_NAME} — Loyalty Rewards Demo`,
+  viewport: 'width=device-width, initial-scale=1',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

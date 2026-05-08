@@ -4,7 +4,18 @@ import { useEffect, useState } from 'react'
 import { getPersonaEmail } from '@/lib/persona'
 import type { MemberData } from '@/app/api/storefront/member/route'
 
-export function LoyaltyBar() {
+function tierLabel(points: number): string {
+  if (points >= 6000) return 'Platinum'
+  if (points >= 2500) return 'Gold'
+  return 'Bronze'
+}
+
+interface Props {
+  /** Compact single-line variant for the mobile header strip */
+  mobile?: boolean
+}
+
+export function LoyaltyBar({ mobile = false }: Props) {
   const [member, setMember] = useState<MemberData | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -12,11 +23,8 @@ export function LoyaltyBar() {
     setLoading(true)
     try {
       const res = await fetch(`/api/storefront/member?email=${encodeURIComponent(email)}`)
-      if (res.ok) {
-        setMember(await res.json() as MemberData)
-      } else {
-        setMember(null)
-      }
+      if (res.ok) setMember(await res.json() as MemberData)
+      else setMember(null)
     } catch {
       setMember(null)
     } finally {
@@ -37,7 +45,6 @@ export function LoyaltyBar() {
     return () => window.removeEventListener('ceq_persona_changed', onPersonaChange)
   }, [])
 
-  // Re-fetch after a purchase event is recorded
   useEffect(() => {
     function onPurchase() {
       const email = getPersonaEmail()
@@ -47,12 +54,28 @@ export function LoyaltyBar() {
     return () => window.removeEventListener('ceq_purchase_recorded', onPurchase)
   }, [])
 
+  // Mobile compact variant — just badge + points, no background card
+  if (mobile) {
+    if (!member) return null
+    return (
+      <div className="flex items-center gap-1.5" data-testid="ceq-widget-mobile">
+        <span className="text-xs font-semibold text-gray-700">
+          {member.pointsBalance.toLocaleString()} pts
+        </span>
+        <span
+          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white"
+          style={{ backgroundColor: 'var(--brand-primary)' }}
+        >
+          {tierLabel(member.pointsBalance)}
+        </span>
+      </div>
+    )
+  }
+
+  // Desktop variant — card with name, hidden on mobile
   if (!member && !loading) {
     return (
-      <div
-        data-testid="ceq-widget"
-        className="text-xs text-gray-400 italic hidden sm:block"
-      >
+      <div data-testid="ceq-widget" className="text-xs text-gray-400 italic hidden sm:block">
         Select a persona to see loyalty status
       </div>
     )
@@ -69,7 +92,7 @@ export function LoyaltyBar() {
   return (
     <div
       data-testid="ceq-widget"
-      className="flex items-center gap-3 bg-white rounded-lg px-3 py-1.5 border border-gray-100 shadow-sm hidden sm:flex"
+      className="hidden sm:flex items-center gap-3 bg-white rounded-lg px-3 py-1.5 border border-gray-100 shadow-sm"
       title="CustomerEQ Loyalty Widget"
     >
       <div className="flex flex-col items-end">
@@ -90,10 +113,4 @@ export function LoyaltyBar() {
       </div>
     </div>
   )
-}
-
-function tierLabel(points: number): string {
-  if (points >= 6000) return 'Platinum'
-  if (points >= 2500) return 'Gold'
-  return 'Bronze'
 }

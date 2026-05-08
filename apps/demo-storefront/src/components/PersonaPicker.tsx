@@ -67,7 +67,7 @@ export function PersonaPicker({ onSelect }: Props) {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Demo persona:</span>
+        <span className="hidden sm:inline text-xs text-gray-500 font-medium whitespace-nowrap">Demo persona:</span>
         <select
           ref={selectRef}
           value={selected ?? ''}
