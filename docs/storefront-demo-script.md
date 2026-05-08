@@ -101,9 +101,7 @@ This is the hero scene. Take your time.
 
 **Storefront tab.** Switch to **Sara Kim** (Bronze member, dissatisfied — 2-star review).
 
-1. In the storefront navigation, find the NPS survey link (or navigate directly to `/survey/[NPS-SURVEY-ID]`).
-
-   > Tip: get the survey link from **Admin → Surveys → Post-Visit NPS → Share Link** before the demo.
+1. In the storefront header, click **Surveys**. The page shows all active StarBrew surveys with Sara's email already wired in.
 
 2. The survey loads as Sara (her email auto-fills from the persona).
 3. Click **3** on the NPS scale.
@@ -194,7 +192,7 @@ pnpm seed:demo
 | Alert cases | Alerts (sidebar) |
 | Alert rules | Alerts → "Manage Rules" button (top right) |
 | Recovery campaign | Campaigns → "Detractor Recovery — 200 Bonus StarPoints" |
-| NPS survey link | Surveys → Post-Visit NPS → Share Link |
+| NPS survey | Storefront header → **Surveys** → "Take survey" next to Post-Visit NPS |
 | CX sentiment clusters | CX Insights |
 
 ### Talking points
