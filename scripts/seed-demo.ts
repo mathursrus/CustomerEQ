@@ -170,72 +170,91 @@ async function main() {
   // ── 4. NPS survey ───────────────────────────────────────────────────────────
   // Issue #291 — thankYouMessage / showIncentivePoints moved from BrandTheme to Survey.
   console.log('4/9  Creating surveys…')
-  const npsSurveyRes = await api<{ id: string }>('POST', '/v1/surveys', {
-    name: 'Post-Visit NPS',
-    programId,
-    type: 'NPS',
-    themeId,
-    incentivePoints: 50,
-    thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
-    showIncentivePoints: true,
-    questions: [
-      {
-        id: 'q1',
-        text: 'How likely are you to recommend StarBrew to a friend? (0–10)',
-        type: 'rating',
-        required: true,
-        config: { min: 0, max: 10, labels: { left: 'Not at all', right: 'Absolutely' } },
-      },
-      {
-        id: 'q2',
-        text: 'What stood out most about your visit?',
-        type: 'text',
-        required: false,
-        config: { placeholder: 'Tell us more…', maxLength: 500 },
-      },
-      {
-        id: 'q3',
-        text: 'Which area could we improve?',
-        type: 'multiple_choice',
-        required: false,
-        config: { options: ['Drink Quality', 'Wait Time', 'Staff Friendliness', 'Store Ambiance', 'Mobile App'] },
-      },
-    ],
-  })
-  const npsSurveyId = npsSurveyRes?.id
-  console.log(`  ✓ NPS survey (${npsSurveyId})`)
 
-  const csatSurveyRes = await api<{ id: string }>('POST', '/v1/surveys', {
-    name: 'Store Experience CSAT',
-    programId,
-    type: 'CSAT',
-    themeId,
-    incentivePoints: 25,
-    thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
-    showIncentivePoints: true,
-    questions: [
-      {
-        id: 'q1',
-        text: 'How satisfied were you with your in-store experience today? (1–5)',
-        type: 'rating',
-        required: true,
-        config: { min: 1, max: 5, labels: { left: 'Very Unsatisfied', right: 'Very Satisfied' } },
-      },
-      {
-        id: 'q2',
-        text: 'What can we do better?',
-        type: 'text',
-        required: false,
-        config: { placeholder: 'Your feedback matters…' },
-      },
-    ],
-  })
-  const csatSurveyId = csatSurveyRes?.id
-  console.log(`  ✓ CSAT survey (${csatSurveyId})`)
+  // Look up existing surveys to avoid creating duplicates on re-runs.
+  const surveysListRes = await api<{ data: Array<{ id: string; name: string; status: string; programId: string }> }>(
+    'GET', '/v1/surveys?pageSize=50',
+  )
+  const existingSurveys = surveysListRes?.data ?? []
 
-  if (npsSurveyId) await api('PATCH', `/v1/surveys/${npsSurveyId}/status`, { status: 'ACTIVE' })
-  if (csatSurveyId) await api('PATCH', `/v1/surveys/${csatSurveyId}/status`, { status: 'ACTIVE' })
-  console.log('  ✓ Both surveys activated\n')
+  const findSurvey = (name: string) =>
+    existingSurveys.find(s => s.name === name && s.programId === programId && s.status === 'ACTIVE')
+
+  let npsSurveyId: string | undefined = findSurvey('Post-Visit NPS')?.id
+  if (npsSurveyId) {
+    console.log(`  → Post-Visit NPS already exists (${npsSurveyId})`)
+  } else {
+    const res = await api<{ id: string }>('POST', '/v1/surveys', {
+      name: 'Post-Visit NPS',
+      programId,
+      type: 'NPS',
+      themeId,
+      incentivePoints: 50,
+      thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
+      showIncentivePoints: true,
+      questions: [
+        {
+          id: 'q1',
+          text: 'How likely are you to recommend StarBrew to a friend? (0–10)',
+          type: 'rating',
+          required: true,
+          config: { min: 0, max: 10, labels: { left: 'Not at all', right: 'Absolutely' } },
+        },
+        {
+          id: 'q2',
+          text: 'What stood out most about your visit?',
+          type: 'text',
+          required: false,
+          config: { placeholder: 'Tell us more…', maxLength: 500 },
+        },
+        {
+          id: 'q3',
+          text: 'Which area could we improve?',
+          type: 'multiple_choice',
+          required: false,
+          config: { options: ['Drink Quality', 'Wait Time', 'Staff Friendliness', 'Store Ambiance', 'Mobile App'] },
+        },
+      ],
+    })
+    npsSurveyId = res?.id
+    if (npsSurveyId) await api('PATCH', `/v1/surveys/${npsSurveyId}/status`, { status: 'ACTIVE' })
+    console.log(`  ✓ NPS survey created (${npsSurveyId})`)
+  }
+
+  let csatSurveyId: string | undefined = findSurvey('Store Experience CSAT')?.id
+  if (csatSurveyId) {
+    console.log(`  → Store Experience CSAT already exists (${csatSurveyId})`)
+  } else {
+    const res = await api<{ id: string }>('POST', '/v1/surveys', {
+      name: 'Store Experience CSAT',
+      programId,
+      type: 'CSAT',
+      themeId,
+      incentivePoints: 25,
+      thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
+      showIncentivePoints: true,
+      questions: [
+        {
+          id: 'q1',
+          text: 'How satisfied were you with your in-store experience today? (1–5)',
+          type: 'rating',
+          required: true,
+          config: { min: 1, max: 5, labels: { left: 'Very Unsatisfied', right: 'Very Satisfied' } },
+        },
+        {
+          id: 'q2',
+          text: 'What can we do better?',
+          type: 'text',
+          required: false,
+          config: { placeholder: 'Your feedback matters…' },
+        },
+      ],
+    })
+    csatSurveyId = res?.id
+    if (csatSurveyId) await api('PATCH', `/v1/surveys/${csatSurveyId}/status`, { status: 'ACTIVE' })
+    console.log(`  ✓ CSAT survey created (${csatSurveyId})`)
+  }
+  console.log('')
 
   // ── 5. Alert rule ───────────────────────────────────────────────────────────
   console.log('5/9  Creating detractor alert rule…')
