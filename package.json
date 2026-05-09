@@ -49,7 +49,8 @@
   "pnpm": {
     "overrides": {
       "ioredis": "5.10.1",
-      "@clerk/clerk-react": "^5.61.6"
+      "@clerk/clerk-react": "^5.61.6",
+      "fast-uri": ">=3.1.2"
     }
   }
 }
