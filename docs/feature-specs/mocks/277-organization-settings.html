@@ -123,9 +123,11 @@
 
   /* Logo upload */
   .logo-row { display: flex; gap: 16px; align-items: center; }
-  .logo-thumb { width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
+  .logo-thumb { width: 56px; height: 56px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
   .logo-thumb.empty { background: var(--surface-muted); border: 1px dashed var(--border-strong); color: var(--text-subtle); font-size: 18px; font-weight: 500; }
-  .logo-actions { display: flex; flex-direction: column; gap: 4px; }
+  .logo-thumb.has-image { background: var(--surface-muted); padding: 0; }
+  .logo-thumb.has-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .logo-actions { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 
   /* Look & Feel — top action banner + theme list + bottom helper */
   .lf-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--primary-soft); border: 1px solid #c7d2fe; border-radius: var(--radius-sm); }
@@ -267,7 +269,7 @@
 <!-- SCENE 1 — Empty state (first run)                              -->
 <!-- ============================================================= -->
 <section class="scene" id="scene-empty">
-  <div class="scene-label"><strong>Scene 1 — Incomplete state</strong> &nbsp; Route: <code>/admin/settings/organization</code> &nbsp; Brand row lazy-upserted on first <code>GET /v1/admin/brand/profile</code>. Two required fields are empty (org <code>name</code> and <code>privacyPolicyUrl</code>) — illustrating both first-run state and admin-cleared state. <strong>Non-dismissible banner</strong> at top lists every missing required field generically (no feature-specific framing) — scales to any new required fields added later. TOC marks every section with pending items via <code>●</code>. Field-level red error renders alongside, independent of the banner. Member identifier section is editable (zero members enrolled). Developer & Support reference is collapsed by default.</div>
+  <div class="scene-label"><strong>Scene 1 — Incomplete state</strong> &nbsp; Route: <code>/admin/settings/organization</code> &nbsp; Brand row lazy-upserted on first <code>GET /v1/admin/brand/profile</code>. Two required fields are empty (Brand <code>name</code> and <code>privacyPolicyUrl</code>) — illustrating both first-run state and admin-cleared state. The Identity section renders the <strong>Clerk Organization name as a read-only row</strong> at the top (sourced from <code>useOrganization()</code>; helper points the admin at the OrganizationSwitcher → Manage flow) and the editable <strong>Brand name</strong> below it — the two are intentionally decoupled per the Q2 reframe (PR #307). <strong>Non-dismissible banner</strong> at top lists every missing required field generically (no feature-specific framing) — scales to any new required fields added later. TOC marks every section with pending items via <code>●</code>. Field-level red error renders alongside, independent of the banner. Member identifier section is editable (zero members enrolled). Developer & Support reference is collapsed by default.</div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -304,7 +306,7 @@
               <h3>Action needed — 2 settings incomplete</h3>
               <ul>
                 <li>
-                  <span><strong>Organization name</strong> is empty — required to identify your organization across CustomerEQ.</span>
+                  <span><strong>Brand name</strong> is empty — required as the customer-facing display name on member portals, surveys, and emails.</span>
                   <a href="#s-identity">Jump to section →</a>
                 </li>
                 <li>
@@ -323,30 +325,35 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Identity</h2>
-                    <p class="section-help">How your organization appears to members and on integration surfaces.</p>
+                    <p class="section-help">Your customer-facing identity.</p>
                   </div>
                 </div>
                 <div class="section-body">
                   <div class="field">
-                    <label>Organization name <span class="req">*</span></label>
-                    <input type="text" value="" class="error" placeholder="e.g., Acme Coffee">
-                    <p class="field-error">Required.</p>
-                    <p class="field-help">Pre-filled from your sign-up. Renaming syncs to your identity provider in the background.</p>
+                    <label>Organization name <span style="color: var(--text-subtle); font-weight: 400;">(read-only — managed in your identity provider)</span></label>
+                    <input type="text" value="Acme Coffee" readonly disabled style="background: var(--bg); color: var(--text-subtle); cursor: not-allowed;">
+                    <p class="field-help">Managed in your identity provider. Rename via the organization menu in the top-left.</p>
                   </div>
                   <div class="field">
-                    <label>Logo</label>
+                    <label>Brand name <span class="req">*</span></label>
+                    <input type="text" value="" class="error" placeholder="e.g., Acme Coffee Roasters">
+                    <p class="field-error">Required.</p>
+                    <p class="field-help">Customer-facing display name (member portals, surveys, emails). Independent of your identity-provider organization name.</p>
+                  </div>
+                  <div class="field">
+                    <label>Logo URL</label>
                     <div class="logo-row">
                       <div class="logo-thumb empty">+</div>
                       <div class="logo-actions">
-                        <button type="button" class="btn btn-ghost btn-sm">Upload PNG, SVG, or JPEG</button>
-                        <p class="field-help">Used on your customer-facing surfaces — member portals, emails, surveys.</p>
+                        <input type="text" placeholder="https://your-cdn.example.com/logo.png" style="width: 100%; min-width: 0;">
+                        <p class="field-help">Customer-facing logo. Paste an https URL — preview updates live.</p>
                       </div>
                     </div>
                   </div>
                   <div class="field">
                     <label>Website</label>
                     <input type="text" placeholder="acmecoffee.com">
-                    <p class="field-help">Hostname only — no <code>https://</code> or path. Used in widget snippets and email footers.</p>
+                    <p class="field-help">Hostname only — no <code>https://</code> or path.</p>
                   </div>
                   <div class="field">
                     <label>Org size <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
@@ -358,7 +365,7 @@
                       <label class="pill-radio"><input type="radio" name="size-empty"> 5000+</label>
                       <label class="pill-radio"><input type="radio" name="size-empty"> Prefer not to say</label>
                     </div>
-                    <p class="field-help">Helps us optimize your experience. Not shown anywhere else.</p>
+                    <p class="field-help">For internal segmentation. Not shown elsewhere.</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -373,7 +380,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Defaults</h2>
-                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                    <p class="section-help">Defaults applied when surveys or pages don't override.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -390,7 +397,7 @@
                       <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
                       <option value="Australia/Sydney">(UTC+10:00) Australia/Sydney</option>
                     </select>
-                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps. Defaults to your browser time zone on first save.</p>
+                    <p class="field-help">SLA reporting, alerts, and admin timestamps. Defaults to your browser zone on first save.</p>
                   </div>
                   <div class="field">
                     <label>Locale</label>
@@ -404,7 +411,7 @@
                       <option value="pt-BR">Português (Brasil) — pt-BR</option>
                       <option value="ja-JP">日本語 (日本) — ja-JP</option>
                     </select>
-                    <p class="field-help">Default language for survey copy, email copy, and the member portal. Defaults to your browser language on first save.</p>
+                    <p class="field-help">Default language for surveys, emails, and the member portal. Defaults to your browser language on first save.</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -419,7 +426,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Look &amp; Feel</h2>
-                    <p class="section-help">The default theme used across customer-facing surfaces.</p>
+                    <p class="section-help">Default theme for customer-facing surfaces.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -455,7 +462,7 @@
                         <span></span>
                       </label>
                     </div>
-                    <p class="field-help">The selected theme's colors and fonts will be used on all customer-facing surfaces — surveys, member portals, and rich-format emails.</p>
+                    <p class="field-help">Applied to surveys, member portals, and rich-format emails.</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -470,7 +477,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Member identification</h2>
-                    <p class="section-help">How CustomerEQ recognizes your customers across surveys, points, and campaigns.</p>
+                    <p class="section-help">How CustomerEQ recognizes your members.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -498,7 +505,7 @@
                         </div>
                       </label>
                     </div>
-                    <p class="inline-note">This option cannot be changed after a member is enrolled in your organization.</p>
+                    <p class="inline-note">Locks once a member is enrolled.</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -513,7 +520,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Consent &amp; legal</h2>
-                    <p class="section-help">How members consent to receive surveys and where your policies live. Brand-wide default — individual surveys can override.</p>
+                    <p class="section-help">Brand-wide consent defaults. Surveys may override.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -548,9 +555,9 @@
                       </div>
                       <textarea>By submitting this response, you agree we may use your feedback to improve our products and follow up if needed. See our {{privacy}} for details.</textarea>
                     </div>
-                    <p class="field-help">Use the buttons above to insert <code>{{privacy}}</code> or <code>{{terms}}</code> tokens — they render as hyperlinks to your policy URLs. Edit the text inside the quotes to customize the link label (e.g., <code>{{privacy:"data policy"}}</code>, <code>{{privacy:"aviso de privacidad"}}</code>).</p>
+                    <p class="field-help">Tokens render as policy links. Edit text in quotes to customize the label (e.g., <code>{{privacy:"data policy"}}</code>).</p>
 
-                    <p class="field-warning">Privacy policy URL is empty — the <code>{{privacy}}</code> link in your preview won't work until you set it below.</p>
+                    <p class="field-warning">Privacy policy URL is empty — your <code>{{privacy}}</code> link won't work until you set it below.</p>
 
                     <div class="preview-card" style="margin-top: 6px;">
                       <div class="preview-head">
@@ -569,13 +576,13 @@
                   <div class="field">
                     <label>Privacy policy URL <span class="req">*</span></label>
                     <input type="url" placeholder="https://acmecoffee.com/privacy">
-                    <p class="field-help">Linked from every consent surface and the member portal footer. Required when consent mode is Explicit.</p>
+                    <p class="field-help">Linked from consent surfaces. Required for Explicit consent. (https only.)</p>
                   </div>
 
                   <div class="field">
                     <label>Terms and Conditions URL <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
                     <input type="url" placeholder="https://acmecoffee.com/terms">
-                    <p class="field-help">Optionally referenced in your consent text via the Terms link button.</p>
+                    <p class="field-help">Referenced via the Terms link button. (https only, optional.)</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -590,7 +597,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Developer &amp; Support reference <span class="badge badge-muted">Read only</span></h2>
-                    <p class="section-help">IDs CustomerEQ uses to refer to your organization. Useful when contacting support or integrating from your backend. No action required from admins.</p>
+                    <p class="section-help">Identifiers for support tickets and backend integrations.</p>
                   </div>
                   <span class="chevron">▼</span>
                 </div>
@@ -602,7 +609,7 @@
                       <button class="id-copy" type="button">Copy</button>
                     </div>
                     <div class="id-row">
-                      <span class="id-label">Clerk org ID</span>
+                      <span class="id-label">Organization ID (identity provider)</span>
                       <span class="id-value">org_2ZxR1qB7mNc8VkLpA3sT9wYj4X</span>
                       <button class="id-copy" type="button">Copy</button>
                     </div>
@@ -642,7 +649,7 @@
 <!-- SCENE 2 — Populated (locked member identifier, IMPLIED, expanded developer ref) -->
 <!-- ============================================================= -->
 <section class="scene" id="scene-populated">
-  <div class="scene-label"><strong>Scene 2 — Populated state</strong> &nbsp; All fields saved. Identity shown <em>dirty</em> to demonstrate the dirty-state pattern. Member identification is <strong>locked</strong> because <code>Member.count(brandId) = 1,284</code> — radios are non-editable, support contact is shown. Consent mode = <code>IMPLIED_ON_SUBMIT</code> (preview shows no checkbox). Developer &amp; Support reference is expanded.</div>
+  <div class="scene-label"><strong>Scene 2 — Populated state</strong> &nbsp; All fields saved. Identity shown <em>dirty</em> to demonstrate the dirty-state pattern — the admin has edited the <strong>Brand name</strong> from "Acme Coffee" to "Acme Coffee Roasters" while the <strong>Organization name (read-only, Clerk)</strong> at the top remains "Acme Coffee" — illustrating the intentional decoupling per the Q2 reframe (PR #307). Saving writes <code>Brand.name</code> only; no IdentityProvider sync. Member identification is <strong>locked</strong> because <code>Member.count(brandId) = 1,284</code> — radios are non-editable, support contact is shown. Consent mode = <code>IMPLIED_ON_SUBMIT</code> (preview shows no checkbox). Developer &amp; Support reference is expanded.</div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -682,22 +689,27 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Identity</h2>
-                    <p class="section-help">How your organization appears to members and on integration surfaces.</p>
+                    <p class="section-help">Your customer-facing identity.</p>
                   </div>
                 </div>
                 <div class="section-body">
                   <div class="field">
-                    <label>Organization name <span class="req">*</span></label>
-                    <input type="text" value="Acme Coffee Roasters">
-                    <p class="field-help">Renaming will sync to your identity provider in the background.</p>
+                    <label>Organization name <span style="color: var(--text-subtle); font-weight: 400;">(read-only — managed in your identity provider)</span></label>
+                    <input type="text" value="Acme Coffee" readonly disabled style="background: var(--bg); color: var(--text-subtle); cursor: not-allowed;">
+                    <p class="field-help">Managed in your identity provider. Rename via the organization menu in the top-left.</p>
                   </div>
                   <div class="field">
-                    <label>Logo</label>
+                    <label>Brand name <span class="req">*</span></label>
+                    <input type="text" value="Acme Coffee Roasters">
+                    <p class="field-help">Customer-facing display name. Independent of your identity-provider organization name <span style="color: var(--text-subtle);">(here: identity provider = "Acme Coffee" while brand = "Acme Coffee Roasters").</span></p>
+                  </div>
+                  <div class="field">
+                    <label>Logo URL</label>
                     <div class="logo-row">
-                      <div class="logo-thumb">AC</div>
+                      <div class="logo-thumb has-image"><img alt="Logo preview" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Crect width='56' height='56' rx='12' fill='%236b3410'/%3E%3Ctext x='50%25' y='44%25' font-family='Georgia,serif' font-size='14' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'%3EAcme%3C/text%3E%3Ctext x='50%25' y='70%25' font-family='Georgia,serif' font-size='7' fill='%23e6c8a0' text-anchor='middle' dominant-baseline='middle' letter-spacing='1.5'%3ECOFFEE%3C/text%3E%3C/svg%3E" /></div>
                       <div class="logo-actions">
-                        <button type="button" class="btn btn-ghost btn-sm">Replace</button>
-                        <p class="field-help">Used on your customer-facing surfaces — member portals, emails, surveys.</p>
+                        <input type="text" value="https://acmecoffee.com/logo.svg" style="width: 100%; min-width: 0;">
+                        <p class="field-help">Customer-facing logo. Paste an https URL — preview updates live.</p>
                       </div>
                     </div>
                   </div>
@@ -715,7 +727,7 @@
                       <label class="pill-radio"><input type="radio" name="size-pop"> 5000+</label>
                       <label class="pill-radio"><input type="radio" name="size-pop"> Prefer not to say</label>
                     </div>
-                    <p class="field-help">Helps us optimize your experience. Not shown anywhere else.</p>
+                    <p class="field-help">For internal segmentation. Not shown elsewhere.</p>
                   </div>
                 </div>
                 <div class="section-foot">
@@ -730,7 +742,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Defaults</h2>
-                    <p class="section-help">Operational defaults applied across CustomerEQ when no per-survey or per-page value overrides them.</p>
+                    <p class="section-help">Defaults applied when surveys or pages don't override.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -743,7 +755,7 @@
                       <option value="Europe/London">(UTC+01:00) Europe/London</option>
                       <option value="Asia/Tokyo">(UTC+09:00) Asia/Tokyo</option>
                     </select>
-                    <p class="field-help">Used for the &lt;15-min CX-to-loyalty SLA reporting, business-hours-aware alerts, and admin-facing timestamps.</p>
+                    <p class="field-help">SLA reporting, alerts, and admin timestamps.</p>
                   </div>
                   <div class="field">
                     <label>Locale</label>
@@ -755,7 +767,7 @@
                       <option value="fr-FR">Français (France) — fr-FR</option>
                       <option value="de-DE">Deutsch (Deutschland) — de-DE</option>
                     </select>
-                    <p class="field-help">Default language for survey copy, email copy, and the member portal.</p>
+                    <p class="field-help">Default language for surveys, emails, and the member portal.</p>
                   </div>
                 </div>
               </div>
@@ -765,7 +777,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Look &amp; Feel</h2>
-                    <p class="section-help">The default theme used across customer-facing surfaces.</p>
+                    <p class="section-help">Default theme for customer-facing surfaces.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -813,7 +825,7 @@
                         <span></span>
                       </label>
                     </div>
-                    <p class="field-help">The selected theme's colors and fonts will be used on all customer-facing surfaces — surveys, member portals, and rich-format emails.</p>
+                    <p class="field-help">Applied to surveys, member portals, and rich-format emails.</p>
                   </div>
                 </div>
               </div>
@@ -823,7 +835,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Member identification</h2>
-                    <p class="section-help">How CustomerEQ recognizes your customers across surveys, points, and campaigns.</p>
+                    <p class="section-help">How CustomerEQ recognizes your members.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -854,7 +866,7 @@
                     <div class="locked-notice">
                       <span class="locked-icon" aria-hidden="true">🔒</span>
                       <div class="locked-notice-text">
-                        <strong>1,284+ members are already enrolled.</strong> The member identifier kind cannot be changed once members exist. Contact CustomerEQ Support to request a managed migration.
+                        <strong>1,284+ members enrolled.</strong> Identifier kind is locked. Contact Support for a managed migration.
                       </div>
                       <a href="mailto:support@customereq.com?subject=Request%20to%20change%20member%20identifier%20kind" class="btn btn-ghost btn-sm">Contact support →</a>
                     </div>
@@ -867,7 +879,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Consent &amp; legal</h2>
-                    <p class="section-help">How members consent to receive surveys and where your policies live. Brand-wide default — individual surveys can override.</p>
+                    <p class="section-help">Brand-wide consent defaults. Surveys may override.</p>
                   </div>
                 </div>
                 <div class="section-body">
@@ -902,7 +914,7 @@
                       </div>
                       <textarea>By submitting your response, you agree that Acme Coffee Roasters may use your feedback to improve our products and contact you about it. See our {{privacy:"privacy notice"}} and {{terms}} for full details.</textarea>
                     </div>
-                    <p class="field-help">Tokens render as hyperlinks. The text inside the quotes is the label members see — edit it to customize per language or voice (e.g., <code>"privacy notice"</code>, <code>"data policy"</code>, <code>"aviso de privacidad"</code>). Both <code>{{privacy}}</code> and <code>{{privacy:"…"}}</code> are valid; the bare form falls back to the default label.</p>
+                    <p class="field-help">Quoted text is the label members see. Both <code>{{privacy}}</code> (bare → default label) and <code>{{privacy:"…"}}</code> (custom label) work.</p>
 
                     <div class="preview-card" style="margin-top: 6px;">
                       <div class="preview-head">
@@ -918,13 +930,13 @@
                   <div class="field">
                     <label>Privacy policy URL <span class="req">*</span></label>
                     <input type="url" value="https://acmecoffee.com/privacy">
-                    <p class="field-help">Linked from every consent surface and the member portal footer.</p>
+                    <p class="field-help">Linked from consent surfaces. (https only.)</p>
                   </div>
 
                   <div class="field">
                     <label>Terms and Conditions URL <span style="color: var(--text-subtle); font-weight: 400;">(optional)</span></label>
                     <input type="url" value="https://acmecoffee.com/terms">
-                    <p class="field-help">Optionally referenced in your consent text via the Terms link button.</p>
+                    <p class="field-help">Referenced via the Terms link button. (https only, optional.)</p>
                   </div>
                 </div>
               </div>
@@ -934,7 +946,7 @@
                 <div class="section-head">
                   <div class="section-head-text">
                     <h2>Developer &amp; Support reference <span class="badge badge-muted">Read only</span></h2>
-                    <p class="section-help">IDs CustomerEQ uses to refer to your organization. Useful when contacting support or integrating from your backend. No action required from admins.</p>
+                    <p class="section-help">Identifiers for support tickets and backend integrations.</p>
                   </div>
                   <span class="chevron">▼</span>
                 </div>
@@ -946,7 +958,7 @@
                       <button class="id-copy" type="button">Copy</button>
                     </div>
                     <div class="id-row">
-                      <span class="id-label">Clerk org ID</span>
+                      <span class="id-label">Organization ID (identity provider)</span>
                       <span class="id-value">org_2ZxR1qB7mNc8VkLpA3sT9wYj4X</span>
                       <button class="id-copy" type="button">Copy</button>
                     </div>
@@ -994,7 +1006,7 @@
     </div>
     <div class="modal-body">
       <div class="modal-info">
-        With <strong>Implied on submit</strong>, the consent checkbox is removed from your surveys. Your privacy policy must disclose that submitting a response constitutes consent. CustomerEQ does not provide legal review — confirm with your privacy counsel before proceeding.
+        <strong>Implied on submit</strong> removes the consent checkbox from surveys. Your privacy policy must disclose that submission = consent. Confirm with privacy counsel first — CustomerEQ does not provide legal review.
       </div>
 
       <div class="modal-attestation-box">
