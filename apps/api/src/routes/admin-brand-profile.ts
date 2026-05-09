@@ -6,6 +6,7 @@ import {
   hasPrivacyToken,
 } from '@customerEQ/consent-text'
 import { DEFAULT_CONSENT_TEXT } from '../lib/consent.js'
+import { DEFAULT_THEMES } from '../lib/default-themes.js'
 
 // Issue #292 Slice 3 / Issue #277 — Organization Settings backend.
 //
@@ -137,6 +138,13 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
         const tzHint = (request.headers['x-timezone-hint'] as string | undefined) ?? 'UTC'
         const localeHint =
           (request.headers['x-locale-hint'] as string | undefined) ?? 'en-US'
+        // Lazy-upsert: nested createMany on the brandThemes relation seeds
+        // the four default themes (Indigo / Forest / Sunset / Slate) atomically
+        // with the Brand row (R25 — "all four pickable from first paint").
+        // Nested writes only fire on the create branch of upsert, so an
+        // already-existing brand is not re-seeded; the unique clerkOrgId
+        // constraint plus this nested write together close the race window
+        // for two simultaneous first GETs.
         const brand = await fastify.prisma.brand.upsert({
           where: { clerkOrgId: request.clerkOrgId },
           update: {},
@@ -146,6 +154,9 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
             consentTextDefault: DEFAULT_CONSENT_TEXT,
             timezone: tzHint,
             locale: localeHint,
+            brandThemes: {
+              createMany: { data: [...DEFAULT_THEMES] },
+            },
           },
         })
         brandId = brand.id
@@ -165,17 +176,21 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         fastify.prisma.brandTheme.findMany({
           where: { brandId },
-          select: { id: true, name: true, primaryColor: true, secondaryColor: true, accentColor: true },
+          select: { id: true, name: true, primaryColor: true, secondaryColor: true, backgroundColor: true },
           orderBy: { createdAt: 'desc' },
         }),
         fastify.prisma.member.count({ where: { brandId } }),
       ])
 
+      // swatches projection is the picker's brand-vibe preview — primary +
+      // secondary + page background. accentColor is intentionally NOT shown
+      // here (it's used for error/warning emphasis, not brand identity, and
+      // mixing it into the picker chip strip would mislead admins).
       const themesDecorated = themes.map((t) => ({
         id: t.id,
         name: t.name,
         isDefault: t.id === brand.defaultThemeId,
-        swatches: [t.primaryColor, t.secondaryColor, t.accentColor] as [string, string, string],
+        swatches: [t.primaryColor, t.secondaryColor, t.backgroundColor] as [string, string, string],
       }))
 
       return reply.status(200).send({

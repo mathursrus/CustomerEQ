@@ -136,6 +136,73 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       const count = await prisma.brand.count({ where: { clerkOrgId } })
       expect(count).toBe(1)
     })
+
+    it('seeds the four default themes (Indigo / Forest / Sunset / Slate) on lazy-upsert (R25)', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_themes_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const request = lazyUpsertRequest(clerkOrgId)
+
+      const res = await request.get('/v1/admin/brand/profile')
+      expect(res.status).toBe(200)
+
+      // GET response carries all four defaults.
+      const themeNames = res.body.themes.map((t: { name: string }) => t.name).sort()
+      expect(themeNames).toEqual(['Forest', 'Indigo', 'Slate', 'Sunset'])
+
+      // Each row carries the swatches projection — [primaryColor, secondaryColor, backgroundColor].
+      // accentColor is intentionally NOT included; it's used for error/warning emphasis.
+      for (const theme of res.body.themes) {
+        expect(Array.isArray(theme.swatches)).toBe(true)
+        expect(theme.swatches).toHaveLength(3)
+        expect(theme.swatches[0]).toMatch(/^#[0-9a-fA-F]{6}$/)
+        expect(theme.swatches[1]).toMatch(/^#[0-9a-fA-F]{6}$/)
+        expect(theme.swatches[2]).toMatch(/^#[0-9a-fA-F]{6}$/)
+        expect(theme.isDefault).toBe(false)
+      }
+
+      // Verify a known mapping: Indigo's swatches = [#4f46e5, #7c3aed, #ffffff]
+      // (primary, secondary, background — NOT accent, which is #b91c1c).
+      const indigo = res.body.themes.find((t: { name: string }) => t.name === 'Indigo')
+      expect(indigo.swatches).toEqual(['#4f46e5', '#7c3aed', '#ffffff'])
+
+      // DB-side check: exactly four BrandTheme rows for this brand.
+      const brandId = res.body.brand.id
+      const dbThemes = await prisma.brandTheme.findMany({
+        where: { brandId },
+        select: { name: true, accentColor: true },
+        orderBy: { name: 'asc' },
+      })
+      expect(dbThemes.map((t) => t.name)).toEqual(['Forest', 'Indigo', 'Slate', 'Sunset'])
+
+      // Accent colors are stored on the row even though they're not in the
+      // swatches projection — Slice 4 reads them for error/warning emphasis.
+      // Sunset uses rose-700 (#be123c) to avoid clashing with its orange
+      // primary; the other three use red-700 (#b91c1c).
+      const accentByName = Object.fromEntries(dbThemes.map((t) => [t.name, t.accentColor]))
+      expect(accentByName.Indigo).toBe('#b91c1c')
+      expect(accentByName.Forest).toBe('#b91c1c')
+      expect(accentByName.Sunset).toBe('#be123c')
+      expect(accentByName.Slate).toBe('#b91c1c')
+    })
+
+    it('does not re-seed default themes on a second GET (idempotent)', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_themes_idem_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const request = lazyUpsertRequest(clerkOrgId)
+
+      await request.get('/v1/admin/brand/profile')
+      await request.get('/v1/admin/brand/profile')
+
+      const brand = await prisma.brand.findUniqueOrThrow({
+        where: { clerkOrgId },
+        select: { id: true },
+      })
+      const themeCount = await prisma.brandTheme.count({ where: { brandId: brand.id } })
+      // Still exactly four — nested createMany only fires on the create branch
+      // of upsert, so the second GET (which hits the update branch) does not
+      // re-seed.
+      expect(themeCount).toBe(4)
+    })
   })
 
   // ---------------------------------------------------------------------------
