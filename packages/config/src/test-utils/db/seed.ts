@@ -35,6 +35,7 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
   await deleteAll(prisma.clusterSnapshot)
   await deleteAll(prisma.feedbackAnomaly)
   await deleteAll(prisma.surveyResponse)
+  await deleteAll((prisma as any).surveyImportBatch)
   await deleteAll(prisma.feedbackCluster)
   await deleteAll(prisma.survey)
   await deleteAll((prisma as any).message)

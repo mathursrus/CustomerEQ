@@ -243,7 +243,7 @@ describe('Survey Import API — POST /v1/surveys/:id/import', () => {
       const brand = await createBrand()
       const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
       const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
-      const bigCsv = 'user,score\n' + 'x@example.com,8\n'.repeat(600_000)
+      const bigCsv = 'user,score\n' + 'x@example.com,8\n'.repeat(660_000)
 
       const res = await authenticatedRequest(brand.id)
         .post(`/v1/surveys/${survey.id}/import?sourceType=excel`)

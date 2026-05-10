@@ -606,7 +606,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/surveys/:id/import — upload a CSV of historical responses
   fastify.addContentTypeParser('text/csv', { parseAs: 'string' }, (_req, body, done) => done(null, body))
 
-  fastify.post('/surveys/:id/import', async (request, reply) => {
+  fastify.post('/surveys/:id/import', { bodyLimit: 11 * 1024 * 1024 }, async (request, reply) => {
     const { id: surveyId } = request.params as { id: string }
     const brandId = request.brandId
     const sourceType = (request.query as Record<string, string>)['sourceType'] as ImportSourceType | undefined
