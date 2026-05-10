@@ -15,7 +15,7 @@ interface DeveloperSupportSectionProps {
 function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="grid grid-cols-[140px,1fr,auto] items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-2.5">
+    <div className="grid grid-cols-[140px_1fr_auto] items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-2.5">
       <span className="text-xs font-medium text-gray-500">{label}</span>
       <code className="select-all break-all font-mono text-xs text-gray-900">{value}</code>
       <button
@@ -40,7 +40,7 @@ export function DeveloperSupportSection({ brand, supportEmail }: DeveloperSuppor
       <CopyRow label="Brand id" value={brand.id} />
       <CopyRow label="Clerk org id" value={brand.clerkOrgId} />
       <CopyRow label="Created" value={new Date(brand.createdAt).toISOString()} />
-      <div className="grid grid-cols-[140px,1fr,auto] items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-2.5">
+      <div className="grid grid-cols-[140px_1fr_auto] items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-2.5">
         <span className="text-xs font-medium text-gray-500">Support contact</span>
         <a
           href={`mailto:${supportEmail}`}

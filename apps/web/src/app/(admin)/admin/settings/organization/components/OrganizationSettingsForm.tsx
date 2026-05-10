@@ -251,7 +251,7 @@ export function OrganizationSettingsForm({ initial }: OrganizationSettingsFormPr
 
         <AdminPendingBanner items={pendingItems} />
 
-        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr,220px]">
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr_220px]">
           <div className="flex min-w-0 flex-col gap-5">
             {SECTIONS.map((section) => (
               <SectionCard
