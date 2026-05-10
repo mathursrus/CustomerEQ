@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CustomerEQ — Survey Admin UX (Issue #241) — R2 interactive mock</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --info: #0891b2; --info-soft: #cffafe;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; scroll-behavior: smooth; }
+
+  /* Top mock-chrome */
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* Admin shell */
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .org-switcher { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .admin-top .org-switcher .org-pill { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 14px; color: var(--text); font-weight: 500; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 680px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; cursor: pointer; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav a:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 32px 40px; background: var(--bg); }
+
+  /* Page header */
+  .page-header { margin-bottom: 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .page-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .page-header p { font-size: 14px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+  .saved-state { font-size: 12px; color: var(--text-subtle); display: inline-flex; align-items: center; gap: 6px; }
+  .saved-state::before { content:""; width:6px; height:6px; border-radius:50%; background: var(--success); }
+
+  /* Horizontal tabs (R2) */
+  .tabs-h { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+  .tab-h { padding: 10px 18px; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+  .tab-h:hover { color: var(--text); }
+  .tab-h.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+  .tab-h .step-num { width: 18px; height: 18px; border-radius: 50%; background: var(--surface-muted); color: var(--text-muted); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .tab-h.active .step-num { background: var(--primary); color: white; }
+  .tab-h.complete .step-num { background: var(--success); color: white; }
+  .tab-h.complete .step-num::before { content: "✓"; }
+  .tab-h.complete .step-num-num { display: none; }
+
+  /* Tab body */
+  .tab-body { display: none; }
+  .tab-body.active { display: block; }
+  .tab-nav-foot { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; margin-top: 24px; border-top: 1px solid var(--border); }
+  .tab-nav-foot .auto-save-note { font-size: 12px; color: var(--text-subtle); display: inline-flex; align-items: center; gap: 6px; }
+  .tab-nav-foot .auto-save-note::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  /* Section card (used inside tab body for sub-blocks) */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+  .card h2.section-h { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .card p.section-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 18px; }
+
+  /* Sub-block within a card */
+  .subblock { padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: #fbfbfc; margin-top: 18px; }
+  .subblock-head { margin-bottom: 12px; }
+  .subblock-head h3 { font-size: 13px; font-weight: 600; margin: 0; }
+  .subblock-head .subblock-help { font-size: 12px; color: var(--text-muted); margin: 2px 0 0; }
+
+  /* Field rows */
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .field .field-help { font-size: 12px; color: var(--text-muted); margin: 0; }
+  .field .req { color: var(--danger); margin-left: 2px; }
+  .field input[type="text"], .field input[type="url"], .field input[type="email"], .field input[type="number"], .field textarea, .field select {
+    width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: white; color: var(--text); font-family: inherit;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: 2px solid var(--primary-soft); outline-offset: 0; border-color: var(--primary); }
+  .field textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+  .field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; font-size: 13px; border-radius: var(--radius-sm); font-weight: 500; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: background 100ms, border-color 100ms; font-family: inherit; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary[disabled] { background: var(--text-subtle); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-ghost:hover { background: var(--surface-muted); }
+  .btn-danger { background: white; color: var(--danger); border-color: #fca5a5; }
+  .btn-danger:hover { background: var(--danger-soft); }
+  .btn-link { background: transparent; color: var(--primary); padding: 0; border: none; font-size: 13px; cursor: pointer; font-family: inherit; text-decoration: underline; }
+  .btn-link.muted { color: var(--text-muted); text-decoration-style: dashed; }
+  .btn-lg { padding: 10px 18px; font-size: 14px; }
+  .btn-sm { padding: 5px 9px; font-size: 12px; }
+  .btn-icon { width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); background: white; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
+  .btn-icon:hover { border-color: var(--border-strong); color: var(--text); }
+
+  /* Badges & pills */
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .badge-draft { background: var(--surface-muted); color: var(--text-muted); }
+  .badge-active { background: var(--success-soft); color: #166534; }
+  .badge-paused { background: var(--warning-soft); color: var(--warning-strong); }
+  .badge-stopped { background: #f3f4f6; color: #4b5563; }
+  .badge-type { background: var(--primary-soft); color: var(--primary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .badge-inherit { background: var(--info-soft); color: var(--info); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .badge .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-muted); color: var(--text-muted); font-weight: 500; }
+
+  /* Surveys table */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+  .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .filter-group { display: flex; gap: 6px; align-items: center; }
+  .filter-group-label { font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; padding: 0 4px; }
+  .chip { padding: 5px 11px; font-size: 12px; border: 1px solid var(--border-strong); background: white; border-radius: 999px; cursor: pointer; color: var(--text-muted); user-select: none; }
+  .chip:hover { color: var(--text); }
+  .chip.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); font-weight: 500; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+  table.surveys { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.surveys thead th { background: var(--surface-muted); text-align: left; padding: 10px 16px; font-weight: 600; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+  table.surveys tbody td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.surveys tbody tr:last-child td { border-bottom: none; }
+  table.surveys tbody tr { cursor: pointer; }
+  table.surveys tbody tr:hover { background: var(--surface-muted); }
+  .survey-name { font-weight: 600; color: var(--text); }
+  .survey-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .survey-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  /* Type-card grid */
+  .type-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .type-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; background: white; transition: all .15s; text-align: left; }
+  .type-card:hover { border-color: var(--border-strong); }
+  .type-card.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary); }
+  .type-card .type-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-muted); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 8px; }
+  .type-card.selected .type-icon { background: var(--primary); color: white; }
+  .type-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 2px; display: flex; align-items: baseline; gap: 6px; }
+  .type-card h3 .type-sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .type-card .type-when { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.4; }
+  .type-card .type-meta { font-size: 11px; color: var(--text-subtle); margin-top: 6px; }
+  .type-card.selected .type-meta { color: var(--primary); }
+
+  /* "Not sure what to pick?" toggle uses the same chevron pattern as #277 / detail sections (per D37) */
+  .type-help-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; margin-top: 10px; font-family: inherit; }
+  .type-help-toggle::before { content: "▼"; font-size: 12px; transition: transform .15s; display: inline-block; transform: rotate(-90deg); color: var(--text-muted); }
+  .type-help-toggle.expanded::before { transform: rotate(0deg); }
+  .type-help-block { margin-top: 10px; padding: 12px 14px; background: var(--surface-muted); border-radius: 8px; font-size: 12px; color: var(--text-muted); line-height: 1.6; display: none; }
+  .type-help-block.shown { display: block; }
+  .type-help-block ul { margin: 6px 0 0; padding-left: 18px; }
+  .type-help-block strong { color: var(--text); }
+
+  /* Override-banner (consent dropdown) */
+  .override-banner { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; background: var(--warning-soft); border: 1px solid #fbbf24; border-radius: 6px; font-size: 12px; color: var(--warning-strong); line-height: 1.5; margin-top: 10px; }
+  .override-banner strong { color: var(--warning-strong); font-weight: 600; }
+
+  /* Preview card (per #277 pattern) */
+  .preview-card { background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-top: 10px; }
+  .preview-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: white; border-bottom: 1px solid var(--border); }
+  .preview-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+  .preview-label::before { content: "👁"; font-size: 13px; }
+  .preview-mode { font-size: 11px; color: var(--text-subtle); font-style: italic; }
+  .preview-body { padding: 14px; }
+  .preview-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--text); }
+  .preview-consent input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+  .preview-text { font-size: 13px; line-height: 1.5; color: var(--text); margin: 0; }
+  .preview-link { color: var(--primary); text-decoration: underline; }
+
+  /* Form preview frames (Look & Feel) */
+  .preview-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .preview-tab { padding: 8px 14px; font-size: 12px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; user-select: none; }
+  .preview-tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 500; }
+  .preview-grid { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start; }
+  .preview-grid[hidden] { display: none; }
+  .preview-frame { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; padding: 32px 18px 18px; min-height: 360px; position: relative; }
+  .preview-frame.embedded { background: #fff7ed; }
+  .preview-frame .frame-label { position: absolute; top: 8px; left: 12px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .preview-frame.embedded .frame-label { color: #9a3412; }
+  .preview-frame.mobile { padding: 32px 12px 18px; min-width: 220px; }
+  .preview-survey { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: 320px; margin: 8px auto 0; box-shadow: var(--shadow-sm); }
+  .preview-frame.mobile .preview-survey { max-width: 200px; padding: 14px; }
+  .preview-frame.mobile .preview-survey .ps-scale-cell { font-size: 8px; }
+  .preview-frame.mobile .preview-survey .ps-title { font-size: 13px; }
+  .preview-survey .ps-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .preview-survey .ps-brand .ps-logo { width: 22px; height: 22px; background: #6366f1; border-radius: 5px; }
+  .preview-survey .ps-brand .ps-brand-name { font-weight: 600; font-size: 12px; }
+  .preview-survey .ps-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .preview-survey .ps-question { font-size: 12px; margin: 12px 0 8px; color: var(--text); }
+  .preview-survey .ps-scale { display: grid; grid-template-columns: repeat(11, 1fr); gap: 3px; margin-bottom: 12px; }
+  .preview-survey .ps-scale-cell { aspect-ratio: 1; border: 1px solid var(--border-strong); border-radius: 3px; background: white; font-size: 9px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+  .preview-survey .ps-consent { font-size: 10px; color: var(--text-muted); margin: 10px 0; }
+  .preview-survey .ps-consent input { margin-right: 5px; }
+  .preview-survey .ps-actions { display: flex; justify-content: flex-end; }
+  .preview-survey .ps-actions .ps-submit { background: var(--primary); color: white; padding: 6px 12px; font-size: 11px; border-radius: 5px; border: none; }
+  .preview-survey .ps-hidden { display: none !important; }
+
+  /* Chrome matrix */
+  .chrome-matrix { background: white; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .chrome-matrix table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .chrome-matrix th { padding: 10px 14px; background: var(--surface-muted); text-align: left; font-weight: 600; color: var(--text); font-size: 12px; }
+  .chrome-matrix th.center { text-align: center; }
+  .chrome-matrix td { padding: 10px 14px; border-top: 1px solid var(--border); }
+  .chrome-matrix td.center { text-align: center; }
+  .chrome-matrix .element-name { font-weight: 500; color: var(--text); }
+  .chrome-matrix .element-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Toggle */
+  .toggle { display: inline-flex; align-items: center; cursor: pointer; }
+  .toggle input { display: none; }
+  .toggle-track { width: 32px; height: 18px; background: var(--border-strong); border-radius: 999px; position: relative; transition: background .15s; }
+  .toggle-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: left .15s; box-shadow: var(--shadow-sm); }
+  .toggle input:checked + .toggle-track { background: var(--primary); }
+  .toggle input:checked + .toggle-track::after { left: 16px; }
+
+  /* Theme picker (4 cards in a row) */
+  .theme-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .theme-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; background: white; transition: all .15s; }
+  .theme-card:hover { border-color: var(--border-strong); }
+  .theme-card.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary); }
+  .theme-swatch { display: flex; gap: 4px; margin-bottom: 8px; }
+  .theme-swatch span { width: 18px; height: 18px; border-radius: 4px; }
+  .theme-card h4 { font-size: 13px; font-weight: 600; margin: 0; }
+  .theme-card p { font-size: 11px; color: var(--text-muted); margin: 2px 0 0; }
+  .theme-card .theme-default { font-size: 10px; color: var(--success); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+  /* Question canvas (Questions tab — wider now without TOC) */
+  .canvas-shell { display: grid; grid-template-columns: 200px 1fr 280px; gap: 16px; }
+  .canvas-palette { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .canvas-palette h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; color: var(--text-subtle); }
+  .canvas-palette .qtype { padding: 7px 11px; font-size: 12px; background: white; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: grab; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .canvas-palette .qtype:hover { color: var(--text); border-color: var(--border-strong); }
+  .canvas-board { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-height: 380px; }
+  .canvas-board .preset-banner { font-size: 12px; padding: 8px 12px; background: var(--info-soft); color: var(--info); border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .canvas-q { padding: 11px 14px; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 8px; background: white; font-size: 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .canvas-q:hover { border-color: var(--border-strong); }
+  .canvas-q.selected { border-color: var(--primary); background: var(--primary-soft); }
+  .canvas-q .grip { color: var(--text-subtle); font-family: var(--mono); cursor: grab; }
+  .canvas-q .q-text { flex: 1; }
+  .canvas-q .q-actions { display: flex; gap: 4px; }
+  .canvas-config { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .canvas-config h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; color: var(--text-subtle); }
+  .canvas-config .config-field { margin-bottom: 12px; font-size: 12px; }
+  .canvas-config .config-field label { display: block; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+  .canvas-config .config-field input, .canvas-config .config-field select { width: 100%; padding: 6px 9px; font-size: 12px; border: 1px solid var(--border-strong); border-radius: 4px; background: white; }
+  .canvas-add { padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 6px; text-align: center; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+  .canvas-add:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* Variable chips */
+  .variable-picker { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0; align-items: center; }
+  .variable-chip { padding: 4px 9px; font-size: 11px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-family: var(--mono); color: var(--text); user-select: none; }
+  .variable-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+  /* Consent text editor — same pattern as #277 admin (per D34) */
+  .consent-editor { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; background: white; }
+  .consent-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--surface-muted); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .consent-toolbar .toolbar-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 12px; font-weight: 500; background: white; color: var(--text); border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer; font-family: inherit; }
+  .consent-toolbar .toolbar-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .consent-toolbar .toolbar-btn .icon { font-size: 11px; font-weight: 700; }
+  .consent-toolbar .toolbar-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .consent-toolbar .toolbar-spacer { flex: 1; }
+  .consent-toolbar .toolbar-link { font-size: 12px; color: var(--text-muted); background: transparent; border: none; cursor: pointer; padding: 4px 6px; font-family: inherit; }
+  .consent-toolbar .toolbar-link:hover { color: var(--primary); text-decoration: underline; }
+  .consent-editor textarea { width: 100%; padding: 9px 12px; font-size: 14px; border: none; background: white; color: var(--text); font-family: inherit; resize: vertical; min-height: 76px; line-height: 1.5; }
+  .consent-editor textarea:focus { outline: 2px solid var(--primary-soft); outline-offset: -2px; }
+
+  /* Banners */
+  .banner { padding: 12px 16px; border-radius: 8px; font-size: 13px; line-height: 1.5; margin: 16px 0; display: flex; align-items: flex-start; gap: 10px; }
+  .banner-info { background: var(--info-soft); color: #155e75; border: 1px solid #67e8f9; }
+  .banner-info strong { color: #155e75; }
+
+  /* Modal (static layout in scenes; reviewers see them inline) */
+  .modal-wrap { position: relative; min-height: 460px; background: rgba(15, 23, 42, 0.5); border-radius: var(--radius); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; padding: 28px 16px; }
+  .modal { background: var(--surface); border-radius: 12px; max-width: 540px; width: 100%; padding: 28px; box-shadow: var(--shadow-lg); }
+  .modal h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  .modal h3.warn::before { content: "⚠"; color: var(--warning); }
+  .modal h3.danger::before { content: "■"; color: var(--danger); font-size: 14px; }
+  .modal p { font-size: 14px; color: var(--text-muted); line-height: 1.5; margin: 0 0 14px; }
+  .modal-attest { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: var(--bg); border-radius: 8px; margin-bottom: 14px; cursor: pointer; }
+  .modal-attest input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); }
+  .modal-attest-text { font-size: 13px; color: var(--text); font-weight: 500; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+  .modal-field-help { font-size: 12px; color: var(--text-muted); margin: -8px 0 12px; }
+  .summary-box { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  .summary-box dl { display: grid; grid-template-columns: 130px 1fr; gap: 8px 14px; font-size: 13px; margin: 0; }
+  .summary-box dt { color: var(--text-muted); font-weight: 500; }
+  .summary-box dd { color: var(--text); margin: 0; }
+
+  /* Detail page — restructure to 3 vertical sections (R2 D32) */
+  /* Collapse chevron uses same icon (▼) and rotation as #277 (.section.collapsible) per D37 */
+  .detail-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
+  .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; user-select: none; margin-bottom: 14px; }
+  .detail-section-head h2 { font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .detail-section-head .chevron { color: var(--text-muted); font-size: 12px; user-select: none; transition: transform .15s; display: inline-block; }
+  .detail-section.collapsed .chevron { transform: rotate(-90deg); }
+  .detail-section.collapsed .detail-section-body { display: none; }
+  .detail-section.collapsed .detail-section-head { margin-bottom: 0; }
+
+  /* Distribution wide bar */
+  .dist-wide { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .dist-tile { padding: 11px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .dist-tile .dist-icon { font-size: 18px; flex-shrink: 0; }
+  .dist-tile .dist-text { min-width: 0; flex: 1; }
+  .dist-tile .dist-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .dist-tile .dist-value { font-size: 11px; color: var(--text-muted); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+  .dist-tile .btn-copy { font-size: 11px; padding: 4px 8px; flex-shrink: 0; }
+
+  /* Detail page collapsed-distribution summary */
+  .dist-collapsed-summary { font-size: 13px; color: var(--text-muted); }
+  .dist-collapsed-summary strong { color: var(--text); }
+
+  /* Configuration summary — first-class preview */
+  .config-summary-grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start; }
+  .config-summary-info { font-size: 13px; }
+  .config-summary-info dl { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; margin: 0; }
+  .config-summary-info dt { color: var(--text-muted); font-weight: 500; }
+  .config-summary-info dd { color: var(--text); margin: 0; }
+  .config-summary-info h4 { font-size: 12px; font-weight: 600; color: var(--text); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .config-summary-info h4:first-child { margin-top: 0; }
+
+  /* Empty state */
+  .empty-state { background: var(--surface); border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 32px 24px; text-align: center; color: var(--text-muted); }
+  .empty-state .empty-icon { font-size: 26px; margin-bottom: 8px; }
+  .empty-state h4 { font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
+  .empty-state p { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 420px; margin: 0 auto; }
+
+  .audit-badge-detail { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--info); background: var(--info-soft); padding: 5px 12px; border-radius: 999px; }
+  .audit-badge-detail::before { content: "ℹ"; }
+
+  /* Mock-only intro card */
+  .intro-card { max-width: 880px; margin: 24px auto 0; padding: 18px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .intro-card h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .intro-card p { font-size: 13px; color: var(--text-muted); margin: 0 0 8px; }
+  .intro-card .flow-steps { display: flex; gap: 4px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .intro-card .flow-steps a { color: var(--primary); text-decoration: none; padding: 4px 8px; background: var(--primary-soft); border-radius: 4px; }
+  .intro-card .flow-steps a:hover { background: var(--primary); color: white; }
+</style>
+</head>
+<body>
+
+<header class="mock-header">
+  <h1>Issue #241 — Survey Admin UX · R2 interactive mock</h1>
+  <nav class="nav">
+    <a href="#scene-1">1. List</a>
+    <a href="#scene-2">2. Editor</a>
+    <a href="#scene-3">3. Detail</a>
+    <a href="#scene-4">4. Activate modal</a>
+    <a href="#scene-5">5. Consent attest.</a>
+    <a href="#scene-6">6. Stop</a>
+  </nav>
+</header>
+
+<div class="intro-card">
+  <h2>How to walk this mock</h2>
+  <p>All scenes stay on the page, in flow order. The controls in each scene are <strong>live</strong> — tabs switch, dropdowns reveal, type-cards select, modals fire by smooth-scroll. Walk the canonical flow:</p>
+  <div class="flow-steps">
+    <a href="#scene-1">Surveys list</a>
+    <span>→</span>
+    <a href="#scene-2" onclick="goEditor()">Click <code>+ New survey</code></a>
+    <span>→</span>
+    <a href="#scene-2" onclick="goTab('basics')">Basics tab</a>
+    <span>→</span>
+    <a href="#scene-2" onclick="goTab('look')">Look &amp; Feel</a>
+    <span>→</span>
+    <a href="#scene-4">Activate modal</a>
+    <span>→</span>
+    <a href="#scene-3">Detail page</a>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SCENE 1: SURVEYS LIST
+     ============================================================ -->
+<section class="scene" id="scene-1">
+  <div class="scene-label"><strong>Scene 1</strong> — Surveys list. Description from Basics surfaces as a muted line under the name (D26). Type pill in row meta. Filter chips cover Status + Type at top. Click a row → Detail. Click <code>+ New survey</code> → Editor on Basics tab. ⋯ menu contents documented below the table.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Acme Coffee <span class="org-pill">Production</span></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a>Dashboard</a><a>Members</a><a>Programs</a><a>Campaigns</a>
+          <a class="active">Surveys</a>
+          <a>Rewards catalog</a><a>Analytics</a>
+          <div class="admin-nav-group">Configure</div>
+          <a>Organization settings</a><a>Themes</a><a>Integrations</a>
+        </nav>
+        <main class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Surveys</h1>
+              <p>Create, edit, and monitor surveys. Each survey is one record from draft to live — all editing happens in one place.</p>
+            </div>
+            <button class="btn btn-primary btn-lg" onclick="goEditor()">+ New survey</button>
+          </div>
+
+          <div class="toolbar">
+            <div class="filters">
+              <div class="filter-group">
+                <span class="filter-group-label">Status:</span>
+                <span class="chip active" onclick="toggleChip(this, 'status')">All</span>
+                <span class="chip" onclick="toggleChip(this, 'status')">Draft</span>
+                <span class="chip" onclick="toggleChip(this, 'status')">Active</span>
+                <span class="chip" onclick="toggleChip(this, 'status')">Stopped</span>
+              </div>
+              <div class="filter-group">
+                <span class="filter-group-label">Type:</span>
+                <span class="chip" onclick="toggleChip(this, 'type')">NPS</span>
+                <span class="chip" onclick="toggleChip(this, 'type')">CSAT</span>
+                <span class="chip" onclick="toggleChip(this, 'type')">CES</span>
+                <span class="chip" onclick="toggleChip(this, 'type')">Custom</span>
+              </div>
+            </div>
+            <input type="text" placeholder="Search surveys by name, description, or program..." style="width: 320px; padding: 7px 12px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: white;" />
+          </div>
+
+          <div class="table-wrap">
+            <table class="surveys">
+              <thead>
+                <tr><th>Name</th><th>Type</th><th>Status</th><th>Responses</th><th>Updated</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr onclick="goDetail()">
+                  <td>
+                    <div class="survey-name">Post-purchase NPS — Q2</div>
+                    <div class="survey-desc">Quarterly NPS sent right after Acme Coffee online checkout completes.</div>
+                    <div class="survey-meta">Acme Stars program</div>
+                  </td>
+                  <td><span class="badge badge-type">NPS</span></td>
+                  <td><span class="badge badge-active"><span class="dot"></span>Active</span></td>
+                  <td>1,284</td>
+                  <td><span style="font-size:12px;color:var(--text-muted)">2 hours ago</span></td>
+                  <td><div class="row-actions"><button class="btn-icon" title="Edit" onclick="event.stopPropagation(); goEditor()">✎</button><button class="btn-icon" title="More" onclick="event.stopPropagation()">⋯</button></div></td>
+                </tr>
+                <tr onclick="goDetail()">
+                  <td>
+                    <div class="survey-name">Product page micro-feedback</div>
+                    <div class="survey-desc">Embedded one-question CSAT on the product detail page; high traffic, low friction.</div>
+                    <div class="survey-meta">Acme Stars program</div>
+                  </td>
+                  <td><span class="badge badge-type">CSAT</span></td>
+                  <td><span class="badge badge-active"><span class="dot"></span>Active</span></td>
+                  <td>342</td>
+                  <td><span style="font-size:12px;color:var(--text-muted)">Yesterday</span></td>
+                  <td><div class="row-actions"><button class="btn-icon" onclick="event.stopPropagation(); goEditor()">✎</button><button class="btn-icon" onclick="event.stopPropagation()">⋯</button></div></td>
+                </tr>
+                <tr onclick="goDetail()">
+                  <td>
+                    <div class="survey-name">Tier-upgrade welcome NPS</div>
+                    <div class="survey-desc">Sent right after a member crosses to Gold tier. Measures upgrade-experience satisfaction.</div>
+                    <div class="survey-meta">Acme Stars program</div>
+                  </td>
+                  <td><span class="badge badge-type">NPS</span></td>
+                  <td><span class="badge badge-draft"><span class="dot"></span>Draft</span></td>
+                  <td>—</td>
+                  <td><span style="font-size:12px;color:var(--text-muted)">3 days ago</span></td>
+                  <td><div class="row-actions"><button class="btn-icon" onclick="event.stopPropagation(); goEditor()">✎</button><button class="btn-icon" onclick="event.stopPropagation()">⋯</button></div></td>
+                </tr>
+                <tr onclick="goDetail()">
+                  <td>
+                    <div class="survey-name">Support follow-up CSAT</div>
+                    <div class="survey-desc">CSAT sent within 1 hour of a support case being resolved. Measures effort + outcome.</div>
+                    <div class="survey-meta">Acme Stars program</div>
+                  </td>
+                  <td><span class="badge badge-type">CSAT</span></td>
+                  <td><span class="badge badge-stopped"><span class="dot"></span>Stopped</span></td>
+                  <td>2,019</td>
+                  <td><span style="font-size:12px;color:var(--text-muted)">Last month</span></td>
+                  <td><div class="row-actions"><button class="btn-icon" onclick="event.stopPropagation(); goEditor()">✎</button><button class="btn-icon" onclick="event.stopPropagation()">⋯</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p style="font-size: 11px; color: var(--text-subtle); margin-top: 16px;">
+            <strong>⋯ menu (state-aware):</strong> Duplicate (always) · Discard draft (DRAFT only) · Pause (ACTIVE only) · Stop (ACTIVE/PAUSED only) · Restart (STOPPED only) · Delete (STOPPED only, with confirm).
+          </p>
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCENE 2: EDITOR — horizontal tabs (R2)
+     ============================================================ -->
+<section class="scene" id="scene-2">
+  <div class="scene-label"><strong>Scene 2</strong> — Survey editor with horizontal tabs (D25). Auto-save indicator + <code>Activate</code> in header. Each tab body has Next/Back at the bottom. Click tabs to switch; click NPS/CSAT/CES card in Basics to see preset Questions populate; click <code>Override for this survey</code> in Consent to reveal override dropdown + preview; click <code>Activate</code> when ready.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Acme Coffee <span class="org-pill">Production</span></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a>Dashboard</a><a>Members</a><a>Programs</a><a>Campaigns</a>
+          <a class="active">Surveys</a>
+        </nav>
+        <main class="admin-main">
+          <div class="breadcrumb"><a href="#scene-1">Surveys</a> &nbsp;/&nbsp; Tier-upgrade welcome NPS</div>
+          <div class="page-header">
+            <div>
+              <h1>Tier-upgrade welcome NPS <span class="badge badge-draft"><span class="dot"></span>Draft</span></h1>
+              <p class="saved-state">Saved 4 seconds ago</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-ghost">Discard draft</button>
+              <button class="btn btn-primary btn-lg" id="activate-btn" onclick="goActivate()">Activate →</button>
+            </div>
+          </div>
+
+          <!-- Horizontal tabs -->
+          <div class="tabs-h">
+            <div class="tab-h active" data-tab="basics" onclick="goTab('basics')"><span class="step-num"><span class="step-num-num">1</span></span> Basics</div>
+            <div class="tab-h" data-tab="questions" onclick="goTab('questions')"><span class="step-num"><span class="step-num-num">2</span></span> Questions</div>
+            <div class="tab-h" data-tab="look" onclick="goTab('look')"><span class="step-num"><span class="step-num-num">3</span></span> Look &amp; Feel</div>
+            <div class="tab-h" data-tab="points" onclick="goTab('points')"><span class="step-num"><span class="step-num-num">4</span></span> Points &amp; Thank You</div>
+          </div>
+
+          <!-- ───── Tab body: BASICS ───── -->
+          <div class="tab-body active" data-tab-body="basics">
+            <div class="card">
+              <h2 class="section-h">Basics</h2>
+              <p class="section-sub">Set up the foundation — what you're asking, who you're asking, and how their consent is collected.</p>
+
+              <div class="field-row-2">
+                <div class="field">
+                  <label>Internal name<span class="req">*</span></label>
+                  <p class="field-help">Used in the surveys list and analytics. Only your team sees this.</p>
+                  <input type="text" value="Tier-upgrade welcome NPS — Q2 v3" />
+                </div>
+                <div class="field">
+                  <label>Survey title<span class="req">*</span></label>
+                  <p class="field-help">Shown to respondents at the top of the form.</p>
+                  <input type="text" value="Welcome to Gold tier — quick feedback?" />
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Survey type<span class="req">*</span></label>
+                <p class="field-help">Picking NPS / CSAT / CES auto-populates the Questions tab with the standard set (all editable). Custom = blank canvas.</p>
+                <div class="type-grid">
+                  <div class="type-card selected" data-type="NPS" onclick="selectType(this)">
+                    <div class="type-icon">⭐</div>
+                    <h3>NPS <span class="type-sub">Net Promoter</span></h3>
+                    <p class="type-when">Loyalty health — would you recommend us?</p>
+                    <p class="type-meta">1 standard question + 1 follow-up</p>
+                  </div>
+                  <div class="type-card" data-type="CSAT" onclick="selectType(this)">
+                    <div class="type-icon">❤</div>
+                    <h3>CSAT <span class="type-sub">Satisfaction</span></h3>
+                    <p class="type-when">Moment quality — how did this experience go?</p>
+                    <p class="type-meta">1 standard question + 1 follow-up</p>
+                  </div>
+                  <div class="type-card" data-type="CES" onclick="selectType(this)">
+                    <div class="type-icon">⚡</div>
+                    <h3>CES <span class="type-sub">Effort</span></h3>
+                    <p class="type-when">Friction — how easy was it?</p>
+                    <p class="type-meta">1 standard question + 1 follow-up</p>
+                  </div>
+                  <div class="type-card" data-type="Custom" onclick="selectType(this)">
+                    <div class="type-icon">✎</div>
+                    <h3>Custom</h3>
+                    <p class="type-when">Build your own — any mix of question types.</p>
+                    <p class="type-meta">Blank canvas</p>
+                  </div>
+                </div>
+                <button class="type-help-toggle" onclick="toggleQuickGuide(this)">Not sure which to pick?</button>
+                <div class="type-help-block" id="quick-guide">
+                  <strong>Quick guide</strong> — pick the score that matches the moment you're capturing:
+                  <ul>
+                    <li><strong>NPS</strong> works after a relationship checkpoint — a tier upgrade, a 1-year anniversary, an annual program review.</li>
+                    <li><strong>CSAT</strong> works right after an experience — a purchase, a redemption, a delivered service.</li>
+                    <li><strong>CES</strong> works after the customer had to do something — sign up, enroll, contact support.</li>
+                    <li><strong>Custom</strong> when none of the above fits — you build the questions from scratch with all 11 question types.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="field-row-2">
+                <div class="field">
+                  <label>Program<span class="req">*</span></label>
+                  <p class="field-help">Points credit through this program. Members must be enrolled.</p>
+                  <select>
+                    <option>Acme Stars program</option>
+                    <option>Acme Plus (premium tier)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Description</label>
+                  <p class="field-help">Short admin note — surfaces in the surveys list under the name.</p>
+                  <input type="text" value="Sent right after a member crosses to Gold tier. Measures upgrade-experience satisfaction." />
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Response policy</label>
+                <p class="field-help">What happens when the same member answers more than once.</p>
+                <select id="response-policy">
+                  <option selected>Allow multiple responses (default)</option>
+                  <option>One response per member</option>
+                  <option>Latest overwrites prior</option>
+                </select>
+              </div>
+
+              <!-- Consent collection sub-block -->
+              <div class="subblock">
+                <div class="subblock-head">
+                  <h3>Consent collection</h3>
+                  <p class="subblock-help">How this survey collects consent from respondents. Inherits from your brand by default.</p>
+                </div>
+
+                <div class="field" style="margin-bottom: 0;">
+                  <label>Consent mode</label>
+                  <select id="consent-mode" onchange="onConsentChange(this)">
+                    <option value="inherit" selected>Inherit brand default · Explicit consent required</option>
+                    <option value="override">Override · Implied on submit (more permissive — needs attestation)</option>
+                  </select>
+
+                  <div class="override-banner" id="consent-override-banner" style="display: none;">
+                    <span>⚠</span>
+                    <div>
+                      <strong>This deviation will be logged.</strong> When you save this section, you'll be asked to confirm and supply a reason. Your identity, the reason, and a timestamp are recorded and surfaced as an audit badge on the detail page.
+                      <button class="btn btn-link" style="display: inline-block; margin-top: 4px; font-size: 12px;" onclick="goAttest()">Open attestation modal →</button>
+                    </div>
+                  </div>
+
+                  <!-- Preview card (per #277 pattern) -->
+                  <div class="preview-card">
+                    <div class="preview-head">
+                      <span class="preview-label">Preview — what members see</span>
+                      <span class="preview-mode" id="consent-preview-mode">Explicit · with checkbox</span>
+                    </div>
+                    <div class="preview-body">
+                      <label class="preview-consent" id="consent-preview-explicit">
+                        <input type="checkbox" />
+                        <span>By submitting this response, you agree we may use your feedback to improve our products and follow up if needed. See our <a href="#" class="preview-link">privacy policy</a> for details.</span>
+                      </label>
+                      <p class="preview-text" id="consent-preview-implied" style="display: none;">By submitting your response, you agree we may use your feedback to improve our products and follow up if needed. See our <a href="#" class="preview-link">privacy policy</a> for details.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="field" style="margin-top: 14px; margin-bottom: 0;">
+                  <label>Disclosure text override <span class="pill" style="font-size: 10px;">Optional</span></label>
+                  <p class="field-help">Leave blank to inherit your brand's default. Same editor as Organization Settings — click the buttons to insert <code>&#123;&#123;privacy&#125;&#125;</code> or <code>&#123;&#123;terms&#125;&#125;</code> tokens that resolve to your brand's Privacy / Terms URLs at render time.</p>
+                  <div class="consent-editor">
+                    <div class="consent-toolbar">
+                      <button type="button" class="toolbar-btn" onclick="insertDisclosureToken('privacy')"><span class="icon">+</span> Privacy link</button>
+                      <button type="button" class="toolbar-btn" onclick="insertDisclosureToken('terms')"><span class="icon">+</span> Terms link</button>
+                      <span class="toolbar-spacer"></span>
+                      <button type="button" class="toolbar-link" onclick="resetDisclosure()">Reset to brand default</button>
+                    </div>
+                    <textarea id="disclosure-override" oninput="updateConsentPreview()" placeholder="Inherits from brand: 'By submitting, you consent to Acme Coffee processing your response per our privacy policy.'"></textarea>
+                  </div>
+                  <p style="font-size: 11px; color: var(--text-subtle); margin-top: 6px;">Privacy / Terms tokens render as links using your brand's URLs (set in <a href="#" class="btn-link" style="font-size: 11px;">Organization settings</a>). Terms link button shows because your brand has a Terms URL configured.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-nav-foot">
+              <span class="auto-save-note">Auto-saving · last saved 4s ago</span>
+              <div>
+                <button class="btn btn-ghost" disabled>← Back</button>
+                <button class="btn btn-primary" onclick="goTab('questions')">Continue: Questions →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ───── Tab body: QUESTIONS ───── -->
+          <div class="tab-body" data-tab-body="questions">
+            <div class="card">
+              <h2 class="section-h">Questions</h2>
+              <p class="section-sub">Drag-drop builder · 11 question types · skip logic. Pre-populated for NPS / CSAT / CES; fully editable + reorderable.</p>
+
+              <div class="canvas-shell">
+                <div class="canvas-palette">
+                  <h4>Question types</h4>
+                  <div class="qtype">⭐ Rating</div>
+                  <div class="qtype">📝 Text</div>
+                  <div class="qtype">☑ Multiple choice</div>
+                  <div class="qtype">📊 Likert</div>
+                  <div class="qtype">📈 Slider</div>
+                  <div class="qtype">🖼 Image choice</div>
+                  <div class="qtype">📋 Matrix</div>
+                  <div class="qtype">↕ Ranking</div>
+                  <div class="qtype">📤 File upload</div>
+                  <div class="qtype">▼ Dropdown</div>
+                  <div class="qtype">☐ Checkbox</div>
+                </div>
+                <div class="canvas-board">
+                  <div class="preset-banner" id="preset-banner">
+                    <span>★</span>
+                    <span><strong id="preset-banner-text">NPS preset</strong> · 1 standard question + 1 follow-up. All editable + reorderable.</span>
+                  </div>
+                  <div id="questions-list">
+                    <div class="canvas-q selected" onclick="selectQuestion(this)">
+                      <span class="grip">⠿</span>
+                      <span class="q-text"><strong>Q1 ·</strong> <span class="q-preset-text">How likely are you to recommend Acme Coffee to a friend?</span> <span class="pill" style="font-size: 10px;">NPS scale 0–10</span></span>
+                      <span class="q-actions"><button class="btn-icon btn-sm">✎</button><button class="btn-icon btn-sm">⎘</button><button class="btn-icon btn-sm">×</button></span>
+                    </div>
+                    <div class="canvas-q" onclick="selectQuestion(this)">
+                      <span class="grip">⠿</span>
+                      <span class="q-text"><strong>Q2 ·</strong> What's the main reason for your score? <span class="pill" style="font-size: 10px;">Text · optional</span></span>
+                      <span class="q-actions"><button class="btn-icon btn-sm">✎</button><button class="btn-icon btn-sm">⎘</button><button class="btn-icon btn-sm">×</button></span>
+                    </div>
+                  </div>
+                  <div class="canvas-add">+ Add question</div>
+                </div>
+                <div class="canvas-config">
+                  <h4>Selected · Q1</h4>
+                  <div class="config-field">
+                    <label>Question text</label>
+                    <input type="text" value="How likely are you to recommend Acme Coffee to a friend?" />
+                  </div>
+                  <div class="config-field">
+                    <label>Type</label>
+                    <select><option>Rating · NPS (0–10)</option></select>
+                  </div>
+                  <div class="config-field">
+                    <label>Required</label>
+                    <select><option>Yes</option><option>No</option></select>
+                  </div>
+                  <div class="config-field">
+                    <label>Skip logic</label>
+                    <button class="btn btn-ghost btn-sm" style="width: 100%;">+ Add condition</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-nav-foot">
+              <span class="auto-save-note">Auto-saving · last saved 12s ago</span>
+              <div>
+                <button class="btn btn-ghost" onclick="goTab('basics')">← Back: Basics</button>
+                <button class="btn btn-primary" onclick="goTab('look')">Continue: Look &amp; Feel →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ───── Tab body: LOOK & FEEL  (preview-first per D29) ───── -->
+          <div class="tab-body" data-tab-body="look">
+            <div class="card">
+              <h2 class="section-h">Look &amp; Feel</h2>
+              <p class="section-sub">See how the form renders before tuning. The same survey adapts at render time — full chrome on Standalone, minimal chrome on Embedded.</p>
+
+              <div class="field">
+                <label>Live preview</label>
+                <p class="field-help">Click <strong>Standalone</strong> or <strong>Embedded</strong> to see how the form renders in each channel. Desktop and mobile shown side-by-side.</p>
+                <div class="preview-tabs">
+                  <span class="preview-tab active" data-channel="standalone" onclick="switchChannel(this, 'standalone')">🔗 Standalone (link)</span>
+                  <span class="preview-tab" data-channel="embedded" onclick="switchChannel(this, 'embedded')">🧩 Embedded (widget)</span>
+                </div>
+
+                <!-- Standalone preview grid -->
+                <div class="preview-grid" data-channel-grid="standalone">
+                  <div class="preview-frame">
+                    <div class="frame-label">Desktop</div>
+                    <div class="preview-survey" data-channel="standalone" data-form="desktop">
+                      <div class="ps-brand" data-elt="brand">
+                        <div class="ps-logo" data-elt="logo"></div>
+                        <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
+                      </div>
+                      <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
+                      <div class="ps-scale">
+                        <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
+                      </div>
+                      <div class="ps-consent"><input type="checkbox" /> I consent to Acme Coffee processing my response.</div>
+                      <div class="ps-actions"><button class="ps-submit">Submit</button></div>
+                    </div>
+                  </div>
+                  <div class="preview-frame mobile">
+                    <div class="frame-label">Mobile</div>
+                    <div class="preview-survey" data-channel="standalone" data-form="mobile">
+                      <div class="ps-brand" data-elt="brand">
+                        <div class="ps-logo" data-elt="logo"></div>
+                        <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
+                      </div>
+                      <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-question">How likely are you to recommend us?</div>
+                      <div class="ps-scale">
+                        <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
+                      </div>
+                      <div class="ps-consent"><input type="checkbox" /> I consent.</div>
+                      <div class="ps-actions"><button class="ps-submit">Submit</button></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Embedded preview grid (hidden by default) -->
+                <div class="preview-grid" data-channel-grid="embedded" hidden>
+                  <div class="preview-frame embedded">
+                    <div class="frame-label">Desktop · host page (acme.com)</div>
+                    <div class="preview-survey" data-channel="embedded" data-form="desktop">
+                      <div class="ps-brand ps-hidden" data-elt="brand">
+                        <div class="ps-logo" data-elt="logo"></div>
+                        <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
+                      </div>
+                      <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
+                      <div class="ps-scale">
+                        <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
+                      </div>
+                      <div class="ps-consent"><input type="checkbox" /> I consent to Acme Coffee processing my response.</div>
+                      <div class="ps-actions"><button class="ps-submit">Submit</button></div>
+                    </div>
+                  </div>
+                  <div class="preview-frame embedded mobile">
+                    <div class="frame-label">Mobile · host page</div>
+                    <div class="preview-survey" data-channel="embedded" data-form="mobile">
+                      <div class="ps-brand ps-hidden" data-elt="brand">
+                        <div class="ps-logo" data-elt="logo"></div>
+                        <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
+                      </div>
+                      <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-question">How likely are you to recommend us?</div>
+                      <div class="ps-scale">
+                        <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
+                      </div>
+                      <div class="ps-consent"><input type="checkbox" /> I consent.</div>
+                      <div class="ps-actions"><button class="ps-submit">Submit</button></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Theme</label>
+                <p class="field-help">Pick from any theme defined for your brand. The brand's default theme is selected automatically; you can override per survey.</p>
+                <div class="theme-picker">
+                  <div class="theme-card selected" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #6366f1;"></span><span style="background: #f1f5f9;"></span><span style="background: #18181b;"></span></div>
+                    <h4>Acme Default</h4>
+                    <p>Indigo · system-ui</p>
+                    <p class="theme-default">Brand default</p>
+                  </div>
+                  <div class="theme-card" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #16a34a;"></span><span style="background: #ecfdf5;"></span><span style="background: #052e16;"></span></div>
+                    <h4>Forest</h4>
+                    <p>Green · serif</p>
+                  </div>
+                  <div class="theme-card" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #f59e0b;"></span><span style="background: #fffbeb;"></span><span style="background: #451a03;"></span></div>
+                    <h4>Warm</h4>
+                    <p>Amber · sans-serif</p>
+                  </div>
+                  <div class="theme-card" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #0ea5e9;"></span><span style="background: #f0f9ff;"></span><span style="background: #082f49;"></span></div>
+                    <h4>Cool</h4>
+                    <p>Sky · sans-serif</p>
+                  </div>
+                  <!-- Additional brand themes (the brand can have any number; survey creator picks from all) -->
+                  <div class="theme-card" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #ec4899;"></span><span style="background: #fdf2f8;"></span><span style="background: #831843;"></span></div>
+                    <h4>Acme Holiday</h4>
+                    <p>Pink · serif</p>
+                  </div>
+                  <div class="theme-card" onclick="selectTheme(this)">
+                    <div class="theme-swatch"><span style="background: #8b5cf6;"></span><span style="background: #f5f3ff;"></span><span style="background: #4c1d95;"></span></div>
+                    <h4>Acme Premium</h4>
+                    <p>Violet · serif</p>
+                  </div>
+                </div>
+                <p style="font-size: 11px; color: var(--text-subtle); margin-top: 6px;">Showing all 6 themes defined for Acme Coffee. Themes are managed by your brand admin in Organization settings — survey creators can only pick from the available set.</p>
+              </div>
+
+              <div class="field">
+                <label>Per-channel chrome</label>
+                <p class="field-help">Toggle which form elements appear in each channel. Defaults: full chrome on Standalone, minimal on Embedded.</p>
+                <div class="chrome-matrix">
+                  <table>
+                    <thead>
+                      <tr><th>Form element</th><th class="center">Standalone (link)</th><th class="center">Embedded (widget)</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><div class="element-name">Brand logo</div><div class="element-desc">Your brand's logo image at the top of the form</div></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" checked onchange="updateChrome('logo','standalone',this.checked)" /><span class="toggle-track"></span></label></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" onchange="updateChrome('logo','embedded',this.checked)" /><span class="toggle-track"></span></label></td>
+                      </tr>
+                      <tr>
+                        <td><div class="element-name">Brand name</div><div class="element-desc">"Acme Coffee" text alongside the logo</div></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" checked onchange="updateChrome('name','standalone',this.checked)" /><span class="toggle-track"></span></label></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" onchange="updateChrome('name','embedded',this.checked)" /><span class="toggle-track"></span></label></td>
+                      </tr>
+                      <tr>
+                        <td><div class="element-name">Survey title</div><div class="element-desc">"Welcome to Gold tier — quick feedback?" — set in Basics</div></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" checked onchange="updateChrome('title','standalone',this.checked)" /><span class="toggle-track"></span></label></td>
+                        <td class="center"><label class="toggle"><input type="checkbox" checked onchange="updateChrome('title','embedded',this.checked)" /><span class="toggle-track"></span></label></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-nav-foot">
+              <span class="auto-save-note">Auto-saving · last saved 18s ago</span>
+              <div>
+                <button class="btn btn-ghost" onclick="goTab('questions')">← Back: Questions</button>
+                <button class="btn btn-primary" onclick="goTab('points')">Continue: Points &amp; Thank You →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ───── Tab body: POINTS & THANK YOU ───── -->
+          <div class="tab-body" data-tab-body="points">
+            <div class="card">
+              <h2 class="section-h">Points &amp; Thank You</h2>
+              <p class="section-sub">Reward the respondent and confirm receipt. Points credit through your program, surfaced in the invitation and the thank-you — never on the form itself.</p>
+
+              <div class="field">
+                <label>Points awarded for completion</label>
+                <p class="field-help">Credits via <strong>Acme Stars program</strong> in <strong>⭐ Stars</strong>. Awarded once per accepted response, atomically with a LoyaltyEvent row. <span class="pill" style="font-size: 10px;">V1: per-survey program-rate override (campaign primitive)</span></p>
+                <input type="number" value="50" style="max-width: 200px;" />
+              </div>
+
+              <div class="field">
+                <label>Thank-you message</label>
+                <p class="field-help">Shown after submit. Insert variables to reference points / program / member.</p>
+                <textarea id="thank-you-msg">Thank you for your feedback! Your {{points}} {{programName}} {{pointCurrencyName}} are on their way to your account.</textarea>
+                <div class="variable-picker">
+                  <span style="font-size: 11px; color: var(--text-subtle); padding: 4px 0; margin-right: 4px;">Insert:</span>
+                  <span class="variable-chip" onclick="insertVariable('{{points}}')">{{points}}</span>
+                  <span class="variable-chip" onclick="insertVariable('{{programName}}')">{{programName}}</span>
+                  <span class="variable-chip" onclick="insertVariable('{{pointCurrencyName}}')">{{pointCurrencyName}}</span>
+                  <span class="variable-chip" onclick="insertVariable('{{rewardLink}}')">{{rewardLink}}</span>
+                  <span class="variable-chip" onclick="insertVariable('{{memberName}}')">{{memberName}}</span>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Thank-you redirect URL <span class="pill" style="font-size: 10px;">Standalone only</span></label>
+                <p class="field-help">If set, post-submit redirects after 3 seconds. Embedded surveys ignore this and show the in-place thank-you.</p>
+                <input type="url" placeholder="https://acme.com/thank-you" />
+              </div>
+
+              <div class="banner banner-info" style="margin-bottom: 0;">
+                <span style="font-size: 16px;">ⓘ</span>
+                <div>
+                  <strong>Points are not shown on the survey form itself.</strong> Members see the points value in the invitation (email subject, embed snippet preview) and in the thank-you message via <code>&#123;&#123;points&#125;&#125;</code>. This protects response quality while still rewarding the member.
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-nav-foot">
+              <span class="auto-save-note">Auto-saving · last saved 3s ago</span>
+              <div>
+                <button class="btn btn-ghost" onclick="goTab('look')">← Back: Look &amp; Feel</button>
+                <button class="btn btn-primary btn-lg" onclick="goActivate()">Activate →</button>
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCENE 3: DETAIL PAGE — 3 vertical sections (R2 D32)
+     ============================================================ -->
+<section class="scene" id="scene-3">
+  <div class="scene-label"><strong>Scene 3</strong> — Detail page. Three vertical sections (D32). Distribution: wide compact bar; <strong>expanded</strong> when zero responses, <strong>collapsed</strong> when responses exist. Click the section header to toggle. Response: placeholder (designed under a future sibling issue). Configuration summary: actual rendered preview as a first-class element.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Acme Coffee <span class="org-pill">Production</span></div>
+      </div>
+      <div class="admin-body">
+        <nav class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a><a>Programs</a><a>Campaigns</a>
+        </nav>
+        <main class="admin-main">
+          <div class="breadcrumb"><a href="#scene-1">Surveys</a> &nbsp;/&nbsp; Tier-upgrade welcome NPS</div>
+          <div class="page-header">
+            <div>
+              <h1>Tier-upgrade welcome NPS <span class="badge badge-active" id="detail-status-badge"><span class="dot"></span>Active</span></h1>
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
+                <span class="audit-badge-detail">Custom consent · Implied on submit · jane.doe@acme.com · 2026-05-10</span>
+                <span class="pill">NPS · Acme Stars program</span>
+                <span style="font-size:12px;color:var(--text-muted)">·</span>
+                <span style="font-size:12px;color:var(--text-muted)">Sent right after a member crosses to Gold tier.</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-ghost" onclick="goStop()">⋯ More</button>
+              <button class="btn btn-primary" onclick="goEditor()">✎ Edit</button>
+            </div>
+          </div>
+
+          <!-- Section 1: DISTRIBUTION (collapsible — expanded when no responses, collapsed when responses exist) -->
+          <div class="detail-section" id="dist-section">
+            <div class="detail-section-head" onclick="toggleDetailSection('dist-section')">
+              <h2>Distribution <span class="pill" style="font-size: 10px;">4 channels · all live</span></h2>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="detail-section-body" id="dist-body">
+              <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 12px;">Same survey · every channel live simultaneously. Defaults to expanded when no responses; collapses once responses exist.</p>
+              <div class="dist-wide">
+                <div class="dist-tile">
+                  <span class="dist-icon">🔗</span>
+                  <div class="dist-text">
+                    <div class="dist-name">Share link</div>
+                    <div class="dist-value">acme.customereq.app/s/srv_abc123</div>
+                  </div>
+                  <button class="btn btn-ghost btn-copy">Copy</button>
+                </div>
+                <div class="dist-tile">
+                  <span class="dist-icon">🧩</span>
+                  <div class="dist-text">
+                    <div class="dist-name">Embed snippet</div>
+                    <div class="dist-value">&lt;script src="…/widget.js"&gt;</div>
+                  </div>
+                  <button class="btn btn-ghost btn-copy">Copy</button>
+                </div>
+                <div class="dist-tile">
+                  <span class="dist-icon">📧</span>
+                  <div class="dist-text">
+                    <div class="dist-name">Email integration</div>
+                    <div class="dist-value">2 active campaigns</div>
+                  </div>
+                  <button class="btn btn-ghost btn-copy">Manage</button>
+                </div>
+                <div class="dist-tile">
+                  <span class="dist-icon">▢</span>
+                  <div class="dist-text">
+                    <div class="dist-name">QR code</div>
+                    <div class="dist-value">For print / signage / kiosk</div>
+                  </div>
+                  <button class="btn btn-ghost btn-copy">Generate</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: RESPONSE (placeholder — designed separately; collapsible per D37) -->
+          <div class="detail-section" id="response-section">
+            <div class="detail-section-head" onclick="toggleDetailSection('response-section')">
+              <h2>Response <span style="font-size: 12px; color: var(--text-muted); font-weight: 400;">— designed under a future sub-issue (sibling to #235)</span></h2>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="detail-section-body">
+              <div class="empty-state">
+                <div class="empty-icon">📊</div>
+                <h4>Response analytics surface — out of scope for #241</h4>
+                <p>Response visualization (score distribution, sentiment, topics, individual response stream, Loop Monitor) is designed under a separate issue so this Epic stays focused on the create / edit / distribute experience. Hero stats + analytics charts land here when that ships.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: CONFIGURATION SUMMARY — preview as first-class · collapsible per D37 -->
+          <div class="detail-section collapsed" id="config-section">
+            <div class="detail-section-head" onclick="toggleDetailSection('config-section')">
+              <h2>Configuration summary</h2>
+              <span style="display: flex; align-items: center; gap: 12px;">
+                <button class="btn btn-link" style="font-size: 12px;" onclick="event.stopPropagation(); goEditor()">Edit →</button>
+                <span class="chevron">▼</span>
+              </span>
+            </div>
+            <div class="detail-section-body">
+              <div class="config-summary-grid">
+                <!-- Left: rendered preview (first-class per D32) -->
+                <div>
+                  <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 0 0 8px;">As respondents see it</h4>
+                  <div class="preview-frame" style="min-height: 0; padding: 18px 12px;">
+                    <div class="preview-survey" style="margin: 0 auto;">
+                      <div class="ps-brand">
+                        <div class="ps-logo"></div>
+                        <div class="ps-brand-name">Acme Coffee</div>
+                      </div>
+                      <div class="ps-title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
+                      <div class="ps-scale">
+                        <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
+                      </div>
+                      <div class="ps-consent">By submitting, you consent to processing per the <a href="#">privacy policy</a>.</div>
+                      <div class="ps-actions"><button class="ps-submit">Submit</button></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right: text summary -->
+                <div class="config-summary-info">
+                  <h4>Basics</h4>
+                  <dl>
+                    <dt>Type</dt><dd>NPS</dd>
+                    <dt>Program</dt><dd>Acme Stars program</dd>
+                    <dt>Response policy</dt><dd>Allow multiple</dd>
+                    <dt>Questions</dt><dd>2 · NPS scale + text follow-up</dd>
+                  </dl>
+                  <h4>Look &amp; Feel</h4>
+                  <dl>
+                    <dt>Theme</dt><dd>Acme Default <span class="pill" style="font-size:10px;">Brand default</span></dd>
+                    <dt>Standalone chrome</dt><dd>Logo · Brand name · Title</dd>
+                    <dt>Embedded chrome</dt><dd>Title only</dd>
+                  </dl>
+                  <h4>Points &amp; Thank You</h4>
+                  <dl>
+                    <dt>Points</dt><dd>50 ⭐ Stars per response</dd>
+                    <dt>Thank-you</dt><dd>"Your 50 Stars are on their way."</dd>
+                  </dl>
+                  <h4>Consent</h4>
+                  <dl>
+                    <dt>Mode</dt><dd>Override · Implied on submit</dd>
+                    <dt>Attested by</dt><dd>jane.doe@acme.com · 2026-05-10</dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCENE 4: ACTIVATE MODAL (simplified per D31)
+     ============================================================ -->
+<section class="scene" id="scene-4">
+  <div class="scene-label"><strong>Scene 4</strong> — Activate confirmation (simplified per D31). Modal is a concise confirmation; share link + embed snippet land on the Detail page (Scene 3), where the owner is sent after confirming.</div>
+  <div class="container">
+    <div class="modal-wrap">
+      <div class="modal">
+        <h3>Activate this survey?</h3>
+        <p>Once activated, members can submit responses immediately. You'll be sent to the survey's detail page where you can copy the share link, embed snippet, and other distribution surfaces.</p>
+
+        <div class="summary-box">
+          <dl>
+            <dt>Type</dt><dd>NPS · 2 questions · response policy: allow multiple</dd>
+            <dt>Consent</dt><dd><span style="color: var(--warning-strong); font-weight: 500;">Override · Implied on submit</span> &nbsp;<span class="pill" style="font-size: 10px;">Logged · jane.doe@acme.com</span></dd>
+            <dt>Points awarded</dt><dd>50 ⭐ Stars per accepted response (Acme Stars program)</dd>
+            <dt>Theme</dt><dd>Acme Default</dd>
+          </dl>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost">Cancel</button>
+          <button class="btn btn-primary btn-lg" onclick="confirmActivate()">Activate &amp; go to detail →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCENE 5: CONSENT ATTESTATION MODAL
+     ============================================================ -->
+<section class="scene" id="scene-5">
+  <div class="scene-label"><strong>Scene 5</strong> — Consent attestation modal. Fires when overriding to a <em>more permissive</em> mode (Explicit→Implied). Captures identity, reason, and an attestation checkbox.</div>
+  <div class="container">
+    <div class="modal-wrap">
+      <div class="modal">
+        <h3 class="warn">Confirm consent override</h3>
+        <p>You're switching this survey from your brand's default <strong>Explicit consent</strong> to <strong>Implied on submit</strong>. This is a more permissive mode — we log who authorized it, when, and why so you can defend the choice if a regulator asks.</p>
+
+        <div class="field" style="margin-bottom: 14px;">
+          <label>Authorizing admin</label>
+          <p class="modal-field-help">Auto-filled from your session.</p>
+          <input type="text" value="jane.doe@acme.com" disabled style="background: var(--surface-muted); color: var(--text-muted);" />
+        </div>
+
+        <div class="field" style="margin-bottom: 14px;">
+          <label>Reason for override<span class="req">*</span></label>
+          <p class="modal-field-help">Plain language. ≤500 characters. Avoid PII — capture the policy reason, not the people.</p>
+          <textarea>Marketing landing page micro-survey on /welcome — opt-in checkbox would tank response rate; respondents are existing customers who already accepted brand-wide privacy terms.</textarea>
+        </div>
+
+        <label class="modal-attest">
+          <input type="checkbox" checked />
+          <div class="modal-attest-text">I confirm that respondents to this survey will give consent in my own system before reaching it, and I'm authorized to make this override.</div>
+        </label>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="goTab('basics')">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmAttest()">Save override &amp; continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SCENE 6: STOP CONFIRMATION
+     ============================================================ -->
+<section class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6</strong> — Stop confirmation. Replaces "Close" vocabulary; reversible (Restart). Distribution channels all return the "stopped" message after this.</div>
+  <div class="container">
+    <div class="modal-wrap">
+      <div class="modal">
+        <h3 class="danger">Stop this survey?</h3>
+        <p>Members reaching the link will see <em>"This survey is no longer collecting responses"</em> instead of the form. You can restart at any time.</p>
+
+        <div style="background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: var(--text-muted);">
+          <strong style="color: var(--text); display: block; margin-bottom: 4px;">What happens next</strong>
+          • Distribution channels (link, embed, email) all return the "stopped" message.<br/>
+          • Existing responses are kept; analytics stay intact.<br/>
+          • You can <strong>Restart</strong> from the More menu when you're ready.
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="goDetail()">Cancel</button>
+          <button class="btn btn-danger" onclick="confirmStop()">Stop survey</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<footer class="scene" style="padding: 32px 24px 80px; background: var(--surface-muted);">
+  <div class="container">
+    <h2 style="font-size: 16px; margin: 0 0 8px;">About this mock — R2 (interactive)</h2>
+    <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 8px;">Working mock for Issue #241. Iteration history lives in the <a href="../241-survey-admin-ux.md">Epic spec's Decision Log</a> (D1–D33 logged across R0–R2).</p>
+    <p style="font-size: 12px; color: var(--text-subtle); margin: 0;">Design tokens inherited from <a href="277-organization-settings.html">277-organization-settings.html</a>. The consent preview-card pattern reuses #277's classes directly (D28). Filename follows the standard <code>&lt;issue#&gt;-&lt;feature-name&gt;.html</code> precedent.</p>
+  </div>
+</footer>
+
+
+<script>
+// ─── Navigation between scenes ───
+function goEditor() { document.getElementById('scene-2').scrollIntoView({behavior: 'smooth'}); goTab('basics'); }
+function goDetail() { document.getElementById('scene-3').scrollIntoView({behavior: 'smooth'}); }
+function goActivate() { document.getElementById('scene-4').scrollIntoView({behavior: 'smooth'}); }
+function goAttest() { document.getElementById('scene-5').scrollIntoView({behavior: 'smooth'}); }
+function goStop() { document.getElementById('scene-6').scrollIntoView({behavior: 'smooth'}); }
+function confirmActivate() {
+  // After confirming, go to detail (which represents the "post-activation" state).
+  // Also flip the dist section to expanded since this is "just activated" (no responses yet).
+  const dist = document.getElementById('dist-section');
+  if (dist) dist.classList.remove('collapsed');
+  goDetail();
+}
+function confirmAttest() {
+  // Persist visual: consent dropdown shows override; banner stays. Go back to editor Basics.
+  document.getElementById('consent-mode').value = 'override';
+  onConsentChange(document.getElementById('consent-mode'));
+  document.getElementById('scene-2').scrollIntoView({behavior: 'smooth'});
+}
+function confirmStop() {
+  // Visual: detail status badge flips to Stopped
+  const badge = document.getElementById('detail-status-badge');
+  if (badge) { badge.className = 'badge badge-stopped'; badge.innerHTML = '<span class="dot"></span>Stopped'; }
+  goDetail();
+}
+
+// ─── Editor tabs ───
+function goTab(name) {
+  document.querySelectorAll('.tab-h').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-body').forEach(b => b.classList.toggle('active', b.dataset.tabBody === name));
+}
+
+// ─── Type-card selection (also flips Questions preset banner) ───
+function selectType(card) {
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  const t = card.dataset.type;
+  const banner = document.getElementById('preset-banner-text');
+  if (banner) banner.textContent = (t === 'Custom') ? 'Custom · blank canvas' : (t + ' preset');
+  // For Custom, the standard NPS question text could change — leaving as-is for mock fidelity.
+}
+
+// ─── Quick guide expand/collapse ───
+function toggleQuickGuide(btn) {
+  const block = document.getElementById('quick-guide');
+  const shown = block.classList.toggle('shown');
+  btn.classList.toggle('expanded', shown);
+}
+
+// ─── Consent dropdown change ───
+function onConsentChange(sel) {
+  const isOverride = sel.value === 'override';
+  document.getElementById('consent-override-banner').style.display = isOverride ? 'flex' : 'none';
+  document.getElementById('consent-preview-explicit').style.display = isOverride ? 'none' : 'flex';
+  document.getElementById('consent-preview-implied').style.display = isOverride ? 'block' : 'none';
+  document.getElementById('consent-preview-mode').textContent = isOverride ? 'Implied · no checkbox' : 'Explicit · with checkbox';
+}
+function updateConsentPreview() {
+  const txt = document.getElementById('disclosure-override').value.trim();
+  if (!txt) return; // keep inherited preview
+  const ex = document.getElementById('consent-preview-explicit');
+  const im = document.getElementById('consent-preview-implied');
+  ex.querySelector('span').textContent = txt;
+  im.textContent = txt;
+}
+
+// ─── Filter chips ───
+function toggleChip(el, group) {
+  if (group === 'status') {
+    document.querySelectorAll('.filter-group').forEach(g => {
+      if (g.querySelector('.filter-group-label').textContent.includes('Status')) {
+        g.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      }
+    });
+  }
+  el.classList.toggle('active');
+}
+
+// ─── Look & Feel: switch channel (Standalone vs Embedded) — each shows desktop + mobile ───
+function switchChannel(el, channel) {
+  document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('[data-channel-grid]').forEach(g => {
+    g.hidden = (g.dataset.channelGrid !== channel);
+  });
+}
+
+// ─── Theme picker ───
+function selectTheme(card) {
+  document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  // Mock-only: don't restyle previews.
+}
+
+// ─── Chrome matrix toggles → flip preview chrome visibility (both desktop + mobile of the channel) ───
+function updateChrome(element, channel, on) {
+  // Affects every preview-survey with data-channel matching, in BOTH desktop and mobile forms
+  document.querySelectorAll(`.preview-survey[data-channel="${channel}"]`).forEach(form => {
+    const target = form.querySelector(`[data-elt="${element}"]`);
+    if (!target) return;
+    if (element === 'logo' || element === 'name') {
+      target.style.display = on ? '' : 'none';
+      const brand = form.querySelector('[data-elt="brand"]');
+      const logo = form.querySelector('[data-elt="logo"]');
+      const name = form.querySelector('[data-elt="name"]');
+      const anyOn = (logo && logo.style.display !== 'none') || (name && name.style.display !== 'none');
+      if (brand) brand.classList.toggle('ps-hidden', !anyOn);
+    } else if (element === 'title') {
+      target.style.display = on ? '' : 'none';
+    }
+  });
+}
+
+// ─── Variable chip insertion ───
+function insertVariable(v) {
+  const ta = document.getElementById('thank-you-msg');
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + v + ta.value.slice(end);
+  ta.focus();
+  ta.setSelectionRange(start + v.length, start + v.length);
+}
+
+// ─── Questions selection ───
+function selectQuestion(q) {
+  document.querySelectorAll('.canvas-q').forEach(c => c.classList.remove('selected'));
+  q.classList.add('selected');
+}
+
+// ─── Detail-section collapse/expand (generic; all detail sections use the same chevron pattern per D37) ───
+function toggleDetailSection(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ─── Disclosure-text editor (same UX as #277 admin per D34) ───
+// Tokens render as links to the brand's Privacy / Terms URL at render time.
+function insertDisclosureToken(kind) {
+  const ta = document.getElementById('disclosure-override');
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const defaultLabel = kind === 'privacy' ? 'Privacy Policy' : 'Terms and Conditions';
+  const selected = ta.value.slice(start, end);
+  const label = selected || defaultLabel;
+  const token = `{{${kind}:"${label}"}}`;
+  ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+  ta.focus();
+  ta.setSelectionRange(start + token.length, start + token.length);
+  updateConsentPreview();
+}
+function resetDisclosure() {
+  const ta = document.getElementById('disclosure-override');
+  if (!ta) return;
+  ta.value = '';
+  updateConsentPreview();
+}
+</script>
+
+</body>
+</html>
