@@ -22,7 +22,8 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   { href: '/admin/kb', label: 'Knowledge Base' },
   { href: '/admin/support/analytics', label: 'Analytics' },
   // ── Settings ──
-  { href: '/admin/integrations', label: 'Integrations', section: 'Settings' },
+  { href: '/admin/settings/organization', label: 'Organization', section: 'Settings' },
+  { href: '/admin/integrations', label: 'Integrations' },
   { href: '/admin/settings/webhooks', label: 'Webhooks' },
   { href: '/admin/developer', label: 'Developer' },
   { href: '/admin/settings/themes', label: 'Themes' },
@@ -55,7 +56,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="px-4 py-4 border-b border-gray-200">
           <OrganizationSwitcher
             hidePersonal
+            afterCreateOrganizationUrl="/admin/settings/organization"
             afterSelectOrganizationUrl="/admin/members"
+            organizationProfileMode="navigation"
+            organizationProfileUrl="/admin/settings/organization"
             appearance={{
               elements: {
                 rootBox: 'w-full',

@@ -480,7 +480,7 @@ Co-located with the new package and components.
 
 ### E2E tests (Playwright)
 
-`tests/e2e/admin-organization-settings.spec.ts` — 12 scenarios from spec § Validation Plan, items 1–12. Hits the real dev server with a Clerk test session (existing pattern from `themes` page tests).
+`apps/web/test/e2e/admin-organization-settings.spec.ts` — 12 scenarios from spec § Validation Plan, items 1–12. The path matches the apps/web Playwright config (`apps/web/playwright.config.ts` `testDir: './test/e2e'`); the prior repo-root `tests/e2e/` referenced in earlier drafts has no Playwright wiring — the workspace boundary is that each app owns its UI E2E. Existing apps/web E2E specs (e.g. `themes-crud-pattern.spec.ts`, `admin-nav-scrollable.spec.ts`) use `PLAYWRIGHT_TEST=true` middleware-bypass + `page.route()` to mock `**/clerk.**` and `**/v1/**`; Slice 4's spec follows the same pattern.
 
 ### Compliance tests
 

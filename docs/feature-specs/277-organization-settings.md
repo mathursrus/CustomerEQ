@@ -201,6 +201,8 @@ Two endpoints under the existing admin surface:
 
 ### Functional (E2E, Playwright)
 
+E2E specs land at `apps/web/test/e2e/admin-organization-settings.spec.ts` per the apps/web Playwright config (`testDir: './test/e2e'`). Earlier drafts referenced repo-root `tests/e2e/`; that path has no Playwright wiring. Each app owns its UI E2E (workspace boundary) — `apps/api` owns integration tests, `apps/web` owns E2E.
+
 1. **Lazy-upsert on first visit.** Sign up a new admin → navigate to `/admin/settings/organization` → assert page renders with the new Brand row present (verify via DB query in test setup), all defaults, no console errors.
 2. **Per-section save.** For each of the six sections, edit one field, click Save → assert: (a) toast appears, (b) DB row updated, (c) corresponding `AuditEvent` row written with `changedFields` matching the edit.
 3. **EXPLICIT empty consent text gate.** Set `consentMode = EXPLICIT`, leave `consentTextDefault` empty → attempt to publish a survey via the survey-distribution flow → assert publish is rejected with the documented error message. Then fill `consentTextDefault` → assert publish succeeds.
