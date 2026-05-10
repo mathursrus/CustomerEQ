@@ -28,16 +28,16 @@ ALTER TABLE "survey_responses"
     ADD COLUMN "externalRespondentId" TEXT;
 
 -- 3. Make memberId nullable (Google Reviews rows have no email → no member)
-ALTER TABLE "survey_responses" ALTER COLUMN "member_id" DROP NOT NULL;
+ALTER TABLE "survey_responses" ALTER COLUMN "memberId" DROP NOT NULL;
 
--- 4. Drop the old broad unique constraint (was: one response per member per survey regardless of source)
-ALTER TABLE "survey_responses" DROP CONSTRAINT IF EXISTS "survey_responses_survey_id_member_id_key";
+-- 4. Drop the old broad unique index (was: one response per member per survey regardless of source)
+DROP INDEX IF EXISTS "survey_responses_surveyId_memberId_key";
 
--- 5. Partial unique index for live responses (import_batch_id IS NULL, member_id NOT NULL)
+-- 5. Partial unique index for live responses (importBatchId IS NULL, memberId NOT NULL)
 --    Preserves original deduplication behaviour for all non-import submissions.
 CREATE UNIQUE INDEX "survey_responses_live_dedup"
-    ON "survey_responses" ("survey_id", "member_id")
-    WHERE "importBatchId" IS NULL AND "member_id" IS NOT NULL;
+    ON "survey_responses" ("surveyId", "memberId")
+    WHERE "importBatchId" IS NULL AND "memberId" IS NOT NULL;
 
 -- 6. FK: survey_responses → survey_import_batches
 ALTER TABLE "survey_responses"
