@@ -181,6 +181,26 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
         })
         brandId = brand.id
         request.brandId = brandId
+
+        // First-paint default: point Brand.defaultThemeId at the seeded
+        // Indigo row so the Look & Feel section opens with a real
+        // selection rather than an empty radio group. Idempotent — a
+        // re-entry hits the existing brand (defaultThemeId already set,
+        // so we no-op), and the Indigo theme is guaranteed to exist
+        // because the nested createMany above seeded it on this same
+        // create branch.
+        if (brand.defaultThemeId === null) {
+          const indigo = await fastify.prisma.brandTheme.findFirst({
+            where: { brandId, name: 'Indigo' },
+            select: { id: true },
+          })
+          if (indigo) {
+            await fastify.prisma.brand.update({
+              where: { id: brandId },
+              data: { defaultThemeId: indigo.id },
+            })
+          }
+        }
       }
 
       if (!brandId) {

@@ -18,6 +18,11 @@ export interface ConsentTextRenderOptions {
   rel?: string
   target?: string
   className?: string
+  // When the URL for a token is missing, render the anchor without an href
+  // (so it isn't navigable) and apply this class instead of `className`.
+  // Lets the admin preview show a "this link won't resolve" affordance
+  // without making the markup look like a working link.
+  brokenClassName?: string
 }
 
 export interface ValidationSuccess {

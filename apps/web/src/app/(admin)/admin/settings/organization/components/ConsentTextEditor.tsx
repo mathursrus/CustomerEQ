@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { Controller, useFormContext } from 'react-hook-form'
-import { renderConsentTextReact } from '@customerEQ/consent-text'
+import { renderConsentTextReact, hasPrivacyToken } from '@customerEQ/consent-text'
 import type { OrgFormValues } from '../lib/types'
 
 // Issue #292 Slice 4 — consent text editor.
@@ -61,7 +61,11 @@ export function ConsentTextEditor() {
     privacyPolicyUrl: privacyPolicyUrl || undefined,
     termsUrl: termsUrl || undefined,
     className: 'text-indigo-600 underline',
+    brokenClassName: 'text-gray-400 underline decoration-dashed cursor-not-allowed',
   })
+
+  const privacyTokenWithoutUrl =
+    hasPrivacyToken(consentTextValue) && privacyPolicyUrl.trim() === ''
 
   return (
     <div>
@@ -116,6 +120,24 @@ export function ConsentTextEditor() {
         Mustache tokens {`{{privacy}}`} and {`{{terms}}`} render as links. Custom labels:{' '}
         {`{{privacy:"data policy"}}`}.
       </p>
+
+      {privacyTokenWithoutUrl && (
+        <p
+          className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-800"
+          data-testid="consent-privacy-broken-warning"
+        >
+          <span
+            aria-hidden="true"
+            className="mt-px inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white"
+          >
+            !
+          </span>
+          <span>
+            Privacy policy URL is empty — your <code className="rounded bg-amber-100 px-1">{`{{privacy}}`}</code>{' '}
+            link won't work until you set it below.
+          </span>
+        </p>
+      )}
 
       <div
         data-testid="consent-preview"

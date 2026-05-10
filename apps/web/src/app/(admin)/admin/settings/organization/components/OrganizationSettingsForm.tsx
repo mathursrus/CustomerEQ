@@ -251,8 +251,8 @@ export function OrganizationSettingsForm({ initial }: OrganizationSettingsFormPr
 
         <AdminPendingBanner items={pendingItems} />
 
-        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr,220px] lg:items-start">
-          <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr,220px]">
+          <div className="flex min-w-0 flex-col gap-5">
             {SECTIONS.map((section) => (
               <SectionCard
                 key={section.id}
@@ -274,7 +274,16 @@ export function OrganizationSettingsForm({ initial }: OrganizationSettingsFormPr
             ))}
           </div>
 
-          <Toc sections={SECTIONS} pendingFor={pendingFieldsForSection} />
+          {/*
+            TOC wrapper takes the full grid-row height (default align-items:
+            stretch) so the inner sticky <nav> has room to remain pinned while
+            the sections column scrolls. Don't set items-start on the parent
+            grid or self-start here — both collapse the cell to the TOC's
+            natural height and break sticky positioning.
+          */}
+          <div className="hidden lg:block">
+            <Toc sections={SECTIONS} pendingFor={pendingFieldsForSection} />
+          </div>
         </div>
 
         <ImpliedAttestationModal
@@ -418,7 +427,11 @@ function Toc({
   return (
     <nav
       aria-label="On this page"
-      className="sticky top-20 hidden self-start rounded-xl border border-gray-200 bg-white p-3 shadow-sm lg:block"
+      // top-4 keeps the rail just below the admin <main>'s top padding edge
+      // (admin layout gives <main> overflow-y-auto, so this is the active
+      // scroll container — sticky offsets are measured from there, not the
+      // viewport).
+      className="sticky top-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
     >
       <p className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
         On this page
@@ -428,9 +441,7 @@ function Toc({
           <li key={s.id}>
             <a
               href={`#${s.id}`}
-              className={`flex items-center justify-between gap-2 rounded-md border-l-2 border-transparent px-2.5 py-1.5 text-sm text-gray-500 hover:text-gray-900 ${
-                pendingFor(s.id) ? 'after:text-amber-500' : ''
-              }`}
+              className="flex items-center justify-between gap-2 rounded-md border-l-2 border-transparent px-2.5 py-1.5 text-sm text-gray-500 hover:text-gray-900"
             >
               <span>{s.title}</span>
               {pendingFor(s.id) && (

@@ -26,7 +26,14 @@ export function IdentitySection() {
   const { register, watch, setValue, formState } = useFormContext<OrgFormValues>()
   const { organization } = useOrganization()
   const orgSize = watch('orgSize')
+  const logoUrl = watch('logoUrl')
   const errors = formState.errors
+
+  // Show the preview only for syntactically-valid https URLs and only when
+  // there's no current validation error on the field — keeps a broken URL
+  // from flashing a 404 while the admin is mid-edit.
+  const logoPreviewSrc =
+    !errors.logoUrl && logoUrl && /^https?:\/\//i.test(logoUrl) ? logoUrl : null
 
   // Clerk's useOrganization() returns null in PLAYWRIGHT_TEST mode (no
   // real session). Render the row structure either way so spec §F1's
@@ -87,21 +94,39 @@ export function IdentitySection() {
         <label htmlFor="logo-url" className="block text-sm font-medium text-gray-900">
           Logo URL
         </label>
-        <input
-          id="logo-url"
-          type="url"
-          aria-label="Logo URL"
-          placeholder="https://your-cdn.example.com/logo.png"
-          {...register('logoUrl')}
-          className={`mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-            errors.logoUrl ? 'border-red-500' : 'border-gray-300'
-          }`}
-        />
+        <div className="mt-1 flex items-center gap-4">
+          {logoPreviewSrc ? (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+              <img
+                src={logoPreviewSrc}
+                alt="Logo preview"
+                className="h-full w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-lg font-medium text-gray-400"
+            >
+              +
+            </div>
+          )}
+          <input
+            id="logo-url"
+            type="url"
+            aria-label="Logo URL"
+            placeholder="https://your-cdn.example.com/logo.png"
+            {...register('logoUrl')}
+            className={`w-full min-w-0 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+              errors.logoUrl ? 'border-red-500' : 'border-gray-300'
+            }`}
+          />
+        </div>
         {errors.logoUrl && (
           <p className="mt-1 text-xs font-medium text-red-600">{errors.logoUrl.message}</p>
         )}
         <p className="mt-1 text-xs text-gray-500">
-          Customer-facing logo. Paste an https URL — file-picker upload is shipping in #305.
+          Customer-facing logo. Paste an https URL — preview updates live.
         </p>
       </div>
 
