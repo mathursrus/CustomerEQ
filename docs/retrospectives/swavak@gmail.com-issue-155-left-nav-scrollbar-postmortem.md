@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-04-21
-synthesized:
+synthesized: 2026-05-08
 ---
 
 # Postmortem: Left nav pane has no scrollbar when window is resized — Issue #155

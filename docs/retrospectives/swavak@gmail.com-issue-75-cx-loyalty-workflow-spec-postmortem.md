@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-04-01
-synthesized:
+synthesized: 2026-05-08
 ---
 
 # Postmortem: Streamline End-to-End CX-to-Loyalty Workflows — Issue #75
