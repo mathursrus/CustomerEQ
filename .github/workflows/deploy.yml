@@ -95,6 +95,20 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-api:${{ github.event.workflow_run.head_sha || github.sha }}
 
+      # Non-secret env vars on the API container app. SUPPORT_EMAIL is the
+      # public address surfaced on /admin/settings/organization (Developer
+      # & Support row + the Member identification locked notice) per #292.
+      # Reasserted on every deploy so the value is declarative and survives
+      # container-app recreation. Plain --set-env-vars (not Key Vault) is
+      # correct here — this is a public address, not a secret. --set-env-vars
+      # is additive, leaving any other env vars on the app untouched.
+      - name: Set API non-secret env vars
+        run: |
+          az containerapp update \
+            --name customereq-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --set-env-vars SUPPORT_EMAIL=support@customereq.wellnessatwork.me
+
       - name: Deploy Worker
         run: |
           az containerapp update \
