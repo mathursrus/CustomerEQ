@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { inferAction, extractResourceId } from './audit.js'
+import { inferAction, extractResourceId, filterMetadata } from './audit.js'
 
 // ---------------------------------------------------------------------------
 // inferAction — maps HTTP method + route path to an audit action string
@@ -67,5 +67,75 @@ describe('extractResourceId', () => {
 
   it('returns "unknown" when no param is found', () => {
     expect(extractResourceId('/v1/campaigns', '/v1/campaigns')).toBe('unknown')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// filterMetadata — Issue #292 Slice 3 / RFC §9.
+// Per-route metadata allowlist: route handlers populate request.audit.metadata
+// with whatever keys make sense for their action; the plugin filters to the
+// allowlist before persisting so no route can accidentally leak request bodies,
+// secrets, or unaudited fields into the AuditEvent row.
+// ---------------------------------------------------------------------------
+
+describe('filterMetadata', () => {
+  it('returns only allowlisted keys', () => {
+    const meta = {
+      changedFields: ['name', 'siteDomain'],
+      before: { name: 'Old' },
+      after: { name: 'New' },
+      method: 'PATCH',           // not in allowlist — should drop
+      authorization: 'secret',   // not in allowlist — should drop
+    }
+    const allow = ['changedFields', 'before', 'after']
+    expect(filterMetadata(meta, allow)).toEqual({
+      changedFields: ['name', 'siteDomain'],
+      before: { name: 'Old' },
+      after: { name: 'New' },
+    })
+  })
+
+  it('omits allowlisted keys that are absent in metadata', () => {
+    const meta = { changedFields: ['name'] }
+    const allow = ['changedFields', 'before', 'after']
+    expect(filterMetadata(meta, allow)).toEqual({ changedFields: ['name'] })
+  })
+
+  it('returns an empty object when metadata is empty', () => {
+    expect(filterMetadata({}, ['changedFields'])).toEqual({})
+  })
+
+  it('returns an empty object when allowlist is empty', () => {
+    expect(filterMetadata({ changedFields: ['x'] }, [])).toEqual({})
+  })
+
+  it('preserves nested object values for allowlisted keys', () => {
+    const meta = {
+      attestation: {
+        admin: 'user_123',
+        justification: 'legal counsel approved',
+        attestedAt: '2026-05-07T00:00:00Z',
+      },
+      memberCountAtChange: 42,
+      secret: 'should-be-stripped',
+    }
+    const allow = ['attestation', 'memberCountAtChange']
+    expect(filterMetadata(meta, allow)).toEqual({
+      attestation: {
+        admin: 'user_123',
+        justification: 'legal counsel approved',
+        attestedAt: '2026-05-07T00:00:00Z',
+      },
+      memberCountAtChange: 42,
+    })
+  })
+
+  it('drops undefined values for allowlisted keys (no key in output)', () => {
+    const meta: Record<string, unknown> = {
+      changedFields: ['name'],
+      attestation: undefined,
+    }
+    const allow = ['changedFields', 'attestation']
+    expect(filterMetadata(meta, allow)).toEqual({ changedFields: ['name'] })
   })
 })

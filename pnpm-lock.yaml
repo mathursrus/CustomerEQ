@@ -52,6 +52,9 @@ importers:
       '@customerEQ/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
+      '@customerEQ/consent-text':
+        specifier: workspace:*
+        version: link:../../packages/consent-text
       '@customerEQ/database':
         specifier: workspace:*
         version: link:../../packages/database

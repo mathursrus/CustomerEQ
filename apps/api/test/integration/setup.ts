@@ -40,6 +40,34 @@ vi.mock('../../src/plugins/prisma.js', async () => {
   }
 })
 
+// Issue #292 Slice 3 — mock the identityProvider plugin so integration tests
+// don't need a real Clerk webhook secret (svix's Webhook constructor rejects
+// the dev placeholder). Tests use the X-Test-Brand-Id / X-Test-Clerk-Org-Id
+// auth-plugin bypass paths which never call into the IdentityProvider; this
+// mock just satisfies plugin registration. Routes that DO need to assert
+// no-call (e.g., admin-brand-profile's Q2 binding) read the decorated mock
+// via getTestApp().identityProvider and spy on the relevant method.
+vi.mock('../../src/plugins/identityProvider.js', async () => {
+  const fp = (await import('fastify-plugin')).default
+  return {
+    default: fp(async (fastify: { decorate: (name: string, value: unknown) => void }) => {
+      fastify.decorate('identityProvider', {
+        getSession: vi.fn(),
+        beginOAuth: vi.fn(),
+        completeOAuth: vi.fn(),
+        createUserWithOrg: vi.fn(),
+        signInUser: vi.fn(),
+        getOrg: vi.fn(),
+        updateOrgName: vi.fn(),
+        inviteMember: vi.fn(),
+        listOrgMembers: vi.fn(),
+        removeOrgMember: vi.fn(),
+        parseWebhook: vi.fn(),
+      })
+    }, { name: 'identityProvider' }),
+  }
+})
+
 import { setupTestDb, teardownTestDb, setTestApp, getTestApp } from '@customerEQ/config/test-utils'
 import { buildApp } from '../../src/app.js'
 
