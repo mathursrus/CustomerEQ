@@ -935,12 +935,19 @@
           <div class="tab-body" data-tab-body="points">
             <div class="card">
               <h2 class="section-h">Points &amp; Thank You</h2>
-              <p class="section-sub">Reward the respondent and confirm receipt. Points credit through your program, surfaced in the invitation and the thank-you — never on the form itself.</p>
+              <p class="section-sub">The post-submit experience. <strong>Points are configured on your program</strong>, not the survey — this section displays what respondents will earn, and lets you customize the thank-you message.</p>
 
               <div class="field">
                 <label>Points awarded for completion</label>
-                <p class="field-help">Credits via <strong>Acme Stars program</strong> in <strong>⭐ Stars</strong>. Awarded once per accepted response, atomically with a LoyaltyEvent row. <span class="pill" style="font-size: 10px;">V1: per-survey program-rate override (campaign primitive)</span></p>
-                <input type="number" value="50" style="max-width: 200px;" />
+                <p class="field-help">Sourced from your program's earning rule for <code>survey_completion</code>. Points credit atomically via a LoyaltyEvent row when a response is accepted. Active campaigns may layer multipliers at runtime.</p>
+                <div class="inherit-row">
+                  <div class="inherit-label">
+                    <span style="font-weight: 600; color: var(--text);">50 ⭐ Stars per accepted response</span>
+                    <span class="small">— set in <a href="#" class="btn-link" style="font-size: 12px;">Acme Stars program</a></span>
+                  </div>
+                  <span class="badge badge-inherit">From program</span>
+                </div>
+                <p style="font-size: 11px; color: var(--text-subtle); margin-top: 6px;"><span class="pill" style="font-size: 10px;">V1</span> Per-survey override deferred — V0 keeps earning configuration on the program.</p>
               </div>
 
               <div class="field">
@@ -1129,7 +1136,7 @@
                   </dl>
                   <h4>Points &amp; Thank You</h4>
                   <dl>
-                    <dt>Points</dt><dd>50 ⭐ Stars per response</dd>
+                    <dt>Points</dt><dd>50 ⭐ Stars per response &nbsp;<span class="badge badge-inherit" style="font-size: 10px;">From program</span></dd>
                     <dt>Thank-you</dt><dd>"Your 50 Stars are on their way."</dd>
                   </dl>
                   <h4>Consent</h4>
@@ -1164,7 +1171,7 @@
           <dl>
             <dt>Type</dt><dd>NPS · 2 questions · response policy: allow multiple</dd>
             <dt>Consent</dt><dd><span style="color: var(--warning-strong); font-weight: 500;">Override · Implied on submit</span> &nbsp;<span class="pill" style="font-size: 10px;">Logged · jane.doe@acme.com</span></dd>
-            <dt>Points awarded</dt><dd>50 ⭐ Stars per accepted response (Acme Stars program)</dd>
+            <dt>Points awarded</dt><dd>50 ⭐ Stars per accepted response &nbsp;<span class="badge badge-inherit" style="font-size: 10px;">From Acme Stars program</span></dd>
             <dt>Theme</dt><dd>Acme Default</dd>
           </dl>
         </div>
