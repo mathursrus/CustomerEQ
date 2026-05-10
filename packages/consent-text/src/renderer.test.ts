@@ -86,9 +86,22 @@ describe('renderConsentTextHTML', () => {
     expect(html).toContain('href="https://example.com/p?a=1&amp;b=2"')
   })
 
-  it('renders an empty href when no URL is provided', () => {
+  it('omits href entirely when no URL is provided (broken state)', () => {
     const html = renderConsentTextHTML('See {{privacy}}.')
-    expect(html).toContain('href=""')
+    // Empty-string href would resolve to the current document URL when
+    // clicked, which is misleading. The renderer drops the attribute
+    // instead so the link is non-navigable.
+    expect(html).not.toContain('href=')
+    expect(html).toContain('<a>Privacy Policy</a>')
+  })
+
+  it('applies brokenClassName instead of className when URL is missing', () => {
+    const html = renderConsentTextHTML('See {{privacy}}.', {
+      className: 'link',
+      brokenClassName: 'link-broken',
+    })
+    expect(html).toContain('class="link-broken"')
+    expect(html).not.toContain('class="link"')
   })
 
   it('emits rel="noopener noreferrer" by default', () => {
@@ -185,5 +198,18 @@ describe('renderConsentTextReact', () => {
     const anchor = nodes[0] as { props: Record<string, unknown> }
     expect(anchor.props.dangerouslySetInnerHTML).toBeUndefined()
     expect(typeof anchor.props.children).toBe('string')
+  })
+
+  it('renders broken anchors with no href and the brokenClassName when URL is missing', () => {
+    const nodes = renderConsentTextReact('{{privacy}}', {
+      className: 'link',
+      brokenClassName: 'link-broken',
+    })
+    const anchor = nodes[0] as { props: Record<string, unknown> }
+    expect(anchor.props.href).toBeUndefined()
+    expect(anchor.props.className).toBe('link-broken')
+    // No outbound-link plumbing on a non-navigable anchor.
+    expect(anchor.props.target).toBeUndefined()
+    expect(anchor.props.rel).toBeUndefined()
   })
 })

@@ -36,7 +36,7 @@ export function renderConsentTextHTML(
 ): string {
   const rel = options.rel ?? DEFAULT_REL
   const target = options.target ?? DEFAULT_TARGET
-  const { className } = options
+  const { className, brokenClassName } = options
   const parts: string[] = []
   for (const segment of segments(text)) {
     if (segment.type === 'text') {
@@ -45,15 +45,20 @@ export function renderConsentTextHTML(
     }
     const url = urlForToken(segment.token, options)
     const label = labelForToken(segment.token)
-    const attrs = [
-      `href="${escapeHtml(url)}"`,
-      `target="${escapeHtml(target)}"`,
-      `rel="${escapeHtml(rel)}"`,
-    ]
-    if (className !== undefined) {
-      attrs.push(`class="${escapeHtml(className)}"`)
+    const broken = url === ''
+    const attrs: string[] = []
+    if (!broken) {
+      attrs.push(
+        `href="${escapeHtml(url)}"`,
+        `target="${escapeHtml(target)}"`,
+        `rel="${escapeHtml(rel)}"`,
+      )
     }
-    parts.push(`<a ${attrs.join(' ')}>${escapeHtml(label)}</a>`)
+    const cls = broken ? brokenClassName : className
+    if (cls !== undefined) {
+      attrs.push(`class="${escapeHtml(cls)}"`)
+    }
+    parts.push(`<a${attrs.length ? ' ' + attrs.join(' ') : ''}>${escapeHtml(label)}</a>`)
   }
   return parts.join('')
 }
@@ -64,7 +69,7 @@ export function renderConsentTextReact(
 ): ReactNode[] {
   const rel = options.rel ?? DEFAULT_REL
   const target = options.target ?? DEFAULT_TARGET
-  const { className } = options
+  const { className, brokenClassName } = options
   const out: ReactNode[] = []
   let key = 0
   for (const segment of segments(text)) {
@@ -74,16 +79,17 @@ export function renderConsentTextReact(
     }
     const url = urlForToken(segment.token, options)
     const label = labelForToken(segment.token)
+    const broken = url === ''
+    // Broken anchors omit href entirely so the browser doesn't resolve
+    // empty-string href against the current document URL (which would
+    // make the link appear to navigate to itself).
+    const props: Record<string, string | undefined> = broken
+      ? { className: brokenClassName, title: 'Link not configured' }
+      : { href: url, target, rel, className }
     out.push(
       createElement(
         'a',
-        {
-          key: `consent-${key++}`,
-          href: url,
-          target,
-          rel,
-          className,
-        },
+        { key: `consent-${key++}`, ...props },
         // String children — React auto-escapes; the unsafe HTML-injection prop is not used.
         label,
       ),
