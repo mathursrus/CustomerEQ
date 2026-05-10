@@ -32,10 +32,7 @@ export function createSurveyImportProcessor(connection: ConnectionOptions) {
           logger.info({ memberId: member.id, email }, 'Auto-enrolled member via bulk import')
         }
 
-        if (member.consentGivenAt) {
-          memberId = member.id
-        }
-        // memberId stays null until explicit consent — response still recorded for analytics
+        memberId = member.id
       }
 
       // Dedup: skip if externalId already imported for this survey

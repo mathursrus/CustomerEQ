@@ -1074,7 +1074,7 @@ async function inlineSurveyImportRow(p: SurveyImportRowPayload) {
       email,
       enrolledVia: 'BULK_IMPORT',
     })
-    if (result.ok && result.member.consentGivenAt) {
+    if (result.ok) {
       memberId = result.member.id
     }
   }
