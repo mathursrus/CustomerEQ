@@ -49,7 +49,9 @@ export function getPersonaEmail(): string | null {
 
 export function setPersonaEmail(email: string): void {
   localStorage.setItem(PERSONA_KEY, email)
+  localStorage.removeItem('ceq_demo_cart')
   window.dispatchEvent(new Event('ceq_persona_changed'))
+  window.dispatchEvent(new Event('ceq_cart_updated'))
 }
 
 export function getPersona(email: string | null): Persona | null {

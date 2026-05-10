@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-04
-synthesized:
+synthesized: 2026-05-05
 ---
 
 # Postmortem: Survey-level consent override + IMPLIED_ON_SUBMIT migration — feature-specification — Issue #276

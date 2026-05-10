@@ -20,6 +20,7 @@
     "@clerk/fastify": "^3.1.16",
     "@customerEQ/ai": "workspace:*",
     "@customerEQ/connectors": "workspace:*",
+    "@customerEQ/consent-text": "workspace:*",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/shared": "workspace:*",
     "@fastify/cors": "^11.2.0",

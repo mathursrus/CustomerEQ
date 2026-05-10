@@ -1,18 +1,36 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getCart, clearCart, type CartItem } from '@/lib/cart'
 import { getPersonaEmail } from '@/lib/persona'
 import type { CheckoutResult } from '@/app/api/storefront/checkout/route'
 
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
+
 type State =
   | { phase: 'processing' }
-  | { phase: 'success'; result: CheckoutResult; items: CartItem[] }
+  | { phase: 'success'; result: CheckoutResult; items: CartItem[]; email: string }
   | { phase: 'error'; message: string }
 
+type NpsState =
+  | { phase: 'loading' }
+  | { phase: 'ready'; surveyId: string }
+  | { phase: 'submitting' }
+  | { phase: 'done'; points: number }
+  | { phase: 'hidden' }
+
 export default function CheckoutConfirmPage() {
+  const router = useRouter()
   const [state, setState] = useState<State>({ phase: 'processing' })
+  const [nps, setNps] = useState<NpsState>({ phase: 'hidden' })
+
+  useEffect(() => {
+    const onPersonaChange = () => router.push('/')
+    window.addEventListener('ceq_persona_changed', onPersonaChange)
+    return () => window.removeEventListener('ceq_persona_changed', onPersonaChange)
+  }, [router])
 
   useEffect(() => {
     async function runCheckout() {
@@ -40,7 +58,18 @@ export default function CheckoutConfirmPage() {
 
         clearCart()
         window.dispatchEvent(new Event('ceq_purchase_recorded'))
-        setState({ phase: 'success', result: data, items })
+        setState({ phase: 'success', result: data, items, email })
+
+        // Load NPS survey for inline prompt
+        setNps({ phase: 'loading' })
+        fetch('/api/storefront/surveys')
+          .then((r) => r.json())
+          .then((surveys: Array<{ id: string; type: string }>) => {
+            const npsSurvey = surveys.find((s) => s.type === 'NPS')
+            if (npsSurvey) setNps({ phase: 'ready', surveyId: npsSurvey.id })
+            else setNps({ phase: 'hidden' })
+          })
+          .catch(() => setNps({ phase: 'hidden' }))
       } catch {
         setState({ phase: 'error', message: 'Network error. Is the API running?' })
       }
@@ -48,6 +77,24 @@ export default function CheckoutConfirmPage() {
 
     void runCheckout()
   }, [])
+
+  async function submitNps(score: number) {
+    if (state.phase !== 'success' || nps.phase !== 'ready') return
+    const { surveyId } = nps
+    const { email } = state
+    setNps({ phase: 'submitting' })
+    try {
+      const res = await fetch(`/api/storefront/survey/${surveyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberEmail: email, answers: { q1: score }, score, channel: 'link', consent: true }),
+      })
+      const data = await res.json() as { incentivePoints?: number }
+      setNps({ phase: 'done', points: data.incentivePoints ?? 50 })
+    } catch {
+      setNps({ phase: 'hidden' })
+    }
+  }
 
   if (state.phase === 'processing') {
     return (
@@ -75,7 +122,7 @@ export default function CheckoutConfirmPage() {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center mb-6">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center mb-4">
         <div
           className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"
           style={{ backgroundColor: 'var(--brand-primary)' }}
@@ -109,11 +156,53 @@ export default function CheckoutConfirmPage() {
         </div>
       </div>
 
+      {/* Inline NPS widget */}
+      {nps.phase === 'ready' && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4">
+          <p className="text-sm font-semibold text-gray-800 mb-3">Quick — how was your visit?</p>
+          <p className="text-xs text-gray-400 mb-3">How likely are you to recommend StarBrew to a friend?</p>
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {Array.from({ length: 11 }, (_, i) => i).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => void submitNps(n)}
+                className="w-9 h-9 rounded-lg border text-xs font-semibold transition-all cursor-pointer hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                style={{ borderColor: '#d1d5db', color: '#374151' }}
+                data-testid={`nps-inline-${n}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-400 mt-2 px-1">
+            <span>Not at all</span>
+            <span>Absolutely</span>
+          </div>
+        </div>
+      )}
+
+      {nps.phase === 'submitting' && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4 flex items-center justify-center gap-2">
+          <div className="w-4 h-4 border-2 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: 'var(--brand-primary)' }} />
+          <p className="text-sm text-gray-500">Sending feedback…</p>
+        </div>
+      )}
+
+      {nps.phase === 'done' && (
+        <div
+          className="rounded-xl p-4 mb-4 text-sm font-semibold text-center"
+          style={{ backgroundColor: '#f0faf5', color: 'var(--brand-primary)' }}
+        >
+          +{nps.points} StarPoints earned for your feedback! 🙏
+        </div>
+      )}
+
       <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-800 mb-6">
         <p className="font-semibold mb-1">Demo tip: watch the pipeline</p>
         <p className="text-xs leading-relaxed">
           A <code>purchase</code> event was just fired to the CustomerEQ API.
-          Check the <a href="http://localhost:3000/admin" className="underline font-medium" target="_blank" rel="noreferrer">admin dashboard</a> to
+          Check the <a href={`${ADMIN_URL}/admin`} className="underline font-medium" target="_blank" rel="noreferrer">admin dashboard</a> to
           see loyalty points accumulate in real time.
         </p>
       </div>

@@ -75,6 +75,10 @@ export const CreateSurveySchema = z.object({
   triggerCategory: z.enum(['loyalty', 'cx_risk', 'scheduled']).optional(),
   triggerKey: z.string().optional(),
   surveyTypeOverride: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']).optional(),
+  // Issue #291 — per-survey thank-you copy/routing/toggle (moved from BrandTheme)
+  thankYouMessage: z.string().max(500).default('Thank you for your feedback!'),
+  thankYouRedirectUrl: z.string().url().nullable().optional(),
+  showIncentivePoints: z.boolean().default(true),
 })
 
 export const UpdateSurveySchema = z.object({
@@ -83,6 +87,10 @@ export const UpdateSurveySchema = z.object({
   settings: z.record(z.unknown()).optional(),
   incentivePoints: z.number().int().positive().max(100000).nullable().optional(),
   themeId: z.string().nullable().optional(),
+  // Issue #291 — per-survey thank-you copy/routing/toggle
+  thankYouMessage: z.string().max(500).optional(),
+  thankYouRedirectUrl: z.string().url().nullable().optional(),
+  showIncentivePoints: z.boolean().optional(),
 })
 
 export const UpdateSurveyStatusSchema = z.object({
@@ -101,17 +109,13 @@ export const SubmitSurveyResponseSchema = z.object({
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
 })
 
-// ─── Survey Theme ────────────────────────────────────────────────────────────
+// ─── Brand Theme (Issue #291 — was SurveyTheme; brand-level visual identity only) ─
 
 const hexColorRegex = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
 const hexColor = z.string().regex(hexColorRegex, 'Must be a valid hex color (e.g. #1a56db)')
 
-export const CreateSurveyThemeSchema = z.object({
+export const CreateBrandThemeSchema = z.object({
   name: z.string().min(1, 'Theme name is required').max(100),
-  isDefault: z.boolean().default(false),
-
-  logoUrl: z.string().url().startsWith('https://', 'Logo URL must use HTTPS').nullable().optional(),
-  brandName: z.string().max(100).nullable().optional(),
 
   primaryColor: hexColor.default('#6366f1'),
   secondaryColor: hexColor.default('#818cf8'),
@@ -129,13 +133,9 @@ export const CreateSurveyThemeSchema = z.object({
   cardStyle: z.enum(['flat', 'shadow', 'border']).default('shadow'),
   borderRadius: z.enum(['none', 'sm', 'md', 'lg']).default('md'),
   maxWidth: z.enum(['sm', 'md', 'lg']).default('md'),
-
-  thankYouMessage: z.string().max(500).default('Thank you for your feedback!'),
-  thankYouRedirectUrl: z.string().url().nullable().optional(),
-  showIncentivePoints: z.boolean().default(true),
 })
 
-export const UpdateSurveyThemeSchema = CreateSurveyThemeSchema.partial().omit({ isDefault: true })
+export const UpdateBrandThemeSchema = CreateBrandThemeSchema.partial()
 
 // ─── Question Template (Library) ─────────────────────────────────────────────
 
@@ -243,8 +243,8 @@ export type SurveyQuestion = z.infer<typeof SurveyQuestionSchema>
 export type SkipRule = z.infer<typeof SkipRuleSchema>
 export type SkipCondition = z.infer<typeof SkipConditionSchema>
 export type QuestionConfig = z.infer<typeof QuestionConfigSchema>
-export type CreateSurveyThemeInput = z.infer<typeof CreateSurveyThemeSchema>
-export type UpdateSurveyThemeInput = z.infer<typeof UpdateSurveyThemeSchema>
+export type CreateBrandThemeInput = z.infer<typeof CreateBrandThemeSchema>
+export type UpdateBrandThemeInput = z.infer<typeof UpdateBrandThemeSchema>
 export type CreateQuestionTemplateInput = z.infer<typeof CreateQuestionTemplateSchema>
 export type SurveyRuleInput = z.infer<typeof SurveyRuleInputSchema>
 export type LaunchSurveyInput = z.infer<typeof LaunchSurveySchema>

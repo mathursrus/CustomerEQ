@@ -38,6 +38,7 @@ import developerRoutes from './routes/developer.js'
 import outboundWebhooksRoutes from './routes/outboundWebhooks.js'
 import authRoutes from './routes/auth.js'
 import identityProviderWebhookRoutes from './routes/identityProviderWebhook.js'
+import adminBrandProfileRoutes from './routes/admin-brand-profile.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -141,6 +142,7 @@ export async function buildApp() {
   await fastify.register(apiKeysRoutes, { prefix: '/v1' })
   await fastify.register(developerRoutes, { prefix: '/v1' })
   await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
+  await fastify.register(adminBrandProfileRoutes, { prefix: '/v1' })
 
   // Issue #170 PR 2 — Auth API + Clerk webhook handler. These routes have
   // their full path in the route definition (/api/auth/*, /api/webhooks/*),

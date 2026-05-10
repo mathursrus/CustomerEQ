@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { getPersonaEmail, getPersona } from '@/lib/persona'
 import type { MemberData } from '@/app/api/storefront/member/route'
 
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
+
 const TIER_THRESHOLDS = [
   { name: 'Bronze', min: 0, max: 2499, color: '#CD7F32' },
   { name: 'Gold', min: 2500, max: 5999, color: '#CBA258' },
@@ -149,7 +151,7 @@ export default function AccountPage() {
         </div>
         <p className="text-xs text-gray-400 mt-3">
           Visit the{' '}
-          <a href="http://localhost:3000/admin" target="_blank" rel="noreferrer" className="underline">
+          <a href={`${ADMIN_URL}/admin`} target="_blank" rel="noreferrer" className="underline">
             admin dashboard
           </a>{' '}
           to manage redemptions.

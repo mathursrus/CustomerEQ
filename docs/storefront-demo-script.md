@@ -40,7 +40,6 @@ Point at the page top to bottom:
 - **API Keys** — click **Generate New Key**, name it "Demo key". Show the one-time reveal modal. > "Stored as a SHA-256 hash — if you lose it, revoke it and make a new one. No shared credentials."
 - **Survey Embeds** — each active survey has a ready-to-paste `<script>` tag. > "StarBrew dropped this one tag on their post-checkout page. That's the entire survey integration."
 - **Webhook URLs** — show the Google Business Profile webhook URL. > "StarBrew's ops team pointed their Google Reviews feed at this. Every new review is automatically ingested, sentiment-scored, and tied to the Customer 360."
-- **Quick-Start Snippets** — scroll to the bottom; show the curl command for `POST /v1/events`. > "That's the one HTTP call StarBrew's backend makes for every purchase, every survey trigger, every loyalty moment. Points calculation, campaign evaluation, tier upgrades, alert routing — all happen automatically on CustomerEQ's side."
 
 > "That's the whole integration. An afternoon of engineering, not a six-month project."
 
@@ -135,12 +134,11 @@ This is the hero scene.
 
 > "Sara submitted NPS 3. CustomerEQ:
 >
-> 1. Stored the response with AI-scored sentiment (negative)
-> 2. Extracted topics: *cold coffee*, *staff behaviour*
-> 3. Matched the 'NPS Detractor Alert' rule (score 0–6)
-> 4. Auto-opened a HIGH priority case — 4-hour SLA, routed to the CX Team
-> 5. Awarded 50 survey completion points
-> 6. Fired the 'Detractor Recovery' campaign — 200 bonus points queued
+> 1. Stored the response
+> 2. Matched the 'NPS Detractor Alert' rule (score 0–6)
+> 3. Auto-opened a HIGH priority case — 4-hour SLA, routed to the CX Team
+> 4. Awarded 50 survey completion points
+> 5. Fired the 'Detractor Recovery' campaign — 200 bonus points queued
 >
 > All in under 2 seconds. Nobody on StarBrew's team wrote alerting or routing code."
 
@@ -162,7 +160,7 @@ Point at the green chat bubble in the bottom-right corner of the storefront.
 3. Click **Send**.
 4. Wait ~3 seconds — the AI response appears in the chat window.
 
-> "The support widget is a single Web Component — `<ceq-support-chat>` — that StarBrew dropped into their site. The customer types, CustomerEQ classifies intent, matches any support rules StarBrew's team configured, generates a branded response, and escalates to a human if needed. Every message feeds back into the Customer 360."
+> "Sara didn't send an email, didn't call a hotline. She typed one message directly on the storefront. CustomerEQ's AI triaged it instantly — acknowledged the issue, offered a resolution path, and created a support record."
 
 **Switch to admin tab.**
 
@@ -276,12 +274,3 @@ pnpm seed:demo
 | Support chat | "One widget, drop it on any page. The AI triages, the human agent has full member context before typing a word." |
 | AI-native | "Every endpoint is an MCP tool. Your AI assistant queries customer state and creates campaigns by voice." |
 | Competitive | "Same closed-loop as Medallia, 10× cheaper, weeks not months to deploy." |
-
-### Competitive contrasts
-
-| vs Qualtrics | vs SurveyMonkey | vs Medallia |
-|---|---|---|
-| CX-to-loyalty loop (they can't) | Skip logic + theming (they limit) | 10× cheaper, same closed-loop |
-| AI-native (not a bolt-on) | AI sentiment built-in (they charge extra) | Weeks to deploy, not months |
-| MCP-agent compatible | Alert + case management included | Mid-market price, not enterprise-only |
-| Self-serve integration | Self-serve integration | Self-serve integration |

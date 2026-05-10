@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
-const API_URL = process.env.NEXT_PUBLIC_DEMO_API_URL ?? 'http://localhost:4000'
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
+const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 interface Question {
   id: string
@@ -51,7 +51,7 @@ export default function SurveyPage() {
       }
 
       try {
-        const res = await fetch(`${API_URL}/v1/public/surveys/${id}`)
+        const res = await fetch(`/api/storefront/survey/${id}`)
         if (!res.ok) {
           setState({ phase: 'error', message: 'Survey not found or not active.' })
           return
@@ -78,10 +78,10 @@ export default function SurveyPage() {
     setState({ phase: 'submitting' })
 
     try {
-      const res = await fetch(`${API_URL}/v1/public/surveys/${id}/respond`, {
+      const res = await fetch(`/api/storefront/survey/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link' }),
+        body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link', consent: true }),
       })
       const result = await res.json() as { duplicate?: boolean; incentivePoints?: number; error?: string }
 
@@ -136,7 +136,7 @@ export default function SurveyPage() {
         )}
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800 text-left">
           <p className="font-semibold mb-1">Demo tip: watch the CX pipeline</p>
-          <p>Check the <a href="http://localhost:3000/admin/alerts/cases" className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href="http://localhost:3000/admin/campaigns" className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
+          <p>Check the <a href={`${ADMIN_URL}/admin/alerts/cases`} className="underline" target="_blank" rel="noreferrer">alert cases</a> or <a href={`${ADMIN_URL}/admin/campaigns`} className="underline" target="_blank" rel="noreferrer">campaigns</a> in the admin dashboard to see the recovery flow trigger.</p>
         </div>
       </div>
     )

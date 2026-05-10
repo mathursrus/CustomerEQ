@@ -6,6 +6,11 @@ declare module 'fastify' {
   interface FastifyRequest {
     brandId: string
     clerkUserId: string
+    // Issue #292 Slice 3 — populated by the auth plugin for routes that opt
+    // into lazy-upsert (`config: { lazyUpsertBrand: true }`). The handler
+    // upserts the Brand row keyed by clerkOrgId and assigns `brandId`. All
+    // other routes leave this undefined.
+    clerkOrgId?: string
   }
 }
 
@@ -21,6 +26,17 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     if (process.env.NODE_ENV === 'test' && testBrandId) {
       request.brandId = testBrandId
       request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_123'
+      return
+    }
+
+    // Issue #292 Slice 3 — lazy-upsert test bypass. Sets clerkOrgId only;
+    // route handler is responsible for the upsert and brandId assignment.
+    // Used by integration tests for `GET /v1/admin/brand/profile` first-call
+    // provisioning. Only applies when X-Test-Brand-Id is NOT set (above).
+    const testClerkOrgId = request.headers['x-test-clerk-org-id'] as string | undefined
+    if (process.env.NODE_ENV === 'test' && testClerkOrgId) {
+      request.clerkOrgId = testClerkOrgId
+      request.clerkUserId = (request.headers['x-test-user-id'] as string) ?? 'user_test_lazy'
       return
     }
 
@@ -93,7 +109,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     // Skip auth for public routes — they handle their own auth if needed
     const routeConfig = request.routeOptions?.config as
-      | { public?: boolean; allowNoOrg?: boolean }
+      | { public?: boolean; allowNoOrg?: boolean; lazyUpsertBrand?: boolean }
       | undefined
     if (routeConfig?.public === true) {
       return
@@ -152,6 +168,15 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     })
 
     if (!brand) {
+      // Issue #292 Slice 3 — routes opting into `lazyUpsertBrand: true` skip
+      // the 401 short-circuit so the handler can upsert the Brand row keyed
+      // by clerkOrgId. Used by `GET /v1/admin/brand/profile` (the
+      // post-Clerk-org-create landing target).
+      if (routeConfig?.lazyUpsertBrand === true) {
+        request.clerkOrgId = tenantKey
+        request.clerkUserId = session.userId
+        return
+      }
       return reply
         .status(401)
         .send({ error: 'Brand not found for the provided organization' })
@@ -159,6 +184,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     request.brandId = brand.id
     request.clerkUserId = session.userId
+    request.clerkOrgId = tenantKey
   })
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { StorefrontHeader } from '@/components/StorefrontHeader'
+import { SupportChat } from '@/components/SupportChat'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
 const PRIMARY_COLOR = process.env.NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR ?? '#00704A'
@@ -9,6 +10,7 @@ const SECONDARY_COLOR = process.env.NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR ?? '#
 export const metadata: Metadata = {
   title: BRAND_NAME,
   description: `${BRAND_NAME} — Loyalty Rewards Demo`,
+  viewport: 'width=device-width, initial-scale=1',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {BRAND_NAME} · Powered by{' '}
           <span className="font-semibold text-gray-500">CustomerEQ</span> · Demo environment
         </footer>
+        <SupportChat />
       </body>
     </html>
   )

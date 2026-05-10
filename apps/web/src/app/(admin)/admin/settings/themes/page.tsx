@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 
+// Issue #291 — isDefault is derived server-side from Brand.defaultThemeId === theme.id.
 interface Theme {
   id: string
   name: string

@@ -133,12 +133,11 @@ async function main() {
   ])
   console.log(`  ✅ Rewards: ${rewards.length} created`)
 
-  // ── 5. Survey theme ──────────────────────────────────────────────────
-  const theme = await prisma.surveyTheme.create({
+  // ── 5. Brand theme (Issue #291 — was SurveyTheme; brand-level visual identity only) ─
+  const theme = await prisma.brandTheme.create({
     data: {
       brandId: brand.id,
       name: 'Acme Coffee Theme',
-      brandName: 'Acme Coffee',
       primaryColor: '#d97706',
       backgroundColor: '#faf8f4',
       fontFamily: 'Inter, system-ui, sans-serif',

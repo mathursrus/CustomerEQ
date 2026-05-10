@@ -12,6 +12,7 @@ COPY packages/database/package.json packages/database/
 COPY packages/shared/package.json packages/shared/
 COPY packages/config/package.json packages/config/
 COPY packages/connectors/package.json packages/connectors/
+COPY packages/consent-text/package.json packages/consent-text/
 COPY packages/ui/package.json packages/ui/
 COPY packages/ai/package.json packages/ai/
 COPY packages/embed/package.json packages/embed/

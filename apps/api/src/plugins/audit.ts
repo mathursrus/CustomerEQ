@@ -1,7 +1,19 @@
 import fp from 'fastify-plugin'
 import type { FastifyPluginAsync } from 'fastify'
+import type { Prisma } from '@prisma/client'
 
 const MUTATION_METHODS = new Set(['POST', 'PATCH', 'DELETE', 'PUT'])
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    // Issue #292 Slice 3 / RFC §9 — per-route metadata allowlist. Route
+    // handlers populate `request.audit.metadata` with whatever keys make
+    // sense for their action; the plugin filters by the route's
+    // `config.auditAllowlist` before persisting so handlers cannot leak
+    // request bodies, secrets, or unaudited fields into AuditEvent.
+    audit?: { metadata: Record<string, unknown> }
+  }
+}
 
 function inferAction(method: string, routePath: string): string {
   // Normalize path: remove /v1/ prefix and any trailing slashes
@@ -61,6 +73,23 @@ function extractResourceId(routePath: string, url: string): string {
   return 'unknown'
 }
 
+// Issue #292 Slice 3 / RFC §9 — pure filter for the per-route metadata
+// allowlist. Returns a new object containing only keys present in BOTH the
+// metadata and the allowlist, with `undefined` values dropped (so consumers
+// don't get explicit `undefined` properties in the persisted JSON).
+function filterMetadata(
+  metadata: Record<string, unknown>,
+  allowlist: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of allowlist) {
+    if (key in metadata && metadata[key] !== undefined) {
+      out[key] = metadata[key]
+    }
+  }
+  return out
+}
+
 const auditPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('onResponse', (request, reply, done) => {
     // Only audit mutation methods
@@ -69,7 +98,8 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
-    // Skip if brandId is not set (public routes)
+    // Skip if brandId is not set (public routes, or lazy-upsert routes that
+    // failed before the handler could assign brandId)
     if (!request.brandId) {
       done()
       return
@@ -82,9 +112,31 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     const routePath = request.routeOptions?.url ?? request.url
-    const action = inferAction(request.method, routePath)
-    const resourceType = action.split('.')[0] ?? 'unknown'
+    const routeConfig = request.routeOptions?.config as
+      | {
+          auditAction?: string
+          auditResourceType?: string
+          auditAllowlist?: readonly string[]
+        }
+      | undefined
+
+    // Issue #292 Slice 3 — per-route metadata allowlist. When the route
+    // declares `config.auditAllowlist`, use the handler-populated
+    // `request.audit.metadata` filtered to the allowlist; otherwise fall
+    // back to the legacy `{ method, path, statusCode }` shape that all
+    // existing routes get for free.
+    const allowlist = routeConfig?.auditAllowlist
+    const action = routeConfig?.auditAction ?? inferAction(request.method, routePath)
+    const resourceType = routeConfig?.auditResourceType ?? action.split('.')[0] ?? 'unknown'
     const resourceId = extractResourceId(routePath, request.url)
+
+    const metadata = allowlist
+      ? filterMetadata(request.audit?.metadata ?? {}, allowlist)
+      : {
+          method: request.method,
+          path: request.url,
+          statusCode: reply.statusCode,
+        }
 
     // Fire-and-forget: do not await, do not slow the response
     fastify.prisma.auditEvent
@@ -95,11 +147,7 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
           action,
           resourceType,
           resourceId,
-          metadata: {
-            method: request.method,
-            path: request.url,
-            statusCode: reply.statusCode,
-          },
+          metadata: metadata as Prisma.InputJsonValue,
         },
       })
       .catch((err: unknown) => {
@@ -110,7 +158,7 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
   })
 }
 
-export { inferAction, extractResourceId }
+export { inferAction, extractResourceId, filterMetadata }
 export default fp(auditPlugin, {
   name: 'audit',
   dependencies: ['prisma'],
