@@ -634,6 +634,7 @@ model Survey {
   surveyRules   SurveyRule[]         // response-to-action rules (Issue #80)
   campaigns     Campaign[]           // campaigns linked to this survey (Issue #80)
   distributions SurveyDistribution[] // triggered distribution records (Issue #117)
+  importBatches SurveyImportBatch[]  // historical import batches (Issue #262)
 
   @@index([brandId, status])
   @@index([brandId, triggerKey, status]) // survey distribution lookup (Issue #117)
@@ -749,8 +750,8 @@ model SurveyResponse {
   id             String           @id @default(cuid())
   surveyId       String
   survey         Survey           @relation(fields: [surveyId], references: [id])
-  memberId       String
-  member         Member           @relation(fields: [memberId], references: [id])
+  memberId       String?          // null for anonymous sources (e.g. Google Reviews)
+  member         Member?          @relation(fields: [memberId], references: [id])
   brandId        String
   answers        Json             // { questionId: answer }
   score          Float?           // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
@@ -760,18 +761,49 @@ model SurveyResponse {
   summary        String?          // AI-generated one-line summary
   clusterId      String?          // FK to FeedbackCluster
   cluster        FeedbackCluster? @relation(fields: [clusterId], references: [id])
-  channel        String           @default("link") // email, in_app, link, sms
+  channel        String           @default("link") // email, in_app, link, sms, review
   completedAt    DateTime         @default(now())
   createdAt      DateTime         @default(now())
   campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
   caseFollowUps  CaseFollowUp[]   // cases opened from this response
 
-  // R2 — `@@unique([surveyId, memberId])` removed; multiple responses per member-per-survey
-  // are now policy-controlled by `Survey.responsePolicy` (R3) at the application layer.
-  @@index([surveyId, memberId]) // R3 enforcement lookups (ONCE / LATEST_OVERWRITES)
+  // Issue #262: historical import fields (null = live response)
+  importBatchId        String?
+  importBatch          SurveyImportBatch? @relation(fields: [importBatchId], references: [id])
+  importedAt           DateTime?          // original response timestamp from source
+  externalRespondentId String?            // source-system respondent ID for deduplication
+
+  // R2 — `@@unique([surveyId, memberId])` removed; policy-controlled by Survey.responsePolicy (R3).
+  // #262 — partial unique index for live-response dedup lives in migration, not schema.
+  @@index([surveyId, memberId]) // R3 enforcement lookups + import history
   @@index([brandId, completedAt])
   @@index([clusterId])
+  @@index([importBatchId])
   @@map("survey_responses")
+}
+
+// Issue #262: tracks a single historical import operation
+model SurveyImportBatch {
+  id            String           @id @default(cuid())
+  surveyId      String
+  survey        Survey           @relation(fields: [surveyId], references: [id])
+  brandId       String
+  sourceType    String           // 'excel' | 'google_reviews'
+  filename      String?
+  status        String           @default("pending") // pending | processing | complete | failed
+  totalRows     Int              @default(0)
+  processedRows Int              @default(0)
+  failedRows    Int              @default(0)
+  errors        Json             @default("[]") // array of { rowIndex, message }
+  deletedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  responses SurveyResponse[]
+
+  @@index([surveyId])
+  @@index([brandId, createdAt])
+  @@map("survey_import_batches")
 }
 
 model FeedbackCluster {

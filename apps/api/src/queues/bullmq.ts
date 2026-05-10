@@ -12,6 +12,7 @@ import {
   type ExternalSignalSyncPayload,
   type ExternalSignalIngestionPayload,
   type WebhookDeliveryPayload,
+  type SurveyImportRowPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -22,6 +23,7 @@ import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
+import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
 import { prisma } from '@customerEQ/database'
 import { Prisma } from '@prisma/client'
@@ -45,6 +47,7 @@ let _healthScoreQueue: Queue | null = null
 let _externalSignalSyncQueue: Queue | null = null
 let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
+let _surveyImportQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -62,6 +65,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _externalSignalSyncQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_SYNC, { connection })
   _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
+  _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -113,6 +117,10 @@ function getExternalSignalIngestionQueue(): Queue {
 function getWebhookDeliveryQueue(): Queue {
   if (!_webhookDeliveryQueue) throw new Error('Queues not initialized.')
   return _webhookDeliveryQueue
+}
+function getSurveyImportQueue(): Queue {
+  if (!_surveyImportQueue) throw new Error('Queues not initialized.')
+  return _surveyImportQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1049,6 +1057,88 @@ async function inlineWebhookDelivery(p: WebhookDeliveryPayload) {
   await prisma.webhookDeliveryLog.create({ data: { webhookEndpointId, brandId, event, caseId, httpStatus, latencyMs, success, attempt: 1, requestPayload: requestPayload as never, responseBody: responseBody ?? null } })
   if (!success) throw new Error(`Webhook delivery failed: HTTP ${httpStatus}`)
   return { success: true, httpStatus, latencyMs }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Survey Import — inline processor
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function inlineSurveyImportRow(p: SurveyImportRowPayload) {
+  const { batchId, surveyId, brandId, email, score, verbatim, completedAt, channel, externalId, rawAnswers } = p
+
+  // Resolve or auto-enroll member using the shared memberResolution service (#231)
+  let memberId: string | null = null
+  if (email) {
+    const result = await resolveOrEnrollMember(prisma, brandId, {
+      memberId: email,
+      email,
+      enrolledVia: 'BULK_IMPORT',
+    })
+    if (result.ok) {
+      memberId = result.member.id
+    }
+  }
+  // Google Reviews: email=null → always anonymous (memberId stays null)
+
+  // Dedup on externalId within this survey (covers re-imports of the same source data)
+  if (externalId) {
+    const existing = await prisma.surveyResponse.findFirst({
+      where: { surveyId, externalRespondentId: externalId },
+      select: { id: true },
+    })
+    if (existing) {
+      await prisma.surveyImportBatch.update({
+        where: { id: batchId },
+        data: { processedRows: { increment: 1 } },
+      })
+      return { skipped: true, reason: 'duplicate_external_id' }
+    }
+  }
+
+  const response = await prisma.surveyResponse.create({
+    data: {
+      surveyId,
+      brandId,
+      memberId,
+      answers: (rawAnswers ?? {}) as Prisma.InputJsonValue,
+      score: score ?? null,
+      channel,
+      completedAt: new Date(completedAt),
+      importBatchId: batchId,
+      importedAt: new Date(),
+      externalRespondentId: externalId ?? null,
+    },
+  })
+
+  // Only enqueue sentiment when there is text and a resolvable member
+  if (verbatim && memberId) {
+    enqueueSentimentAnalysis({
+      surveyResponseId: response.id,
+      brandId,
+      memberId,
+      surveyId,
+      text: verbatim,
+      eventType: 'cx.survey_imported',
+      score: score ?? undefined,
+    }).catch((err: unknown) => {
+      log.error({ err, surveyId, batchId }, 'Failed to enqueue sentiment for imported row')
+    })
+  }
+
+  await prisma.surveyImportBatch.update({
+    where: { id: batchId },
+    data: { processedRows: { increment: 1 } },
+  })
+
+  return { responseId: response.id }
+}
+
+export async function enqueueSurveyImportRow(payload: SurveyImportRowPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline(QUEUES.SURVEY_IMPORT, payload, inlineSurveyImportRow)
+    return INLINE_STUB
+  }
+  return getSurveyImportQueue().add(QUEUES.SURVEY_IMPORT, payload)
 }
 
 export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): Promise<Job> {
