@@ -1,6 +1,6 @@
 # StarBrew Coffee — Demo Script
 
-**Duration:** 18–22 minutes  
+**Duration:** 20–25 minutes  
 **Last Updated:** 2026-05-07  
 **Format:** Two browser tabs side by side. **StarBrew storefront** (left), **CustomerEQ admin** (right). Every customer action on the storefront is immediately followed by switching to admin to show the data land in real time.
 
@@ -149,7 +149,31 @@ This is the hero scene.
 
 ---
 
-## Act 6 — CX Intelligence (2 min)
+## Act 6 — AI support chat + live triage (2 min)
+
+**Storefront tab.** Sara Kim is still selected as the active persona.
+
+Point at the green chat bubble in the bottom-right corner of the storefront.
+
+1. Click the chat bubble to open the support panel.
+2. Type: **"The coffee I got today was cold — really disappointed."**
+3. Click **Send**.
+4. Wait ~3 seconds — the AI response appears in the chat window.
+
+> "Sara didn't send an email, didn't call a hotline. She typed one message directly on the storefront. CustomerEQ's AI triaged it instantly — acknowledged the issue, offered a resolution path, and created a support record."
+
+**Switch to admin tab.**
+
+5. Navigate: **Conversations** (sidebar).
+6. Click Sara's conversation — show the full transcript: Sara's message, the AI reply, the conversation status.
+
+> "The support team sees every conversation in real time. If the AI can't resolve it, the conversation escalates to a human agent. But in most cases the AI handles it — 2 a.m. complaint, immediate response, zero queue."
+
+> "And because Sara is already in CustomerEQ, the conversation is linked to her member profile — her tier, her purchase history, her NPS score. The agent has full context before they type a single word."
+
+---
+
+## Act 7 — CX Intelligence (2 min)
 
 **Admin tab.** Navigate: **CX Insights**.
 
@@ -166,7 +190,7 @@ Navigate to **CX Insights → External Signals** section (or scroll down on the 
 
 ---
 
-## Act 7 — AI-Agent Native (1 min)
+## Act 8 — AI-Agent Native (1 min)
 
 > "One more thing. Every endpoint we just showed is also exposed as a native MCP tool. So if StarBrew's CX team uses Claude or any AI assistant, they can ask:
 >
@@ -187,9 +211,10 @@ Navigate to **CX Insights → External Signals** section (or scroll down on the 
 > 3. **New member enrolled live** — one HTTP call, GDPR consent tracked, loyalty account active immediately
 > 4. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
 > 5. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
-> 6. **Cross-channel CX intelligence** — surveys + reviews in one AI-scored view
+> 6. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
+> 7. **Cross-channel CX intelligence** — surveys + reviews in one AI-scored view
 >
-> Compare that to Qualtrics + Salesforce Loyalty + a custom alert layer + a BI pipeline. That's 6 months and $500k. StarBrew had this running in a day. **One platform. One API.**"
+> Compare that to Qualtrics + Salesforce Loyalty + Zendesk + a custom alert layer + a BI pipeline. That's 6 months and $500k. StarBrew had this running in a day. **One platform. One API.**"
 
 ---
 
@@ -234,6 +259,8 @@ pnpm seed:demo
 | Alert rules | Alerts → "Manage Rules" button (top right) |
 | Recovery campaign | Campaigns → "Detractor Recovery — 200 Bonus StarPoints" |
 | NPS survey (via storefront) | Storefront header → Surveys → "Take survey" |
+| Support chat (storefront) | Chat bubble → bottom-right corner of any storefront page |
+| AI-triaged conversations | Conversations (sidebar) |
 | Sentiment + topic clusters | CX Insights |
 | External signals (Google reviews) | CX Insights → External Signals section |
 
@@ -244,5 +271,6 @@ pnpm seed:demo
 | Integration speed | "An afternoon of engineering — API key, one embed tag, one webhook. Not a six-month project." |
 | Closed loop | "A complaining customer gets 200 recovery points in 2 seconds. Most stay because they complained." |
 | Single platform | "Loyalty + CX alerts + case routing + campaigns — one data model, not four tools." |
+| Support chat | "One widget, drop it on any page. The AI triages, the human agent has full member context before typing a word." |
 | AI-native | "Every endpoint is an MCP tool. Your AI assistant queries customer state and creates campaigns by voice." |
 | Competitive | "Same closed-loop as Medallia, 10× cheaper, weeks not months to deploy." |
