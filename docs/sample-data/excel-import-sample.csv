@@ -1,0 +1,11 @@
+email,score,verbatim,date,channel,external_id,Product Line,Region
+alice@example.com,9,Absolutely love the loyalty rewards program! The points system is easy to understand.,2025-11-15,email,resp-001,Premium Blend,West Coast
+bob@example.com,7,Good coffee but the app crashes sometimes when redeeming points.,2025-11-18,app,resp-002,House Roast,Midwest
+carol@example.com,10,Best coffee subscription I've ever had. Always fresh and the import timing is perfect.,2025-12-01,link,resp-003,Single Origin,East Coast
+dave@example.com,4,Packaging arrived damaged twice this month. Needs improvement.,2025-12-05,email,resp-004,Premium Blend,West Coast
+eve@example.com,8,Really enjoying the new seasonal blends. Wish the points expired less quickly.,2025-12-10,sms,resp-005,Seasonal,Midwest
+frank@example.com,6,,2025-12-12,email,resp-006,House Roast,South
+grace@example.com,10,The barista tips in the newsletter are a wonderful touch. Feels like a real community.,2025-12-15,link,resp-007,Single Origin,East Coast
+henry@example.com,3,Waited 3 weeks for delivery. No communication about the delay.,2025-12-18,app,resp-008,Premium Blend,West Coast
+iris@example.com,9,Switched from a competitor and I'm not looking back. Fantastic quality.,2025-12-20,link,resp-009,House Roast,Midwest
+,5,Coffee is decent but nothing special.,2025-12-22,link,,House Roast,East Coast
