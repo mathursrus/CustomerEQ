@@ -4,7 +4,7 @@ Issue: [#277](https://github.com/mathursrus/CustomerEQ/issues/277)
 Spec: [`docs/feature-specs/277-organization-settings.md`](../feature-specs/277-organization-settings.md)
 PR: [#290](https://github.com/mathursrus/CustomerEQ/pull/290) (spec + design ship together)
 Implementation tracking: [#292](https://github.com/mathursrus/CustomerEQ/issues/292) (4 PR slices under one umbrella)
-Blocked by: [#291](https://github.com/mathursrus/CustomerEQ/issues/291) (`BrandTheme` split — Slice 4 only; Slices 1–3 are independent)
+Depends on: [#291](https://github.com/mathursrus/CustomerEQ/issues/291) (`BrandTheme` model split — already merged; this RFC consumes the post-#291 schema directly. Theme *seeding* now lands in Slice 3 — see §5.)
 Owner: manohar.madhira@outlook.com
 Status: Draft
 
@@ -177,26 +177,37 @@ type GetBrandProfileResponse = {
 ```
 
 **Lazy-upsert** (R2 + R26):
-1. Fastify `auth` plugin verifies JWT. If `clerkOrgId` is present, the handler runs an `upsert`:
+1. Fastify `auth` plugin verifies JWT. If `clerkOrgId` is present, the handler:
+   - Calls `fastify.identityProvider.getOrg(clerkOrgId)` to fetch the organization name from the identity provider, so the seeded `Brand.name` matches the string the admin sees in the org-switcher chip on first paint. Best-effort: if the provider call fails (transient network, dev test bypass without `getOrg` wired up), fall back to a generic placeholder so first-run UX still completes — the admin can always rename `Brand.name` from the settings form.
+   - Runs the upsert with that name + the seeded defaults + the four stock `BrandTheme` rows (R25):
    ```typescript
+   let initialBrandName = 'Untitled Organization'
+   try {
+     const org = await fastify.identityProvider.getOrg(clerkOrgId)
+     if (org?.name) initialBrandName = org.name
+   } catch (err) {
+     fastify.log.warn({ err, clerkOrgId }, 'identityProvider.getOrg failed; using default Brand.name')
+   }
+
    const brand = await prisma.brand.upsert({
      where: { clerkOrgId },
      update: {},
      create: {
        clerkOrgId,
-       name: jwtClaims.org_name ?? 'Untitled Organization',
-       consentTextDefault: DEFAULT_CONSENT_TEXT,    // R21 — sensible default with {{privacy}} token
-       timezone: req.headers['x-timezone-hint'] ?? 'UTC',     // optional hint from client
-       locale: req.headers['x-locale-hint']     ?? 'en-US',
+       name: initialBrandName,                            // PR #308 review: seeded from identity provider on first run; editable thereafter
+       consentTextDefault: DEFAULT_CONSENT_TEXT,          // R21 — sensible default with {{privacy}} token
+       timezone: req.headers['x-timezone-hint'] ?? 'UTC',
+       locale:   req.headers['x-locale-hint']   ?? 'en-US',
+       brandThemes: { createMany: { data: [...DEFAULT_THEMES] } },  // R25 — atomic with Brand creation; only fires on the create branch of upsert
      },
    })
    ```
 2. After upsert, run the additional read paths in `Promise.all` (architecture pattern §6):
-   - `prisma.theme.findMany({ where: { brandId } })` — full theme list
+   - `prisma.brandTheme.findMany({ where: { brandId } })` — full theme list (now non-empty for first-run brands thanks to the nested seed in step 1)
    - `prisma.member.count({ where: { brandId } })` — for locked-state computation
    - `process.env.SUPPORT_EMAIL ?? 'support@customereq.com'` — env resolution
-3. **First-run theme seeding** (R25) is owned by [#291](https://github.com/mathursrus/CustomerEQ/issues/291)'s `BrandTheme` split. The GET handler in #277 does NOT seed any theme rows — that responsibility moves with the model split. Slice 4 (frontend) consumes whatever shape #291 lands. See §5.
-4. **The response intentionally returns `brand.name` (CustomerEQ Brand.name) only and does NOT carry the Clerk Organization name.** Slice 4's frontend reads the Clerk Organization name directly from `useOrganization().organization.name` (Clerk's React hook, already cached client-side) for the read-only Identity row. Carrying the Clerk org name through this API would couple the read path to the identity provider unnecessarily and add a redundant source of truth — Clerk is already the source of truth for that string client-side. See §7a for the full Q2 reframe.
+3. **First-run theme seeding** (R25) lands in the GET handler's lazy-upsert via the nested `brandThemes.createMany` shown above. Atomic with Brand creation, race-safe via the unique `clerkOrgId` constraint (the nested write only fires on the create branch). The `BrandTheme` model itself was introduced under [#291](https://github.com/mathursrus/CustomerEQ/issues/291); the seed *content* (Indigo / Forest / Sunset / Slate, with brand-vibe colors + an error-emphasis accent decoupled from the primary/secondary family) lives in `apps/api/src/lib/default-themes.ts`. See §5.
+4. **The response intentionally returns `brand.name` (CustomerEQ Brand.name) only and does NOT carry the identity provider's organization name on subsequent reads.** Slice 4's frontend reads the identity-provider organization name directly from the auth library's session hook (already cached client-side) for the read-only Identity row. The first-run seed flows through `Brand.name` once via `getOrg` (step 1), but the steady-state read path stays single-source-of-truth on the Brand row. See §7a for the full Q2 reframe.
 
 #### 4.2 `PATCH /v1/admin/brand/profile`
 
@@ -255,18 +266,39 @@ The earlier draft of this RFC scoped a multipart upload endpoint that wrote PNG 
 
 In v0 (this RFC + Slices 3 + 4): PATCH `/v1/admin/brand/profile` accepts `logoUrl` as an `https://` URL string. Admins host their logo on their own CDN / asset bucket and paste the URL. When #305 ships, the `logoUrl` PATCH contract does not change — only the upstream UI path that produces the URL changes (a file picker writes through #305's upload endpoint, the URL is chained into the next PATCH).
 
-### 5. Default-theme seeding — deferred to #291
+### 5. Default-theme seeding — implemented in Slice 3 (revised from prior "deferred to #291" disposition)
 
-**Decision: deferred to [#291 — `BrandTheme` split prerequisite](https://github.com/mathursrus/CustomerEQ/issues/291).**
+**Decision: lazy-seed the four stock themes (Indigo / Forest / Sunset / Slate) inside the GET handler's lazy-upsert via a nested `brandThemes.createMany`. Seed *content* lives in `apps/api/src/lib/default-themes.ts`. The `BrandTheme` *model* was introduced by [#291](https://github.com/mathursrus/CustomerEQ/issues/291); the seed mechanism that #291's RFC deferred lands here.**
 
-PR #290 review (L240, L248) surfaced that the existing `SurveyTheme` model conflates brand-level visual identity (logo, colors, brand name, default flag) with per-survey rendering overrides (thank-you message, redirect URL, incentive-points display). Six fields belong on `Brand` or `Survey`, not on a survey-level theme record. Issue #291 owns the model split and is the home for the four-default-theme seed scope.
+#### How it works (atomic, race-safe)
 
-**Implications for #277 implementation:**
-- **Slice 1 (schema migration)** does NOT add `survey_themes.isStockDefault`, does NOT create the `@@unique([brandId, name])` constraint, and does NOT add the `Brand.defaultThemeId → SurveyTheme.id` foreign-key relation. (The existing `Brand.defaultThemeId` column added under #170 PR1 stays as-is — a `String?` without `@relation`. Whether it gets repointed at `BrandTheme.id` is #291's call.)
-- **Slice 4 (frontend)** consumes the post-#291 model for the Look & Feel section. R25 (4 default themes available at first run) is satisfied by #291's seeding mechanism, whatever shape it takes.
-- This makes #292 Slice 4 **blocked by #291**; Slices 1–3 are independent.
+The nested write fires only on the `create` branch of the upsert — Prisma evaluates the `create:` block when the row didn't exist, never on the `update: {}` no-op. Together with the unique `clerkOrgId` constraint on `Brand`, this closes the race window for two simultaneous first GETs: whichever request wins the unique-constraint check creates both the Brand row and the four theme rows in one atomic write; the other observes the existing row and skips theme seeding entirely. No `@@unique([brandId, name])` constraint on `BrandTheme` is required — the dedup is structural via the parent.
 
-The earlier draft of this section evaluated three seed-mechanism alternatives (per-brand, global-shared, hybrid). That decision is moved to #291's RFC. R25's spec contract — "all four pickable from first paint" — is unchanged.
+```typescript
+brandThemes: {
+  createMany: { data: [...DEFAULT_THEMES] },  // four rows, one per stock theme
+}
+```
+
+#### Seed content — what's in `default-themes.ts`
+
+`DEFAULT_THEMES` defines four `BrandTheme` rows. Color decisions:
+
+- **Primary + secondary** mirror the swatches shown in the spec mock (`docs/feature-specs/mocks/277-organization-settings.html`).
+- **Background** stays white (`#ffffff`) for all four; **text** stays dark (`#111827`, or `#0f172a` for Slate).
+- **Button** = primary; **buttonText** = white.
+- **Accent** is intentionally **NOT** in the same hue family as primary/secondary — accent is used to emphasize error / warning text and must contrast cleanly with body copy on a white background. Indigo / Forest / Slate use red-700 (`#b91c1c`); Sunset uses rose-700 (`#be123c`) so the accent doesn't clash with the warm orange primary. All four pass WCAG AAA on white.
+- **Typography + layout fields** (`fontFamily`, `headingSize`, `bodySize`, `cardStyle`, `borderRadius`, `maxWidth`, `backgroundImageUrl`) are omitted from the constant — `BrandTheme` schema defaults apply, with no per-theme variation in v0.
+
+#### Swatches projection in the GET response
+
+`themes: Array<{ id, name, isDefault, swatches }>` — `swatches` is a `[primaryColor, secondaryColor, backgroundColor]` triple, **not** `[primary, secondary, accent]`. Accent is the error-emphasis hue and would mislead admins into reading it as part of the brand vibe on the picker chip strip. Schema defaults are unchanged.
+
+#### Why this no longer blocks Slice 4 on a separate seed mechanism
+
+The earlier draft of this section deferred the seed mechanism to #291's RFC. #291 shipped only the model split (no seeding), which left R25 ("all four pickable from first paint") aspirational at the design layer. PR #307 closes the gap by landing the seed at the natural integration point — the same lazy-upsert that already creates the Brand row. Slice 4 is no longer blocked on a separate seed PR; it consumes the populated `themes` array directly.
+
+The earlier alternatives (per-brand seed at provisioning, global-shared stock themes, hybrid) are documented in the *Alternatives considered* table at the end of this RFC; the chosen path here is "per-brand at lazy-upsert", which avoids cross-tenant coupling and tracks per-brand customizations without surprising admins who edit a stock theme.
 
 ### 6. Frontend page architecture
 
@@ -462,7 +494,7 @@ Co-located with the new package and components.
 |---|---|---|
 | Postgres enum recreate (drop superseded values) breaks an existing dependent query plan | Low | The `OrgSizeCategory` column is unindexed and unconstrained; the type-swap pattern (cast to TEXT, recreate type, cast back) is standard. Migration tested in dev compose first; integration tests in #292 Slice 1 verify the post-migration enum shape. |
 | Clerk's `afterCreateOrganizationUrl` prop is not honored on every Clerk plan / configuration | Low | Documented Clerk feature ([reference](https://clerk.com/docs/react/reference/components/organization/organization-switcher)). Pre-flight: an E2E Playwright test in #292 Slice 4 drives the OrganizationSwitcher create flow and asserts the redirect target. If Clerk changes the prop name, it's caught at PR time. |
-| Default-theme seeding race | — | Risk moves with #291's `BrandTheme` split RFC. Not a #277 concern. |
+| Default-theme seed creates duplicate rows on simultaneous first GETs | Low | Nested `brandThemes.createMany` only fires on the `create` branch of `prisma.brand.upsert`; the unique `clerkOrgId` constraint on `Brand` serializes parallel first-GETs so only one wins the create branch. The other observes the row and skips seeding. No application-level deduplication needed. |
 | `@customereq/consent-text` placement choice locks in import surface for #276 + future module | Medium | The package can be moved later (`@customereq/shared/consent-text` is a renaming, not a redesign). Choosing `packages/consent-text` is the lowest-friction starting point; moving is cheap. |
 | Member-count query on every GET — could be slow on large brands | Low | `prisma.member.count({ where: { brandId } })` uses the existing `(brandId)` index; sub-millisecond at any reasonable member count. If a brand grows to millions, switch to a cached counter. Not a v0 concern. |
 | Admins miss that "Brand name" doesn't rename their Clerk org (Q2 reframe — §7a) | Medium | The Identity section renders the Clerk Organization name as a clearly-labelled read-only row at the top with helper copy ("Managed in your identity provider. To rename, click your organization in the top-left switcher and choose Manage."). The editable Brand name field's helper explicitly calls out the decoupling ("How your organization appears to your customers — independent of your identity-provider organization name."). E2E test #6 asserts both rows render with the right semantics on first paint. If admin confusion surfaces in usage telemetry post-launch, the next iteration is a one-time inline tooltip on first edit, not a re-coupling of the two surfaces. |
@@ -471,7 +503,7 @@ Co-located with the new package and components.
 
 | Decision | Chosen | Alternative considered |
 |---|---|---|
-| Default-theme seeding | Deferred to [#291](https://github.com/mathursrus/CustomerEQ/issues/291) — model + seed mechanism move with the `BrandTheme` split (PR #290 L240/L248) | Per-brand seed of 4 `SurveyTheme` rows at provisioning (rejected — built against the wrong model; #291 is the prerequisite refactor) |
+| Default-theme seeding | Lazy-seed at first GET, atomically with the Brand row, via nested `brandThemes.createMany` inside `prisma.brand.upsert`'s `create` block (§5). Seed content in `apps/api/src/lib/default-themes.ts`. | (a) Defer to #291 entirely — rejected because #291 shipped only the model split, leaving R25 unmet at the design layer (PR #308 review). (b) Migration-time INSERTs — rejected because new brands created post-migration would still need a runtime hook. (c) Global stock-themes table + clone-on-pick — rejected as overkill for v0; per-brand seed covers the use case and admins can edit any stock theme without cross-tenant coupling. |
 | Brand name vs Clerk Organization name | Two decoupled surfaces — read-only Clerk org name + editable `Brand.name`; PATCH writes Brand only ([§7a](#7a-organization-name-vs-brand-name--q2-reframe-r8); PR #307 Q2 reframe) | (a) IdentityProvider write-through with retry queue — the prior draft of this RFC; rejected during Slice 3 implementation because no consumer reads Clerk's org name and the sync model creates a footgun. (b) Hide the Clerk org name from the settings page entirely — rejected because admins lose the connection between the OrganizationSwitcher chip they see and the page they're configuring. |
 | Consent-text package placement | New `packages/consent-text` | Inside `@customereq/shared` (rejected for blast radius — DOM-adjacent code in worker bundles) |
 | Migration strategy for OrgSizeCategory | Recreate enum (drop 2 superseded values, keep 6 canonical buckets) — see §2 | Additive ADD VALUE keeping legacy values (rejected per PR #290 L45 — no data, additive hedge buys nothing) |
@@ -524,7 +556,7 @@ This is the input to the **implementation issue scoping** decision. The work bre
 | **Slice 1: Schema migration** | `packages/database/prisma/schema.prisma` + 1 migration file | ~30 | None — can land first |
 | **Slice 2: Shared package** | `packages/consent-text/*` (new package, 6 src files + tests) | ~250 | None — can land in parallel with Slice 1 |
 | **Slice 3: Backend** | `apps/api/src/routes/admin-brand-profile.ts` + audit-plugin allowlist + integration tests | ~400 | Slices 1 + 2 |
-| **Slice 4: Frontend** | `apps/web/src/app/(admin)/admin/settings/organization/*` + `apps/web/src/components/admin/AdminPendingBanner.tsx` + 1-prop layout edit + E2E tests | ~600 | Slice 3 + #291 (`BrandTheme` model for Look & Feel) |
+| **Slice 4: Frontend** | `apps/web/src/app/(admin)/admin/settings/organization/*` + `apps/web/src/components/admin/AdminPendingBanner.tsx` + 1-prop layout edit + E2E tests | ~600 | Slice 3 (#291's `BrandTheme` model is already on main; theme seeding now lands in Slice 3 — see §5) |
 
 **Decision: 4 PRs / 4 branches under a single implementation issue ([#292](https://github.com/mathursrus/CustomerEQ/issues/292)).** PR #290 review (L516) directed away from 4 separate top-level implementation issues to avoid traceability fragmentation. The umbrella-issue pattern preserves R10 (every branch tied to an issue) while keeping spec → implementation traceability in one place: each branch is named `feature/issue-292-org-settings-<slice>`, the first three PRs use "Refs #292" in the body, and Slice 4 uses "Closes #292."
 
