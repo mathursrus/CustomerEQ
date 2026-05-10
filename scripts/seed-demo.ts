@@ -110,7 +110,7 @@ async function main() {
   console.log(`    Brand ID: ${BRAND_ID}\n`)
 
   // ── 1. Program ──────────────────────────────────────────────────────────────
-  console.log('1/9  Creating loyalty program…')
+  console.log('1/10 Creating loyalty program…')
   const programRes = await api<{ id: string }>('POST', '/v1/programs', {
     name: 'StarBrew Rewards',
     description: 'Earn StarPoints on every visit and redeem them for free drinks.',
@@ -130,7 +130,7 @@ async function main() {
   console.log(`  ✓ Program: ${program?.name ?? 'StarBrew Rewards'} (${programId})\n`)
 
   // ── 2. Earning rules ────────────────────────────────────────────────────────
-  console.log('2/9  Adding earning rules…')
+  console.log('2/10 Adding earning rules…')
   await api('POST', `/v1/programs/${programId}/rules`, {
     name: 'Purchase Reward',
     triggerEvent: 'purchase',
@@ -147,7 +147,7 @@ async function main() {
   console.log('  ✓ Earning rules added; program activated\n')
 
   // ── 3. Brand theme (Issue #291 — was SurveyTheme; brand-level visual identity only) ─
-  console.log('3/9  Creating brand theme…')
+  console.log('3/10 Creating brand theme…')
   const themeRes = await api<{ id: string }>('POST', '/v1/themes', {
     name: 'StarBrew Theme',
     primaryColor: '#00704A',
@@ -169,7 +169,7 @@ async function main() {
 
   // ── 4. NPS survey ───────────────────────────────────────────────────────────
   // Issue #291 — thankYouMessage / showIncentivePoints moved from BrandTheme to Survey.
-  console.log('4/9  Creating surveys…')
+  console.log('4/10 Creating surveys…')
 
   // Look up existing surveys to avoid creating duplicates on re-runs.
   const surveysListRes = await api<{ data: Array<{ id: string; name: string; status: string; programId: string }> }>(
@@ -257,7 +257,7 @@ async function main() {
   console.log('')
 
   // ── 5. Alert rule ───────────────────────────────────────────────────────────
-  console.log('5/9  Creating detractor alert rule…')
+  console.log('5/10 Creating detractor alert rule…')
   await api('POST', '/v1/alert-rules', {
     name: 'NPS Detractor Alert',
     surveyTypes: ['NPS'],
@@ -270,7 +270,7 @@ async function main() {
   console.log('  ✓ Alert rule created\n')
 
   // ── 6. Recovery campaign ────────────────────────────────────────────────────
-  console.log('6/9  Creating detractor recovery campaign…')
+  console.log('6/10 Creating detractor recovery campaign…')
   const campaignRes = await api<{ id: string }>('POST', '/v1/campaigns', {
     programId,
     name: 'Detractor Recovery — 200 Bonus StarPoints',
@@ -289,8 +289,30 @@ async function main() {
   }
   console.log(`  ✓ Campaign created and activated (${campaignRes?.id ?? 'id unknown'})\n`)
 
-  // ── 7. Reward ───────────────────────────────────────────────────────────────
-  console.log('7/9  Creating reward catalog…')
+  // ── 7. External signal source (Google reviews) ──────────────────────────────
+  console.log('7/10 Creating external signal source…')
+  const sourcesListRes = await api<{ data: Array<{ id: string; name: string }> }>(
+    'GET', '/v1/admin/external-signal-sources?sourceType=GOOGLE_BUSINESS_PROFILE&pageSize=50',
+  )
+  const existingSource = sourcesListRes?.data?.find(s => s.name === 'StarBrew Google Business Profile')
+  if (existingSource) {
+    console.log(`  → Google Business Profile source already exists (${existingSource.id})`)
+  } else {
+    const sourceRes = await api<{ id: string; webhookPath: string }>('POST', '/v1/admin/external-signal-sources', {
+      name: 'StarBrew Google Business Profile',
+      sourceType: 'GOOGLE_BUSINESS_PROFILE',
+      connectionMethod: 'webhook',
+      syncMode: 'WEBHOOK',
+      enabled: true,
+      scopeConfig: { locationId: 'starbrew-flagship' },
+      matchingConfig: { memberResolutionEnabled: true },
+    })
+    console.log(`  ✓ Review source created (${sourceRes?.id ?? 'id unknown'}, webhook: ${sourceRes?.webhookPath ?? 'n/a'})`)
+  }
+  console.log('')
+
+  // ── 8. Reward ───────────────────────────────────────────────────────────────
+  console.log('8/10 Creating reward catalog…')
   await api('POST', '/v1/rewards', {
     programId,
     name: 'Free Tall Coffee',
@@ -310,7 +332,7 @@ async function main() {
   console.log('  ✓ Rewards created\n')
 
   // ── 8. Enroll personas ──────────────────────────────────────────────────────
-  console.log('8/9  Enrolling personas…')
+  console.log('9/10 Enrolling personas…')
   const enrolledMembers: Array<{ email: string; firstName: string; id: string }> = []
 
   for (const persona of PERSONAS) {
@@ -341,7 +363,7 @@ async function main() {
   console.log('')
 
   // ── 9. Purchase history ─────────────────────────────────────────────────────
-  console.log('9/9  Building purchase history…')
+  console.log('10/10 Building purchase history…')
 
   for (const persona of PERSONAS) {
     const member = enrolledMembers.find(m => m.email === persona.email)

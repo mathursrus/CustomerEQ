@@ -41,7 +41,7 @@ Point at the page top to bottom:
 - **Brand ID + API base URL** — "This is everything StarBrew's backend team needed to get started. One API key, one base URL."
 - **API Keys** — click **Generate New Key**, name it "Demo key". Show the one-time reveal modal. > "Stored as a SHA-256 hash — if you lose it, revoke it and make a new one. No shared credentials."
 - **Survey Embeds** — each active survey has a ready-to-paste `<script>` tag. Click **Copy Snippet** on the **Post-Visit NPS** survey. > "StarBrew dropped this one tag on their post-checkout page. That's the entire survey integration."
-- **Webhook URLs** — this section shows inbound webhook endpoints. Click **Add one** to show the form where StarBrew would paste their Google Reviews feed URL. > "Any source that can POST a webhook — Google Reviews, Zendesk, your own POS — feeds directly into CustomerEQ and is sentiment-scored automatically."
+- **Webhook URLs** — show the **StarBrew Google Business Profile** entry with its inbound webhook URL. > "StarBrew's ops team pasted this URL into their Google Business Profile notification settings. Every new review is automatically ingested, sentiment-scored, and tied to the Customer 360. Same for Reddit, Zendesk, or any source that can POST a webhook."
 - **Quick-Start Snippets** — show the curl command for `POST /v1/events`. > "That's the one HTTP call StarBrew's backend makes for every purchase, every survey trigger, every loyalty moment. Everything else happens automatically."
 
 > "That's the whole integration. An afternoon of engineering, not a six-month project."
@@ -191,7 +191,9 @@ Point at:
 
 > "As responses accumulate, CustomerEQ clusters feedback by topic using AI. No BI pipeline, no manual tagging. The team sees what's trending before it becomes a crisis."
 
-> "The same pipeline works for any inbound channel — Google Reviews, Zendesk tickets, your own support data. You configure the webhook once and everything lands in one view with consistent sentiment scoring."
+Navigate to the **External Signals** section (scroll down on the CX Insights page).
+
+> "StarBrew's Google Business Profile webhook feeds reviews directly into this view — same sentiment scoring, same topic extraction. You get one CX picture across survey responses and public reviews. Not a dashboard per source."
 
 ---
 
@@ -217,7 +219,7 @@ Point at:
 > 4. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
 > 5. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
 > 6. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
-> 7. **Cross-channel CX intelligence** — surveys and external signals in one AI-scored view
+> 7. **Cross-channel CX intelligence** — survey responses + Google reviews in one AI-scored view
 >
 > Compare that to Qualtrics + Salesforce Loyalty + Zendesk + a custom alert layer + a BI pipeline. That's 6 months and $500k. StarBrew had this running in a day. **One platform. One API.**"
 
@@ -267,6 +269,7 @@ pnpm seed:demo
 | Support chat (storefront) | Chat bubble → bottom-right corner of any storefront page |
 | AI-triaged conversations | Conversations (sidebar) |
 | NPS score + feedback clusters | CX Insights |
+| External signals (Google reviews) | CX Insights → External Signals section |
 
 ### Talking points
 
