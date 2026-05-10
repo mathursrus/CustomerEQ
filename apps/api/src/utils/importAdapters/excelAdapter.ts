@@ -14,10 +14,10 @@ const ALL_MAPPED_VARIANTS = new Set([
   ...VERBATIM_VARIANTS,
   ...CHANNEL_VARIANTS,
   ...EXTERNAL_ID_VARIANTS,
-].map((v) => v.toLowerCase().replace(/[\s\-]+/g, '_')))
+].map((v) => v.toLowerCase().replace(/[\s-]+/g, '_')))
 
 function isMappedHeader(header: string): boolean {
-  return ALL_MAPPED_VARIANTS.has(header.toLowerCase().replace(/[\s\-]+/g, '_'))
+  return ALL_MAPPED_VARIANTS.has(header.toLowerCase().replace(/[\s-]+/g, '_'))
 }
 
 export function parseExcelRows(

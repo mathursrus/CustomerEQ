@@ -28,7 +28,7 @@ export interface SourceAdapter {
  * Returns the 0-based column index, or -1 if not found.
  */
 export function matchHeader(variants: string[], headers: string[]): number {
-  const normalise = (s: string) => s.toLowerCase().replace(/[\s\-]+/g, '_')
+  const normalise = (s: string) => s.toLowerCase().replace(/[\s-]+/g, '_')
   const normHeaders = headers.map(normalise)
   for (const v of variants) {
     const idx = normHeaders.indexOf(normalise(v))
