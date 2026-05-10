@@ -1,6 +1,7 @@
 -- Issue #262: Historical Survey Data Import
 -- Adds SurveyImportBatch model and extends SurveyResponse for import tracking.
--- Manual migration (shadow DB workaround).
+-- Runs after 20260504000000_survey_response_data_model_rework (#231) which already
+-- dropped the old survey_responses_surveyId_memberId_key unique index.
 
 -- 1. Create survey_import_batches table
 CREATE TABLE "survey_import_batches" (
@@ -30,28 +31,26 @@ ALTER TABLE "survey_responses"
 -- 3. Make memberId nullable (Google Reviews rows have no email → no member)
 ALTER TABLE "survey_responses" ALTER COLUMN "memberId" DROP NOT NULL;
 
--- 4. Drop the old broad unique index (was: one response per member per survey regardless of source)
-DROP INDEX IF EXISTS "survey_responses_surveyId_memberId_key";
-
--- 5. Partial unique index for live responses (importBatchId IS NULL, memberId NOT NULL)
+-- 4. Partial unique index for live responses (importBatchId IS NULL, memberId NOT NULL)
 --    Preserves original deduplication behaviour for all non-import submissions.
+--    The old broad unique index was already dropped by 20260504000000_survey_response_data_model_rework.
 CREATE UNIQUE INDEX "survey_responses_live_dedup"
     ON "survey_responses" ("surveyId", "memberId")
     WHERE "importBatchId" IS NULL AND "memberId" IS NOT NULL;
 
--- 6. FK: survey_responses → survey_import_batches
+-- 5. FK: survey_responses → survey_import_batches
 ALTER TABLE "survey_responses"
     ADD CONSTRAINT "survey_responses_importBatchId_fkey"
     FOREIGN KEY ("importBatchId") REFERENCES "survey_import_batches"("id")
     ON DELETE SET NULL ON UPDATE CASCADE;
 
--- 7. FK: survey_import_batches → surveys
+-- 6. FK: survey_import_batches → surveys
 ALTER TABLE "survey_import_batches"
     ADD CONSTRAINT "survey_import_batches_surveyId_fkey"
     FOREIGN KEY ("surveyId") REFERENCES "surveys"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- 8. Indexes
+-- 7. Indexes
 CREATE INDEX "survey_import_batches_surveyId_idx" ON "survey_import_batches"("surveyId");
 CREATE INDEX "survey_import_batches_brandId_createdAt_idx" ON "survey_import_batches"("brandId", "createdAt" DESC);
 CREATE INDEX "survey_responses_importBatchId_idx" ON "survey_responses"("importBatchId");
