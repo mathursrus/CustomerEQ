@@ -205,7 +205,7 @@ type GetBrandProfileResponse = {
 2. After upsert, run the additional read paths in `Promise.all` (architecture pattern §6):
    - `prisma.brandTheme.findMany({ where: { brandId } })` — full theme list (now non-empty for first-run brands thanks to the nested seed in step 1)
    - `prisma.member.count({ where: { brandId } })` — for locked-state computation
-   - `process.env.SUPPORT_EMAIL ?? 'support@customereq.com'` — env resolution
+   - `process.env.SUPPORT_EMAIL ?? 'support@customereq.wellnessatwork.me'` — env resolution
 3. **First-run theme seeding** (R25) lands in the GET handler's lazy-upsert via the nested `brandThemes.createMany` shown above. Atomic with Brand creation, race-safe via the unique `clerkOrgId` constraint (the nested write only fires on the create branch). The `BrandTheme` model itself was introduced under [#291](https://github.com/mathursrus/CustomerEQ/issues/291); the seed *content* (Indigo / Forest / Sunset / Slate, with brand-vibe colors + an error-emphasis accent decoupled from the primary/secondary family) lives in `apps/api/src/lib/default-themes.ts`. See §5.
 4. **The response intentionally returns `brand.name` (CustomerEQ Brand.name) only and does NOT carry the identity provider's organization name on subsequent reads.** Slice 4's frontend reads the identity-provider organization name directly from the auth library's session hook (already cached client-side) for the read-only Identity row. The first-run seed flows through `Brand.name` once via `getOrg` (step 1), but the steady-state read path stays single-source-of-truth on the Brand row. See §7a for the full Q2 reframe.
 

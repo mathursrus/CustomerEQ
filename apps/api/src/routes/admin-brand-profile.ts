@@ -29,7 +29,7 @@ import { DEFAULT_THEMES } from '../lib/default-themes.js'
 // add an /^https?:/i refinement so javascript:/data:/mailto: schemes cannot
 // reach the React renderer's anchor href.
 
-const SUPPORT_EMAIL_FALLBACK = 'support@customereq.com'
+const SUPPORT_EMAIL_FALLBACK = 'support@customereq.wellnessatwork.me'
 
 const HttpsUrl = z
   .string()

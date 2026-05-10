@@ -48,7 +48,7 @@ const MOCK_THEMES = [
   { id: 'theme-slate', name: 'Slate', isDefault: false, swatches: ['#475569', '#334155', '#e2e8f0'] },
 ]
 
-const SUPPORT_EMAIL = 'support@customereq.com'
+const SUPPORT_EMAIL = 'support@customereq.wellnessatwork.me'
 
 type ProfileResponse = {
   brand: typeof MOCK_BRAND_BASE
