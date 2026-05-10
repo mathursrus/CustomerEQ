@@ -68,6 +68,21 @@ export interface SurveyDistributePayload {
   cooldownDays: number
 }
 
+export interface SurveyImportRowPayload {
+  batchId: string
+  surveyId: string
+  brandId: string
+  rowIndex: number
+  sourceType: 'excel' | 'google_reviews'
+  email: string | null
+  score: number | null
+  verbatim: string | null
+  completedAt: string // ISO 8601
+  channel: string
+  externalId: string | null
+  rawAnswers: Record<string, unknown>
+}
+
 export interface ExternalSignalSyncPayload {
   brandId: string
   sourceId: string

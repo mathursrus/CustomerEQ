@@ -8,10 +8,14 @@ import {
   LaunchSurveySchema,
   validateRuleOverlap,
   NPS,
+  SOURCE_TYPES,
 } from '@customerEQ/shared'
-import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation } from '../queues/bullmq.js'
+import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueSurveyImportRow } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 import { computeLoopMonitorWarning } from '@customerEQ/shared'
+import { parseCsvRaw } from '../utils/csvParser.js'
+import { runAdapter } from '../utils/importAdapters/index.js'
+import type { ImportSourceType } from '../utils/importAdapters/index.js'
 
 const surveysRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/surveys — create a new survey
@@ -103,6 +107,9 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
             topics: true,
             channel: true,
             completedAt: true,
+            clusterId: true,
+            cluster: { select: { label: true } },
+            importBatchId: true,
           },
         },
       },
@@ -592,6 +599,116 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       },
       warning,
     })
+  })
+
+  // ─── Issue #262: Historical Survey Data Import ───────────────────────────────
+
+  // POST /v1/surveys/:id/import — upload a CSV of historical responses
+  fastify.addContentTypeParser('text/csv', { parseAs: 'string' }, (_req, body, done) => done(null, body))
+
+  fastify.post('/surveys/:id/import', async (request, reply) => {
+    const { id: surveyId } = request.params as { id: string }
+    const brandId = request.brandId
+    const sourceType = (request.query as Record<string, string>)['sourceType'] as ImportSourceType | undefined
+
+    if (!sourceType || !(SOURCE_TYPES as readonly string[]).includes(sourceType)) {
+      return reply.status(422).send({
+        error: 'Validation Error',
+        message: `sourceType is required. Must be one of: ${SOURCE_TYPES.join(', ')}`,
+      })
+    }
+
+    const body = request.body as string
+    if (!body || Buffer.byteLength(body, 'utf8') > 10 * 1024 * 1024) {
+      return reply.status(413).send({ error: 'Payload Too Large', message: 'File must be ≤ 10 MB' })
+    }
+
+    const survey = await fastify.prisma.survey.findFirst({ where: { id: surveyId, brandId } })
+    if (!survey) return reply.status(404).send({ error: 'Not Found', message: 'Survey not found' })
+
+    const { headers, rows } = parseCsvRaw(body)
+    if (rows.length === 0) {
+      return reply.status(422).send({ error: 'Validation Error', message: 'CSV contains no data rows' })
+    }
+
+    const { rows: canonical, validationErrors } = runAdapter(sourceType, headers, rows, new Date())
+    if (validationErrors.length > 0) {
+      return reply.status(422).send({ error: 'Validation Error', message: validationErrors[0] })
+    }
+
+    const batch = await fastify.prisma.surveyImportBatch.create({
+      data: {
+        surveyId,
+        brandId,
+        sourceType,
+        totalRows: canonical.length,
+        status: 'pending',
+      },
+    })
+
+    await Promise.all(
+      canonical.map((row, i) =>
+        enqueueSurveyImportRow({
+          batchId: batch.id,
+          surveyId,
+          brandId,
+          rowIndex: i,
+          sourceType: row.sourceType,
+          email: row.email,
+          score: row.score,
+          verbatim: row.verbatim,
+          completedAt: row.completedAt.toISOString(),
+          channel: row.channel,
+          externalId: row.externalId,
+          rawAnswers: row.rawAnswers,
+        }),
+      ),
+    )
+
+    return reply.status(202).send({
+      batchId: batch.id,
+      rowCount: canonical.length,
+      validationErrors: [],
+    })
+  })
+
+  // GET /v1/surveys/:id/imports — list import batches for a survey
+  fastify.get('/surveys/:id/imports', async (request, reply) => {
+    const { id: surveyId } = request.params as { id: string }
+    const brandId = request.brandId
+
+    const survey = await fastify.prisma.survey.findFirst({ where: { id: surveyId, brandId } })
+    if (!survey) return reply.status(404).send({ error: 'Not Found', message: 'Survey not found' })
+
+    const batches = await fastify.prisma.surveyImportBatch.findMany({
+      where: { surveyId, brandId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        sourceType: true,
+        status: true,
+        totalRows: true,
+        processedRows: true,
+        failedRows: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+
+    return reply.send(batches)
+  })
+
+  // GET /v1/surveys/:id/imports/:batchId — batch detail with error log
+  fastify.get('/surveys/:id/imports/:batchId', async (request, reply) => {
+    const { id: surveyId, batchId } = request.params as { id: string; batchId: string }
+    const brandId = request.brandId
+
+    const batch = await fastify.prisma.surveyImportBatch.findFirst({
+      where: { id: batchId, surveyId, brandId, deletedAt: null },
+    })
+    if (!batch) return reply.status(404).send({ error: 'Not Found', message: 'Import batch not found' })
+
+    return reply.send(batch)
   })
 }
 
