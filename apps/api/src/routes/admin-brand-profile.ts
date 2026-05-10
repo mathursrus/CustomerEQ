@@ -138,6 +138,26 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
         const tzHint = (request.headers['x-timezone-hint'] as string | undefined) ?? 'UTC'
         const localeHint =
           (request.headers['x-locale-hint'] as string | undefined) ?? 'en-US'
+
+        // Pull the organization name from the identity provider so the
+        // newly-created Brand starts with the same name the admin sees in
+        // the org-switcher chip (PR #308 review feedback). After this
+        // initial seed `Brand.name` is editable independently — the two
+        // surfaces are intentionally decoupled per the Q2 reframe (RFC §7a).
+        // Best-effort: if the provider call fails (transient network, dev
+        // test bypass that didn't wire up getOrg, etc.) fall back to a
+        // generic placeholder so first-run UX still completes.
+        let initialBrandName = 'Untitled Organization'
+        try {
+          const org = await fastify.identityProvider.getOrg(request.clerkOrgId)
+          if (org?.name) initialBrandName = org.name
+        } catch (err) {
+          fastify.log.warn(
+            { err, clerkOrgId: request.clerkOrgId },
+            'identityProvider.getOrg failed during lazy-upsert; falling back to default Brand.name',
+          )
+        }
+
         // Lazy-upsert: nested createMany on the brandThemes relation seeds
         // the four default themes (Indigo / Forest / Sunset / Slate) atomically
         // with the Brand row (R25 — "all four pickable from first paint").
@@ -150,7 +170,7 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
           update: {},
           create: {
             clerkOrgId: request.clerkOrgId,
-            name: 'Untitled Organization',
+            name: initialBrandName,
             consentTextDefault: DEFAULT_CONSENT_TEXT,
             timezone: tzHint,
             locale: localeHint,

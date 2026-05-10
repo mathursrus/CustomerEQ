@@ -185,6 +185,69 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       expect(accentByName.Slate).toBe('#b91c1c')
     })
 
+    it('seeds Brand.name from the identity-provider organization name on first run (PR #308 feedback)', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_name_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const request = lazyUpsertRequest(clerkOrgId)
+
+      const app = getTestApp()
+      const provider = (app as { identityProvider?: { getOrg?: unknown } }).identityProvider
+      if (!provider?.getOrg) {
+        throw new Error('integration test setup did not wire identityProvider.getOrg — see test/integration/setup.ts')
+      }
+      const spy = vi.spyOn(
+        provider as { getOrg: (..._a: unknown[]) => Promise<{ id: string; name: string }> },
+        'getOrg',
+      )
+      spy.mockResolvedValueOnce({ id: clerkOrgId, name: 'Acme Coffee Roasters' })
+
+      const res = await request.get('/v1/admin/brand/profile')
+      expect(res.status).toBe(200)
+      // First-run Brand.name matches the identity-provider org name; the
+      // admin sees the same string in the org-switcher chip and on the
+      // Identity section's editable Brand-name field on first paint.
+      expect(res.body.brand.name).toBe('Acme Coffee Roasters')
+
+      const persisted = await prisma.brand.findUniqueOrThrow({
+        where: { clerkOrgId },
+        select: { name: true },
+      })
+      expect(persisted.name).toBe('Acme Coffee Roasters')
+
+      spy.mockRestore()
+    })
+
+    it('falls back to "Untitled Organization" when identityProvider.getOrg fails', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_name_fb_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const request = lazyUpsertRequest(clerkOrgId)
+
+      const app = getTestApp()
+      const provider = (app as { identityProvider?: { getOrg?: unknown } }).identityProvider
+      if (!provider?.getOrg) {
+        throw new Error('integration test setup did not wire identityProvider.getOrg — see test/integration/setup.ts')
+      }
+      const spy = vi.spyOn(
+        provider as { getOrg: (..._a: unknown[]) => Promise<{ id: string; name: string }> },
+        'getOrg',
+      )
+      spy.mockRejectedValueOnce(new Error('simulated provider failure'))
+
+      const res = await request.get('/v1/admin/brand/profile')
+      // Lazy-upsert still succeeds — admin gets a working settings page;
+      // they can rename Brand.name from the form once the page loads.
+      expect(res.status).toBe(200)
+      expect(res.body.brand.name).toBe('Untitled Organization')
+
+      const persisted = await prisma.brand.findUniqueOrThrow({
+        where: { clerkOrgId },
+        select: { name: true },
+      })
+      expect(persisted.name).toBe('Untitled Organization')
+
+      spy.mockRestore()
+    })
+
     it('does not re-seed default themes on a second GET (idempotent)', async () => {
       const prisma = getTestPrisma()
       const clerkOrgId = `org_themes_idem_${Date.now()}_${Math.random().toString(36).slice(2)}`
