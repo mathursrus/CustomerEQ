@@ -145,3 +145,17 @@ The `postgres` service in `docker-compose.yml` uses `pgvector/pgvector:pg16` —
 ## 21. Branch Scope Hygiene — One Issue Per Branch
 
 Unrelated fixes — dev-environment patches, infrastructure tweaks, small cross-cutting cleanups — get their own issue and branch. Do not bundle off-topic commits onto an active feature branch, even when the change is small or the branch is convenient. If a fix is discovered mid-feature and is not in the feature's acceptance criteria, file a new issue, branch off `main`, and PR it separately. This rule is a direct corollary of rule 10.
+
+## 22. Prisma Migration Hygiene
+
+Three constraints apply to every migration, generated or hand-written:
+
+**22a. Column identifiers must match Prisma's camelCase quoting.** Prisma always generates SQL with quoted camelCase identifiers (e.g., `"memberId"`, `"surveyId"`, `"importBatchId"`). Hand-written DDL that uses snake_case (e.g., `"member_id"`) will fail at deploy with `column does not exist`. Before writing any column reference in a hand-written migration, run: `grep -r "column_name" packages/database/prisma/migrations/ | head -5` on an analogous existing migration to verify exact casing.
+
+**22b. Migration drafts must be deleted the moment a canonical replacement is written.** If a spike migration is created during exploratory work and later superseded by a canonical replacement, delete the draft in the same commit that creates the replacement. Never leave two migration directories that touch the same table in `prisma/migrations/` simultaneously. Before committing any migration, run: `ls packages/database/prisma/migrations/ | grep <feature-slug>` to confirm exactly one directory exists for this feature.
+
+**22c. Timestamps are a coordination contract between concurrent PRs.** When a feature branch has been in flight for more than a few days, check `git log origin/main --oneline -- packages/database/prisma/migrations/` before finalising a migration timestamp. If another PR has claimed the same `YYYYMMDDNNNNNN` prefix, rename your migration to a later timestamp before pushing.
+
+## 23. Bulk Import Consent Contract Differs From Live-Response Consent
+
+Rule 13 (GDPR/CCPA) requires respecting `Member.consentGivenAt` before processing data. This gate applies to **live survey responses** where consent is captured in real time. It does **not** apply to **bulk historical import processors**: the integrator has already verified consent at export time, and `resolveOrEnrollMember(BULK_IMPORT)` auto-stamps consent for newly enrolled members. Bulk import processors must set `memberId` after successful member resolution unconditionally — do not gate it on `member.consentGivenAt`.

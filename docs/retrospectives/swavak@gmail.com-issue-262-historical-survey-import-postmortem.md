@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-05-10
-synthesized:
+synthesized: 2026-05-10
 ---
 
 # Postmortem: Historical Survey Data Import — Implementation — Issue #262
@@ -162,3 +162,18 @@ Items that failed on first pass and were only caught on a later pass. Each is a 
 1. **Migration naming convention**: Add to project rules — manual migrations must grep an existing Prisma-generated migration for exact column identifier casing before writing any DDL column references.
 2. **Draft cleanup checklist**: When writing `feat` commits that include a migration, include a step: "confirm only one migration directory exists for this feature in `prisma/migrations/`."
 3. **Timestamp coordination**: When a feature branch has been in flight for more than one sprint cycle (risk of concurrent migrations on main), check `git log origin/main --oneline -- packages/database/prisma/migrations/` before pushing a new migration.
+
+---
+
+## Prevention Actions Taken (Phase 3)
+
+All prevention actions completed in this session:
+
+| Action | Done |
+|--------|------|
+| Added Rule 22 (Prisma Migration Hygiene — 3 sub-rules: column casing, draft cleanup, timestamp coordination) to `fraim/personalized-employee/rules/project_rules.md` | ✅ |
+| Added Rule 23 (Bulk Import Consent Contract) to `project_rules.md` | ✅ |
+| Added 4 new P-HIGH mistake patterns to `swavak@gmail.com-mistake-patterns.md`: consent gate context mismatch, hand-written migration column names, draft migration not deleted, editing file on wrong branch | ✅ |
+| Updated retrospective `synthesized` frontmatter to `2026-05-10` | ✅ |
+
+No follow-up GitHub issues required — all corrective actions were rule and learning updates that can be applied immediately to future sessions. The integration test suite already has 13 tests for the happy path and error cases; the consent gate flaw was a design-logic gap, not a test coverage gap (a test asserting `memberId IS NOT NULL` on imported rows would have caught it — this is a candidate for a future test addition if the suite is extended).
