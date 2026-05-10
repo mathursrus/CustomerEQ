@@ -380,7 +380,12 @@ function SectionCard({
           <p className="m-0 text-sm text-gray-500">{section.help}</p>
         </div>
         {onToggleCollapse && (
-          <span className="select-none text-xs text-gray-400">{collapsed ? '▸' : '▾'}</span>
+          <span
+            aria-hidden="true"
+            className="select-none text-sm font-medium text-gray-600 transition-transform"
+          >
+            {collapsed ? '▶' : '▼'}
+          </span>
         )}
       </header>
       {!collapsed && (
