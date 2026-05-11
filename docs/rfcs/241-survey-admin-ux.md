@@ -468,16 +468,16 @@ Named-size enums (`headingSize`, `bodySize`, `borderRadius`, `maxWidth`) resolve
 
 | BrandTheme field | Default | CSS custom property | Survey elements styled |
 |---|---|---|---|
-| `primaryColor` | `#6366f1` | `--ceq-primary-color` | Selected rating-scale tick; slider fill; focus ring on inputs and buttons; consent-disclosure link color |
-| `secondaryColor` | `#818cf8` | `--ceq-secondary-color` | Unselected rating-scale ticks; slider track (unfilled); secondary/back button border |
-| `backgroundColor` | `#ffffff` | `--ceq-background-color` | Survey card surface; page background when `backgroundImageUrl` is null |
-| `textColor` | `#111827` | `--ceq-text-color` | Survey title, question labels, helper text, thank-you copy, consent-disclosure body |
+| `primaryColor` | `#6366f1` | `--ceq-primary-color` | Selected rating-scale tick; star rating filled icon; selected slider fill; focus ring on inputs and buttons; consent-disclosure link color; skip / "Prefer not to answer" link |
+| `secondaryColor` | `#818cf8` | `--ceq-secondary-color` | Unselected rating-scale ticks; star rating empty icon; slider track (unfilled); secondary/back button border; input / textarea border |
+| `backgroundColor` | `#ffffff` | `--ceq-background-color` | Survey card surface; input / textarea background; page background when `backgroundImageUrl` is null |
+| `textColor` | `#111827` | `--ceq-text-color` | Survey title, brand name header (chrome), question labels, helper text, input / textarea text, thank-you copy, consent-disclosure body, footer "Powered by" copy (reduced opacity), placeholder text (reduced opacity) |
 | `buttonColor` | `#6366f1` | `--ceq-button-color` | Primary CTA (Submit / Continue) background |
 | `buttonTextColor` | `#ffffff` | `--ceq-button-text-color` | Primary CTA label |
-| `accentColor` | `#6366f1` | `--ceq-accent-color` | Selected option highlight (radio / checkbox / MCQ choice); required-field asterisk |
+| `accentColor` | `#6366f1` | `--ceq-accent-color` | Selected option highlight (radio / checkbox / MCQ choice / Likert matrix cell); required-field asterisk |
 | `fontFamily` | `system-ui` | `--ceq-font-family` | All text in the form |
-| `headingSize` | `md` | `--ceq-heading-size` | Survey title font-size (resolved via scale below) |
-| `bodySize` | `md` | `--ceq-body-size` | Question labels, helper text, disclosure body font-size (resolved via scale below) |
+| `headingSize` | `md` | `--ceq-heading-size` | Survey title font-size; brand name header font-size (resolved via scale below) |
+| `bodySize` | `md` | `--ceq-body-size` | Question labels, helper text, disclosure body, footer copy, error / validation text font-size (resolved via scale below) |
 | `backgroundImageUrl` | `null` | `--ceq-background-image` (`url(…)` or `none`) | Page background behind the card; renderer falls back to `backgroundColor` when null |
 | `cardStyle` | `shadow` | `--ceq-card-style` (enum applied via class) | Survey card visual treatment — `shadow` (box-shadow, no border), `border` (1px border, no shadow), `flat` (neither) |
 | `borderRadius` | `md` | `--ceq-border-radius` | Card corners, input fields, buttons (resolved via scale below) |
@@ -491,6 +491,15 @@ Scale mappings (`sm` / `md` / `lg`):
 | `bodySize` | 14px | 16px | 18px |
 | `borderRadius` | 4px | 8px | 16px |
 | `maxWidth` | 480px | 640px | 800px |
+
+**Non-brand-tokenized elements** (hardcoded; not exposed via `BrandTheme`):
+
+| Element | Value / rule | Why hardcoded |
+|---|---|---|
+| Error / validation message text | `#dc2626` (red-600); font-size = `bodySize` | Error semantics must be unambiguous regardless of brand palette — letting a brand recolor errors risks low-contrast or misleading affordances. No `BrandTheme.errorColor` field is added. |
+| Hover / active states on buttons, ticks, links | ±8% lightness adjustment of the base token (CSS `color-mix(in srgb, var(--token), white/black 8%)`) | Derivation rule — keeps the token surface narrow and consistent across renderers. |
+| Disabled state | 50% opacity overlay on the underlying token | Same — single derivation rule applied uniformly. |
+| Focus-visible outline | 2px outline at `--ceq-primary-color`, 2px offset | Accessibility (WCAG 2.4.7) — outline geometry is fixed; only the color is themed. |
 
 **Channel and chrome interaction.** R18's per-channel `settings.chromeMatrix` (Look & Feel tab) selects which surfaces are *visible* (e.g., show/hide the brand logo header in embedded mode) but never overrides the token values above. Both renderers therefore consume the same `BrandTheme` tokens regardless of channel; only structural composition (header on/off, footer on/off) differs per chromeMatrix.
 
