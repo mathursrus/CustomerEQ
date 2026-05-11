@@ -460,6 +460,43 @@ apps/web/src/components/survey-form/
 
 The embed widget's own renderer (see §"Embed Widget" below) reproduces the same visual + interaction contract in standalone TS inside `packages/embed/src/`. The two renderers are kept aligned through a **Playwright visual-regression gate** (slice 5 acceptance): the same survey config + answers state must produce visually-identical output in standalone vs. embedded modes. Drift detected at CI is a hard failure. See §Risks for the trade-off discussion.
 
+### BrandTheme to Survey element token mapping (R31)
+
+R31 mandates "BrandTheme tokens applied to form-renderer (full coverage)". The mapping below is the contract between `BrandTheme` (`packages/database/prisma/schema.prisma`), the React renderer in `apps/web/src/components/survey-form/`, and the inline-duplicated Web Component in `packages/embed/src/ceq-survey.ts`. Both renderers MUST consume tokens exclusively via the CSS custom-property names below — no hardcoded colors, sizes, or fonts in either tree. The Playwright visual-regression fixture (slice 5 acceptance) covers every row.
+
+Named-size enums (`headingSize`, `bodySize`, `borderRadius`, `maxWidth`) resolve to numeric values via the scale table at the bottom; `cardStyle` is an enum that toggles structural CSS rather than a single value.
+
+| BrandTheme field | Default | CSS custom property | Survey elements styled |
+|---|---|---|---|
+| `primaryColor` | `#6366f1` | `--ceq-primary-color` | Selected rating-scale tick; slider fill; focus ring on inputs and buttons; consent-disclosure link color |
+| `secondaryColor` | `#818cf8` | `--ceq-secondary-color` | Unselected rating-scale ticks; slider track (unfilled); secondary/back button border |
+| `backgroundColor` | `#ffffff` | `--ceq-background-color` | Survey card surface; page background when `backgroundImageUrl` is null |
+| `textColor` | `#111827` | `--ceq-text-color` | Survey title, question labels, helper text, thank-you copy, consent-disclosure body |
+| `buttonColor` | `#6366f1` | `--ceq-button-color` | Primary CTA (Submit / Continue) background |
+| `buttonTextColor` | `#ffffff` | `--ceq-button-text-color` | Primary CTA label |
+| `accentColor` | `#6366f1` | `--ceq-accent-color` | Selected option highlight (radio / checkbox / MCQ choice); required-field asterisk |
+| `fontFamily` | `system-ui` | `--ceq-font-family` | All text in the form |
+| `headingSize` | `md` | `--ceq-heading-size` | Survey title font-size (resolved via scale below) |
+| `bodySize` | `md` | `--ceq-body-size` | Question labels, helper text, disclosure body font-size (resolved via scale below) |
+| `backgroundImageUrl` | `null` | `--ceq-background-image` (`url(…)` or `none`) | Page background behind the card; renderer falls back to `backgroundColor` when null |
+| `cardStyle` | `shadow` | `--ceq-card-style` (enum applied via class) | Survey card visual treatment — `shadow` (box-shadow, no border), `border` (1px border, no shadow), `flat` (neither) |
+| `borderRadius` | `md` | `--ceq-border-radius` | Card corners, input fields, buttons (resolved via scale below) |
+| `maxWidth` | `md` | `--ceq-max-width` | Survey card container max-width (resolved via scale below) |
+
+Scale mappings (`sm` / `md` / `lg`):
+
+| Field | sm | md | lg |
+|---|---|---|---|
+| `headingSize` | 20px | 24px | 32px |
+| `bodySize` | 14px | 16px | 18px |
+| `borderRadius` | 4px | 8px | 16px |
+| `maxWidth` | 480px | 640px | 800px |
+
+**Channel and chrome interaction.** R18's per-channel `settings.chromeMatrix` (Look & Feel tab) selects which surfaces are *visible* (e.g., show/hide the brand logo header in embedded mode) but never overrides the token values above. Both renderers therefore consume the same `BrandTheme` tokens regardless of channel; only structural composition (header on/off, footer on/off) differs per chromeMatrix.
+
+**Acceptance.** Slice 4 (`apps/web`) and slice 5 (embed) each include a unit test that asserts the rendered DOM references the expected CSS-variable for every row above; the Playwright visual-regression gate then asserts both produce pixel-identical output for a fixture survey that exercises every styled element.
+
+
 ### RHF form structure (BasicsTab and PointsAndThankYouTab as examples)
 
 ```ts
@@ -584,7 +621,7 @@ packages/embed/src/ceq-survey.ts          — Custom Element registration + Shad
                                              no internal-package imports)
 ```
 
-The widget defines its own type interfaces for `SurveyQuestion`, `BrandTheme`, etc. inline — duplicated from `apps/web/src/components/survey-form/` for §3.7 compliance. `packages/embed/package.json` remains zero-dependency. Theme tokens are piped through CSS custom properties (`--ceq-primary-color`, `--ceq-background-color`, `--ceq-font-family`, etc.) per the spin-wheel precedent at architecture §3.7. Data-attribute + JS prefill APIs are implemented inline in the same file's `connectedCallback` and a window-attached `CustomerEQ.surveys.prefill` global.
+The widget defines its own type interfaces for `SurveyQuestion`, `BrandTheme`, etc. inline — duplicated from `apps/web/src/components/survey-form/` for §3.7 compliance. `packages/embed/package.json` remains zero-dependency. Theme tokens are piped through CSS custom properties via the CSS custom-property contract documented in §"BrandTheme to Survey element token mapping" — both the React renderer and the inline-duplicated embed renderer consume tokens through identical `--ceq-*` variable names, per the spin-wheel precedent at architecture §3.7. Data-attribute + JS prefill APIs are implemented inline in the same file's `connectedCallback` and a window-attached `CustomerEQ.surveys.prefill` global.
 
 **Visual parity with `apps/web`** is enforced at CI via Playwright visual regression: a fixture survey is rendered through both the standalone page handler (using `apps/web/src/components/survey-form/`) and through the embed widget; the resulting screenshots must match within tolerance. Drift = hard fail at PR time. This is the trade-off cost of inline duplication.
 
@@ -862,7 +899,7 @@ Every functional and non-functional requirement maps to one or more RFC sections
 | R28 — Configuration summary default-expanded when responsesCount=0; reuses PreviewSurvey | §Web UI / Detail page | 4 |
 | R29 — State-aware editability + 409 on disallowed; save mode also state-aware | §API / State-aware field editability + §Save behavior by state | 2 / 4 |
 | R30 — responsePolicy locks once responsesCount > 0 | §API / State-aware field editability | 2 |
-| R31 — BrandTheme tokens applied to form-renderer (full coverage) | §Web UI / SurveyFormRenderer + §Embed (inline-duplicate renderer) | 4 / 5 |
+| R31 — BrandTheme tokens applied to form-renderer (full coverage) | §Web UI / BrandTheme to Survey element token mapping + §Embed (inline-duplicate renderer) | 4 / 5 |
 | R32 — Response section default-collapsed when responsesCount=0 | §Web UI / Detail page | 4 |
 | NFR-P1 auto-save p95 < 200ms (DRAFT) + explicit save p95 < 300ms (ACTIVE/PAUSED) | §Validation Plan / Perf | 2 |
 | NFR-P2/P3 form/widget first paint | §Validation Plan / Perf | 4 / 5 |
