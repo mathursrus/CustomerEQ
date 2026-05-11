@@ -157,8 +157,15 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
         expect(theme.swatches[0]).toMatch(/^#[0-9a-fA-F]{6}$/)
         expect(theme.swatches[1]).toMatch(/^#[0-9a-fA-F]{6}$/)
         expect(theme.swatches[2]).toMatch(/^#[0-9a-fA-F]{6}$/)
-        expect(theme.isDefault).toBe(false)
       }
+
+      // Lazy-upsert points Brand.defaultThemeId at the seeded Indigo row so
+      // the Look & Feel section opens with a real selection rather than an
+      // empty radio group (verified at admin-brand-profile.ts:185-203).
+      // Exactly one theme is flagged default, and that theme is Indigo.
+      const defaultThemes = res.body.themes.filter((t: { isDefault: boolean }) => t.isDefault)
+      expect(defaultThemes).toHaveLength(1)
+      expect(defaultThemes[0].name).toBe('Indigo')
 
       // Verify a known mapping: Indigo's swatches = [#4f46e5, #7c3aed, #ffffff]
       // (primary, secondary, background — NOT accent, which is #047857).
