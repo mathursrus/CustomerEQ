@@ -686,15 +686,15 @@
                       <span class="toolbar-spacer"></span>
                       <button type="button" class="toolbar-link" onclick="resetDisclosure()">Reset to brand default</button>
                     </div>
-                    <textarea id="disclosure-override" oninput="updateConsentPreview()" placeholder="Inherits from brand: 'By submitting, you consent to Acme Coffee processing your response per our privacy policy.'"></textarea>
+                    <textarea id="disclosure-override" oninput="updateConsentPreview()" maxlength="500" placeholder="Inherits from brand: 'By submitting, you consent to Acme Coffee processing your response per our privacy policy.'"></textarea>
                   </div>
-                  <p style="font-size: 11px; color: var(--text-subtle); margin-top: 6px;">Privacy / Terms tokens render as links using your brand's URLs (set in <a href="#" class="btn-link" style="font-size: 11px;">Organization settings</a>). Terms link button shows because your brand has a Terms URL configured.</p>
+                  <p style="font-size: 11px; color: var(--text-subtle); margin-top: 6px; display: flex; justify-content: space-between; gap: 8px;"><span>Privacy / Terms tokens render as links using your brand's URLs (set in <a href="#" class="btn-link" style="font-size: 11px;">Organization settings</a>). Terms link button shows because your brand has a Terms URL configured.</span><span id="disclosure-counter" style="white-space: nowrap; color: var(--text-muted);">0 / 500</span></p>
                 </div>
               </div>
             </div>
 
             <div class="tab-nav-foot">
-              <span class="auto-save-note">Auto-saving · last saved 4s ago</span>
+              <span class="auto-save-note" id="autosave-basics">Auto-saving · last saved 4s ago <button class="btn-link" style="font-size: 11px; margin-left: 8px;" onclick="simulateSaveFail(this)">[simulate save-fail]</button></span>
               <div>
                 <button class="btn btn-ghost" disabled>← Back</button>
                 <button class="btn btn-primary" onclick="goTab('questions')">Continue: Questions →</button>
@@ -841,7 +841,11 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
-                      <div class="ps-member-id-pill">Member ID resolved from URL (<code>?member_id=…</code>)</div>
+                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: URL provided / URL missing fallback" style="cursor: pointer;">Member ID resolved from URL (<code>?member_id=…</code>)</div>
+                      <div class="ps-member-id" style="display: none;" data-fallback="true">
+                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span> <span style="color: var(--warning); font-size: 9px;">(fallback — URL didn't provide ID)</span></label>
+                        <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
+                      </div>
                       <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -858,7 +862,11 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
-                      <div class="ps-member-id-pill">Member ID from URL</div>
+                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: URL provided / URL missing fallback" style="cursor: pointer;">Member ID from URL</div>
+                      <div class="ps-member-id" style="display: none;" data-fallback="true">
+                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span></label>
+                        <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
+                      </div>
                       <div class="ps-question">How likely are you to recommend us?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -1337,7 +1345,10 @@ function onConsentChange(sel) {
   document.getElementById('consent-preview-mode').textContent = isOverride ? 'Implied · no checkbox' : 'Explicit · with checkbox';
 }
 function updateConsentPreview() {
-  const txt = document.getElementById('disclosure-override').value.trim();
+  const ta = document.getElementById('disclosure-override');
+  const txt = ta.value.trim();
+  const counter = document.getElementById('disclosure-counter');
+  if (counter) counter.textContent = `${ta.value.length} / 500`;
   if (!txt) return; // keep inherited preview
   const ex = document.getElementById('consent-preview-explicit');
   const im = document.getElementById('consent-preview-implied');
@@ -1411,6 +1422,30 @@ function selectQuestion(q) {
 // ─── Detail-section collapse/expand (generic; all detail sections use the same chevron pattern per D37) ───
 function toggleDetailSection(id) {
   document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ─── Embedded-mode fallback toggle (per R16 — URL missing → prompt) ───
+function toggleEmbeddedFallback(pill) {
+  const survey = pill.closest('.preview-survey');
+  if (!survey) return;
+  const fallback = survey.querySelector('[data-fallback="true"]');
+  const showFallback = fallback.style.display === 'none';
+  fallback.style.display = showFallback ? '' : 'none';
+  pill.style.opacity = showFallback ? '0.5' : '1';
+  pill.style.textDecoration = showFallback ? 'line-through' : 'none';
+}
+
+// ─── Save-failed indicator (per NFR-R3) ───
+function simulateSaveFail(btn) {
+  const note = document.getElementById('autosave-basics');
+  note.innerHTML = '<span style="color: var(--danger);">⚠</span> <span style="color: var(--danger);">Save failed — retrying…</span> <button class="btn-link" style="font-size: 11px; margin-left: 8px;" onclick="recoverSave(this)">[recover]</button>';
+  note.className = 'auto-save-note';
+  note.style.setProperty('--success', 'var(--danger)');
+}
+function recoverSave(btn) {
+  const note = document.getElementById('autosave-basics');
+  note.innerHTML = 'Auto-saving · last saved just now <button class="btn-link" style="font-size: 11px; margin-left: 8px;" onclick="simulateSaveFail(this)">[simulate save-fail]</button>';
+  note.style.removeProperty('--success');
 }
 
 // ─── Disclosure-text editor (same UX as #277 admin per D34) ───
