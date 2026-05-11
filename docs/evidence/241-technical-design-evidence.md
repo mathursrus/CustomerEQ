@@ -94,7 +94,7 @@ Every spec requirement (Epic AC, functional R#, Open Question, Non-Functional Re
 | NFR-S2 — opaque ids (cuid) | §Schema / unchanged | Met | n/a (existing behavior) |
 | NFR-S3 — disclosure-text no raw HTML | §Validation Plan / `packages/consent-text` (existing renderer) | Met | Unit test in renderer (existing + new XSS payloads) |
 | NFR-S4 — embed widget no host privilege | §Embed Widget + §"Submission path" (POST-body identity, never URL) | Met | Widget test asserts identifier not in URL |
-| NFR-S5 — audit `actorUserId`, `requestIp`, timestamp | §Audit + §Schema / AuditEvent.ipAddress | Met | API integration asserts ipAddress populated |
+| NFR-S5 — audit `actorUserId`, `requestIp`, timestamp | §Audit Plugin Extension (no schema change; `metadata.requestIp` via per-route allowlist) | Met | API integration asserts `metadata.requestIp` populated; structured-log warning fires when `request.ip` is null |
 | NFR-R1 — atomic LoyaltyEvent + pointsBalance | §API / POST /:id/responses delegates to worker; worker tx preserved | Met | Worker integration tx-rollback test |
 | NFR-R2 — response submit idempotent | §API / idempotencyKey unchanged | Met | Worker integration: duplicate idempotencyKey → exactly one LoyaltyEvent |
 | NFR-R3 — auto-save network resilience | §Web UI / RHF form structure (exponential backoff up to 5 retries) | Met | Unit/E2E network-failure simulation |
@@ -137,7 +137,7 @@ All 14 spec Validation Plan rows operationalized in RFC §Validation Plan. Mappe
 | Drop Survey.incentivePoints | §Migration step 3d | Met |
 | Drop Survey.showIncentivePoints | §Migration step 3d | Met |
 | Rename SurveyStatus.CLOSED → STOPPED | §Migration step 4 | Met |
-| Add AuditEvent.ipAddress | §Migration step 2 | Met (added by RFC for NFR-S5; spec implies via NFR-S5) |
+| AuditEvent.ipAddress | NOT added — NFR-S5 satisfied via `metadata.requestIp` JSON; verified `audit.ts:150` writes metadata as a single JSON column. | Met (in-process; no schema change) |
 | D50 fan-out of dead survey_completion EarningRules | §Migration steps 3a–3c | Met |
 | Auto-create per-type EarningRules for brands with prior incentivePoints intent | §Migration step 3a | Met |
 
@@ -167,11 +167,11 @@ Documented in RFC §Architecture Analysis. Summary for the user:
 |---|---|
 | **MA1** | Approve ADR 0001 amendment for "section-tabbed-create" exception class? RFC files the amendment as a companion commit on this branch by default. |
 | **MA2** | Document "auto-save on blur" pattern as the canonical admin-form pattern in architecture.md §3.1? RFC follows the pattern; documenting makes it discoverable for future entities. |
-| **MA3 + IF1** | Approve extraction of new `packages/survey-renderer` domain-narrow runtime package? RFC's slicing assumes yes (slice 3a). Alternative: amend §3.7 to allow apps/web cross-imports for the survey case (rejected in RFC because §3.7's invariant is load-bearing for the embed widget's standalone build). |
-| **MA4** | Document the state-aware PATCH field allowlist contract in architecture.md §4.1 (HTTP 409 with `{code, field, currentState}` body)? Useful for future stateful entities (Campaigns, Programs). |
-| **MA5** | Document the AuditEvent.ipAddress + Fastify request.ip pattern in architecture.md §4.2 audit plugin row? |
+| **MA3** | Document the state-aware PATCH field allowlist contract in architecture.md §4.1 (HTTP 409 with `{code, field, currentState}` body)? Useful for future stateful entities (Campaigns, Programs). |
+| **MA4** | Document the audit plugin `metadata.requestIp` pattern in architecture.md §4.2 audit plugin row (per-route allowlist must include `'requestIp'`; null on trust-proxy misconfiguration with structured-log warning)? |
+| **TQ5** (open question, see RFC) | Amend §3.7 to allow `packages/embed` to import from internal packages when Vite library mode bundles them inline at build? Default in this RFC: keep §3.7 as-is, inline-duplicate the renderer with Playwright visual-regression CI gate as the parity enforcement. Revisit if maintenance cost climbs. |
 
-All five updates are deferred to the address-feedback phase per FRAIM contract — none are blockers for this design review.
+All four updates (MA1–MA4) are deferred to the address-feedback phase per FRAIM contract — none are blockers for this design review. TQ5 is an open question the reviewer answers as part of this design review.
 
 ## Due Diligence Evidence
 
@@ -203,8 +203,8 @@ All five updates are deferred to the address-feedback phase per FRAIM contract �
 - ✓ All 5 Open Questions resolved in spec consumed by RFC
 - ✓ All 14 spec Validation Plan rows operationalized in RFC §Validation Plan
 - ✓ All 12 Error States represented in §API error contracts or component fallbacks
-- ✓ All 7 schema deltas covered in §Migration
-- ✓ 1 Incorrectly-Followed pattern (IF1: embed cross-package import) resolved in RFC body
-- ✓ 5 Missing-from-Architecture patterns flagged for user review at PR time
+- ✓ All 6 schema/migration deltas covered in §Migration (3 schema changes + D50 fan-out's 3 SQL phases; NFR-S5 is in-process, no schema change)
+- ✓ 1 Incorrectly-Followed pattern (IF1: embed cross-package import) resolved in RFC body via inline duplication + Playwright visual-regression gate; TQ5 filed for §3.7 amendment as the alternative
+- ✓ 4 Missing-from-Architecture patterns (MA1–MA4) flagged for user review at PR time
 
 **Status: Met — no `Unmet` rows. Design ready for PR submission.**

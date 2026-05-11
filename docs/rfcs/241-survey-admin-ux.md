@@ -21,7 +21,7 @@ This RFC covers the implementation strategy for #241 V0 — every R-tagged requi
 **In scope:**
 
 - Backend: 1 new endpoint (`PATCH /v1/surveys/:id/consent-mode`), 4 modified endpoints (`POST/PATCH/PATCH-status /v1/surveys/...`, `POST /v1/surveys/:id/responses` + public twin), audit-plugin extension (`requestIp` capture), worker-side no-op for D50.
-- Schema: 4 deltas (`Survey.title` add nullable, `Survey.incentivePoints` drop, `SurveyStatus.CLOSED → STOPPED` rename, `AuditEvent.ipAddress` add nullable). One data migration for D50 fan-out of earning rules.
+- Schema: 3 deltas (`Survey.title` add nullable, `Survey.incentivePoints` + `Survey.showIncentivePoints` drop, `SurveyStatus.CLOSED → STOPPED` rename). One data migration for D50 fan-out of earning rules. Audit IP capture goes into the existing `AuditEvent.metadata` JSON via the per-route allowlist — no schema change.
 - Frontend: 1 surveys list refresh + 1 section-tabbed editor (`Basics → Questions → Look & Feel → Points & Thank You`) + 1 detail-page shell (3 collapsible sections) + 1 reusable `<PreviewSurvey>` component used by both Look-&-Feel and the detail page's Configuration summary.
 - Embed: 1 new `packages/embed/src/ceq-survey.ts` Web Component carrying the prefill API (D51 A1 + A2 patterns) and the channel-aware form-renderer.
 - Vocabulary: list-page filters, badges, menu copy all converge to Draft / Active / Paused / Stopped.
@@ -139,17 +139,17 @@ model Survey {
   // ...
 }
 
-model AuditEvent {
-  // ... all existing fields unchanged ...
-  ipAddress    String?    // NEW — Fastify request.ip captured by audit plugin per NFR-S5; null when proxy chain misconfigured
-}
+// AuditEvent is unchanged. NFR-S5's request-IP capture lands in the existing
+// metadata Json column via the per-route auditAllowlist — verified at
+// audit.ts:150 (the plugin writes metadata as a single Json field, not
+// individual columns). No schema migration needed.
 ```
 
 Notes:
 
 - `Survey.thankYouMessage` and `Survey.thankYouRedirectUrl` already exist (#291). The default thank-you copy is widened in code (`packages/shared/src/zod/survey.schema.ts`) to the new V0 default (`"Thank you for your feedback! Your {{points}} {{pointCurrencyName}} are on their way to your account."`) — schema default is unchanged so existing rows are not affected.
 - `Survey.showIncentivePoints` is removed alongside `Survey.incentivePoints` (D19 — points never appear on the form). `UpdateSurveySchema` drops both fields; PATCH bodies containing either return 422 with `details.fieldRemoved`.
-- `SurveyStatus` enum reshape uses Postgres' standard create-new-type-and-swap pattern (no `ALTER TYPE … RENAME VALUE` because we want migrations to be replayable on databases that had pre-rename data). See SQL below.
+- `SurveyStatus.CLOSED → STOPPED` uses Postgres' `ALTER TYPE … RENAME VALUE` (supported since PG10; CustomerEQ runs PG16 per architecture §2 + ADR-0002). The statement is wrapped in a PL/pgSQL guard so a raw psql replay against an already-renamed database is a no-op rather than an error (matches the idempotent-guard convention in `_patch_survey_distribution_gap`). Prisma's own `_prisma_migrations` table also prevents re-running under `migrate deploy`; the guard is defensive against direct-psql test replay.
 
 ### Migration plan — `<TIMESTAMP>_survey_admin_ux_241/migration.sql`
 
@@ -165,11 +165,11 @@ UPDATE "surveys" SET "title" = "name" WHERE "title" IS NULL;
 -- Column stays nullable: future surveys MAY have null title at draft time;
 -- R7 gates activation when title is empty, not at column-level.
 
--- ─── Step 2: Add AuditEvent.ipAddress (nullable; null when proxy unavailable) ─
-ALTER TABLE "audit_events" ADD COLUMN IF NOT EXISTS "ipAddress" TEXT;
+-- ─── (NFR-S5 IP capture is in-process — written to AuditEvent.metadata JSON
+--     by the audit plugin via the per-route allowlist; no schema migration.) ─
 
--- ─── Step 3: Earning consolidation — D40 / D50 fan-out ───────────────────────
--- 3a. For brands with prior survey-points intent on Survey.incentivePoints,
+-- ─── Step 2: Earning consolidation — D40 / D50 fan-out ───────────────────────
+-- 2a. For brands with prior survey-points intent on Survey.incentivePoints,
 --     create one EarningRule per (programId, cxEventForType(survey.type))
 --     pair where at least one survey carries incentivePoints > 0.
 --     pointsAwarded = mode() — most common intent in that program/type pair.
@@ -208,7 +208,7 @@ ON CONFLICT DO NOTHING;
 -- in the actual migration — written here in INSERT … SELECT form for readability;
 -- the real SQL uses NOT EXISTS subquery on (programId, triggerEvent).)
 
--- 3b. Fan-out the dead survey_completion EarningRule rows. For each dead rule,
+-- 2b. Fan-out the dead survey_completion EarningRule rows. For each dead rule,
 --     create one rule per cx event type that the program's surveys actually use.
 INSERT INTO "earning_rules" (
   id, "programId", "brandId", "name", "triggerEvent", "pointsAwarded",
@@ -237,16 +237,27 @@ JOIN LATERAL (
 ) types ON TRUE
 WHERE dead."triggerEvent" = 'survey_completion';
 
--- 3c. Delete the dead survey_completion rules now that intent is preserved.
+-- 2c. Delete the dead survey_completion rules now that intent is preserved.
 DELETE FROM "earning_rules" WHERE "triggerEvent" = 'survey_completion';
 
--- 3d. Drop the Survey.incentivePoints column and the Survey.showIncentivePoints toggle.
+-- 2d. Drop the Survey.incentivePoints column and the Survey.showIncentivePoints toggle.
 ALTER TABLE "surveys" DROP COLUMN IF EXISTS "incentivePoints";
 ALTER TABLE "surveys" DROP COLUMN IF EXISTS "showIncentivePoints";
 
--- ─── Step 4: SurveyStatus enum rename CLOSED → STOPPED ───────────────────────
--- Postgres ALTER TYPE ... RENAME VALUE works on PG10+. Single statement.
-ALTER TYPE "SurveyStatus" RENAME VALUE 'CLOSED' TO 'STOPPED';
+-- ─── Step 3: SurveyStatus enum rename CLOSED → STOPPED ───────────────────────
+-- ALTER TYPE ... RENAME VALUE is supported on PG10+. Wrapped in PL/pgSQL guard
+-- so a raw psql replay against an already-renamed enum is a no-op (matches the
+-- _patch_survey_distribution_gap idempotent-guard pattern).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_enum
+    WHERE enumtypid = '"SurveyStatus"'::regtype
+      AND enumlabel = 'CLOSED'
+  ) THEN
+    ALTER TYPE "SurveyStatus" RENAME VALUE 'CLOSED' TO 'STOPPED';
+  END IF;
+END $$;
 
 COMMIT;
 ```
@@ -275,7 +286,7 @@ A one-off Organization-Settings notice is surfaced in #277's settings page after
 | `/v1/surveys` | GET | Pagination unchanged. Response shape adds `title`. | R1 |
 | `/v1/surveys/:id` | GET | Response shape adds `title`. | R2 |
 | `/v1/surveys/:id` | PATCH | Body: `UpdateSurveyInput` adds `title`, `description?`, `responsePolicy`, `consentTextOverride`. **Rejects 422** with `details.fieldDisallowed` if body contains `consentMode`, `consentReason`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt` (use dedicated endpoint). Per-field state-aware allowlist enforced per R29 / R30 — see §"State-aware field editability" below. | R4 / R7 / R8 / R29 / R30 |
-| `/v1/surveys/:id/status` | PATCH | Body enum extended: `'DRAFT' \| 'ACTIVE' \| 'PAUSED' \| 'STOPPED'` (post-rename). Activation gates per R23: questions ≥1, required fields complete, consent attested if overridden. **Audit-row write extended** per R24 / NFR-O1 with `metadata.fromStatus`/`toStatus` and the new `ipAddress` column. | R23 / R24 / R25 |
+| `/v1/surveys/:id/status` | PATCH | Body enum extended: `'DRAFT' \| 'ACTIVE' \| 'PAUSED' \| 'STOPPED'` (post-rename). Activation gates per R23: questions ≥1, required fields complete, consent attested if overridden. **Audit-row write extended** per R24 / NFR-O1 with `metadata.fromStatus`, `metadata.toStatus`, `metadata.requestIp`. | R23 / R24 / R25 |
 | `/v1/surveys/:id/consent-mode` | **PATCH — NEW** | Absorbed from #283. Writes `Survey.consentMode`, `consentReason`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt`. Gate: if the new mode is more permissive than `Brand.consentMode`, the body must carry `attestation: { confirmed: true, reason: string ≤500 }` — otherwise HTTP 422 with `details.attestationRequired`. Audit-row written via per-route `auditAction: 'survey.consent.update'` + `auditAllowlist: ['consentMode', 'consentReason']`. | R10 / R11 / NFR-O2 |
 | `/v1/surveys/:id/responses` (auth) | POST | **Removes the second event emission** (lines 307–318 today). Emits exactly one event whose `eventType` is the cx event for the survey's type. Enforces `responsePolicy` per R8: `ONCE` second-submit returns HTTP 409; `LATEST_OVERWRITES` updates the prior row; `MULTIPLE` (default) writes a new row. Anonymous responses (memberId IS NULL) bypass policy enforcement. | R8 / R22 / NFR-R2 |
 | `/v1/public/surveys/:id/respond` | POST | Same emission + policy semantics as the auth path. The prefill body fields (`memberId`, `email`, `phone`, `firstName`, `lastName`, `externalId`) reach `resolveOrEnrollMember(...)` unchanged (verified at `apps/api/src/routes/public.ts:295`). **URL `?email=` / `?member_id=` params no longer wired** — query-string identifier extraction is removed from the page handler per D51; #209's privacy concern is fully addressed. | R16 / NFR-S4 |
@@ -347,11 +358,18 @@ Disallowed PATCH returns HTTP 409 with body `{ code: "FIELD_NOT_EDITABLE_IN_STAT
 
 ## Audit Plugin Extension
 
-`apps/api/src/plugins/audit.ts` (165 lines today) gains one capture and one new per-route config block.
+`apps/api/src/plugins/audit.ts` (165 lines today) gains a `requestIp` capture into the existing `metadata` JSON column and three per-route config blocks. **No schema change** — verified at `audit.ts:150` that `metadata` is persisted as a single `Prisma.InputJsonValue` column.
 
 ```ts
-// Inside the onResponse hook, alongside existing actorId / action / resourceType writes:
-ipAddress: request.ip ?? null,   // NFR-S5; request.ip honors Fastify trust-proxy chain
+// Inside the onResponse hook, the plugin already builds `metadata` from
+// request.audit.metadata + the per-route allowlist. Add `requestIp` to the
+// metadata object before allowlist filtering, and include 'requestIp' in
+// every route's auditAllowlist that should capture it:
+const enrichedMetadata = {
+  ...request.audit?.metadata,
+  requestIp: request.ip ?? null,   // NFR-S5; request.ip honors Fastify trust-proxy chain
+}
+// (existing per-route auditAllowlist filter runs after the spread)
 
 // Per-route audit config on the survey routes:
 // surveys.ts PATCH /:id
@@ -360,7 +378,7 @@ fastify.patch('/surveys/:id', {
     auditAction: 'survey.update',
     auditResourceType: 'survey',
     auditAllowlist: ['title', 'description', 'responsePolicy', 'consentTextOverride',
-                     'themeId', 'thankYouMessage', 'thankYouRedirectUrl'],
+                     'themeId', 'thankYouMessage', 'thankYouRedirectUrl', 'requestIp'],
   },
 }, handler)
 
@@ -369,7 +387,7 @@ fastify.patch('/surveys/:id/status', {
   config: {
     auditAction: 'survey.status_update',
     auditResourceType: 'survey',
-    auditAllowlist: ['fromStatus', 'toStatus'],
+    auditAllowlist: ['fromStatus', 'toStatus', 'requestIp'],
   },
 }, handler)
 
@@ -378,12 +396,12 @@ fastify.patch('/surveys/:id/consent-mode', {
   config: {
     auditAction: 'survey.consent.update',
     auditResourceType: 'survey',
-    auditAllowlist: ['consentMode', 'consentReason', 'attestation'],
+    auditAllowlist: ['consentMode', 'consentReason', 'attestation', 'requestIp'],
   },
 }, handler)
 ```
 
-Within the `PATCH /:id/status` handler, `request.audit.metadata = { fromStatus, toStatus }` is set before reply. The plugin filters via the allowlist and persists the audit row with `ipAddress` populated from `request.ip`. If the trust-proxy chain is misconfigured and `request.ip` is unavailable, the row is still written with `ipAddress: null` and a structured-log warning fires (`{ event: 'audit.ip_unavailable', route, brandId }`).
+Within the `PATCH /:id/status` handler, `request.audit.metadata = { fromStatus, toStatus }` is set before reply. The plugin enriches with `requestIp`, filters via the allowlist, and persists the audit row. If the trust-proxy chain is misconfigured and `request.ip` is unavailable, `metadata.requestIp = null` and a structured-log warning fires (`{ event: 'audit.ip_unavailable', route, brandId }`). The audit row is never blocked on IP availability.
 
 ## Web UI Architecture
 
@@ -423,35 +441,22 @@ surveys/
     └── apps/web/src/app/(admin)/admin/survey-builder/  — entire directory removed (R1)
 ```
 
-The shared form-renderer lives in a new domain-narrow package `packages/survey-renderer/` (see Architecture Analysis MA3 / IF1):
+The form-renderer lives inside `apps/web` for the admin previews + standalone respondent page; the embed widget keeps a **self-contained second copy** inside `packages/embed/src/` per the existing widget convention. **Why duplicate instead of extract?** `packages/embed/package.json` is empirically zero-dependency (verified: no `dependencies` block, no `peerDependencies`, only `vite` + `typescript` as devDeps), and the two existing widgets (`ceq-spin-wheel.ts`, `ceq-support-chat.ts`) are each fully self-contained TS files with no internal-package imports. Architecture §3.7's "No cross-package imports: Standalone at build time — does not import from `@customerEQ/shared` or other packages" is enforced at the package.json level today, not just by convention. A new `packages/survey-renderer` shared between web and embed would violate that invariant. The honest options are inline-duplicate (this RFC's default) or amend §3.7 to allow internal-package imports when Vite library mode bundles them inline at build (filed as **TQ5** below).
 
 ```
-packages/survey-renderer/
-├── package.json                  — name: @customereq/survey-renderer; peerDeps: react, react-dom
-├── src/
-│   ├── index.ts                  — re-exports
-│   ├── SurveyFormRenderer.tsx    — pure renderer; consumes a SurveyResolved + answers state
-│   ├── ConsentDisclosure.tsx     — wraps renderConsentTextReact() from @customereq/consent-text
-│   ├── QuestionRenderer.tsx      — switches on 11 question types per #35
-│   ├── MemberIdField.tsx         — standalone-only; reads Brand.memberIdentifierKind from props
-│   └── theme.ts                  — BrandTheme token → CSS custom property mapping
-└── tsconfig.json
+apps/web/src/components/survey-form/
+├── PreviewSurvey.tsx             — channel/viewport-aware wrapper; reads chromeMatrix + theme
+├── SurveyFormRenderer.tsx        — pure renderer; consumes a SurveyResolved + answers state
+├── ConsentDisclosure.tsx         — wraps renderConsentTextReact() from @customereq/consent-text
+├── QuestionRenderer.tsx          — switches on 11 question types per #35
+└── MemberIdField.tsx             — standalone-only; reads Brand.memberIdentifierKind via SSR
 ```
 
-The web app provides the channel/viewport wrapper that's specific to the admin preview surface:
+`SurveyFormRenderer` is consumed by:
+- `<PreviewSurvey/>` for Look & Feel previews + detail page Configuration summary.
+- The standalone respondent page at `apps/web/src/app/survey/[id]/page.tsx`.
 
-```
-apps/web/src/components/survey-preview/
-└── PreviewSurvey.tsx             — channel/viewport-aware wrapper; reads chromeMatrix + theme;
-                                    delegates rendering to @customereq/survey-renderer
-```
-
-Three apps consume `@customereq/survey-renderer`:
-- `apps/web` — Look & Feel previews + detail page Configuration summary section, both via `<PreviewSurvey/>`.
-- `apps/web` — the standalone respondent page at `apps/web/src/app/survey/[id]/page.tsx`.
-- `packages/embed/src/ceq-survey.ts` — the production Web Component widget.
-
-This keeps `packages/embed`'s no-cross-package-imports invariant (architecture §3.7) intact: it imports from `@customereq/survey-renderer` and `@customereq/consent-text`, both of which are domain-narrow runtime packages per §3 introductory paragraph. It does not import from `apps/web` or `@customereq/shared`. Bundle math: the widget today is ~7 KB gzipped; survey-renderer adds ~15 KB gzipped per the spin-wheel envelope precedent — comfortably under the < 30 KB CI gate.
+The embed widget's own renderer (see §"Embed Widget" below) reproduces the same visual + interaction contract in standalone TS inside `packages/embed/src/`. The two renderers are kept aligned through a **Playwright visual-regression gate** (slice 5 acceptance): the same survey config + answers state must produce visually-identical output in standalone vs. embedded modes. Drift detected at CI is a hard failure. See §Risks for the trade-off discussion.
 
 ### RHF form structure (BasicsTab and PointsAndThankYouTab as examples)
 
@@ -463,13 +468,18 @@ const methods = useForm<SurveyEditorFormValues>({
   mode: 'onBlur',
 })
 
-// Per-tab dirty state via dirtyFields (matches OrganizationSettingsForm pattern at lines 174-177)
+// Per-tab dirty state via dirtyFields — same shape as OrganizationSettingsForm's
+// SECTION_FIELDS pattern (verified at OrganizationSettingsForm.tsx lines
+// 174-177): a const map from section/tab IDs to the fields that contribute
+// to that section's dirty state, evaluated via dirtyFields.
 function isTabDirty(tab: TabId): boolean {
   const dirtyFields = methods.formState.dirtyFields
   return TAB_FIELDS[tab].some((f) => Boolean(dirtyFields[f as keyof SurveyEditorFormValues]))
 }
 
-// Auto-save on blur — debounced, scoped to the dirty field
+// Auto-save on blur — debounced, scoped to the dirty field. NEW pattern.
+// OrganizationSettingsForm uses per-section explicit Save buttons; #241 is
+// the first admin surface to auto-save (see Architecture Analysis MA2).
 useAutoSave(methods, async (changedField, value) => {
   // ONE field per PATCH — keeps the request body minimal and prevents
   // accidental overwrites across tabs.
@@ -477,7 +487,7 @@ useAutoSave(methods, async (changedField, value) => {
 })
 ```
 
-`TAB_FIELDS` maps tab IDs to the field names that contribute to "dirty" state for that tab — exact analogue to `SECTION_FIELDS` in `OrganizationSettingsForm.tsx`. This is the pattern architecture.md §2 mandates (`React Hook Form 7.x + @hookform/resolvers/zod` with "per-section dirty state via RHF formState.dirtyFields").
+`TAB_FIELDS` reuses the `SECTION_FIELDS` dirty-tracking shape from `OrganizationSettingsForm.tsx`. The **save trigger** is different — auto-save on blur vs. explicit per-section Save buttons. RHF supports `mode: 'onBlur'` natively; the `useAutoSave` hook is a new utility this RFC introduces (slice 3b). The architecture.md §2 Forms row mandates RHF + zodResolver + per-section dirty state — those three pieces match. Auto-save is the new pattern flagged for documentation under MA2.
 
 ### Question canvas — keyboard-accessible reorder
 
@@ -551,14 +561,15 @@ CustomerEQ.surveys.prefill('srv_abc123', {
 
 ```
 packages/embed/src/ceq-survey.ts          — Custom Element registration + Shadow DOM mount
-packages/embed/src/survey/
-├── widget-bootstrap.ts                    — reads data-* attrs, exposes CustomerEQ.surveys.prefill
-├── survey-mount.tsx                       — imports SurveyFormRenderer from @customereq/survey-renderer
-├── theme-bridge.ts                        — pipes BrandTheme tokens → CSS variables on the Shadow root
-└── prefill-store.ts                       — Map<surveyId, MemberPrefill>; consumed at submit
+                                            (single self-contained file matching the
+                                             ceq-spin-wheel.ts / ceq-support-chat.ts shape:
+                                             inline STYLES const, local type definitions,
+                                             no internal-package imports)
 ```
 
-`packages/embed`'s `package.json` adds `@customereq/survey-renderer` and `@customereq/consent-text` as `dependencies` (already-published runtime packages). No `apps/web` imports.
+The widget defines its own type interfaces for `SurveyQuestion`, `BrandTheme`, etc. inline — duplicated from `apps/web/src/components/survey-form/` for §3.7 compliance. `packages/embed/package.json` remains zero-dependency. Theme tokens are piped through CSS custom properties (`--ceq-primary-color`, `--ceq-background-color`, `--ceq-font-family`, etc.) per the spin-wheel precedent at architecture §3.7. Data-attribute + JS prefill APIs are implemented inline in the same file's `connectedCallback` and a window-attached `CustomerEQ.surveys.prefill` global.
+
+**Visual parity with `apps/web`** is enforced at CI via Playwright visual regression: a fixture survey is rendered through both the standalone page handler (using `apps/web/src/components/survey-form/`) and through the embed widget; the resulting screenshots must match within tolerance. Drift = hard fail at PR time. This is the trade-off cost of inline duplication.
 
 ### Submission path
 
@@ -631,7 +642,8 @@ The spec's Validation Plan is authoritative; this RFC operationalizes each row i
 | `dnd-kit` adds 40 KB to the admin bundle | Low | Low — admin bundle, not respondent-facing | Treeshake — only `core` + `sortable` (skip `modifiers` / `accessibility-overlay`). Lazy-load the Questions tab if first-screen budget is hit. |
 | Page handler still reads `?email=` URL param after deploy | Low | High if it lingers — re-introduces #209's PII leak | Same-commit removal in `apps/web/src/app/survey/[id]/page.tsx`. E2E asserts the legacy URL falls through to the standalone prompt. |
 | Migration mode() returns NULL for a (programId, type) group | Low | Low — INSERT skipped silently | Fixture asserts the brand-only-survey-incentive case produces the rule; if mode() is NULL the group has no `incentivePoints > 0` rows and the INSERT correctly writes nothing. |
-| `request.ip` is `null` in prod because trust-proxy is misconfigured | Medium | Low — `ipAddress = null`, structured-log warning fires | Per NFR-S5, the audit row is still written; the warning is observable in Application Insights and gives ops a clear signal to fix the proxy chain. The row is never blocked on IP availability. |
+| `request.ip` is `null` in prod because trust-proxy is misconfigured | Medium | Low — `metadata.requestIp = null`, structured-log warning fires | Per NFR-S5, the audit row is still written; the warning is observable in Application Insights and gives ops a clear signal to fix the proxy chain. The row is never blocked on IP availability. |
+| **Renderer drift between `apps/web` and `packages/embed`** — inline-duplicated form-renderer code paths diverge over time, producing different visual/interactive behavior for the same survey config | Medium | Medium — embedded respondents see a different form than standalone respondents | Playwright visual-regression CI gate at slice 5 acceptance: same survey config renders pixel-identically (within tolerance) in standalone vs. embedded modes; hard fail on drift. Reviewer checklist on any embed-widget PR: cross-check the equivalent apps/web change landed in the same PR. If maintenance cost climbs, escalate to TQ5 (§3.7 amendment) for re-evaluation. |
 
 ## Deviation from ADR 0001
 
@@ -654,14 +666,13 @@ The umbrella is large enough that landing as one PR will exceed reviewer attenti
 
 | Slice | Scope | Schema gate? |
 |---|---|---|
-| **1. Schema + migration** | Single Prisma migration, `Survey.title` add + backfill, `Survey.incentivePoints` + `Survey.showIncentivePoints` drop, `SurveyStatus.CLOSED → STOPPED`, `AuditEvent.ipAddress` add, D50 fan-out. Migration tests. | YES — must land first |
-| **2. API surface + consent-mode endpoint + audit extension** | `PATCH /v1/surveys/:id/consent-mode` new endpoint; `PATCH /v1/surveys/:id` schema update (`.strict()` + state-aware allowlist); `POST /v1/surveys/:id/responses` event emission cleanup + responsePolicy enforcement; audit-plugin `ipAddress` capture; per-route audit allowlists. API integration tests. | depends on 1 |
-| **3a. Extract `packages/survey-renderer`** | New domain-narrow package hosting `SurveyFormRenderer`, `ConsentDisclosure`, `QuestionRenderer`, `MemberIdField`, theme token mapping. Pure React, no app-state coupling. Per architecture §3 introductory paragraph criteria (consumed by ≥2 apps; no value in worker; clear shape stability). Standalone-page handler at `apps/web/src/app/survey/[id]/page.tsx` migrated to import from new package as a smoke verification that the package is wire-correct. | depends on 2 |
-| **3b. Web editor — list + Basics + Look & Feel + Points & Thank You** | List page rewrite; editor shell + RHF; BasicsTab + ConsentCollectionSubBlock + ConsentAttestationModal; LookFeelTab + PreviewSurvey (uses `@customereq/survey-renderer` from 3a); PointsAndThankYouTab; ActivateModal; DiscardDraftModal. `/admin/surveys/new` + `/admin/surveys/[id]/edit` redirect stub deleted in this slice. | depends on 3a |
-| **4. Web editor — QuestionsTab + detail page + delete old survey-builder** | QuestionsTab with dnd-kit; detail page rewrite (3 collapsible sections; reuses `<PreviewSurvey/>`); old `/admin/survey-builder/` directory deleted; E2E tests | depends on 3b |
-| **5. Embed widget (`packages/embed/src/ceq-survey.ts`)** | Web Component; data-attribute + JS prefill APIs; theme bridge; imports `@customereq/survey-renderer` from 3a; widget Playwright on sample host page; remove `?email=` URL surface from page handler | depends on 3a (the package) |
+| **1. Schema + migration** | Single Prisma migration: `Survey.title` add + backfill, `Survey.incentivePoints` + `Survey.showIncentivePoints` drop, `SurveyStatus.CLOSED → STOPPED` with PL/pgSQL guard, D50 fan-out. Migration tests with 5 brand fixtures. | YES — must land first |
+| **2. API surface + consent-mode endpoint + audit extension** | `PATCH /v1/surveys/:id/consent-mode` new endpoint; `PATCH /v1/surveys/:id` schema update (`.strict()` + state-aware allowlist); `POST /v1/surveys/:id/responses` event emission cleanup + `responsePolicy` enforcement; audit-plugin `requestIp` capture into `metadata` JSON; per-route audit allowlists. API integration tests. | depends on 1 |
+| **3. Web editor — `apps/web/src/components/survey-form/` + list + Basics + Look & Feel + Points & Thank You** | Build the `SurveyFormRenderer` family inside `apps/web/src/components/survey-form/`; migrate standalone respondent page at `apps/web/src/app/survey/[id]/page.tsx` to consume it; list page rewrite; editor shell + RHF + `useAutoSave` hook; BasicsTab + ConsentCollectionSubBlock + ConsentAttestationModal; LookFeelTab + `<PreviewSurvey/>`; PointsAndThankYouTab; ActivateModal; DiscardDraftModal. `/admin/surveys/new` + `/admin/surveys/[id]/edit` redirect stub deleted in this slice. | depends on 2 |
+| **4. Web editor — QuestionsTab + detail page + delete old survey-builder** | QuestionsTab with dnd-kit; detail page rewrite (3 collapsible sections; reuses `<PreviewSurvey/>`); old `/admin/survey-builder/` directory deleted; E2E tests | depends on 3 |
+| **5. Embed widget (`packages/embed/src/ceq-survey.ts`)** | Self-contained Web Component matching `ceq-spin-wheel.ts` / `ceq-support-chat.ts` shape (no internal-package imports; inline types + STYLES); data-attribute + JS prefill APIs; theme bridge via CSS custom properties; widget Playwright on sample host page + visual-regression gate vs. standalone; remove `?email=` URL surface from `apps/web/src/app/survey/[id]/page.tsx`. | depends on 3 (drift baseline) |
 
-Slices 4 and 5 can run in parallel after 3 lands. Each slice is independently revertable. The "delete the old survey-builder" step is intentionally in slice 4 (not 3) so the rollout has a one-PR window where both old and new editors exist on `main` — gives QA a side-by-side compare without a feature flag.
+Slices 4 and 5 can run in parallel after 3 lands. Each slice is independently revertable. The "delete the old survey-builder" step is intentionally in slice 4 (not 3) so the rollout has a one-PR window where both old and new editors exist on `main` — gives QA a side-by-side compare without a feature flag. Slice 5 depends on slice 3 specifically because the standalone form renderer in `apps/web` is the baseline the embed widget's visual-regression gate compares against.
 
 ## Open Questions
 
@@ -671,6 +682,7 @@ Slices 4 and 5 can run in parallel after 3 lands. Each slice is independently re
 | **TQ2** | Should `Survey.title` enforce `title ≠ name` to prevent the admin-name-leaking-to-respondent footgun? | No in V0 — the labels in Basics are enough; revisit if customer feedback surfaces the issue | Implementation phase QA |
 | **TQ3** | Is the `dnd-kit` bundle hit acceptable, or do we ship Up/Down buttons only in V0 and add drag later? | dnd-kit in V0 | Implementation phase if bundle budget is a concern |
 | **TQ4** | The `/v1/surveys/:id/launch` endpoint (#80's atomic rule-launch) remains in code but is unused by #241. Do we mark it deprecated, or leave it as-is for #234/#242/#246 to reuse? | Leave as-is; sub-issues for actions own the decision | Implementation phase |
+| **TQ5** | Should architecture §3.7 ("No cross-package imports" for `packages/embed`) be amended to allow internal-package imports when Vite library mode inlines them at build time? Default keeps the existing zero-dep invariant and accepts inline duplication + visual-regression-CI as the renderer parity strategy. Amendment would let us extract `packages/survey-renderer` and drop the duplication. The current invariant is enforced at the package.json level (verified: `packages/embed/package.json` has zero deps), so this is a one-way-door amendment to a load-bearing architecture rule. | Keep §3.7 as-is for V0; inline-duplicate + visual-regression gate. Revisit if drift maintenance cost becomes painful. | Reviewer signoff on this RFC |
 
 All other OQs from the spec (OQ1–OQ5) are resolved in the spec's Decision Log (D49–D52); this RFC consumes those decisions directly and does not reopen them.
 
@@ -680,16 +692,17 @@ No spike was required for this RFC. All technical ambiguities resolved through c
 
 - **Worker exact-string match** at `apps/worker/src/processors/loyaltyEvents.ts:81` confirmed — no worker code change needed for D50.
 - **`resolveOrEnrollMember` POST-body signature** at `apps/api/src/routes/public.ts:295` accepts `memberId/email/phone/firstName/lastName/externalId` — D51's prefill patterns flow unchanged.
-- **Schema state** of `Survey`, `BrandTheme`, `ConsentMode`, `ResponsePolicy`, `EarningRule`, `AuditEvent` verified at exact line numbers; the only delta surfaces are: add `Survey.title`, drop `Survey.incentivePoints` + `Survey.showIncentivePoints`, rename `SurveyStatus.CLOSED → STOPPED`, add `AuditEvent.ipAddress`.
+- **Schema state** of `Survey`, `BrandTheme`, `ConsentMode`, `ResponsePolicy`, `EarningRule`, `AuditEvent` verified at exact line numbers; the only delta surfaces are: add `Survey.title`, drop `Survey.incentivePoints` + `Survey.showIncentivePoints`, rename `SurveyStatus.CLOSED → STOPPED`. **No `AuditEvent` schema change** — verified `audit.ts:150` writes `metadata` as a single JSON column.
 - **EarningRule.attribution column** does not exist; migration uses `EarningRule.name` prefixed with `[#241 migration]` for provenance — verified by reading `EarningRule` schema at `schema.prisma:291-314`.
-- **Audit plugin extension** `ipAddress: request.ip` is additive — Fastify exposes `request.ip` natively; no plugin restructure required.
+- **Audit plugin extension** for `requestIp` is in-process only — `request.ip` is enriched onto `request.audit.metadata` and persisted via the existing JSON column. No schema migration; no plugin restructure.
+- **`packages/embed/package.json`** has zero `dependencies` and zero `peerDependencies` (verified at `packages/embed/package.json`). Existing widgets (`ceq-spin-wheel.ts`, `ceq-support-chat.ts`) are each fully self-contained TS files. The new `ceq-survey.ts` follows the same shape; no `packages/survey-renderer` extraction is performed (would violate §3.7).
 
 ## Observability
 
 Per NFR-O1 / NFR-O2 / NFR-O3:
 
-- **Survey state transitions** — every `Survey.status` change writes an audit row with `metadata.fromStatus`, `metadata.toStatus`, `actorId` from JWT, `ipAddress` from `request.ip`. The route uses `auditAction: 'survey.status_update'`.
-- **Consent override writes** — every `PATCH /v1/surveys/:id/consent-mode` writes an audit row with `metadata.consentMode`, `metadata.consentReason` (truncated to first 200 chars), `metadata.attestation.confirmed`. Route uses `auditAction: 'survey.consent.update'`.
+- **Survey state transitions** — every `Survey.status` change writes an audit row with `metadata.fromStatus`, `metadata.toStatus`, `metadata.requestIp`, `actorId` from JWT. The route uses `auditAction: 'survey.status_update'`.
+- **Consent override writes** — every `PATCH /v1/surveys/:id/consent-mode` writes an audit row with `metadata.consentMode`, `metadata.consentReason` (truncated to first 200 chars), `metadata.attestation.confirmed`, `metadata.requestIp`. Route uses `auditAction: 'survey.consent.update'`.
 - **Disclosure-text changes** — every `consentTextOverride` change on the general PATCH writes the audit row through the standard `survey.update` path with `metadata.consentTextOverride` (truncated to first 200 chars).
 - **BullMQ event metrics** — no new metrics; existing consumer-lag / success-count / failure-count on the `loyalty-events` queue continue to cover the cx event path.
 
@@ -698,19 +711,20 @@ Application Insights queries for the activity-view substrate (NFR-O5):
 ```kusto
 audit_events
 | where action startswith 'survey.'
-| project createdAt, brandId, action, resourceId, actorId, ipAddress, metadata
+| project createdAt, brandId, action, resourceId, actorId, metadata
 | order by createdAt desc
 ```
 
 ## Confidence Level
 
-**85/100.** The decomposition tracks the spec verbatim; every R# maps to a concrete artifact; every NFR has a validation row. Remaining risk is concentrated in:
+**82/100.** The decomposition tracks the spec verbatim; every R# maps to a concrete artifact; every NFR has a validation row. Remaining risk is concentrated in:
 
 - The D50 fan-out SQL — the migration is correct on paper but hasn't run against the fixture set yet (gated by Slice 1 acceptance).
-- The embed widget bundle size — depends on how cleanly `SurveyFormRenderer` tree-shakes; size budget enforced in CI as the gate.
+- The embed widget bundle size — embedded TS file (no internal deps) grows by the renderer surface; size budget enforced in CI as the gate.
 - The `dnd-kit` accessibility behavior on Safari iOS — needs verification in the Playwright mobile matrix as part of Slice 4.
+- **Renderer drift between `apps/web` and `packages/embed`** — inline duplication carries maintenance risk; mitigated by Playwright visual-regression CI gate at slice 5 (hard fail on drift). If maintenance cost climbs in practice, TQ5 (§3.7 amendment) revisits the trade-off.
 
-The remaining 15 points reflect those three implementation-time validations, all of which have clear evidence checkpoints in the Validation Plan.
+The remaining 18 points reflect those four implementation-time validations, all of which have clear evidence checkpoints in the Validation Plan.
 
 ## Architecture Analysis
 
@@ -727,7 +741,8 @@ Comparing this RFC against `docs/architecture/architecture.md` (581 lines, last 
 | 5 | **Event-driven loyalty actions** (project rule R5; architecture §6 Event-Driven Processing) | All loyalty earn paths go through BullMQ enqueue; no direct API-layer write to LoyaltyEvent / pointsBalance |
 | 6 | **Hand-edited Prisma migration with ADD → BACKFILL → DROP ordering, idempotent guards** (§3.4 Data Layer) | Single migration in `<TIMESTAMP>_survey_admin_ux_241/` follows the reference examples (`_patch_survey_distribution_gap`, `_brandtheme_surveytheme_split`); IF NOT EXISTS column guards; NOT EXISTS subquery for the D50 fan-out replay-safety |
 | 7 | **Per-route audit allowlist + auditAction/auditResourceType overrides** (§4.2 audit plugin; documented by #277 RFC) | Each of three survey PATCH routes carries a per-route config block; allowlist scoped to spec-named metadata fields only |
-| 8 | **Domain-narrow runtime packages** (§3 introductory paragraph) | RFC reuses `packages/consent-text` as-is (no modification); see "Missing from Architecture" #1 below for the new package this RFC adds |
+| 8 | **Domain-narrow runtime packages** (§3 introductory paragraph) | RFC reuses `packages/consent-text` as-is (no modification). RFC does NOT extract a new `packages/survey-renderer` — see IF1 below for why; that resolution preserves the §3.7 zero-dep invariant. |
+| 13 | **Embed Layer zero-dependency invariant** (§3.7 — "No cross-package imports: Standalone at build time — does not import from `@customerEQ/shared` or other packages") | Verified at `packages/embed/package.json` (zero `dependencies`, zero `peerDependencies`). New `ceq-survey.ts` matches the `ceq-spin-wheel.ts` / `ceq-support-chat.ts` shape: single self-contained TS file, inline types + STYLES, no internal-package imports. Visual-regression CI gate compensates for the inline-duplication maintenance cost. |
 | 9 | **Standard pagination envelope on list endpoints** (§4.1) | `GET /v1/surveys` shape unchanged — `{ data, total, page, pageSize, totalPages }` |
 | 10 | **GDPR/CCPA baked in, not bolted on** (§6 + project rule R13) | Consent attestation captured at write time with actor + timestamp + reason; audit log feeds compliance reporting; PII not introduced into new columns (consent override metadata is operational, not PII) |
 | 11 | **Centralized test infrastructure (`packages/config/src/test-utils/`)** (§9.2) | New test files (`survey-admin.spec.ts`, `surveys-admin.test.ts`, `surveys-consent-override.test.ts`, `survey-completion-earn.test.ts`) all import factories from `@customerEQ/config/test-utils` — no inline mocks |
@@ -741,15 +756,14 @@ These are patterns the RFC introduces that aren't documented in `architecture.md
 |---|---|---|---|
 | **MA1** | **Section-tabbed-create exception to ADR 0001** — entities whose create form has ≥3 fields clustering into independent semantic sections may skip `/admin/{entity}/new` and route "+ New {entity}" directly to POST + `/[id]/edit`. | Wizards POST-on-every-Next produced the duplicate-draft surface #241 is built to eliminate. Forcing the section-tabbed editor through a `/new` first would re-introduce the same surface in a new costume. | Amend ADR 0001 in a companion commit on this branch (TQ1) adding the exception class with the four criteria from §"Deviation from ADR 0001". Update architecture.md §3.1 "Standard CRUD admin pattern" bullet with a pointer to the amendment. |
 | **MA2** | **Auto-save on blur for admin forms** — RHF `mode: 'onBlur'` + 500ms debounce per dirty field; one PATCH per blur with the single changed field in the body. | #292 Slice 4's `OrganizationSettingsForm` uses per-section Save buttons; #241 is the first admin surface to auto-save. The pattern needs a documented contract so future entities can pick it up consistently. | Add a paragraph to architecture.md §3.1 under "Standard CRUD admin pattern" describing when auto-save vs. explicit-save applies (rule of thumb: auto-save when the editing surface is multi-section and the operator's mental model is "tweak fields and walk away", explicit-save when the operator's intent is a discrete commit boundary like a status change or webhook re-test). |
-| **MA3** | **Channel-aware form-renderer as a shared runtime package** — `packages/survey-renderer` (NEW) hosts the pure React component that both apps/web (admin previews + standalone page handler) and packages/embed (Web Component widget) import at build time. | The embed package's existing "No cross-package imports" invariant (§3.7) needs an explicit-extraction pattern when a renderer is reused across the standalone host + the embedded widget. `packages/consent-text` is the precedent: parser + validator + renderer in one domain-narrow package consumed by ≥2 apps. | Create `packages/survey-renderer` (the RFC's slice 3 + 5 both update to import from this new package). Add a row to architecture.md §3 introductory paragraph naming the package alongside `packages/consent-text` and `packages/embed`. See "Incorrectly Followed" IF1 below for the conflict this resolves. |
-| **MA4** | **State-aware PATCH field allowlist** — a PATCH handler enforces a per-(status, field) allowlist before persisting, returning HTTP 409 `{ code: 'FIELD_NOT_EDITABLE_IN_STATE', field, currentState }` on disallowed mutations. | R29 / R30 require the contract; today's surveys.ts has no such gate. This is the first time a CustomerEQ entity has state-conditional edit rules at the API boundary. | Document as a paragraph under architecture.md §4.1 "API Routes" (or §6 Design Patterns) — name the contract and the HTTP code + body shape so future stateful entities (Campaigns? Programs?) can adopt it consistently. |
-| **MA5** | **AuditEvent.ipAddress capture via Fastify request.ip** — additive column on AuditEvent; audit plugin reads `request.ip` (which honors the Fastify trust-proxy chain); null on misconfiguration with structured-log warning. | NFR-S5 requires it; today the audit plugin doesn't persist IP. | Document the additive contract in architecture.md §4.2 audit plugin row: "audit row captures `actorId`, `ipAddress` (from `request.ip`, honoring trust-proxy; null on misconfiguration with structured log warning), and per-route metadata filtered through `auditAllowlist`." |
+| **MA3** | **State-aware PATCH field allowlist** — a PATCH handler enforces a per-(status, field) allowlist before persisting, returning HTTP 409 `{ code: 'FIELD_NOT_EDITABLE_IN_STATE', field, currentState }` on disallowed mutations. | R29 / R30 require the contract; today's surveys.ts has no such gate. This is the first time a CustomerEQ entity has state-conditional edit rules at the API boundary. | Document as a paragraph under architecture.md §4.1 "API Routes" (or §6 Design Patterns) — name the contract and the HTTP code + body shape so future stateful entities (Campaigns? Programs?) can adopt it consistently. |
+| **MA4** | **Audit plugin `metadata.requestIp` capture** — audit plugin enriches `request.audit.metadata` with `requestIp` from `request.ip` (Fastify trust-proxy honored); null on misconfiguration with structured-log warning. Per-route `auditAllowlist` must include `'requestIp'` to persist. | NFR-S5 requires it; today the audit plugin doesn't persist IP at all. Verified `audit.ts:150` writes `metadata` as a single JSON column — no schema migration. | Document in architecture.md §4.2 audit plugin row: "audit row captures `actorId` plus per-route `metadata` filtered through `auditAllowlist`; routes that opt into `requestIp` get `request.ip` enriched into `metadata.requestIp` (null on trust-proxy misconfiguration, structured-log warning emitted)." |
 
 ### Patterns Incorrectly Followed
 
 | # | Conflict | Architecture says | Original RFC draft said | Resolution applied |
 |---|---|---|---|---|
-| **IF1** | **Embed widget importing from apps/web** | §3.7 Embed Layer: "**No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages." | First draft said `ceq-survey.ts` "imports `apps/web/src/components/survey-form/SurveyFormRenderer` at build time via Vite's library mode" — a direct violation. | **Extract `packages/survey-renderer`** (MA3 above). Both apps/web and packages/embed import from the new domain-narrow package. The embed widget remains build-time-standalone with respect to `apps/web` and `@customerEQ/shared`. The new package is consumed by both the admin previews and the production widget, satisfying the "consumed by ≥2 apps" criterion the introductory §3 paragraph specifies for domain-narrow packages. Sections §"Web UI Architecture", §"Embed Widget", and §"Implementation Slicing" of this RFC are updated to reference `@customerEQ/survey-renderer` rather than the `apps/web` path. |
+| **IF1** | **Embed widget importing from `apps/web` or any internal package** | §3.7 Embed Layer: "**No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages." Enforced at `packages/embed/package.json` (zero `dependencies`). | First draft proposed extracting `packages/survey-renderer` and having both `apps/web` and `packages/embed` import from it. Re-verification: `packages/embed/package.json` is empirically zero-dep; `ceq-spin-wheel.ts` and `ceq-support-chat.ts` are fully self-contained TS files. Extracting a shared package would itself violate §3.7 since `packages/embed` would have to declare `packages/survey-renderer` as a runtime dep. **My second-draft "resolution" was the same class of unverified assertion as the first draft.** | **Inline-duplicate the renderer inside `packages/embed/src/ceq-survey.ts`** matching the existing widget convention. `apps/web` keeps its own `survey-form/` for admin previews + standalone page handler. The two renderers must produce visually-identical output for the same survey config; **Playwright visual regression is the CI gate enforcing parity** (slice 5 acceptance). Trade-off is duplication maintenance cost — flagged as a risk in §Risks & Mitigations and escalated to **TQ5** as a §3.7 amendment proposal if the maintenance cost climbs in practice. |
 
 No other Incorrectly Followed patterns identified. The remaining design decisions either follow existing patterns (table above) or introduce new patterns flagged as Missing from Architecture (deferred to address-feedback phase).
 
@@ -798,7 +812,7 @@ Every functional and non-functional requirement maps to one or more RFC sections
 | NFR-S2 opaque ids | §Schema / unchanged (cuid) | n/a |
 | NFR-S3 disclosure XSS guard | §Validation Plan / `packages/consent-text` | 2 |
 | NFR-S4 embed widget privilege | §Embed Widget | 5 |
-| NFR-S5 audit ipAddress | §Audit + §Schema / AuditEvent.ipAddress | 1 / 2 |
+| NFR-S5 audit requestIp via metadata | §Audit Plugin Extension (no schema change) | 2 |
 | NFR-R1/R2 atomicity + idempotency | §Validation Plan / Worker | 2 |
 | NFR-R3 auto-save resilience | §Web UI / RHF form structure | 3 |
 | NFR-R4 single status endpoint | §API / PATCH /:id/status | 2 |
