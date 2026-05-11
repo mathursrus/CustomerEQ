@@ -1099,7 +1099,8 @@
           </div>
 
           <!-- Section 2: RESPONSE (placeholder — designed separately; collapsible per D37) -->
-          <div class="detail-section" id="response-section">
+          <!-- Response section: default collapsed when responsesCount === 0 (per R32) -->
+          <div class="detail-section collapsed" id="response-section">
             <div class="detail-section-head" onclick="toggleDetailSection('response-section')">
               <h2>Response <span style="font-size: 12px; color: var(--text-muted); font-weight: 400;">— designed under a future sub-issue (sibling to #235)</span></h2>
               <span class="chevron">▼</span>
@@ -1114,7 +1115,8 @@
           </div>
 
           <!-- Section 3: CONFIGURATION SUMMARY — preview as first-class · collapsible per D37 -->
-          <div class="detail-section collapsed" id="config-section">
+          <!-- Configuration summary: default expanded when responsesCount === 0 (per R28 amendment) -->
+          <div class="detail-section" id="config-section">
             <div class="detail-section-head" onclick="toggleDetailSection('config-section')">
               <h2>Configuration summary</h2>
               <span style="display: flex; align-items: center; gap: 12px;">
