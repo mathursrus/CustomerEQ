@@ -841,9 +841,9 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
-                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: URL provided / URL missing fallback" style="cursor: pointer;">Member ID resolved from URL (<code>?member_id=…</code>)</div>
+                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: prefilled by host page / no prefill (fallback prompt)" style="cursor: pointer;">Member identity prefilled by host page (<code>data-prefill-email</code> or JS)</div>
                       <div class="ps-member-id" style="display: none;" data-fallback="true">
-                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span> <span style="color: var(--warning); font-size: 9px;">(fallback — URL didn't provide ID)</span></label>
+                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span> <span style="color: var(--warning); font-size: 9px;">(fallback — host didn't prefill)</span></label>
                         <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
                       </div>
                       <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
@@ -862,7 +862,7 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
-                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: URL provided / URL missing fallback" style="cursor: pointer;">Member ID from URL</div>
+                      <div class="ps-member-id-pill" onclick="toggleEmbeddedFallback(this)" title="Click to toggle: prefilled by host page / no prefill (fallback prompt)" style="cursor: pointer;">Prefilled by host page</div>
                       <div class="ps-member-id" style="display: none;" data-fallback="true">
                         <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span></label>
                         <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
