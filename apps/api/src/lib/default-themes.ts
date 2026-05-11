@@ -4,12 +4,13 @@
 //
 // Color choices: primary + secondary follow the swatches shown in the spec
 // mock (docs/feature-specs/mocks/277-organization-settings.html). Accent
-// colors are intentionally NOT in the same hue family as primary/secondary —
-// accent is used to emphasize error / warning text and must contrast cleanly
-// with body copy on a white background. All accents are WCAG AAA on white.
-//
-// Sunset's accent is shifted to rose-700 (vs. red-700 elsewhere) so the
-// accent does not compete with the warm orange primary/secondary.
+// colors are intentionally NOT in the same hue family as primary/secondary
+// — accent emphasizes *selection* (chosen radio/checkbox/MCQ option,
+// selected Likert matrix cell, required-field asterisk) per the BrandTheme
+// → Survey element token mapping in docs/rfcs/241-survey-admin-ux.md.
+// Errors and warnings use a hardcoded semantic red (#dc2626), not a brand
+// token, so accents are free to be calm/positive selection colors rather
+// than red-adjacent.
 //
 // Typography and layout fields (fontFamily, headingSize, bodySize, cardStyle,
 // borderRadius, maxWidth, backgroundImageUrl) are omitted intentionally —
@@ -36,7 +37,7 @@ export const DEFAULT_THEMES: readonly DefaultThemeSeed[] = [
     textColor: '#111827',
     buttonColor: '#4f46e5',
     buttonTextColor: '#ffffff',
-    accentColor: '#b91c1c',
+    accentColor: '#047857',
   },
   {
     name: 'Forest',
@@ -46,7 +47,7 @@ export const DEFAULT_THEMES: readonly DefaultThemeSeed[] = [
     textColor: '#111827',
     buttonColor: '#16a34a',
     buttonTextColor: '#ffffff',
-    accentColor: '#b91c1c',
+    accentColor: '#0369a1',
   },
   {
     name: 'Sunset',
@@ -56,7 +57,7 @@ export const DEFAULT_THEMES: readonly DefaultThemeSeed[] = [
     textColor: '#111827',
     buttonColor: '#ea580c',
     buttonTextColor: '#ffffff',
-    accentColor: '#be123c',
+    accentColor: '#0f766e',
   },
   {
     name: 'Slate',
@@ -66,7 +67,7 @@ export const DEFAULT_THEMES: readonly DefaultThemeSeed[] = [
     textColor: '#0f172a',
     buttonColor: '#475569',
     buttonTextColor: '#ffffff',
-    accentColor: '#b91c1c',
+    accentColor: '#4338ca',
   },
 ] as const
 
