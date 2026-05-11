@@ -468,10 +468,10 @@ Named-size enums (`headingSize`, `bodySize`, `borderRadius`, `maxWidth`) resolve
 
 | BrandTheme field | Default | CSS custom property | Survey elements styled |
 |---|---|---|---|
-| `primaryColor` | `#6366f1` | `--ceq-primary-color` | Selected rating-scale tick; star rating filled icon; selected slider fill; focus ring on inputs and buttons; consent-disclosure link color; skip / "Prefer not to answer" link |
+| `primaryColor` | `#6366f1` | `--ceq-primary-color` | Brand name header (chrome) text color; selected rating-scale tick; star rating filled icon; selected slider fill; focus ring on inputs and buttons; consent-disclosure link color; skip / "Prefer not to answer" link |
 | `secondaryColor` | `#818cf8` | `--ceq-secondary-color` | Unselected rating-scale ticks; star rating empty icon; slider track (unfilled); secondary/back button border; input / textarea border |
 | `backgroundColor` | `#ffffff` | `--ceq-background-color` | Survey card surface; input / textarea background; page background when `backgroundImageUrl` is null |
-| `textColor` | `#111827` | `--ceq-text-color` | Survey title, brand name header (chrome), question labels, helper text, input / textarea text, thank-you copy, consent-disclosure body, footer "Powered by" copy (reduced opacity), placeholder text (reduced opacity) |
+| `textColor` | `#111827` | `--ceq-text-color` | Survey title, question labels, helper text, input / textarea text, thank-you copy, consent-disclosure body, footer "Powered by" copy (reduced opacity), placeholder text (reduced opacity) |
 | `buttonColor` | `#6366f1` | `--ceq-button-color` | Primary CTA (Submit / Continue) background |
 | `buttonTextColor` | `#ffffff` | `--ceq-button-text-color` | Primary CTA label |
 | `accentColor` | `#6366f1` | `--ceq-accent-color` | Selected option highlight (radio / checkbox / MCQ choice / Likert matrix cell); required-field asterisk |
