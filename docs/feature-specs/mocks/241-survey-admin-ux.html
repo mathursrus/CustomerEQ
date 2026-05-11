@@ -214,6 +214,14 @@
   .preview-survey .ps-actions { display: flex; justify-content: flex-end; }
   .preview-survey .ps-actions .ps-submit { background: var(--primary); color: white; padding: 6px 12px; font-size: 11px; border-radius: 5px; border: none; }
   .preview-survey .ps-hidden { display: none !important; }
+  /* Member-ID field (Standalone) / from-URL indicator (Embedded) — per D42 */
+  .preview-survey .ps-member-id { padding: 6px 8px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 4px; margin: 8px 0; }
+  .preview-survey .ps-member-id-label { font-size: 10px; color: var(--text-subtle); display: block; margin-bottom: 3px; font-weight: 500; }
+  .preview-survey .ps-member-id-input { font-size: 11px; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 3px; width: 100%; background: white; color: var(--text); }
+  .preview-frame.mobile .preview-survey .ps-member-id { padding: 5px 6px; }
+  .preview-frame.mobile .preview-survey .ps-member-id-input { font-size: 10px; }
+  .preview-survey .ps-member-id-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; padding: 4px 8px; background: var(--info-soft); color: var(--info); border-radius: 4px; margin: 8px 0; font-weight: 500; }
+  .preview-survey .ps-member-id-pill::before { content: "🔗"; font-size: 10px; }
 
   /* Chrome matrix */
   .chrome-matrix { background: white; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
@@ -789,6 +797,10 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-member-id">
+                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span></label>
+                        <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
+                      </div>
                       <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -805,6 +817,10 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-member-id">
+                        <label class="ps-member-id-label">Your email <span style="color:var(--danger)">*</span></label>
+                        <input class="ps-member-id-input" type="email" placeholder="you@example.com" />
+                      </div>
                       <div class="ps-question">How likely are you to recommend us?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -825,6 +841,7 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-member-id-pill">Member ID resolved from URL (<code>?member_id=…</code>)</div>
                       <div class="ps-question">How likely are you to recommend Acme Coffee to a friend?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -841,6 +858,7 @@
                         <div class="ps-brand-name" data-elt="name">Acme Coffee</div>
                       </div>
                       <div class="ps-title" data-elt="title">Welcome to Gold tier — quick feedback?</div>
+                      <div class="ps-member-id-pill">Member ID from URL</div>
                       <div class="ps-question">How likely are you to recommend us?</div>
                       <div class="ps-scale">
                         <div class="ps-scale-cell">0</div><div class="ps-scale-cell">1</div><div class="ps-scale-cell">2</div><div class="ps-scale-cell">3</div><div class="ps-scale-cell">4</div><div class="ps-scale-cell">5</div><div class="ps-scale-cell">6</div><div class="ps-scale-cell">7</div><div class="ps-scale-cell">8</div><div class="ps-scale-cell">9</div><div class="ps-scale-cell">10</div>
@@ -952,16 +970,15 @@
 
               <div class="field">
                 <label>Thank-you message</label>
-                <p class="field-help">Shown after submit. Insert variables to reference points / program / member.</p>
-                <textarea id="thank-you-msg">Thank you for your feedback! Your {{points}} {{programName}} {{pointCurrencyName}} are on their way to your account.</textarea>
+                <p class="field-help">Shown after submit. Insert variables to reference the points the respondent earned.</p>
+                <textarea id="thank-you-msg">Thank you for your feedback! Your {{points}} {{pointCurrencyName}} are on their way to your account.</textarea>
                 <div class="variable-picker">
                   <span style="font-size: 11px; color: var(--text-subtle); padding: 4px 0; margin-right: 4px;">Insert:</span>
                   <span class="variable-chip" onclick="insertVariable('{{points}}')">{{points}}</span>
-                  <span class="variable-chip" onclick="insertVariable('{{programName}}')">{{programName}}</span>
                   <span class="variable-chip" onclick="insertVariable('{{pointCurrencyName}}')">{{pointCurrencyName}}</span>
                   <span class="variable-chip" onclick="insertVariable('{{rewardLink}}')">{{rewardLink}}</span>
-                  <span class="variable-chip" onclick="insertVariable('{{memberName}}')">{{memberName}}</span>
                 </div>
+                <p style="font-size: 11px; color: var(--text-subtle); margin-top: 4px;">V0 variables only. <code>{{programName}}</code> and <code>{{memberName}}</code> aren't surfaced — program name is an internal concept, and member name isn't guaranteed to be on the Member record.</p>
               </div>
 
               <div class="field">
