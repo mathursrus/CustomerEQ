@@ -150,7 +150,7 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       expect(themeNames).toEqual(['Forest', 'Indigo', 'Slate', 'Sunset'])
 
       // Each row carries the swatches projection — [primaryColor, secondaryColor, backgroundColor].
-      // accentColor is intentionally NOT included; it's used for error/warning emphasis.
+      // accentColor is intentionally NOT included; it's used for selection emphasis (selected option, required-field asterisk, Likert matrix cell), not error/warning.
       for (const theme of res.body.themes) {
         expect(Array.isArray(theme.swatches)).toBe(true)
         expect(theme.swatches).toHaveLength(3)
@@ -168,7 +168,7 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       expect(defaultThemes[0].name).toBe('Indigo')
 
       // Verify a known mapping: Indigo's swatches = [#4f46e5, #7c3aed, #ffffff]
-      // (primary, secondary, background — NOT accent, which is #b91c1c).
+      // (primary, secondary, background — NOT accent, which is #047857).
       const indigo = res.body.themes.find((t: { name: string }) => t.name === 'Indigo')
       expect(indigo.swatches).toEqual(['#4f46e5', '#7c3aed', '#ffffff'])
 
@@ -182,14 +182,18 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       expect(dbThemes.map((t) => t.name)).toEqual(['Forest', 'Indigo', 'Slate', 'Sunset'])
 
       // Accent colors are stored on the row even though they're not in the
-      // swatches projection — Slice 4 reads them for error/warning emphasis.
-      // Sunset uses rose-700 (#be123c) to avoid clashing with its orange
-      // primary; the other three use red-700 (#b91c1c).
+      // swatches projection — the renderer reads them for selection emphasis
+      // (chosen radio/checkbox/MCQ option, selected Likert matrix cell,
+      // required-field asterisk) per the #241 BrandTheme → Survey element
+      // token mapping. Each theme's accent is chosen from a hue family
+      // distinct from its primary/secondary — emerald (Indigo), sky (Forest),
+      // teal (Sunset), indigo (Slate) — so the "you selected this" signal
+      // remains visually separate from brand identity colors.
       const accentByName = Object.fromEntries(dbThemes.map((t) => [t.name, t.accentColor]))
-      expect(accentByName.Indigo).toBe('#b91c1c')
-      expect(accentByName.Forest).toBe('#b91c1c')
-      expect(accentByName.Sunset).toBe('#be123c')
-      expect(accentByName.Slate).toBe('#b91c1c')
+      expect(accentByName.Indigo).toBe('#047857')
+      expect(accentByName.Forest).toBe('#0369a1')
+      expect(accentByName.Sunset).toBe('#0f766e')
+      expect(accentByName.Slate).toBe('#4338ca')
     })
 
     it('seeds Brand.name from the identity-provider organization name on first run (PR #308 feedback)', async () => {
