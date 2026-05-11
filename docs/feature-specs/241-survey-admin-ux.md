@@ -276,6 +276,140 @@ These items are unresolved at spec-converge time and resolve during the RFC / im
 - **OQ2** — A member may be enrolled in multiple programs each with `EarningRule(triggerEvent='survey_completion')`. The current evaluator writes one `LoyaltyEvent` per matching `(member, program)` pair. Should #241 preserve that behavior or restrict to the survey's specific program only? *Recommendation*: restrict to the survey's program (`Survey.programId`) since the response is for a specific program's survey.
 - **OQ3** — Active Campaign multipliers layering on top of `EarningRule.pointsAwarded`: spec describes the desired runtime resolution (`base × multipliers`), but the current code path doesn't implement campaign-multiplier layering for EarningRules — campaigns fire as independent action triggers via `SurveyRule`. **Decision needed**: does #241 V0 implement the multiplier-layering or defer to a follow-up? *Recommendation*: defer — V0 ships the base EarningRule path; campaign multipliers are a future enhancement (would warrant their own design + sub-issue).
 
+### Error States
+
+Per the `requirement-extraction` skill ("explicit edge cases for invalid input, empty states, and failure handling"). Each row maps to the requirement that owns it or names a new edge.
+
+| Scenario | Behavior | Owning requirement |
+|---|---|---|
+| Activate clicked with `Survey.questions.length === 0` | Activation gated; editor jumps to Questions tab with inline message "Add at least one question before activating." | R23 |
+| Activate clicked with required Basics fields empty (name / title / program / type / response policy) | Activation gated; editor jumps to Basics tab with field-level error markers; activate modal does not open. | R23 |
+| Consent override PATCH without attestation flag or reason text | API returns HTTP 422; attestation modal stays open with field-level error; no audit row written. | R10 |
+| Cross-brand PATCH access attempt | API returns HTTP 403; no row mutation; audit row written for the unauthorized access attempt. | NFR-S1 / project rule R6 |
+| Disclosure text override > 500 chars | Client-side: textarea max-length 500 with live character counter; server validates same on PATCH. | new edge — covered by R12 amendment |
+| Embed widget mount without `?member_id` query param | Form falls back to rendering the member-ID prompt that Standalone surveys use (graceful degradation per R16). | R16 |
+| Response submit when `responsePolicy === 'ONCE'` and member already submitted | API returns HTTP 409 with respondent-facing message "You've already answered this survey." No new SurveyResponse row written. | Inherits from #231 |
+| Response submit when `responsePolicy === 'LATEST_OVERWRITES'` and prior response exists | API updates the prior row; emits `survey_completion` event with `idempotencyKey` advancing to a new token so the EarningRule fires once per submission. | R22 / NFR-R2 |
+| Program has no `EarningRule(triggerEvent='survey_completion')` AND member submits a response | Worker silently skips earning (no LoyaltyEvent row, no error). The editor's Points & Thank You row pre-warns the admin via "No points configured for survey completion." | OQ1 / R20 |
+| Auto-save PATCH fails (network error) | Editor shows a non-blocking "Save failed — retrying…" indicator; retries with exponential backoff up to 5 attempts; preserves user edits in browser state across retries. After 5 failures, surfaces a blocking error with "Copy edits to clipboard" affordance. | NFR-R3 |
+| Theme picker has zero themes (brand newly created, no defaults provisioned) | Falls back to a system-default theme; banner: "Your brand has no themes yet — set them up in Organization Settings." Survey remains saveable; no editor-blocking error. | new edge — covered by R19 amendment |
+| Stop / Restart / Pause issued from a state that doesn't permit it (e.g., Restart on DRAFT) | More-menu only renders the transitions valid for the current state (per R26 menu shape); API also returns HTTP 400 if a route is hit directly. | R26 + R24 |
+
+## Non-Functional Requirements
+
+The behaviors above are functional; this section captures the constraints they must operate under. Tags `NFR-*` are grouped by category and referenced from the RFC's architecture-decisions matrix.
+
+### Performance
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| **NFR-P1** | Editor auto-save PATCH response time | p95 < 200ms; p99 < 500ms (single-field save). Measured at the API boundary. |
+| **NFR-P2** | Survey form initial render (standalone, cold load) | p95 < 2s on a representative 3G mobile profile; p99 < 4s. Measured via the standalone `/s/<surveyId>` route. |
+| **NFR-P3** | Embed widget mount + first paint | p95 < 1s post-DOMContentLoaded on host page. Self-contained bundle; no external runtime dependencies. |
+| **NFR-P4** | Response submit → `LoyaltyEvent` write | p95 < 30s end-to-end (well within Issue #6's 15-min feedback-to-action SLA per CLAUDE.md). |
+| **NFR-P5** | Activate gating check (client-side validation of question count + required fields) | < 100ms locally; never hits API. |
+
+### Security
+
+| ID | Requirement | Control |
+|----|-------------|---------|
+| **NFR-S1** | Every Survey read / write SHALL be brand-scoped | Per project rule R6 — `brandId` sourced from verified JWT, never accepted from request body. Already enforced in `apps/api/src/routes/surveys.ts` (36 `brandId` references verified). The consent-override PATCH endpoint absorbed from #283 uses the same gate. |
+| **NFR-S2** | Survey IDs SHALL be opaque (unguessable) | `Survey.id` is a Prisma cuid (already in schema). Share links use the full cuid; no sequential surface. |
+| **NFR-S3** | Disclosure text override SHALL NOT permit raw HTML | Server validates: only `{{privacy:"<label>"}}` and `{{terms:"<label>"}}` tokens are permitted to produce HTML output (resolved to `<a>` tags); all other text is escaped at render time. Prevents XSS via disclosure text. |
+| **NFR-S4** | Embed widget SHALL run with no host-page privilege escalation | Widget JS served from CustomerEQ origin; iframe runs in host page context but does not require host cookies / localStorage; `member_id` is passed via URL param only (R16). |
+| **NFR-S5** | Audit-log writes for consent-mode override SHALL include `actorUserId`, IP (if available), and request timestamp | Existing audit plugin captures these; survey-override PATCH path inherits the plugin's behavior. |
+
+### Reliability
+
+| ID | Requirement | Control |
+|----|-------------|---------|
+| **NFR-R1** | `LoyaltyEvent` + `Member.pointsBalance` SHALL update atomically | Per project rule R7. Single Prisma `$transaction` wraps both writes in the existing worker handler `apps/worker/src/processors/loyaltyEvents.ts:250-267` (verified). |
+| **NFR-R2** | Response submit SHALL be idempotent | Existing CX event uses key `survey:${surveyId}:${memberId}`. The new `survey_completion` event (per #315) SHALL use a distinct key `survey-completion:${surveyId}:${memberId}` so both fire without collision but neither double-credits on retry. |
+| **NFR-R3** | Auto-save SHALL be resilient to transient network failures | Network failure → non-blocking "Save failed — retrying…" indicator; exponential backoff up to 5 attempts; user edits preserved in browser state across retries (see Error States table). |
+| **NFR-R4** | State-transition consistency | All `Survey.status` writes go through `PATCH /v1/surveys/:id/status` (existing single endpoint, verified at `surveys.ts:126`). No client-side status writes. |
+
+### Scalability
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| **NFR-SC1** | Editor SHALL remain interactive with up to 200 questions per survey | Drag-drop canvas, question selection, and right-rail config updates all sub-100ms locally with `Survey.questions.length = 200`. |
+| **NFR-SC2** | Theme picker SHALL scale with brand-theme count | Renders up to 100 themes in the card grid without lazy-loading or pagination. Beyond 100, a "Search themes" field becomes visible (deferred until a brand approaches the limit). |
+| **NFR-SC3** | Surveys list SHALL paginate | Existing pageSize=25 cursor pagination (unchanged). |
+| **NFR-SC4** | Response submission throughput SHALL accommodate burst loads | The existing BullMQ queue + worker pipeline handles back-pressure; survey-completion events emit to the same queue. No new scalability surface introduced by #241. |
+
+### Accessibility (WCAG 2.1 AA target)
+
+| ID | Requirement | Control |
+|----|-------------|---------|
+| **NFR-A1** | Editor SHALL be fully keyboard-navigable | Tab order: page-header → horizontal tabs → tab body → Back/Continue → top-right Activate. Roving-tabindex on the tab strip; Arrow keys cycle tabs. Drag-drop canvas operations have keyboard alternatives (Up/Down to reorder, Enter to select for edit). |
+| **NFR-A2** | All controls SHALL have programmatic labels | Chrome-matrix toggles: `aria-label="<element> on <channel>"`. Consent-mode dropdown: `aria-describedby` pointing at the preview-card. Required fields: `aria-required="true"`. |
+| **NFR-A3** | Color SHALL NOT be the only state indicator | Status badges include text labels ("Draft" / "Active" / "Stopped") alongside color. Audit-trail badge same. |
+| **NFR-A4** | Respondent-side form SHALL meet WCAG AA contrast and label requirements | Member-identification field has explicit `<label>`; consent disclosure links keyboard-accessible; submit button has visible focus ring. |
+| **NFR-A5** | Validation errors SHALL be programmatically associated with their fields | `aria-describedby` from input to error message; live region announces validation state changes for screen readers. |
+
+### Observability
+
+| ID | Requirement | Mechanism |
+|----|-------------|-----------|
+| **NFR-O1** | Audit log SHALL capture every Survey state transition | Per R24. `apps/api/src/plugins/audit.ts` extended (existing plugin, verified) — `metadata.fromStatus` + `metadata.toStatus` written on each PATCH status. |
+| **NFR-O2** | Audit log SHALL capture every consent-mode override write | Per R10/R11. Includes `metadata.consentMode`, `metadata.consentReason`, `actorUserId`. |
+| **NFR-O3** | Audit log SHALL capture every disclosure-text change | Per R13. Includes `metadata.consentTextOverride` (new value, truncated to first 200 chars) + actor + timestamp. |
+| **NFR-O4** | Survey-completion event SHALL emit standard event metrics | Worker emits BullMQ consumer-lag, success-count, failure-count per existing observability pattern (no new metrics surface). |
+| **NFR-O5** | Editor activity SHALL feed a future "survey activity" view | The audit log is the data substrate (per NFR-O1/O2/O3); the UI for the activity view is out of scope for #241. |
+
+### Internationalization
+
+| ID | Requirement | V0 posture |
+|----|-------------|------------|
+| **NFR-I1** | UI strings extractable for translation | **Deferred.** Verified `apps/web/package.json` includes no i18n library (`next-intl` / `react-intl` / `i18next` all absent). V0 keeps editor strings inline in English — NOT a regression vs. existing admin surfaces. Revisit when the platform adopts i18n broadly. |
+| **NFR-I2** | Currency labels SHALL respect the program's configured currency name | Required at V0. `{{pointCurrencyName}}` variable in the thank-you message surfaces `Program.pointCurrencyName`. The Points & Thank You read-only display also uses this. |
+| **NFR-I3** | Respondent-side form SHALL support RTL layout | Deferred to platform i18n adoption (NFR-I1). |
+
+### Browser compatibility
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| **NFR-B1** | Editor SHALL support latest 2 versions of Chrome / Safari / Firefox / Edge | Matches existing CustomerEQ admin browser support. |
+| **NFR-B2** | Respondent-side form SHALL support latest 2 versions of Chrome / Safari / Firefox / Edge, plus iOS Safari (latest 2) and Android Chrome (latest 2) | Same form-renderer code path; verified via E2E suite browser matrix. |
+| **NFR-B3** | Embed widget SHALL mount cleanly inside iframes, shadow-DOM hosts, and direct host DOM | Self-contained bundle with no external runtime dependencies; CSS uses BEM-style namespacing to avoid host-page collisions. |
+
+### Backward compatibility & migrations
+
+| ID | Requirement | Control |
+|----|-------------|---------|
+| **NFR-BC1** | Migrations SHALL be idempotent | Per #270 lessons — every migration safe to re-run; covered by the existing CI gate (`scripts/check-migration-idempotency.sh` or equivalent). |
+| **NFR-BC2** | Existing SurveyResponse rows SHALL be untouched by #241 migrations | Schema deltas (Survey.title add, Survey.incentivePoints drop, status enum rename) operate on the Survey table only. SurveyResponse rows are not modified. |
+| **NFR-BC3** | All `/v1/surveys/*` API endpoint paths and HTTP verbs SHALL remain unchanged | Field shapes evolve (PATCH body now accepts `title`; `incentivePoints` removed from response shape). Existing clients without the new field continue to work; missing `title` is backfilled to `name` value at migration time so existing surveys render correctly. |
+| **NFR-BC4** | The new `PATCH /v1/surveys/:id/consent-mode` endpoint (absorbed from #283) SHALL be additive | No existing endpoint is removed or renamed. |
+
+## Schema and API Summary (RFC handoff aid)
+
+Consolidated table of every schema delta and API surface change in #241, for the RFC author's reference.
+
+### Schema deltas (Prisma migrations)
+
+| Migration | Type | Description | Backfill |
+|---|---|---|---|
+| Add `Survey.title` | Add nullable column | `title String?` — respondent-facing form heading (D16) | Existing rows backfilled to `Survey.name` value |
+| Drop `Survey.incentivePoints` | Drop column | Per D40 — earning lives on the program's EarningRule | Auto-create `EarningRule(triggerEvent='survey_completion', pointsAwarded=N, attribution='__migration_241__')` for brands with prior intent on Survey but no program-side rule |
+| Rename `SurveyStatus.CLOSED → STOPPED` | Enum rename | Per D5 / R25 — vocabulary consolidation | Existing rows with `status='CLOSED'` updated to `status='STOPPED'`; UI strings updated lockstep |
+| Delete `EarningRule` rows with `triggerEvent='survey_completion'` configured but with no associated Survey program? | Not a schema delta — kept rows ARE the canonical path per D40 | n/a | n/a |
+
+### API surface changes
+
+| Endpoint | Verb | Change | Reference |
+|---|---|---|---|
+| `/v1/surveys` | POST | Unchanged path; request schema accepts `title` field | R7 |
+| `/v1/surveys` | GET | Unchanged | R1 / R3 |
+| `/v1/surveys/:id` | GET | Unchanged | R2 |
+| `/v1/surveys/:id` | PATCH | Accepts `title` field; no longer accepts `incentivePoints` | R4 / R7 |
+| `/v1/surveys/:id/status` | PATCH | Existing endpoint — now writes audit-log entries via plugin on every transition (per R24 / NFR-O1) | R23 / R24 |
+| `/v1/surveys/:id/consent-mode` | PATCH | **NEW** (absorbed from #283) — writes `Survey.consentMode`, `consentSuppressedAttestedBy`, `consentSuppressedAttestedAt`, `consentReason`. Enforces R10 attestation gate. | D12 / R10 |
+| `/v1/surveys/:id/responses` | POST | Emits `cx.*_response` events (unchanged) PLUS new `survey_completion` event (per #315; not a schema delta) | R22 / #315 |
+| `/v1/public/surveys/:id/respond` | POST | Same change as authenticated path | R22 / #315 |
+
+The new endpoints follow existing platform conventions (brandId-scoped, JWT auth, audit-logged); no new auth substrate.
+
 ## Compliance Requirements
 
 Per `fraim/config.json customizations.compliance.regulations`: GDPR (in-scope), CCPA (in-scope), SOC2 (target month-12), PCI-DSS (minimal-scope — no card data here).
@@ -304,6 +438,12 @@ Per `fraim/config.json customizations.compliance.regulations`: GDPR (in-scope), 
 | **Worker pipeline** | The empirically-confirmed #225 bug (zero LoyaltyEvent rows after survey_completion EarningRule fires) is fixed. | Vitest integration in `apps/worker/test/integration/survey-completion-earn.test.ts`: seed a program with `EarningRule(triggerEvent='survey_completion', pointsAwarded=50)`; seed a member enrolled in the program; submit a response to a survey under that program; assert (a) a LoyaltyEvent row exists with `action='EARN'` and `pointsAwarded=50`, (b) the member's `pointsBalance` advanced by 50, (c) atomicity preserved under transaction rollback. |
 | **Migration** | New `Survey.title` column added as nullable; existing rows backfilled to `Survey.name` value so respondents see something during the transition. | Direct psql replay; assert post-migration `SELECT count(*) FROM "Survey" WHERE title IS NULL` is 0. |
 | **Compliance** | Re-running the empirical reproduction from #225's `LoyaltyEvent`-zero bug yields a non-zero `LoyaltyEvent` after response submit. | Per the issue body's acceptance criterion. Recorded as a smoke test in staging post-deploy. |
+| **Performance (NFR-P1)** | Editor auto-save PATCH p95 < 200ms / p99 < 500ms under typical load. | Bench: 100 sequential field-saves against a seeded survey; assert percentile bounds in a Vitest integration test. |
+| **Performance (NFR-P3)** | Embed widget mount + first paint < 1s after host-page DOMContentLoaded. | Playwright on a sample host-page test fixture; assert `performance.measure('widget-mount')` duration. |
+| **Accessibility (NFR-A1–A5)** | Editor + respondent form pass WCAG 2.1 AA. | Automated: `@axe-core/playwright` baked into the E2E suite; assert zero AA violations on editor + respondent surfaces. Manual: keyboard-only walkthrough of the editor tab flow + form submission. |
+| **Security (NFR-S3)** | Disclosure-text override does not permit raw HTML. | Vitest unit: feed disclosure-renderer a payload containing `<script>` / `<img onerror>` strings; assert output is escaped and only the `{{privacy:"…"}}` / `{{terms:"…"}}` tokens resolve to `<a>` tags. |
+| **Reliability (NFR-R2)** | Response submit is idempotent — same `idempotencyKey` doesn't double-credit. | Vitest in `apps/worker/test/integration/survey-completion-earn.test.ts` (already specified for #315). Submit the same payload twice; assert exactly one `LoyaltyEvent` row exists and `Member.pointsBalance` advanced exactly once. |
+| **Browser matrix (NFR-B2)** | Respondent-side form works on iOS Safari + Android Chrome (latest 2 each). | Existing E2E browser matrix extended to mobile browsers via Playwright projects config. |
 
 ## Alternatives
 
@@ -463,5 +603,6 @@ Iteration history — every decision made during R0–R4 of the mock-and-spec co
 | D44 | R6 (PR #314 review) | **All survey state transitions emit audit log entries.** Every transition (Activate / Pause / Resume / Stop / Restart / Discard / Delete) writes `{ actorUserId, surveyId, fromStatus, toStatus, timestamp }` via the existing audit plugin. Feeds compliance reporting + any future "survey activity" view. | User R6 inline comment on L166: "All Survey state changes must be logged for audit and reporting purposes". Existing audit-plugin infrastructure already supports this shape (per #277 + #283); #241's implementation extends it to every survey-state-mutation route. | UX §5 + R24 |
 | D45 | R6 (PR #314 review) | **Spec adopts FRAIM standard format** — Functional Requirements section in SHALL-style with Given/When/Then acceptance criteria + traceability tags `R1`–`R28` + Open Questions block. Competitive Analysis section restructured to match FRAIM template: Configured Competitors Analysis + Additional Competitors Analysis + Competitive Positioning Strategy (Our Differentiation / Competitive Response Strategy / Market Positioning) + Research Sources. | User R6 conversation comment: "Why are requirement not as SHALL statements as required by FRAIM? Competitor analysis also doesn't seem to match FRAIM's standard." The earlier rounds had behaviors only in narrative §1–§7 form, which works for design review but is not testable language. The SHALL section is now derivable from the UX prose and serves as the contract for tests + the RFC's traceability matrix. | Spec-wide structure |
 | D46 | R6 (PR #314 review) | **CCPA right-to-deletion** is tracked under [#264](https://github.com/mathursrus/CustomerEQ/issues/264) (P1 — *Build GDPR erasure job + Art. 15 data-export endpoint*). The earlier spec text claimed "the existing `apps/worker` erasure job pattern" — that job does not exist yet. Updated to reference the in-roadmap issue. | User R6 inline comment on L203: "This job does not exist yet. Will need to implement, but is in the roadmap. Identify the issue and update". Followed memory pattern *"Asserted facts about file / config / external-state contents without reading the primary source first"* — I imported aspirational architecture language that didn't match the codebase. | Compliance §CCPA |
+| D47 | R7 (post-RCA audit) | **Spec adds Non-Functional Requirements + Error States + Schema/API Summary sections.** Per user R7 audit request: "I don't see any Non Functional requirements in the spec. So do a thorough audit and correct as needed." Applied the freshly-defined preventive controls from the RCA (CTRL-2: FRAIM template compliance pass at submit; CTRL-3: primary-source verification before assertion; CTRL-4: per-section orthogonal-axis pass). New top-level NFR section with 9 categories (Performance / Security / Reliability / Scalability / Accessibility / Observability / Internationalization / Browser compatibility / Backward compatibility & migrations). New Error States subsection within Functional Requirements consolidating 12 edge cases scattered across G/W/T. New "Schema and API Summary" section that consolidates the scattered schema-delta and API-surface change descriptions for the RFC author's reference. Validation Plan extended with 6 new rows covering Performance / A11y / Security / Reliability / Browser-matrix NFR verification. | User R7: "Can you also check again the feature specification document and any new missing / incorrectly written sections? I don't see any Non Functional requirements in the spec. So do a thorough audit and correct as needed before I review again." This is the first application of the RCA preventive controls — proves the loop closes: RCA identifies the failure mode → preventive controls defined → next request triggers the controls → gap caught and filled before user review. Two new claims in the NFR section were verified against primary sources before writing (CTRL-3): `apps/api/src/plugins/audit.ts` exists (5607 bytes verified); `apps/api/src/routes/surveys.ts` contains 36 brandId references and PATCH endpoints at lines 126 / 160 verified; `apps/web/package.json` confirmed to have no i18n library (next-intl / react-intl / i18next absent). | Functional Requirements (Error States) + new NFR section + new Schema/API Summary section + Validation Plan amendments |
 
-🤖 Spec converged after 6 review rounds (R0 seed + 4 user feedback rounds + 1 architectural reversal + 1 PR-review batch). Implementation RFC and validation matrix follow this PR.
+🤖 Spec converged after 7 review rounds. The R7 audit applied the preventive controls defined in the R6 RCA (`docs/evidence/241-rca-evidence.md`) — first proof the RCA→prevention loop closes in-flight. Implementation RFC and validation matrix follow this PR.
