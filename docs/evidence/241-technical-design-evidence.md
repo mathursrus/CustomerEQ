@@ -100,11 +100,11 @@ Every spec requirement (Epic AC, functional R#, Open Question, Non-Functional Re
 | NFR-R3 — auto-save network resilience | §Web UI / RHF form structure (exponential backoff up to 5 retries) | Met | Unit/E2E network-failure simulation |
 | NFR-R4 — state-transition consistency (single endpoint) | §API / PATCH /:id/status (existing single endpoint) | Met | Existing test coverage |
 | NFR-R5 — BullMQ backpressure | §API enqueue pattern unchanged | Met | Existing BullMQ DLQ behavior |
-| NFR-SC1 — editor interactive with 200 questions | §Web UI / QuestionsTab (dnd-kit virtualization optional) | Met | Manual scaling test in implementation phase |
+| NFR-SC1 — editor interactive with 200 questions | §Web UI / QuestionsTab (Up/Down reorder; lazy-render questions outside viewport if needed) | Met | Manual scaling test in implementation phase |
 | NFR-SC2 — theme picker scales to 100 themes | §Web UI / LookFeelTab (search field beyond 100) | Met | Visual + perf check in implementation phase |
 | NFR-SC3 — surveys list pagination unchanged | §API / GET /v1/surveys (cursor pagination retained) | Met | Existing behavior |
 | NFR-SC4 — response submission burst load | §API enqueue + existing BullMQ scaling | Met | Existing capacity |
-| NFR-A1 — fully keyboard-navigable editor | §Web UI / RHF + dnd-kit (Arrow keys for reorder) | Met | `@axe-core/playwright` zero violations; manual keyboard walk |
+| NFR-A1 — fully keyboard-navigable editor | §Web UI / RHF + Up/Down reorder buttons (Tab + Enter/Space — trivially keyboard-accessible) | Met | `@axe-core/playwright` zero violations; manual keyboard walk |
 | NFR-A2 — programmatic labels | §Web UI / SurveyEditorForm | Met | axe-core |
 | NFR-A3 — color not only state indicator | §Web UI / status badges (text + color) | Met | axe-core + manual check |
 | NFR-A4 — respondent form WCAG AA | §Web UI / SurveyFormRenderer | Met | axe-core on respondent surface |
@@ -165,27 +165,25 @@ Documented in RFC §Architecture Analysis. Summary for the user:
 
 | Gap ID | Decision needed from reviewer |
 |---|---|
-| **MA1** | Approve ADR 0001 amendment for "section-tabbed-create" exception class? RFC files the amendment as a companion commit on this branch by default. |
-| **MA2** | Document "auto-save on blur" pattern as the canonical admin-form pattern in architecture.md §3.1? RFC follows the pattern; documenting makes it discoverable for future entities. |
-| **MA3** | Document the state-aware PATCH field allowlist contract in architecture.md §4.1 (HTTP 409 with `{code, field, currentState}` body)? Useful for future stateful entities (Campaigns, Programs). |
-| **MA4** | Document the audit plugin `metadata.requestIp` pattern in architecture.md §4.2 audit plugin row (per-route allowlist must include `'requestIp'`; null on trust-proxy misconfiguration with structured-log warning)? |
-| **TQ5** (open question, see RFC) | Amend §3.7 to allow `packages/embed` to import from internal packages when Vite library mode bundles them inline at build? Default in this RFC: keep §3.7 as-is, inline-duplicate the renderer with Playwright visual-regression CI gate as the parity enforcement. Revisit if maintenance cost climbs. |
+| **MA1** | Document the state-aware save-mode pattern (auto-save in DRAFT, explicit per-tab Save in ACTIVE/PAUSED, read-only in STOPPED) in architecture.md §3.1? RFC introduces the pattern; documenting it makes it discoverable for future stateful admin editors. |
+| **MA2** | Document the state-aware PATCH field allowlist contract in architecture.md §4.1 (HTTP 409 with `{code, field, currentState}` body)? Useful for future stateful entities (Campaigns, Programs). |
+| **MA3** | Document the audit plugin `metadata.requestIp` pattern in architecture.md §4.2 audit plugin row (per-route allowlist must include `'requestIp'`; null on trust-proxy misconfiguration with structured-log warning)? |
 
-All four updates (MA1–MA4) are deferred to the address-feedback phase per FRAIM contract — none are blockers for this design review. TQ5 is an open question the reviewer answers as part of this design review.
+All three updates (MA1–MA3) are deferred to the address-feedback phase per FRAIM contract — none are blockers for this design review. The §3.7-amendment alternative (allow internal-package imports in `packages/embed` when Vite library mode bundles them inline) is filed as a **separate CustomerEQ issue** with full why/when/risks — independent of #241; not an open question for this PR.
 
 ## Due Diligence Evidence
 
 - Reviewed feature spec in detail: **Yes** — 645-line spec read in full, including all 52 decisions, 32 R# requirements, 39 NFRs, 5 OQs, 12 Error States, full Schema and API Summary handoff table, and Compliance + Validation Plan sections.
 - Reviewed codebase in detail to understand and repro the issue: **Yes** — verified every spec claim against primary sources at exact line numbers. Surfaced 4 reconciliations (SurveyStatus enum already has PAUSED; Survey.title doesn't exist; AuditEvent lacks ipAddress; EarningRule has no `attribution` column — RFC uses `name` prefix instead). Re-read `surveys.ts` PATCH handlers, `loyaltyEvents.ts` exact-match logic, `audit.ts` plugin shape, `OrganizationSettingsForm.tsx` reference impl, and the four ADRs in `docs/architecture/adr/`.
-- Included detailed design, validation plan, test strategy in doc: **Yes** — RFC has 18 sections, 5-slice implementation plan, full traceability matrix, and Architecture Analysis with explicit pattern classification.
+- Included detailed design, validation plan, test strategy in doc: **Yes** — RFC has 18 sections, 4-slice implementation plan (post-reviewer-feedback round 2), full traceability matrix, and Architecture Analysis with explicit pattern classification.
 
 ## Prototype & Validation Evidence
 
 - [x] Built simple proof-of-concept that works end-to-end: **N/A — no spike required**. All ambiguities resolved through primary-source code reading per RFC §"Spike Findings". Codebase patterns (`OrganizationSettingsForm` for RHF, `_brandtheme_surveytheme_split` for the hand-edited migration shape, `consent-text` for the domain-narrow package precedent, `audit.ts` per-route allowlist for the new endpoint shape) all exist in-tree and have been read at exact line numbers.
 - [x] Manually tested complete user flow (browser/curl): **N/A in design phase — implementation phase owns**. The interactive mock at `docs/feature-specs/mocks/241-survey-admin-ux.html` (1,477 lines, fully wired) is the design-time substitute and was the artifact reviewers walked through during the 12 spec rounds.
 - [x] Verified solution actually works before designing architecture: **Yes** — the migration's D50 fan-out SQL was sketched mentally against the EarningRule + Survey schema state (verified at exact lines); the worker's existing exact-string-match (`loyaltyEvents.ts:81`) was confirmed unchanged by the design; the embed widget's prefill flow was traced through `resolveOrEnrollMember` at `public.ts:295` (POST body consumes the right shape).
-- [x] Identified minimal viable implementation: **Yes** — 5 slices, each independently revertable. Slice 1 (schema + migration) is the gate; remaining slices can be paused/resumed without blocking each other.
-- [x] Documented what works vs. what's overengineered: **Yes** — RFC §Risks & Mitigations names the bundle-size and dnd-kit decisions; §Open Questions lists the 4 remaining tradeoffs (ADR amendment scope, title ≠ name enforcement, dnd-kit vs. Up/Down only, launch endpoint deprecation).
+- [x] Identified minimal viable implementation: **Yes** — 4 slices (post-reviewer-feedback round 2), each independently revertable. Slice 1 (schema + migration) is the gate; remaining slices can be paused/resumed without blocking each other.
+- [x] Documented what works vs. what's overengineered: **Yes** — RFC §Risks & Mitigations names the renderer-drift mitigation strategy and the auto-save-in-live-state failure mode. Round-2 review explicitly cut dnd-kit (out of spec scope) and the ADR 0001 amendment proposal (`/new` retained as redirect handler).
 
 ## Continuous Learning
 
@@ -193,7 +191,9 @@ All four updates (MA1–MA4) are deferred to the address-feedback phase per FRAI
 |---|---|
 | RFC must verify schema column names + line numbers against primary source before claiming a delta. Architecture doc may lag the schema (e.g., still names `SurveyTheme` while schema has `BrandTheme`). | Reinforces existing memory: `feedback_diagnose_my_script_before_blaming_externals` family — primary-source verification. No new memory needed; the existing CTRL-3 pattern fired correctly. |
 | Embed widget cross-package imports are forbidden by architecture §3.7. When the same renderer is needed by both apps/web and packages/embed, extract a domain-narrow runtime package. `packages/consent-text` is the precedent shape. | Worth surfacing into a project-wide architecture rule. Recommend `mcp__fraim` learning sync after this RFC merges so future RFCs check the no-cross-import invariant up-front. |
-| ADR 0001 standard CRUD pattern has natural exception classes (section-tabbed-create when the form is multi-section + has good defaults). Future entities matching the criteria may follow #241's pattern. | Captured as RFC MA1 + ADR 0001 amendment proposed in same branch. |
+| Auto-save in admin editors of state-bearing entities is dangerous in live states — a typo on blur immediately reaches downstream consumers. The pattern shouldn't be one-size-fits-all; save mode should be state-aware. | Captured as RFC MA1 (state-aware save mode); reinforces feedback memory `feedback_audit_mock_vs_spec_at_every_round` (round-2 review caught this where round-1 review didn't surface it). |
+| Reviewer questions are often deeper than they look — L646 ("what's the technical right way to avoid the drift script?") asked the same conceptual question as L685 ("keep inline-duplicate") but from a different angle, surfacing that the cleaner long-term answer (extract `packages/survey-renderer` after amending §3.7) deserves its own issue rather than being suppressed inside the RFC. | New project memory worth filing: when a reviewer asks "what's the right way to X" alongside a "keep current approach" comment, file a separate issue for the better-way and let it land independently of the current scope. |
+| Drag-drop UI affordances need to come from spec requirements, not from inherited description prose. The spec's "drag-drop canvas" phrasing came from describing today's `/admin/survey-builder` UX, not from a #241 requirement; the dependency hit (40KB dnd-kit) was added based on that misread. | Reinforces existing CTRL-3 (primary-source verification): "matches existing pattern X" claims must be verified at the source before driving design decisions. |
 
 ## Decision Completeness Check
 
@@ -204,7 +204,7 @@ All four updates (MA1–MA4) are deferred to the address-feedback phase per FRAI
 - ✓ All 14 spec Validation Plan rows operationalized in RFC §Validation Plan
 - ✓ All 12 Error States represented in §API error contracts or component fallbacks
 - ✓ All 6 schema/migration deltas covered in §Migration (3 schema changes + D50 fan-out's 3 SQL phases; NFR-S5 is in-process, no schema change)
-- ✓ 1 Incorrectly-Followed pattern (IF1: embed cross-package import) resolved in RFC body via inline duplication + Playwright visual-regression gate; TQ5 filed for §3.7 amendment as the alternative
-- ✓ 4 Missing-from-Architecture patterns (MA1–MA4) flagged for user review at PR time
+- ✓ 1 Incorrectly-Followed pattern (IF1: embed cross-package import) resolved in RFC body via inline duplication + Playwright visual-regression gate; §3.7 amendment proposal filed as a separate CustomerEQ issue
+- ✓ 3 Missing-from-Architecture patterns (MA1: state-aware save mode; MA2: state-aware PATCH allowlist; MA3: audit metadata.requestIp) flagged for user review at PR time
 
 **Status: Met — no `Unmet` rows. Design ready for PR submission.**
