@@ -41,6 +41,14 @@ async function resolveFirstProgramId(token: string | null): Promise<string | nul
   return list[0]?.id ?? null
 }
 
+// Default NPS questions — CreateSurveySchema requires questions.min(1).
+// The Slice 4 editor will overwrite these via PATCH /v1/surveys/:id once the
+// operator opens the Questions tab; until then this is the seed shape.
+const DEFAULT_QUESTIONS = [
+  { id: 'q1', text: 'How likely are you to recommend us? (0-10)', type: 'rating', required: true },
+  { id: 'q2', text: 'What is the primary reason for your score?', type: 'text', required: false },
+]
+
 async function createDraftSurvey(token: string | null, programId: string): Promise<string | null> {
   const res = await fetch(`${API_URL}/v1/surveys`, {
     method: 'POST',
@@ -52,6 +60,7 @@ async function createDraftSurvey(token: string | null, programId: string): Promi
       name: 'Untitled survey',
       programId,
       type: 'NPS',
+      questions: DEFAULT_QUESTIONS,
     }),
   })
   if (!res.ok) return null
