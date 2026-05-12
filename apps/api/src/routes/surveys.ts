@@ -31,10 +31,10 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
 
     const brandId = request.brandId
     const {
-      name, programId, type, questions, settings, incentivePoints, themeId,
+      name, programId, type, questions, settings, themeId,
       triggerCategory, triggerKey, surveyTypeOverride,
-      // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
-      thankYouMessage, thankYouRedirectUrl, showIncentivePoints,
+      // Issue #291 — per-survey thank-you copy/routing moved from BrandTheme to Survey.
+      thankYouMessage, thankYouRedirectUrl,
     } = parse.data
 
     // Verify program belongs to this brand
@@ -53,14 +53,12 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         type,
         questions,
         settings: (settings ?? undefined) as Prisma.InputJsonValue | undefined,
-        incentivePoints: incentivePoints ?? null,
         themeId: themeId ?? null,
         triggerCategory: triggerCategory ?? null,
         triggerKey: triggerKey ?? null,
         surveyTypeOverride: surveyTypeOverride ?? null,
         thankYouMessage,
         thankYouRedirectUrl: thankYouRedirectUrl ?? null,
-        showIncentivePoints,
       },
     })
 
@@ -303,19 +301,13 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue CX event (response saved)')
     }
 
-    // ── Integration Point 2: Survey incentive points ──
-    if (survey.incentivePoints && survey.incentivePoints > 0) {
-      enqueueEvent({
-        brandId,
-        memberId,
-        eventType: 'cx.survey_completed',
-        payload: { surveyId, surveyName: survey.name, incentive: true },
-        idempotencyKey: `survey-incentive:${surveyId}:${memberId}`,
-        ingestedAt,
-      }).catch((err: unknown) => {
-        fastify.log.error({ err, surveyId, memberId }, 'Failed to enqueue survey incentive event')
-      })
-    }
+    // Issue #241 — the prior "Integration Point 2: Survey incentive points" block
+    // that emitted a second `cx.survey_completed` event when survey.incentivePoints > 0
+    // is removed. `Survey.incentivePoints` is gone; per-type cx event emission
+    // is owned by the response handler (Integration Point 1 above) and earning
+    // is now driven by EarningRule rows keyed on those events (D50 fan-out).
+    // Slice 2 (#241) will further tighten emission semantics + responsePolicy
+    // enforcement.
 
     // ── Integration Point 3: Sentiment analysis for open-ended text ──
     if (openEndedText) {

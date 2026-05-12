@@ -14,7 +14,6 @@ interface Survey {
   type: string
   status: string
   programId: string
-  incentivePoints: number | null
 }
 
 interface Program {

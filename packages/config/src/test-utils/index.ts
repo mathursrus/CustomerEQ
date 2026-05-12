@@ -2,6 +2,11 @@
 export { setupTestDb, getTestPrisma } from './db/setup.js'
 export { teardownTestDb } from './db/teardown.js'
 export { seedTestDb } from './db/seed.js'
+export { setupMigrationTestDb } from './db/setup-migration-test-db.js'
+export type {
+  MigrationTestDbHandle,
+  SetupMigrationTestDbOptions,
+} from './db/setup-migration-test-db.js'
 
 // Factories
 export { createBrand } from './factories/brand.factory.js'

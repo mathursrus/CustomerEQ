@@ -69,7 +69,6 @@ export const CreateSurveySchema = z.object({
   type: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']),
   questions: z.array(SurveyQuestionSchema).min(1, 'At least one question is required'),
   settings: z.record(z.unknown()).optional(),
-  incentivePoints: z.number().int().positive().max(100000, 'Incentive points cannot exceed 100,000').optional(),
   themeId: z.string().optional(),
   // Issue #79 — trigger wizard fields (all optional for backwards compatibility)
   triggerCategory: z.enum(['loyalty', 'cx_risk', 'scheduled']).optional(),
@@ -78,23 +77,24 @@ export const CreateSurveySchema = z.object({
   // Issue #291 — per-survey thank-you copy/routing/toggle (moved from BrandTheme)
   thankYouMessage: z.string().max(500).default('Thank you for your feedback!'),
   thankYouRedirectUrl: z.string().url().nullable().optional(),
-  showIncentivePoints: z.boolean().default(true),
+  // Issue #241 — incentivePoints + showIncentivePoints removed (D19/D40/D50): points never appear
+  // on the form; earning consolidates to EarningRule keyed on cx events. Slice 2 will add
+  // `title`, `description`, and other new fields.
 })
 
 export const UpdateSurveySchema = z.object({
   name: z.string().min(1).max(200).optional(),
   questions: z.array(SurveyQuestionSchema).min(1).optional(),
   settings: z.record(z.unknown()).optional(),
-  incentivePoints: z.number().int().positive().max(100000).nullable().optional(),
   themeId: z.string().nullable().optional(),
   // Issue #291 — per-survey thank-you copy/routing/toggle
   thankYouMessage: z.string().max(500).optional(),
   thankYouRedirectUrl: z.string().url().nullable().optional(),
-  showIncentivePoints: z.boolean().optional(),
 })
 
 export const UpdateSurveyStatusSchema = z.object({
-  status: z.enum(['ACTIVE', 'PAUSED', 'CLOSED']),
+  // Issue #241 — CLOSED renamed to STOPPED per R25 / D5.
+  status: z.enum(['ACTIVE', 'PAUSED', 'STOPPED']),
 })
 
 // ─── Survey Response Submission ──────────────────────────────────────────────

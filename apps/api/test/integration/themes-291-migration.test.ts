@@ -53,7 +53,10 @@ describe('Issue #291 — BrandTheme/SurveyTheme split (migration verification)',
     expect(names).toContain('cardStyle')
   })
 
-  it('surveys gained the three thank-you columns with correct defaults', async () => {
+  it('surveys gained the two thank-you columns with correct defaults', async () => {
+    // Issue #241 — `showIncentivePoints` (added by #291) was subsequently
+    // dropped per D19/D40/D50 (points never appear on the form; earning is
+    // driven by EarningRule cx events). The two thank-you columns remain.
     const prisma = getTestPrisma()
     const cols = await prisma.$queryRaw<Array<{ column_name: string; column_default: string | null; is_nullable: string }>>`
       SELECT column_name, column_default, is_nullable
@@ -63,7 +66,7 @@ describe('Issue #291 — BrandTheme/SurveyTheme split (migration verification)',
         AND column_name IN ('thankYouMessage', 'thankYouRedirectUrl', 'showIncentivePoints')
       ORDER BY column_name
     `
-    expect(cols).toHaveLength(3)
+    expect(cols).toHaveLength(2)
 
     const message = cols.find((c) => c.column_name === 'thankYouMessage')!
     expect(message.is_nullable).toBe('NO')
@@ -72,9 +75,8 @@ describe('Issue #291 — BrandTheme/SurveyTheme split (migration verification)',
     const redirect = cols.find((c) => c.column_name === 'thankYouRedirectUrl')!
     expect(redirect.is_nullable).toBe('YES')
 
-    const showIncentive = cols.find((c) => c.column_name === 'showIncentivePoints')!
-    expect(showIncentive.is_nullable).toBe('NO')
-    expect(showIncentive.column_default).toMatch(/true/i)
+    // showIncentivePoints column no longer present after #241 Slice 1.
+    expect(cols.find((c) => c.column_name === 'showIncentivePoints')).toBeUndefined()
   })
 
   it('brands.defaultThemeId and surveys.themeId both FK to brand_themes(id)', async () => {
@@ -142,7 +144,8 @@ describe('Issue #291 — BrandTheme/SurveyTheme split (migration verification)',
     })
     expect(survey1.thankYouMessage).toBe('Thank you for your feedback!')
     expect(survey1.thankYouRedirectUrl).toBeNull()
-    expect(survey1.showIncentivePoints).toBe(true)
+    // Issue #241 — survey1.showIncentivePoints assertion removed: the column
+    // is dropped after Slice 1 (D19/D40/D50).
 
     // Custom thank-you values land on Survey, not BrandTheme.
     const survey2 = await prisma.survey.create({
@@ -154,11 +157,9 @@ describe('Issue #291 — BrandTheme/SurveyTheme split (migration verification)',
         questions: [{ id: 'q1', text: 'Q', type: 'rating', required: true }],
         themeId: theme.id,
         thankYouMessage: 'Thanks for your time!',
-        showIncentivePoints: false,
       },
     })
     expect(survey2.thankYouMessage).toBe('Thanks for your time!')
-    expect(survey2.showIncentivePoints).toBe(false)
 
     // Setting the default theme writes Brand.defaultThemeId — single statement.
     await prisma.brand.update({

@@ -154,11 +154,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           name: true,
           type: true,
           questions: true,
-          incentivePoints: true,
-          // Issue #291 — per-survey thank-you copy/routing/toggle moved from BrandTheme to Survey.
+          // Issue #291 — per-survey thank-you copy/routing moved from BrandTheme to Survey.
+          // Issue #241 — `showIncentivePoints` and `incentivePoints` removed (D19/D40/D50):
+          // points never appear on the form; earning is driven by EarningRule cx events.
           thankYouMessage: true,
           thankYouRedirectUrl: true,
-          showIncentivePoints: true,
           // Issue #291 — brand.logoUrl exposed so renderer can rebind theme.logoUrl → survey.brand.logoUrl.
           brand: { select: { name: true, logoUrl: true } },
           theme: true,
@@ -453,19 +453,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.log.error({ err, surveyId, memberId: member.id }, 'Failed to enqueue CX event (response saved)')
       }
 
-      // Survey incentive points
-      if (survey.incentivePoints && survey.incentivePoints > 0) {
-        enqueueEvent({
-          brandId,
-          memberId: member.id,
-          eventType: 'cx.survey_completed',
-          payload: { surveyId, surveyName: survey.name, incentive: true },
-          idempotencyKey: `survey-incentive:${surveyId}:${member.id}`,
-          ingestedAt,
-        }).catch((err: unknown) => {
-          fastify.log.error({ err }, 'Failed to enqueue survey incentive event')
-        })
-      }
+      // Issue #241 — the prior second-event emission ("cx.survey_completed"
+      // when survey.incentivePoints > 0) is removed. `Survey.incentivePoints`
+      // is gone; earning is driven by EarningRule rows keyed on the cx event
+      // we already emit above (D50 fan-out). Slice 2 (#241) will further
+      // tighten emission semantics + responsePolicy enforcement.
 
       // Sentiment analysis for open-ended text
       if (openEndedText) {
@@ -556,7 +548,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         overwrote: wasOverwrite,
         jobId,
         message: 'Thank you for your feedback!',
-        incentivePoints: survey.incentivePoints ?? 0,
       })
     },
   )
@@ -580,7 +571,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       // Find survey
       const survey = await fastify.prisma.survey.findFirst({
         where: { id: surveyId, status: 'ACTIVE' },
-        select: { id: true, name: true, brandId: true, incentivePoints: true },
+        select: { id: true, name: true, brandId: true },
       })
       if (!survey) {
         return reply.status(404).send({ error: 'Survey not found or not active' })
@@ -618,16 +609,16 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000'
       const surveyLink = `${frontendUrl}/survey/${surveyId}?email=${encodeURIComponent(memberEmail)}`
 
-      const incentiveMsg = survey.incentivePoints
-        ? ` Complete it to earn ${survey.incentivePoints} bonus points!`
-        : ''
+      // Issue #241 — incentive points are no longer surfaced on the form (D19) and
+      // earning is driven by EarningRule cx events (D50). The trigger message
+      // therefore no longer advertises a points figure.
 
       // Enqueue notification to send survey link
       const { enqueueNotification } = await import('../queues/bullmq.js')
       await enqueueNotification({
         memberId: member.id,
         brandId: survey.brandId,
-        message: `We'd love your feedback! Please take our survey "${survey.name}": ${surveyLink}${incentiveMsg}`,
+        message: `We'd love your feedback! Please take our survey "${survey.name}": ${surveyLink}`,
         channel: 'email',
         metadata: { surveyId, surveyLink, source: source ?? 'api' },
       })
@@ -649,7 +640,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
       const survey = await fastify.prisma.survey.findFirst({
         where: { id, status: 'ACTIVE' },
-        select: { id: true, name: true, type: true, questions: true, incentivePoints: true, brand: { select: { name: true } } },
+        select: { id: true, name: true, type: true, questions: true, brand: { select: { name: true } } },
       })
 
       if (!survey) {
@@ -666,7 +657,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
  * Generates a self-contained JavaScript widget that renders a survey form.
  */
 function generateWidgetJs(
-  survey: { id: string; name: string; type: string; questions: unknown; incentivePoints: number | null; brand: { name: string } },
+  survey: { id: string; name: string; type: string; questions: unknown; brand: { name: string } },
   apiBaseUrl: string,
 ): string {
   const questions = survey.questions as Array<{ id: string; text: string; type: string; required?: boolean; options?: string[] }>
@@ -677,7 +668,6 @@ function generateWidgetJs(
     name: survey.name,
     type: survey.type,
     brandName: survey.brand.name,
-    incentivePoints: survey.incentivePoints,
     questions,
   })
     .replace(/</g, '\\u003c')
@@ -702,12 +692,7 @@ function generateWidgetJs(
   title.style.cssText = 'margin:0 0 4px;font-size:18px;font-weight:600;color:#111827;';
   container.appendChild(title);
 
-  if (survey.incentivePoints) {
-    var badge = document.createElement('p');
-    badge.textContent = 'Earn ' + survey.incentivePoints + ' points for completing this survey!';
-    badge.style.cssText = 'margin:0 0 16px;font-size:13px;color:#6366f1;font-weight:500;';
-    container.appendChild(badge);
-  }
+  // Issue #241 — incentive-points badge removed (D19): points never appear on the form.
 
   var form = document.createElement('form');
   var inputs = {};
@@ -810,7 +795,7 @@ function generateWidgetJs(
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
     .then(function(res) {
       if (res.ok || res.data.duplicate) {
-        container.innerHTML = '<div style="text-align:center;padding:24px;"><div style="font-size:32px;margin-bottom:8px;">✓</div><h3 style="margin:0 0 8px;font-size:18px;color:#111827;">Thank you!</h3><p style="margin:0;font-size:14px;color:#6b7280;">Your feedback has been recorded.' + (survey.incentivePoints ? ' You earned ' + survey.incentivePoints + ' points!' : '') + '</p></div>';
+        container.innerHTML = '<div style="text-align:center;padding:24px;"><div style="font-size:32px;margin-bottom:8px;">✓</div><h3 style="margin:0 0 8px;font-size:18px;color:#111827;">Thank you!</h3><p style="margin:0;font-size:14px;color:#6b7280;">Your feedback has been recorded.</p></div>';
       } else {
         msgDiv.style.display = 'block';
         msgDiv.style.color = '#dc2626';

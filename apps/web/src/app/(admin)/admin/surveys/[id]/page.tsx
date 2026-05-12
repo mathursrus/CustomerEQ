@@ -25,7 +25,7 @@ interface Survey {
   id: string
   name: string
   type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
   _count?: { responses: number }
   incentivePoints: number | null
   triggerCategory: string | null
@@ -397,7 +397,7 @@ export default function SurveyDetailPage() {
           >
             Import historical
           </button>
-          {survey.status !== 'ACTIVE' && survey.status !== 'CLOSED' && (
+          {survey.status !== 'ACTIVE' && survey.status !== 'STOPPED' && (
             <button
               type="button"
               onClick={() => updateStatus('ACTIVE')}
@@ -417,10 +417,10 @@ export default function SurveyDetailPage() {
               Pause
             </button>
           )}
-          {survey.status !== 'CLOSED' && (
+          {survey.status !== 'STOPPED' && (
             <button
               type="button"
-              onClick={() => updateStatus('CLOSED')}
+              onClick={() => updateStatus('STOPPED')}
               disabled={updating}
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
             >
