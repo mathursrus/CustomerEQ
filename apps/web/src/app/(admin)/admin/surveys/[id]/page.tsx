@@ -169,7 +169,12 @@ export default function SurveyDetailPage() {
         responsesCount={responsesCount}
         apiUrl={API_URL}
       />
-      <ResponseSection responsesCount={responsesCount} />
+      <ResponseSection
+        surveyId={surveyId}
+        surveyStatus={status}
+        responsesCount={responsesCount}
+        getToken={getToken}
+      />
       <ConfigurationSummarySection
         survey={survey}
         brand={effectiveBrand}

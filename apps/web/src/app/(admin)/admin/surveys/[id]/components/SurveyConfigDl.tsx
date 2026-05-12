@@ -41,11 +41,17 @@ export function SurveyConfigDl({ survey, brand, theme, programName }: SurveyConf
       <Row label="Status" value={STATUS_LABEL[survey.status]} />
       <Row label="Program" value={programName ?? '—'} />
       <Row label="Theme" value={theme.name} />
-      <Row label="Response policy" value={RESPONSE_POLICY_LABEL[survey.responsePolicy]} />
+      <Row label="Response policy" value={RESPONSE_POLICY_LABEL[survey.responsePolicy ?? 'MULTIPLE']} />
       <Row label="Consent" value={survey.consentTextOverride ? 'Override active' : 'Inherits brand default'} />
       <Row
         label="Thank-you copy"
-        value={survey.thankYouMessage.length > 80 ? `${survey.thankYouMessage.slice(0, 80)}…` : survey.thankYouMessage}
+        value={
+          survey.thankYouMessage
+            ? survey.thankYouMessage.length > 80
+              ? `${survey.thankYouMessage.slice(0, 80)}…`
+              : survey.thankYouMessage
+            : '—'
+        }
       />
     </dl>
   )
