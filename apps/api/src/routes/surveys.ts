@@ -96,7 +96,8 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/surveys', async (request, reply) => {
     const page = 1
     const pageSize = 25
-    const where = { brandId: request.brandId }
+    // Issue #332 — soft-deleted rows excluded from list reads.
+    const where = { brandId: request.brandId, deletedAt: null }
 
     const [total, data] = await Promise.all([
       fastify.prisma.survey.count({ where }),
@@ -117,7 +118,8 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
 
     const survey = await fastify.prisma.survey.findFirst({
-      where: { id, brandId: request.brandId },
+      // Issue #332 — soft-deleted rows return 404 (existence is operator-internal).
+      where: { id, brandId: request.brandId, deletedAt: null },
       include: {
         _count: { select: { responses: true } },
         theme: true,
@@ -166,7 +168,8 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const survey = await fastify.prisma.survey.findFirst({
-      where: { id, brandId: request.brandId },
+      // Issue #332 — exclude soft-deleted.
+      where: { id, brandId: request.brandId, deletedAt: null },
     })
     if (!survey) {
       return reply.status(404).send({ error: 'Survey not found' })
@@ -235,7 +238,8 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const survey = await fastify.prisma.survey.findFirst({
-      where: { id, brandId: request.brandId },
+      // Issue #332 — exclude soft-deleted.
+      where: { id, brandId: request.brandId, deletedAt: null },
     })
     if (!survey) {
       return reply.status(404).send({ error: 'Survey not found' })
@@ -311,7 +315,8 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const survey = await fastify.prisma.survey.findFirst({
-      where: { id, brandId: request.brandId },
+      // Issue #332 — exclude soft-deleted.
+      where: { id, brandId: request.brandId, deletedAt: null },
       include: { brand: { select: { consentMode: true } } },
     })
     if (!survey) {
@@ -358,6 +363,103 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(200).send({ survey: updated })
   })
 
+  // POST /v1/surveys/:id/duplicate — Issue #332 (#241 Slice 2 follow-up).
+  // Clones a survey into a new DRAFT under the same brand. Returns the new row.
+  //
+  // Consent override fields are intentionally NOT carried over: the original
+  // attestation row is tied to the operator who attested via
+  // consentSuppressedAttestedBy. Carrying the more-permissive consentMode
+  // across the clone would let any operator launch a permissive survey under
+  // someone else's attestation. The clone starts from brand-default consent
+  // (consentMode = null); if the operator wants the override, they must hit
+  // PATCH /:id/consent-mode and re-attest under their own clerkUserId.
+  fastify.post('/surveys/:id/duplicate', {
+    config: {
+      auditAction: 'survey.duplicate',
+      auditResourceType: 'survey',
+      auditAllowlist: ['sourceSurveyId', 'requestIp'],
+    },
+  }, async (request, reply) => {
+    const { id: sourceId } = request.params as { id: string }
+    const brandId = request.brandId
+
+    const source = await fastify.prisma.survey.findFirst({
+      where: { id: sourceId, brandId, deletedAt: null },
+    })
+    if (!source) {
+      return reply.status(404).send({ error: 'Survey not found' })
+    }
+
+    const clone = await fastify.prisma.survey.create({
+      data: {
+        brandId,
+        programId: source.programId,
+        name: `${source.name} (copy)`,
+        title: source.title,
+        description: source.description,
+        type: source.type,
+        questions: source.questions as Prisma.InputJsonValue,
+        settings: (source.settings ?? undefined) as Prisma.InputJsonValue | undefined,
+        themeId: source.themeId,
+        responsePolicy: source.responsePolicy,
+        thankYouMessage: source.thankYouMessage,
+        thankYouRedirectUrl: source.thankYouRedirectUrl,
+        // status defaults to DRAFT — always reset, even when source was ACTIVE/PAUSED/STOPPED.
+        // Consent override fields intentionally omitted → clone inherits Brand.consentMode default.
+        // Legacy trigger fields (triggerCategory, triggerKey, surveyTypeOverride) intentionally
+        // omitted — those are being dropped in Slice 4.
+      },
+    })
+
+    request.audit = {
+      metadata: { sourceSurveyId: sourceId },
+    }
+
+    return reply.status(201).send(clone)
+  })
+
+  // DELETE /v1/surveys/:id — Issue #332 (#241 Slice 2 follow-up).
+  // Uniform soft-delete via deletedAt for DRAFT and STOPPED. ACTIVE and PAUSED
+  // surveys return 409 — operator must Stop first via PATCH /:id/status.
+  // Backs both spec §1 ⋯ menu items: "Discard draft (DRAFT only)" and
+  // "Delete (STOPPED only, with confirm)".
+  fastify.delete('/surveys/:id', {
+    config: {
+      auditAction: 'survey.delete',
+      auditResourceType: 'survey',
+      auditAllowlist: ['priorState', 'requestIp'],
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const brandId = request.brandId
+
+    const survey = await fastify.prisma.survey.findFirst({
+      where: { id, brandId, deletedAt: null },
+    })
+    if (!survey) {
+      return reply.status(404).send({ error: 'Survey not found' })
+    }
+
+    if (survey.status === 'ACTIVE' || survey.status === 'PAUSED') {
+      return reply.status(409).send({
+        error: 'Cannot delete a live survey — Stop it first',
+        code: 'INVALID_STATE_FOR_DELETE',
+        currentState: survey.status,
+      })
+    }
+
+    await fastify.prisma.survey.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    })
+
+    request.audit = {
+      metadata: { priorState: survey.status },
+    }
+
+    return reply.status(204).send()
+  })
+
   // POST /v1/surveys/:id/responses — submit a survey response
   // This is the critical integration point: response → event pipeline → campaign triggers
   fastify.post('/surveys/:id/responses', async (request, reply) => {
@@ -375,8 +477,10 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     const { memberId, answers, score, channel } = parse.data
 
     // Verify survey exists, is active, and belongs to brand
+    // Issue #332 — explicit deletedAt:null filter (status:ACTIVE alone is
+    // sufficient since soft-delete only fires on DRAFT/STOPPED, but defense-in-depth).
     const survey = await fastify.prisma.survey.findFirst({
-      where: { id: surveyId, brandId, status: 'ACTIVE' },
+      where: { id: surveyId, brandId, status: 'ACTIVE', deletedAt: null },
     })
     if (!survey) {
       return reply.status(404).send({ error: 'Survey not found or not active' })
