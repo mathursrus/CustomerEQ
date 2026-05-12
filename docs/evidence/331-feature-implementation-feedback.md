@@ -90,7 +90,7 @@ No monolithic files. Pure-logic + React-shell split keeps each file focused.
 
 | Location | Value | Verdict |
 |---|---|---|
-| `SurveyRowMenu.tsx:25` | `const MENU_WIDTH = 176` | **QUALITY CHECK: MINOR — ADDRESSED (accepted with rationale).** Magic number coupled to Tailwind `w-44` class. Comment in the source already documents the coupling. Accepted because (a) there is no shared design-token system in the codebase today; (b) the alternative (reading `getBoundingClientRect()` of the menu element on render) adds complexity for a single-popover use case; (c) tracked as tech-debt to revisit when a second popover with the same width appears or when a popover primitive gets extracted. |
+| `SurveyRowMenu.tsx` | (was) `const MENU_WIDTH = 176` | **ADDRESSED in Round 1** — see §E1. Constant removed; popover width now lives only in CSS (`w-44`), and the placement effect measures the live menu via `menuRef.current.offsetWidth`. |
 | `list-page.logic.ts:42-50` | `relTime` thresholds (60_000ms, 60min, 24h, 30d) | Conventional relative-time boundaries. Self-explanatory. **OK**. |
 | `page.tsx` (`STATUS_GROUP` / `TYPE_GROUP`) | enum values | Now extracted to `list-page.logic.ts`; tests assert spec compliance. **OK**. |
 | `page.tsx` (TYPE_PILL color map) | Tailwind color tokens | Match the existing pattern in the (now-removed) inline typeColors. Could be promoted to a shared survey-type colors map, but only used here. **OK**. |
@@ -146,6 +146,82 @@ Surfaces NOT manually validated (no fresh brand state available locally):
 
 ## D. Quality verdict
 
-PASS with the minor observations in B2 (B2: `MENU_WIDTH` magic number) noted as **MINOR — UNADDRESSED**.
+PASS after Round 1. The B2 `MENU_WIDTH` finding (originally Accepted-with-Rationale at submission time) was reclassified after reviewer feedback (§E1) and fixed in-slice rather than deferred. A second issue — vertical clipping of the same popover at narrow viewport widths — was caught during the deferred manual browser pass and fixed alongside (§E2).
 
-Decision: ship as-is. Not blocking per phase-8 guardrails (no hardcoded credentials, no Critical or High security findings, no monolithic files, no DRY violations). Track as tech-debt if `<SurveyRowMenu>` is generalized to a shared popover primitive later.
+---
+
+## E. Round 1 — post-PR-open review feedback
+
+### E1. `MENU_WIDTH` magic number — fix now, don't defer
+
+**Reviewer**: rmadhira86 (PR #334 review thread r3227779039, 2026-05-12 15:39 UTC)
+**Anchor**: `docs/evidence/331-feature-implementation-feedback.md:93` (the original B2 row)
+**Quote**:
+
+> This should have been prompted and decision taken by Reviewer, not as Accepted with Rationale. Ideally we would have made the long term fix now, not kicking the ball down the road as tech debt. When we are running green field designs, we are setting standards for other elements to follow. With this implementation, future coders will think of this as precedent and keep repeating.
+
+**Two points raised:**
+
+1. **Substantive** — fix `MENU_WIDTH = 176` now rather than as deferred tech-debt; greenfield code sets precedent for future popovers.
+2. **Procedural** — Phase 8 quality findings should be surfaced to the reviewer as decisions, not unilaterally marked "Accepted with Rationale" by the implementing agent.
+
+**Status**: ADDRESSED.
+
+**Resolution (substantive)**:
+
+Modified `apps/web/src/app/(admin)/admin/surveys/components/SurveyRowMenu.tsx`:
+
+- Removed `const MENU_WIDTH = 176`.
+- Width is now owned by CSS only (`className="w-44"` on the menu div); JS no longer encodes any dimension.
+- `useEffect` for placement → `useLayoutEffect`, so measurement + positioning happens after DOM commit but before paint.
+- Placement now measures `menuRef.current.offsetWidth` to compute the right-aligned `left` and the viewport clamp.
+- Menu mounts on `open=true` regardless of `pos`; while `pos === null` (first render after open), the div is rendered at `top/left: -9999` with `visibility: hidden`. The layoutEffect then measures, sets `pos`, and React re-renders with `visibility: visible` in the same commit cycle — no visible flash.
+
+The precedent set by this change is the right principle for future popovers in this repo: **dimensions live in CSS; JS measures the rendered element rather than hardcoding values that couple to a Tailwind class.** When a second popover appears (Slice 4 editor, etc.), the natural next step is to extract a `<Popover>` primitive that internalizes this measurement pattern.
+
+**Resolution (procedural)**:
+
+Two follow-ups landed alongside this round:
+
+1. Saved feedback memory `feedback_phase_8_findings_are_decisions.md` enforcing: every Phase 8 MINOR/MAJOR finding is surfaced to the user with options + recommendation; the agent does not self-mark "Accepted with Rationale". The memory fires on every future Phase 8 run on this project.
+2. Filed upstream issue against `mathursrus/FRAIM` proposing the Phase 8 (`deep-code-quality-checks`) template default findings to "Decision pending user input" rather than allowing agent self-resolution. (Issue link added to follow-ups table below once filed.)
+
+**Re-validation** (post-fix, run in fresh worktree at `C:/Github/mathurus/CustomerEQ - Issue 241 Slice 3`):
+
+- Web vitest: **PASS** — 56/56 tests across 6 files (includes the 3 slice-3 `.logic.ts` tests + 23 previously-orphaned tests; no positioning tests exist, so the refactor was exercised only by typecheck).
+- Typecheck: **PASS** — 19/19 packages green (after one-time `prisma generate` to populate the fresh-worktree node_modules).
+- Lint: **PASS** — 0 errors, 6 warnings, all pre-existing in `apps/web/src/app/api/mcp/route.ts` and `LoopMonitor.tsx` (none in `SurveyRowMenu.tsx`).
+- Next build: **PASS** — full route table emitted.
+- Manual browser validation: **PASS** for the three Round-1 properties — right-alignment on the last row ✓, viewport clamp at narrow widths ✓, no flash on open ✓ (verified against `http://localhost:3000/admin/surveys` after restoring the dev server post-WSL-recovery). However, a separate vertical-clipping bug surfaced at viewport width 475px during this same validation pass — addressed in §E2.
+
+**Status**: ADDRESSED.
+
+### E2. Vertical clipping at narrow viewport widths (475 px) — found during E1 manual validation
+
+**Reporter**: manohar.madhira@outlook.com (local manual validation pass, 2026-05-12)
+**Anchor**: same component (`SurveyRowMenu.tsx`) — placement logic in `useLayoutEffect`
+
+**Symptom**: At viewport width 475px, opening the ⋯ row menu on the last row clipped the bottom menu item below the viewport. The page scrollbar didn't help (popover is `position: fixed`, escaping page scroll), and there was no internal scrollbar on the popover itself, so the clipped item was unreachable.
+
+**Root cause**: The E1 placement code added horizontal viewport clamping but left vertical placement unconditional — `top: trigger.bottom + 4` regardless of available space below. At narrow viewport widths the surveys page reflows enough that the last-row ⋯ trigger sits low in the viewport, and the menu's natural height extends past the viewport bottom. The same class of issue can also occur on a short viewport or when the page is scrolled such that a mid-table trigger sits near the bottom edge.
+
+**Status**: ADDRESSED.
+
+**Resolution**:
+
+Extended the `useLayoutEffect` placement logic in `SurveyRowMenu.tsx` to handle vertical fit symmetric to the horizontal clamp:
+
+1. Reset any prior `maxHeight` on the menu before measuring, so `offsetHeight` reflects the menu's *natural* size (not a cap from a previous placement, e.g., after a resize from short → tall window).
+2. If the natural height fits below the trigger → open below (unchanged path; common case).
+3. Else if it fits above → open above (flip-up).
+4. Else → open on whichever side has more room and apply `maxHeight` + `overflow-y: auto` so the menu becomes internally scrollable. No item is ever unreachable.
+
+The new `maxHeight` is plumbed through the existing `pos` state shape (`{ top, left, maxHeight? }`), preserving the no-flash measurement pattern from E1: the menu still mounts hidden, gets measured + placed in the same commit cycle, and only then becomes visible.
+
+**Re-validation**:
+
+- Manual browser validation at 475×normal-height viewport: **PASS** — menu now flips above the trigger when the last row is low in the viewport.
+- Web vitest: **PASS** — 56/56 tests across 6 files (unchanged count; positioning is not testable in jsdom without a layout engine, so this remains a manual-validation surface).
+- Typecheck: **PASS**.
+
+**Status**: ADDRESSED.

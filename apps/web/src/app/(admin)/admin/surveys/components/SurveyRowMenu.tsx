@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   buildMenuItems,
   type ApiCaller,
@@ -19,8 +19,6 @@ import {
 // viewport, not the table.
 
 export type { SurveyState } from './survey-row-menu.logic'
-
-const MENU_WIDTH = 176 // matches w-44
 
 interface SurveyRowMenuProps {
   surveyId: string
@@ -41,7 +39,11 @@ export function SurveyRowMenu({
 }: SurveyRowMenuProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [pos, setPos] = useState<{
+    top: number
+    left: number
+    maxHeight?: number
+  } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -59,17 +61,48 @@ export function SurveyRowMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  // Recompute position when opening + on scroll/resize while open.
-  useEffect(() => {
-    if (!open || !triggerRef.current) return
+  // Recompute position when opening + on scroll/resize while open. Width is
+  // measured from the live menu element (offsetWidth) so the JS doesn't encode
+  // any dimension — the popover's width lives in CSS (Tailwind `w-44` below).
+  // useLayoutEffect runs after DOM commit but before paint, so we can render
+  // the menu invisibly, measure it, and place it with no flash.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !menuRef.current) return
+    const VIEWPORT_MARGIN = 8
+    const TRIGGER_GAP = 4
     function place() {
-      const r = triggerRef.current!.getBoundingClientRect()
-      // Right-align to the trigger button. Clamp into viewport so the
-      // menu never overflows the right edge (e.g., on narrow viewports).
-      const right = r.right
-      const leftAligned = right - MENU_WIDTH
-      const left = Math.max(8, Math.min(leftAligned, window.innerWidth - MENU_WIDTH - 8))
-      setPos({ top: r.bottom + 4, left })
+      const trigger = triggerRef.current!.getBoundingClientRect()
+      // Reset any maxHeight applied by a previous placement so offsetHeight
+      // reflects the menu's *natural* size for direction selection.
+      menuRef.current!.style.maxHeight = ''
+      const menuW = menuRef.current!.offsetWidth
+      const naturalMenuH = menuRef.current!.offsetHeight
+      // Horizontal: right-align to trigger; clamp into viewport.
+      const leftAligned = trigger.right - menuW
+      const left = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(leftAligned, window.innerWidth - menuW - VIEWPORT_MARGIN),
+      )
+      // Vertical: prefer below the trigger. Flip above when the natural
+      // height doesn't fit below. If neither side fits (e.g., short
+      // viewport), clamp on the side with more room and let the menu
+      // scroll internally so no item is unreachable.
+      const spaceBelow = window.innerHeight - trigger.bottom - VIEWPORT_MARGIN - TRIGGER_GAP
+      const spaceAbove = trigger.top - VIEWPORT_MARGIN - TRIGGER_GAP
+      let top: number
+      let maxHeight: number | undefined
+      if (naturalMenuH <= spaceBelow) {
+        top = trigger.bottom + TRIGGER_GAP
+      } else if (naturalMenuH <= spaceAbove) {
+        top = trigger.top - TRIGGER_GAP - naturalMenuH
+      } else if (spaceBelow >= spaceAbove) {
+        top = trigger.bottom + TRIGGER_GAP
+        maxHeight = Math.max(spaceBelow, 0)
+      } else {
+        maxHeight = Math.max(spaceAbove, 0)
+        top = trigger.top - TRIGGER_GAP - maxHeight
+      }
+      setPos({ top, left, maxHeight })
     }
     place()
     window.addEventListener('scroll', place, true)
@@ -122,13 +155,20 @@ export function SurveyRowMenu({
       >
         ⋯
       </button>
-      {open && pos && (
+      {open && (
         <div
           ref={menuRef}
           role="menu"
           data-testid={`survey-row-menu-${surveyId}`}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: MENU_WIDTH }}
-          className="z-50 rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+          style={{
+            position: 'fixed',
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            maxHeight: pos?.maxHeight,
+            overflowY: pos?.maxHeight !== undefined ? 'auto' : undefined,
+            visibility: pos ? 'visible' : 'hidden',
+          }}
+          className="w-44 z-50 rounded-md border border-slate-200 bg-white py-1 shadow-lg"
         >
           {items.map((item) => (
             <button
