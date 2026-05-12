@@ -442,6 +442,12 @@ sequenceDiagram
 
 - **`position: fixed` popover to escape table overflow** *(Issue #241 Slice 3)*: Popovers and dropdowns inside a `<table>` row cannot use `position: absolute` reliably — the table wrapper's `overflow-x-auto` (and similar clipping ancestors) will crop the popover and the browser may add a horizontal scrollbar. Pattern: render the trigger with `useRef`, on open compute `getBoundingClientRect()`, render the popover with `position: fixed` + coordinates from the rect. Re-position on `scroll` (capture-phase) and `resize` while open. Clamp into the viewport to avoid right-edge overflow on narrow widths. See `apps/web/src/app/(admin)/admin/surveys/components/SurveyRowMenu.tsx` for the canonical implementation; reuse rather than reinventing if a future component needs a row-anchored popover.
 
+- **CSS-variable contract for theme-driven rendering** *(Issue #241 Slice 4a, R31)*: Themed components that need to render the brand's `BrandTheme` faithfully consume tokens **exclusively** via `--ceq-*` CSS custom properties — never hardcoded colors, sizes, or fonts. `theme-to-css-vars.ts` (`apps/web/src/components/survey-form/`) maps each `BrandTheme` field to its `--ceq-*` property; the root component (`<div className="ceq-survey-card" style={{ ...cssVars }}>`) sets the variables, and every descendant references them as `var(--ceq-*)`. Scale enums (`sm` / `md` / `lg`) resolve to pixel values via `scale-resolvers.ts`. This keeps the token surface narrow, makes runtime theme swaps free (no re-render gymnastics), and lets the future embed-widget renderer (`packages/embed/src/ceq-survey.ts`, Slice 5) consume the same contract for visual parity. Hardcoded values are reserved for non-theme concerns (error red `#dc2626`, focus outline geometry) — documented in the RFC's "Non-brand-tokenized elements" table.
+
+- **Channel/viewport-aware renderer family** *(Issue #241 Slice 4a)*: Survey rendering (and any future channel-diverse rendering — receipt, email digest, etc.) lives under a `components/survey-form/` family where a single pure `SurveyFormRenderer` is wrapped by channel/viewport adapters (`PreviewSurvey` today). The renderer accepts a `mode: 'preview' | 'live'` flag — `'preview'` (admin) disables submit and grays interactive controls; `'live'` (Slice 5 standalone respondent) wires answers + submit. The same React tree services both consumers — no parallel implementations. Skip-rule evaluation is a separate pure helper (`skip-rules.logic.ts`) consumed by the renderer.
+
+- **Chevron-collapsible section primitive** *(Issue #241 Slice 4a, R26)*: Detail pages with multi-section layouts use `<CollapsibleSection title expandedDefault>` (`apps/web/src/app/(admin)/admin/surveys/[id]/components/CollapsibleSection.tsx`). Parent passes `expandedDefault`; the section owns its own toggle state thereafter so the parent never needs to manage open/closed children. The chevron is the platform-standard `▼` rotating `-90deg` when collapsed. Toggle button exposes `aria-expanded` for accessibility. Promote to `apps/web/src/components/ui/` when a 2nd consumer (Slice 4b editor or beyond) adopts it.
+
 ---
 
 ## 7. Configuration & Environment
@@ -533,7 +539,8 @@ This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist f
 
 | Layer | Tool | Scope | Location |
 |---|---|---|---|
-| Unit | Vitest | Pure functions, rule evaluation, Zod schemas | Co-located (`*.test.ts`) |
+| Unit (pure logic) | Vitest | Pure functions, rule evaluation, Zod schemas | Co-located (`*.test.ts`) |
+| Unit (RTL/jsdom — component behavior) — *Issue #241 Slice 4a* | Vitest + jsdom + React Testing Library | React component rendering, user-event interaction, accessibility-tree assertions for client components in `apps/web` | Co-located (`*.test.tsx`); harness wired in `apps/web/vitest.{config,setup}.ts` |
 | Integration | Vitest + Supertest | API endpoints + real database (test schema) | `apps/api/test/integration/` |
 | Worker | Vitest | BullMQ processors with mocked Redis | `apps/worker/test/` |
 | E2E | Playwright | Full user workflows in browser | `apps/web/test/e2e/` |
