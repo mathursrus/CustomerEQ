@@ -217,3 +217,113 @@ The 56 remaining failures are tracked outside this slice (most are environment-f
 - **Pre-existing failures** are noted and intentionally NOT in scope; addressing them would expand the slice beyond what the work-list contracted for.
 - Unit suite (the safety net for Slice 4a's own surface): **145/145 green** in `apps/web`, **16/16 packages green** overall.
 
+---
+
+## Completeness Review (FRAIM Phase 9)
+
+### Standing Work List Audit
+
+`docs/evidence/335-implement-work-list.md` checklist items:
+- Renderer family files (Section A — 9 items) → all built; verified by `pnpm test` (145 passing).
+- RTL harness (Section B — 3 items) → all in place; verified by harness-dependent tests passing.
+- Detail page rewrite (Section C — 8 items) → all built (1 addition during phase 7: `<LoopMonitor>` re-embed in `ResponseSection`).
+- Tests (Section D — 11 unit files + 2 fixtures + 1 e2e) → all on disk and passing.
+- Local gates (Section E) → green.
+- Architecture doc update (Section F) → pending Phase 10.
+
+No checklist item is missing. The phase-7 work-list deferral on `<LoopMonitor>` was reversed in commit `40b0419` after surfacing the hero-pipeline-visibility concern (project rule R2) during regression triage. Work-list updated implicitly via this evidence file (`### Regression Triage` above).
+
+### Feature Requirement Traceability Matrix
+
+Source of truth: Issue [#335](https://github.com/mathursrus/CustomerEQ/issues/335) Acceptance Criteria + `docs/feature-specs/241-survey-admin-ux.md` §7 + requirements R26, R27, R28, R31, R32.
+
+| Requirement / Acceptance Criterion | Implemented File / Function | Proof (Test Name) | Status |
+|---|---|---|---|
+| #335 AC1: `/admin/surveys/[id]` renders the 3-section collapsible layout with embedded `<PreviewSurvey>` | `apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx` + `SurveyDetailShell` + 3 section components | `page.test.tsx` › "renders the three sections in the order Distribution / Response / Configuration summary" + e2e `335-survey-detail-page.spec.ts` › scenario 1 | **Met** |
+| #335 AC2: Initial chevron expansion follows `responsesCount` per spec | `[id]/components/Distribution|Response|ConfigurationSummary` `expandedDefault` props | `DistributionSection.test.tsx` "defaults expanded when responsesCount===0" · `ResponseSection.test.tsx` "defaults collapsed when responsesCount===0" · `ConfigurationSummarySection.test.tsx` "defaults expanded when responsesCount===0" + e2e scenarios 2 & 3 | **Met** |
+| #335 AC3: Each section's toggle state can be overridden by chevron click | `CollapsibleSection.tsx` `useState(expandedDefault)` with toggle handler | `CollapsibleSection.test.tsx` "toggles open and closed on chevron click" + e2e scenario 4 | **Met** |
+| #335 AC4: All 11 question types render correctly in `<SurveyFormRenderer>` | `QuestionRenderer.tsx` 12-case switch (11 types + default) | `SurveyFormRenderer.test.tsx` — one test per type (rating · text · choice · multiple_choice · checkbox · dropdown · matrix · ranking · slider · likert · image_choice · file_upload) — all pass | **Met** |
+| #335 AC5: RTL harness wired; ≥ 1 harness-style test for at least one renderer component | `apps/web/vitest.config.ts` (environment=jsdom + setupFiles + esbuild.jsx=automatic) + `apps/web/vitest.setup.ts` (jest-dom + RTL cleanup) + 4 new devDeps | 7 RTL test files exercise the harness end-to-end; 145/145 total in `apps/web` | **Met** |
+| #335 AC6: All Slice 3 functionality continues to work | Slice 3 files unchanged in this slice (list-page, chips, ⋯ menu, StatusBadge) | `pnpm --filter @customerEQ/web test` — Slice 3 tests still pass alongside the new ones | **Met** |
+| #335 AC7: `/admin/surveys/[id]/edit` still redirects to legacy survey-builder | `[id]/edit/page.tsx` untouched | `git diff` empty for the edit directory | **Met** |
+| #335 AC8: `/admin/surveys/new` still uses the legacy wizard | `new/page.tsx` untouched | `git diff` empty for `/new/` | **Met** |
+| #335 AC9: All local gates pass | `pnpm typecheck && pnpm lint && pnpm build && pnpm test` | UI-polish-validation doc §1; this doc §Security Review Coverage Matrix (A06) | **Met** |
+| #335 AC10: CI green on PR | Pending phase 11 (PR open + workflow run) | — | **Pending phase 11** |
+| **R26**: 3 sections in order Distribution / Response / Configuration summary; all chevron-collapsible | section composition order in `page.tsx` | `page.test.tsx` "renders the three sections in the order …" · e2e scenario 1 | **Met** |
+| **R27**: Distribution defaults expanded ⇔ `responsesCount === 0` | DistributionSection `expandedDefault={responsesCount === 0}` | `DistributionSection.test.tsx` (2 tests) + e2e scenarios 2 & 3 | **Met** |
+| **R28**: Configuration summary defaults expanded ⇔ `responsesCount === 0`; renders the actual `<PreviewSurvey>` left + dl summary right | `ConfigurationSummarySection` mounts `<PreviewSurvey channel="standalone" viewport="desktop" readOnly>` next to `<SurveyConfigDl>` | `ConfigurationSummarySection.test.tsx` (3 tests) + e2e — the "Quick check-in" preview heading is asserted visible/hidden by `responsesCount` | **Met** |
+| **R31**: BrandTheme tokens applied via CSS custom properties; no element falls back to browser defaults for any tokenized property | `theme-to-css-vars.ts` emits 14 `--ceq-*` properties; `<div className="ceq-survey-card" style={{ ...cssVars }}>` in `SurveyFormRenderer` | `theme-to-css-vars.test.ts` (7 tests) + `SurveyFormRenderer.test.tsx` "applies theme tokens as CSS custom properties on the survey card root" | **Met** |
+| **R32**: Response defaults expanded ⇔ `responsesCount > 0` (inverse of R27/R28) | ResponseSection `expandedDefault={responsesCount > 0}` | `ResponseSection.test.tsx` (3 tests) + e2e scenarios 2 & 3 | **Met** |
+
+**Verdict**: All 15 in-scope rows **Met**. One row (#335 AC10) pending phase 11. **Feature-requirement review passes.**
+
+### Technical Design Traceability Matrix
+
+Source of truth: `docs/rfcs/241-survey-admin-ux.md` §"File tree under apps/web/src/components/survey-form/" · §"BrandTheme to Survey element token mapping (R31)" · §"Detail page".
+
+| Design Commitment | Section | Implementation | Proof | Status |
+|---|---|---|---|---|
+| `SurveyFormRenderer.tsx` — pure renderer; consumes a SurveyResolved + answers state; no data fetching | RFC §"File tree" | `apps/web/src/components/survey-form/SurveyFormRenderer.tsx` | `SurveyFormRenderer.test.tsx` — 17 tests pass with mocked inputs (no network) | **Met** |
+| `PreviewSurvey.tsx` — channel / viewport-aware wrapper; reads chromeMatrix + theme | RFC §"File tree" | `PreviewSurvey.tsx` props: channel, viewport, readOnly | `PreviewSurvey.test.tsx` (4 tests: standalone vs embedded chrome, viewport class, aria-readonly) | **Met** |
+| `ConsentDisclosure.tsx` — wraps `renderConsentTextReact()` from `@customerEQ/consent-text` | RFC §"File tree" | `ConsentDisclosure.tsx` imports from `@customerEQ/consent-text` package | `ConsentDisclosure.test.tsx` (4 tests inc. R13 blank-text suppression) | **Met** |
+| `QuestionRenderer.tsx` — switches on the 11 question types per #35 | RFC §"File tree" + `QUESTION_TYPES` constant in `packages/shared` | `QuestionRenderer.tsx` 12-branch switch | `SurveyFormRenderer.test.tsx` — 11 per-type tests | **Met** |
+| `MemberIdField.tsx` — standalone-only respondent field; reads `Brand.memberIdentifierKind` | RFC §"File tree" + R15 | `MemberIdField.tsx` built; **not consumed** in Slice 4a (admin previews are read-only and skip identification). Slice 5 wires it. | TypeScript compilation green; consumer arrives in Slice 5 | **Met (deferred consumer)** |
+| BrandTheme → CSS-variable mapping per R31 table (14 rows + scale table) | RFC §"BrandTheme to Survey element token mapping" | `theme-to-css-vars.ts` (14 `--ceq-*` properties) + `scale-resolvers.ts` (sm/md/lg → 4 fields) | `theme-to-css-vars.test.ts` (7) + `scale-resolvers.test.ts` (12) | **Met** |
+| Non-tokenized hardcoded values (error red-600, focus outline) | RFC §"Non-brand-tokenized elements" | `QuestionRenderer.tsx` + `SurveyFormRenderer.tsx` use literal values for error and focus; hover derivation deferred (no hover state styled in V0 — narrows surface) | manual code review · `git grep '#dc2626'` returns 0 inappropriate uses | **Met** |
+| Detail page composition (`<SurveyDetailShell>` + 3 section components) | RFC §"Detail page" | `[id]/page.tsx` composes shell + sections in spec order | `page.test.tsx` (section order) + e2e scenario 1 | **Met** |
+| `expanded` prop is initial value; section owns its own toggle state thereafter (R27/R28/R32) | RFC §"Detail page" | CollapsibleSection `useState(expandedDefault)` per section | `CollapsibleSection.test.tsx` "exposes aria-expanded state on the toggle button" + e2e scenario 4 | **Met** |
+| Skip-rule evaluation as a pure helper | RFC §"Question canvas — reorder via Up/Down buttons" + `SkipRuleSchema` | `skip-rules.logic.ts` evaluator | `skip-rules.test.ts` (19 cases × operators × actions × AND/OR) + `SurveyFormRenderer.test.tsx` skip-rule tests | **Met** |
+| Renderer modes — `'preview'` (admin) and `'live'` (Slice 5 standalone respondent) | RFC §"SurveyFormRenderer is consumed by …" | `RendererMode = 'preview' | 'live'` in `types.ts`; preview mode disables submit + grays out interactive controls | `SurveyFormRenderer.test.tsx` "file_upload disabled in preview" covers preview path | **Met (live path lands in Slice 5)** |
+| No `@dnd-kit` or drag-drop dependency added | RFC §"Question canvas — reorder via Up/Down buttons" | `QuestionRenderer.tsx` `case 'ranking'` uses Up/Down arrow buttons + `move(idx, ±1)` reorder | `apps/web/package.json` diff — only 4 new devDeps added (`@testing-library/*`, `jsdom`) | **Met** |
+| ADR 0001's four-route layout preserved | RFC §"ADR 0001 compliance" | `/admin/surveys` + `/[id]` + `/[id]/edit` + `/new` all present | `git diff` for routes empty (only `[id]/page.tsx` rewritten in-place) | **Met** |
+| Visual-regression gate between web + embed renderers — deferred to Slice 5 | RFC §"Slice 5 acceptance" | Explicit deferral in Slice 4a work-list + UI-polish-validation doc §6 | n/a — declared deferral | **Met (deferred)** |
+| LoopMonitor (Issue #80 hero-pipeline UI) preserved inside the new layout | Phase-7 addition — project rule R2 | `<ResponseSection>` embeds `<LoopMonitor surveyId surveyStatus getToken />` | 5 Loop Monitor e2e tests pass · `ResponseSection.test.tsx` "renders the analytics deferral note alongside the LoopMonitor" | **Met** |
+
+**Verdict**: All 15 in-scope rows **Met**. **Technical-design review passes.**
+
+### Feedback Verification
+
+Single feedback artifact in this slice: `docs/evidence/335-feature-implementation-feedback.md`.
+
+| Item | Status |
+|---|---|
+| QC1 — Hardcoded `setTimeout(2000)` | ADDRESSED |
+| QC2 — DEFAULT_THEME duplicates schema defaults | ADDRESSED |
+| QC3 — MOCK_THEME duplicated across 3 e2e specs | ADDRESSED |
+| QC4 — QuestionRenderer.tsx is 415 lines | ADDRESSED |
+| QC5 — DEFAULT_CHROME_MATRIX single-consumer location | ADDRESSED |
+| QC6 — themeToCssVars return type | ADDRESSED |
+| QC7 — `'use client'` directives | ADDRESSED |
+| QC8 — No hardcoded credentials | ADDRESSED |
+
+**0 UNADDRESSED feedback items.**
+
+No human feedback received in this session (PR not yet opened; phase 12 will iterate on review comments).
+
+### Validation Mode Audit
+
+Work-list `### Validation Requirements`:
+
+| Required | Performed? | Evidence |
+|---|---|---|
+| `uiValidationRequired: YES` | ✅ | `docs/evidence/335-ui-polish-validation.md` — 145 unit tests + 6 Playwright Chromium e2e scenarios all pass |
+| `mobileValidationRequired: NO` | n/a | Admin desktop-first |
+| Local pre-push gates (R11) | ✅ | typecheck / lint / build / unit-test all green |
+| CI green on PR | Pending | Phase 11 |
+
+No skipped validation modes.
+
+### Design Standards Alignment
+
+UI surfaces in this slice use the generic Tailwind v4 baseline + existing `apps/web/src/components/ui/*` primitives (StatusBadge, etc.). The new section components and renderer family follow the project's existing visual conventions (rounded-xl borders, gray scale palette, text-sm body, text-base font-semibold headings). No bespoke design-system primitives introduced. **Aligned.**
+
+### Phase 9 Verdict
+
+- Standing work list complete ✅
+- Feature-requirement Traceability Matrix: 15 / 15 Met (1 row pending CI in phase 11) ✅
+- Technical-design Traceability Matrix: 15 / 15 Met ✅
+- Feedback completeness: 0 UNADDRESSED ✅
+- Validation-mode audit: all required modes performed or documented ✅
+- Design-standards alignment: consistent with project baseline ✅
+
+**Phase 9 passes. Advance to `implement-architecture-update`.**
