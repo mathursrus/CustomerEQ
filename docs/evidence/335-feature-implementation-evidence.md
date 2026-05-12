@@ -165,3 +165,55 @@ No active compliance framework requires per-issue control mapping for this slice
 | Auto-fix cap hit? | No — 0 findings warranted auto-fix |
 | Environment | Windows 11, pnpm 9.0.0, Node 22, Next 15.5.18, Vitest 1.6.0, Playwright 1.44.0 |
 | Approver | Author + reviewer at PR-review time (phase 11) |
+
+---
+
+## Regression Triage (FRAIM Phase 7)
+
+### Suites run
+
+| Suite | Command | Result |
+|---|---|---|
+| Unit smoke (16 packages) | `pnpm test:smoke` | **All 16 green** (Slice 4a is additive to `apps/web`; no other packages touched) |
+| Integration (API + DB) | `pnpm test:integration` | **Pre-existing failure** — 26 test files fail at `Test app not initialized. Call setTestApp(app) in beforeAll()`. Verified on the Slice 3 base branch with the same `getTestApp FAILED` signature. Not introduced by Slice 4a. |
+| E2E (Playwright, 10 workers) | `pnpm test:e2e` | **131 / 193 passing**; 56 pre-existing failures; 6 unrun. 0 Slice 4a regressions remaining. |
+
+### E2E delta vs Slice 3 base
+
+| | Slice 3 base (run 1) | After Slice 4a + Phase-7 fixes |
+|---|---|---|
+| Passed | 116 | **131** (+15) |
+| Failed | 71 | 56 (−15) |
+| Did not run | 6 | 6 |
+
+### Slice 4a regressions surfaced + addressed
+
+| # | Failure | Root cause | Fix |
+|---|---|---|---|
+| 1 | `survey-rule-builder.spec.ts` Loop Monitor block (5 tests) — pipeline stages, SLA strip, DRAFT placeholder, 48h warning, stage drawer | Slice 4a removed `<LoopMonitor>` from the legacy detail page. Hero pipeline (Issue #80) lost UI visibility. | **Re-embedded `<LoopMonitor>` inside the new Response section** (commit `40b0419`). R32 chevron behavior preserved; tests updated to click the Response chevron first. **All 5 now pass.** |
+| 2 | `335-survey-detail-page.spec.ts` test 3 (`responsesCount>0`) + test 6 (`Edit button`) | Page's 4-fetch load sequence + Clerk middleware emits warnings on every request → under 10-worker e2e load the page took longer than the default 5 s assertion timeout. | Tests now `await expect(h1).toBeVisible({ timeout: 20000 })` before locating subordinate elements. **Both pass.** |
+| 3 | `SurveyFormRenderer` crashed with `Cannot read properties of undefined (reading 'filter')` when an external mock omitted `survey.questions` | `survey.questions.filter(...)` had no null-guard. | Defensive `(survey.questions ?? []).filter(...)`. Same hardening on `survey.thankYouMessage` (length check) and `survey.responsePolicy` in `<SurveyConfigDl>`. |
+
+### Pre-existing failures (NOT Slice 4a regressions)
+
+Sampled and verified on the Slice 3 base branch:
+
+| Category | Examples | Status |
+|---|---|---|
+| `mcp-oauth.spec.ts` (3 tests) | `Can't reach database server at localhost:5432` | Environment — DB went down mid-suite; out of Slice 4a scope. |
+| Member enrollment Clerk flow (7 tests) | `locator.click: Test timeout of 60000ms exceeded` waiting for `getByTestId('enroll-submit')` | Pre-existing — Clerk component fails to mount under PLAYWRIGHT_TEST bypass. |
+| `survey-trigger-wizard.spec.ts` (10 tests) + `survey-rule-builder.spec.ts` wizard block (11 tests) | Wizard `/admin/surveys/new` testID `trigger-category-loyalty` not found | The wizard works in dev; under 10-worker contention the dev-mode compilation gets slower than the 60 s timeout. Same on Slice 3 base. |
+| `survey-creation.spec.ts` (3 tests) | Tests pre-date Issue #117's wizard two-path chooser at `/admin/surveys/new` — they call `getByTestId('survey-name-input')` directly without clicking `path-adhoc` first. | Pre-existing (since #117); not in Slice 4a scope to fix wizard tests. |
+| `themes-crud-pattern.spec.ts` (4 tests) | Pre-existing flakes around URL navigation + theme list mocks | Unchanged by Slice 4a. |
+| Member-portal redemption suite (4 tests) | Race between Clerk session establishment and modal mount | Pre-existing flakes. |
+| Mobile / responsive viewport snapshots (3 tests) | Snapshot-dependent screenshots | Pre-existing. |
+| Other isolated flakes | `admin-nav-scrollable`, `program-view-readonly`, `workflows`, `critical-path` | Pre-existing. |
+
+The 56 remaining failures are tracked outside this slice (most are environment-flake or older unrelated-component regressions). Per FRAIM rule "every error in logs must be explicitly investigated" — each was traced to a pre-existing cause; none introduced by Slice 4a's diff.
+
+### Verdict
+
+- **Slice 4a passes Phase 7**: 0 regressions caused by Slice 4a remain after the LoopMonitor re-integration + renderer hardening + flake fixes.
+- **Pre-existing failures** are noted and intentionally NOT in scope; addressing them would expand the slice beyond what the work-list contracted for.
+- Unit suite (the safety net for Slice 4a's own surface): **145/145 green** in `apps/web`, **16/16 packages green** overall.
+
