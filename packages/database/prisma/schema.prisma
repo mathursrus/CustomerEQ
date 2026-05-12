@@ -631,6 +631,7 @@ model Survey {
   // on the form; earning consolidates to EarningRule keyed on cx events.
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?        // Issue #332 — soft delete (matches Program/Member/Reward convention)
 
   responses     SurveyResponse[]
   surveyRules   SurveyRule[]         // response-to-action rules (Issue #80)

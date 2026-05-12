@@ -7,6 +7,9 @@ export async function createSurvey(opts: {
   brandId: string
   programId: string
   name?: string
+  // Issue #241 Slice 1/2 — respondent-facing title (#326) + list-page description (#329)
+  title?: string | null
+  description?: string | null
   type?: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
   questions?: unknown[]
   status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
@@ -20,6 +23,9 @@ export async function createSurvey(opts: {
   consentTextOverride?: string | null
   consentSuppressedAttestedBy?: string | null
   consentSuppressedAttestedAt?: Date | null
+  // Issue #291 — per-survey thank-you copy/routing (moved from BrandTheme).
+  thankYouMessage?: string
+  thankYouRedirectUrl?: string | null
 }) {
   const prisma = getTestPrisma()
   counter++
@@ -48,6 +54,8 @@ export async function createSurvey(opts: {
       brandId: opts.brandId,
       programId: opts.programId,
       name: opts.name ?? `Test Survey ${counter}`,
+      title: opts.title ?? null,
+      description: opts.description ?? null,
       type: opts.type ?? 'NPS',
       questions: (opts.questions ?? defaultQuestions) as Prisma.InputJsonValue,
       settings: opts.settings as Prisma.InputJsonValue ?? undefined,
@@ -59,6 +67,8 @@ export async function createSurvey(opts: {
       consentTextOverride: opts.consentTextOverride ?? null,
       consentSuppressedAttestedBy: opts.consentSuppressedAttestedBy ?? null,
       consentSuppressedAttestedAt: opts.consentSuppressedAttestedAt ?? null,
+      ...(opts.thankYouMessage !== undefined ? { thankYouMessage: opts.thankYouMessage } : {}),
+      thankYouRedirectUrl: opts.thankYouRedirectUrl ?? null,
     },
   })
 }
