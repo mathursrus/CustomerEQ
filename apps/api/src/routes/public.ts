@@ -45,10 +45,6 @@ const PublicSurveyResponseSchema = z.object({
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
 })
 
-const RespondQuerySchema = z.object({
-  member_id: z.string().min(1).optional(),
-})
-
 // Schema for webhook-triggered survey distribution
 const SurveyTriggerSchema = z.object({
   memberEmail: z.string().email('Valid email is required'),

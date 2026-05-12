@@ -135,10 +135,10 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
     // trust-proxy chain when configured. If unavailable (misconfigured trust
     // proxy, or a code path that bypassed the network layer), log a structured
     // WARN but never block the audit row — `requestIp: null` is acceptable.
-    let requestIp: string | null = null
+    let requestIp: string | null
     try {
       requestIp = request.ip ?? null
-    } catch (err: unknown) {
+    } catch {
       requestIp = null
     }
     if (requestIp === null) {
