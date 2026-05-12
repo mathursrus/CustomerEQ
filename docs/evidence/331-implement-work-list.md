@@ -54,9 +54,18 @@ Build a small `<FilterChips>` component colocated under `surveys/components/`. M
 
 No change to shared `<PaginatedTable>`. The Name column wraps each survey name in `<Link>` (single-click navigates), and `onRowDoubleClick` navigates the row body — matching the Programs/Members convention. This is the project's intentional two-affordance pattern (saved in memory: `feedback_admin_list_row_clicks.md`). The "row click" language in spec §1 is interpreted as this two-affordance pattern.
 
-### D-S3.3 — `/admin/surveys/new` Server Component
+### D-S3.3 — `/admin/surveys/new` Server Component — DEFERRED TO SLICE 4
 
-Server Component fetches `/v1/programs` (Clerk Bearer via `@clerk/nextjs/server`'s `auth()`), picks the first program, POSTs `/v1/surveys` with `{ name: 'Untitled survey', programId, type: 'NPS' }`, then `redirect()`s to `/admin/surveys/[id]/edit?tab=basics`. Assumption: brand always has ≥1 program (onboarding creates one). If zero, redirect to `/admin/surveys?error=no-program` with an inline notice.
+Initially rewrote `/new` as a Server Component (auth → POST `/v1/surveys` → `redirect()` to `/[id]/edit?tab=basics`). During local review, two production-break concerns surfaced:
+
+1. The legacy wizard's **trigger / rules / launch** wizard steps would be lost, but the spec-mandated replacement (Slice 4's 4-tab editor + Activate flow) doesn't exist yet.
+2. The Server Component hardcoded **`type: 'NPS'`** at creation time; the legacy survey-builder (the current `/edit` redirect target) can edit questions but not change the type — operator would be stuck.
+
+Both pointed at the same fix: `/new` should keep doing what it does today (the wizard) until Slice 4 lands the new editor that owns both the create flow and the edit flow.
+
+**Decision**: revert just `apps/web/src/app/(admin)/admin/surveys/new/page.tsx` to the existing client-side wizard. Keep everything else in Slice 3 (list rewrite, chips, ⋯ menu, StatusBadge `STOPPED`, vitest harness, disabled-button + empty-state when no programs). Slice 4 owns the `/new` AND `/edit` rewrites together — natural pairing since the Basics tab IS the new `/new` landing target.
+
+The Server Component implementation is preserved in git history (commit `2ffa607` on this branch) and can be lifted into Slice 4 cleanly.
 
 ### D-S3.4 — Duplicate / Delete API endpoints — landed in #333
 
@@ -79,7 +88,7 @@ Phase-2 verification: the current handler at `apps/api/src/routes/surveys.ts:96`
 ### Code
 
 - [ ] `apps/web/src/app/(admin)/admin/surveys/page.tsx` — REWRITE as client component (matching Programs/Members convention). Page shell + chip-filter state + `<PaginatedTable>` + `<NewSurveyButton>` + `<SurveyRowMenu>` per row. Removes: `CopyWidgetButton`, `Trigger` column, `Incentive Points` column, inline status colors map.
-- [ ] `apps/web/src/app/(admin)/admin/surveys/new/page.tsx` — REWRITE as thin Server Component (~40 lines): `auth()` from `@clerk/nextjs/server`, GET `/v1/programs` (server-side fetch with the bearer), POST `/v1/surveys` with `{ name: 'Untitled survey', programId: first, type: 'NPS' }`, `redirect()` to `/admin/surveys/[id]/edit?tab=basics`. Per D-S3.3.
+- [x] ~~`apps/web/src/app/(admin)/admin/surveys/new/page.tsx` — REWRITE as thin Server Component~~ **DEFERRED TO SLICE 4 per D-S3.3.** The existing client-side wizard stays on `/new` until Slice 4 lands the new editor.
 - [ ] `apps/web/src/app/(admin)/admin/surveys/components/SurveysList.tsx` — NEW. Client component owning filter state + table.
 - [ ] `apps/web/src/app/(admin)/admin/surveys/components/SurveyRowMenu.tsx` — NEW. Client component with state-aware item visibility; backs Duplicate / Pause / Stop / Restart / Discard / Delete by calling existing endpoints (Slice 2 status PATCH + #333 duplicate/delete).
 - [ ] `apps/web/src/app/(admin)/admin/surveys/components/NewSurveyButton.tsx` — NEW. Single `<Link href="/admin/surveys/new">` styled as primary CTA.
