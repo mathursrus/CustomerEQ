@@ -24,8 +24,8 @@ describe('SurveyRowMenu — state × visibility matrix', () => {
     expect(visibleKeys('ACTIVE').sort()).toEqual(['duplicate', 'pause', 'stop'].sort())
   })
 
-  it('PAUSED shows Duplicate + Stop (no Pause, no Restart yet — Stop first)', () => {
-    expect(visibleKeys('PAUSED').sort()).toEqual(['duplicate', 'stop'].sort())
+  it('PAUSED shows Duplicate + Stop + Restart (Restart resumes to ACTIVE)', () => {
+    expect(visibleKeys('PAUSED').sort()).toEqual(['duplicate', 'restart', 'stop'].sort())
   })
 
   it('STOPPED shows Duplicate + Restart + Delete', () => {

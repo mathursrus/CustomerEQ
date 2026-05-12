@@ -49,8 +49,12 @@ export function buildMenuItems(callApi: ApiCaller): MenuItem[] {
     },
     {
       key: 'restart',
+      // Spec §1 lists Restart as STOPPED-only, but that leaves PAUSED with no
+      // resume-to-ACTIVE path (only Stop is available). Surface Restart on
+      // both PAUSED and STOPPED — both transition to ACTIVE via the same
+      // PATCH /:id/status call.
       label: 'Restart',
-      visible: (s) => s === 'STOPPED',
+      visible: (s) => s === 'PAUSED' || s === 'STOPPED',
       action: (id) =>
         callApi(`/v1/surveys/${id}/status`, { method: 'PATCH', body: { status: 'ACTIVE' } }),
     },

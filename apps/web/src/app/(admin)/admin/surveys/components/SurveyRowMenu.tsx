@@ -11,8 +11,16 @@ import {
 // Issue #241 Slice 3 — state-aware ⋯ row menu per spec §1.
 // Pure state→items logic lives in survey-row-menu.logic.ts (tested separately);
 // this file is the React shell — popover, click-outside, confirm-dialog, busy state.
+//
+// Popover positioning uses `position: fixed` with coordinates from the trigger's
+// getBoundingClientRect(). This escapes the table's `overflow-x-auto` ancestor
+// clipping (which caused issue: on the last row the menu was clipped and the
+// browser added a horizontal scrollbar). Fixed positioning is relative to the
+// viewport, not the table.
 
 export type { SurveyState } from './survey-row-menu.logic'
+
+const MENU_WIDTH = 176 // matches w-44
 
 interface SurveyRowMenuProps {
   surveyId: string
@@ -33,15 +41,43 @@ export function SurveyRowMenu({
 }: SurveyRowMenuProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (
+        triggerRef.current && triggerRef.current.contains(t)
+      ) return
+      if (menuRef.current && menuRef.current.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  // Recompute position when opening + on scroll/resize while open.
+  useEffect(() => {
+    if (!open || !triggerRef.current) return
+    function place() {
+      const r = triggerRef.current!.getBoundingClientRect()
+      // Right-align to the trigger button. Clamp into viewport so the
+      // menu never overflows the right edge (e.g., on narrow viewports).
+      const right = r.right
+      const leftAligned = right - MENU_WIDTH
+      const left = Math.max(8, Math.min(leftAligned, window.innerWidth - MENU_WIDTH - 8))
+      setPos({ top: r.bottom + 4, left })
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
   }, [open])
 
   const items = buildMenuItems(callApi).filter((i) => i.visible(state))
@@ -69,8 +105,9 @@ export function SurveyRowMenu({
   }
 
   return (
-    <div ref={wrapRef} className="relative inline-block text-left">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -85,11 +122,13 @@ export function SurveyRowMenu({
       >
         ⋯
       </button>
-      {open && (
+      {open && pos && (
         <div
+          ref={menuRef}
           role="menu"
           data-testid={`survey-row-menu-${surveyId}`}
-          className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: MENU_WIDTH }}
+          className="z-50 rounded-md border border-slate-200 bg-white py-1 shadow-lg"
         >
           {items.map((item) => (
             <button
@@ -109,6 +148,6 @@ export function SurveyRowMenu({
           ))}
         </div>
       )}
-    </div>
+    </>
   )
 }
