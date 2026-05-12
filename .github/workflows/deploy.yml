@@ -56,20 +56,33 @@ jobs:
       # so the failure direction is biased correctly. On workflow_dispatch
       # the diff against HEAD~1 will typically be non-empty across many
       # files, so the manual recovery path effectively always proceeds.
+      #
+      # Issue #347 (this fix): originally used dorny/paths-filter@v3 with
+      # `base: HEAD~1`, but on workflow_run events dorny ALSO resolves
+      # the default branch ref to anchor a merge-base call, which fails
+      # under the detached-HEAD-by-SHA checkout this job uses (`git
+      # merge-base HEAD~1 main` → exit 128 because `main` isn't a local
+      # ref). Replaced with a direct `git diff` shell step — semantics
+      # identical to ci.yml's filter (same skip set), no third-party
+      # action, no merge-base resolution required.
       - name: Determine if deploy is needed
         id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          base: HEAD~1
-          filters: |
-            build:
-              - '!**/*.md'
-              - '!docs/**'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.github/pull_request_template.md'
-              - '!CODEOWNERS'
-              - '!.gitattributes'
-              - '!LICENSE'
+        shell: bash
+        run: |
+          SKIP_PATTERN='^(.*\.md|docs/.*|\.github/ISSUE_TEMPLATE/.*|\.github/pull_request_template\.md|CODEOWNERS|\.gitattributes|LICENSE)$'
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files between HEAD~1 and HEAD:"
+          echo "$CHANGED" | sed 's/^/  /'
+          if [ -z "$CHANGED" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Result: no diff; skipping deploy."
+          elif echo "$CHANGED" | grep -qvE "$SKIP_PATTERN"; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Result: at least one non-doc file changed; deploy required."
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Result: all changes match the doc-only skip set; skipping deploy."
+          fi
 
       - name: Skip if doc-only
         if: steps.changes.outputs.build == 'false'
