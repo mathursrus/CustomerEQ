@@ -59,16 +59,60 @@ export const SurveyQuestionSchema = z.object({
   options: z.array(z.string()).optional(), // backward compat for legacy choice type
   config: QuestionConfigSchema,
   skipRules: z.array(SkipRuleSchema).optional(),
+  // Issue #241 — Primary score field (R22 / D-score). Operator marks at most
+  // one rating/slider question with isScoreField=true; the response handler
+  // lifts that question's value into SurveyResponse.score. Likert is
+  // intentionally excluded (multi-statement matrix has no single answer).
+  // Cross-question validation (at-most-one, rateable-type-only) is enforced
+  // at the survey schema level via superRefine.
+  isScoreField: z.boolean().optional(),
 })
+
+// Types eligible to carry isScoreField. Likert excluded by design.
+const SCORE_FIELD_RATEABLE_TYPES = new Set<string>(['rating', 'slider'])
+
+function validateScoreFields(
+  questions: Array<{ id: string; type: string; isScoreField?: boolean }>,
+  ctx: z.RefinementCtx,
+): void {
+  const scored = questions.filter((q) => q.isScoreField === true)
+  if (scored.length > 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['questions'],
+      message: `At most one question may be marked isScoreField; found ${scored.length}.`,
+      params: { code: 'TOO_MANY_SCORE_FIELDS' },
+    })
+  }
+  for (const q of scored) {
+    if (!SCORE_FIELD_RATEABLE_TYPES.has(q.type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['questions'],
+        message: `Question ${q.id} is marked isScoreField but type '${q.type}' is not rateable (allowed: rating, slider).`,
+        params: { code: 'IS_SCORE_FIELD_INVALID_TYPE', questionId: q.id, type: q.type },
+      })
+    }
+  }
+}
 
 // ─── Survey CRUD ─────────────────────────────────────────────────────────────
 
 export const CreateSurveySchema = z.object({
   name: z.string().min(1, 'Survey name is required').max(200),
+  // Issue #241 — respondent-facing form heading (R7 / D16). Nullable; the
+  // activation gate (R23) ensures a title is set before status flips to ACTIVE.
+  title: z.string().min(1).max(200).nullable().optional(),
+  // Issue #241 — list-page description meta (D26).
+  description: z.string().max(1000).nullable().optional(),
   programId: z.string().min(1),
   type: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']),
   questions: z.array(SurveyQuestionSchema).min(1, 'At least one question is required'),
   settings: z.record(z.unknown()).optional(),
+  // Issue #241 — explicit responsePolicy on create; R30 locks it once responsesCount > 0.
+  responsePolicy: z.enum(['ONCE', 'MULTIPLE', 'LATEST_OVERWRITES']).default('MULTIPLE'),
+  // Issue #241 — per-survey consent text override (R12). Null/'' meaningful per R13/R17.
+  consentTextOverride: z.string().max(5000).nullable().optional(),
   themeId: z.string().optional(),
   // Issue #79 — trigger wizard fields (all optional for backwards compatibility)
   triggerCategory: z.enum(['loyalty', 'cx_risk', 'scheduled']).optional(),
@@ -77,25 +121,54 @@ export const CreateSurveySchema = z.object({
   // Issue #291 — per-survey thank-you copy/routing/toggle (moved from BrandTheme)
   thankYouMessage: z.string().max(500).default('Thank you for your feedback!'),
   thankYouRedirectUrl: z.string().url().nullable().optional(),
-  // Issue #241 — incentivePoints + showIncentivePoints removed (D19/D40/D50): points never appear
-  // on the form; earning consolidates to EarningRule keyed on cx events. Slice 2 will add
-  // `title`, `description`, and other new fields.
+}).superRefine((data, ctx) => {
+  // Issue #241 — at-most-one + rateable-type isScoreField validation.
+  validateScoreFields(data.questions, ctx)
 })
 
+// Issue #241 — UpdateSurveySchema is strict(): unknown keys return 422 with
+// `details.fieldDisallowed`. The four consent-override fields (consentMode,
+// consentReason, consentSuppressedAttestedBy, consentSuppressedAttestedAt)
+// are intentionally absent so a caller mistakenly PATCHing them gets rejected
+// by the strict() safety net — the dedicated PATCH /:id/consent-mode endpoint
+// is the only writer for those columns.
 export const UpdateSurveySchema = z.object({
   name: z.string().min(1).max(200).optional(),
+  title: z.string().min(1).max(200).nullable().optional(),
+  description: z.string().max(1000).nullable().optional(),
+  type: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']).optional(),
+  programId: z.string().min(1).optional(),
   questions: z.array(SurveyQuestionSchema).min(1).optional(),
   settings: z.record(z.unknown()).optional(),
+  responsePolicy: z.enum(['ONCE', 'MULTIPLE', 'LATEST_OVERWRITES']).optional(),
+  consentTextOverride: z.string().max(5000).nullable().optional(),
   themeId: z.string().nullable().optional(),
-  // Issue #291 — per-survey thank-you copy/routing/toggle
+  // Issue #291 — per-survey thank-you copy/routing
   thankYouMessage: z.string().max(500).optional(),
   thankYouRedirectUrl: z.string().url().nullable().optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.questions) {
+    validateScoreFields(data.questions, ctx)
+  }
 })
 
 export const UpdateSurveyStatusSchema = z.object({
   // Issue #241 — CLOSED renamed to STOPPED per R25 / D5.
   status: z.enum(['ACTIVE', 'PAUSED', 'STOPPED']),
 })
+
+// Issue #241 / R10 / R11 — dedicated consent-mode endpoint schema. The only
+// path that writes the four consent-override columns. Attestation gate is
+// enforced in the handler (not the schema) because it depends on the brand's
+// current consentMode, which isn't part of the request body.
+export const UpdateConsentModeSchema = z.object({
+  consentMode: z.enum(['EXPLICIT', 'IMPLIED_ON_SUBMIT']).nullable(),
+  consentReason: z.string().max(500).optional(),
+  attestation: z.object({
+    confirmed: z.boolean(),
+    reason: z.string().min(1, 'Attestation reason is required').max(500),
+  }).optional(),
+}).strict()
 
 // ─── Survey Response Submission ──────────────────────────────────────────────
 

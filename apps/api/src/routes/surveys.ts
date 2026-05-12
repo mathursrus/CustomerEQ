@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, SurveyStatus } from '@prisma/client'
 import {
   CreateSurveySchema,
   UpdateSurveySchema,
   UpdateSurveyStatusSchema,
+  UpdateConsentModeSchema,
   SubmitSurveyResponseSchema,
   LaunchSurveySchema,
   validateRuleOverlap,
@@ -16,6 +17,32 @@ import { computeLoopMonitorWarning } from '@customerEQ/shared'
 import { parseCsvRaw } from '../utils/csvParser.js'
 import { runAdapter } from '../utils/importAdapters/index.js'
 import type { ImportSourceType } from '../utils/importAdapters/index.js'
+
+// Issue #241 Slice 2 / R29 / R30 — per-state field editability table.
+// Each entry returns true if the field is editable in the given (state, ctx)
+// combination. Missing fields are treated as always-editable (e.g., 'settings',
+// 'themeId' don't appear here because they're permissive in non-STOPPED states).
+const FIELD_EDITABILITY: Record<
+  string,
+  (state: SurveyStatus, ctx: { responsesCount: number }) => boolean
+> = {
+  name: (s) => s !== 'STOPPED',
+  title: (s) => s !== 'STOPPED',
+  description: (s) => s !== 'STOPPED',
+  type: (s) => s === 'DRAFT',
+  programId: (s) => s === 'DRAFT',
+  // R30: responsePolicy is editable only in DRAFT and only if no responses exist yet.
+  responsePolicy: (s, ctx) => s === 'DRAFT' && ctx.responsesCount === 0,
+  questions: (s) => s === 'DRAFT',
+  themeId: (s) => s !== 'STOPPED',
+  settings: (s) => s !== 'STOPPED',
+  thankYouMessage: (s) => s !== 'STOPPED',
+  thankYouRedirectUrl: (s) => s !== 'STOPPED',
+  // Issue #241 — consentTextOverride is editable in non-STOPPED states; audit
+  // captures the change. (The dedicated /consent-mode endpoint owns
+  // consentMode itself; this is only the override text.)
+  consentTextOverride: (s) => s !== 'STOPPED',
+}
 
 const surveysRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /v1/surveys — create a new survey
@@ -121,7 +148,14 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // PATCH /v1/surveys/:id/status — activate, pause, or close a survey
-  fastify.patch('/surveys/:id/status', async (request, reply) => {
+  fastify.patch('/surveys/:id/status', {
+    config: {
+      // Issue #241 Slice 2 / R24 / NFR-O1 — per-route audit with requestIp capture.
+      auditAction: 'survey.status_update',
+      auditResourceType: 'survey',
+      auditAllowlist: ['fromStatus', 'toStatus', 'requestIp'],
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const parse = UpdateSurveyStatusSchema.safeParse(request.body)
     if (!parse.success) {
@@ -142,7 +176,10 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     if (parse.data.status === 'ACTIVE') {
       const questions = survey.questions as unknown[]
       if (!Array.isArray(questions) || questions.length === 0) {
-        return reply.status(422).send({ error: 'Survey must have at least one question to activate' })
+        return reply.status(422).send({
+          error: 'Activation gate failed',
+          code: 'NO_QUESTIONS',
+        })
       }
     }
 
@@ -151,14 +188,45 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       data: { status: parse.data.status },
     })
 
+    request.audit = {
+      metadata: { fromStatus: survey.status, toStatus: parse.data.status },
+    }
+
     return reply.status(200).send(updated)
   })
 
-  // PATCH /v1/surveys/:id — update survey details (name, questions, theme, etc.)
-  fastify.patch('/surveys/:id', async (request, reply) => {
+  // PATCH /v1/surveys/:id — update survey details. Issue #241 Slice 2:
+  // UpdateSurveySchema is strict() so unknown keys → 422 FIELD_DISALLOWED
+  // (catches accidental writes to consent-override fields; those go through
+  // the dedicated /consent-mode endpoint). A per-field state-aware allowlist
+  // gates writes per Survey.status + responsesCount (R29 / R30); disallowed
+  // combos return 409 FIELD_NOT_EDITABLE_IN_STATE.
+  fastify.patch('/surveys/:id', {
+    config: {
+      auditAction: 'survey.update',
+      auditResourceType: 'survey',
+      auditAllowlist: [
+        'title', 'description', 'name', 'responsePolicy', 'consentTextOverride',
+        'themeId', 'thankYouMessage', 'thankYouRedirectUrl', 'requestIp',
+      ],
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const parse = UpdateSurveySchema.safeParse(request.body)
     if (!parse.success) {
+      // Issue #241 — surface unrecognized_keys (from .strict()) as a stable
+      // FIELD_DISALLOWED contract so clients can recognize "tried to write a
+      // forbidden field" vs general validation failure.
+      const unknownKey = parse.error.issues.find((i) => i.code === 'unrecognized_keys')
+      if (unknownKey && 'keys' in unknownKey) {
+        const keys = (unknownKey as unknown as { keys: string[] }).keys
+        return reply.status(422).send({
+          error: 'Unknown field',
+          code: 'FIELD_DISALLOWED',
+          field: keys[0],
+          fields: keys,
+        })
+      }
       return reply.status(422).send({
         error: 'Validation failed',
         message: parse.error.errors.map((e: { message: string }) => e.message).join(', '),
@@ -171,6 +239,22 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!survey) {
       return reply.status(404).send({ error: 'Survey not found' })
+    }
+
+    // R29 / R30 — state-aware field allowlist. First disallowed field wins;
+    // the frontend disables the matching inputs so users rarely hit this in
+    // practice — the 409 is the server-side safety net.
+    const ctx = { responsesCount: survey.responsesCount }
+    for (const field of Object.keys(parse.data)) {
+      const rule = FIELD_EDITABILITY[field]
+      if (rule && !rule(survey.status, ctx)) {
+        return reply.status(409).send({
+          error: 'Field not editable in current state',
+          code: 'FIELD_NOT_EDITABLE_IN_STATE',
+          field,
+          currentState: survey.status,
+        })
+      }
     }
 
     // Verify theme belongs to brand if provided
@@ -188,7 +272,90 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       data: parse.data as Prisma.SurveyUpdateInput,
     })
 
+    // Audit metadata: record the changed keys (allowlist filters down to
+    // the documented set above).
+    request.audit = {
+      metadata: Object.fromEntries(
+        Object.entries(parse.data).filter(([k]) => k !== 'questions' && k !== 'settings'),
+      ),
+    }
+
     return reply.status(200).send(updated)
+  })
+
+  // PATCH /v1/surveys/:id/consent-mode — Issue #241 Slice 2 (absorbs #283).
+  // The ONLY path that writes Survey.consentMode, consentReason,
+  // consentSuppressedAttestedBy, consentSuppressedAttestedAt. The general
+  // PATCH /:id rejects those four via UpdateSurveySchema.strict().
+  //
+  // Attestation gate (R10): if the requested mode is more permissive than
+  // Brand.consentMode (i.e., IMPLIED_ON_SUBMIT when the brand is EXPLICIT),
+  // the body MUST carry { attestation: { confirmed: true, reason: ... } } —
+  // otherwise 422 ATTESTATION_REQUIRED. Override-to-stricter (R11) requires
+  // no attestation but still produces an audit row.
+  fastify.patch('/surveys/:id/consent-mode', {
+    config: {
+      auditAction: 'survey.consent.update',
+      auditResourceType: 'survey',
+      auditAllowlist: ['consentMode', 'consentReason', 'attestation', 'requestIp'],
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const parse = UpdateConsentModeSchema.safeParse(request.body)
+    if (!parse.success) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: parse.error.errors.map((e: { message: string }) => e.message).join(', '),
+        details: parse.error.errors,
+      })
+    }
+
+    const survey = await fastify.prisma.survey.findFirst({
+      where: { id, brandId: request.brandId },
+      include: { brand: { select: { consentMode: true } } },
+    })
+    if (!survey) {
+      return reply.status(404).send({ error: 'Survey not found' })
+    }
+
+    // Attestation gate. EXPLICIT (collect affirmative consent) → IMPLIED_ON_SUBMIT
+    // (treat form submission as consent) is the only "more permissive" direction
+    // for this enum. Anything else (null/inherit, same-as-brand, stricter) is
+    // unrestricted.
+    const requested = parse.data.consentMode
+    const brandMode = survey.brand.consentMode
+    const isMorePermissive = requested === 'IMPLIED_ON_SUBMIT' && brandMode === 'EXPLICIT'
+    if (isMorePermissive) {
+      const att = parse.data.attestation
+      if (!att || att.confirmed !== true) {
+        return reply.status(422).send({
+          error: 'Attestation required',
+          code: 'ATTESTATION_REQUIRED',
+          details: { brandMode, requestedMode: requested },
+        })
+      }
+    }
+
+    // Server-stamps attestedBy / attestedAt on every override write (including
+    // override-to-stricter — R11 requires the audit trail even when no
+    // attestation gate fires).
+    const data: Prisma.SurveyUpdateInput = {
+      consentMode: parse.data.consentMode,
+      consentReason: parse.data.consentReason ?? null,
+      consentSuppressedAttestedBy: parse.data.consentMode === null ? null : (request.clerkUserId ?? 'unknown'),
+      consentSuppressedAttestedAt: parse.data.consentMode === null ? null : new Date(),
+    }
+    const updated = await fastify.prisma.survey.update({ where: { id }, data })
+
+    request.audit = {
+      metadata: {
+        consentMode: parse.data.consentMode,
+        consentReason: parse.data.consentReason ?? null,
+        attestation: parse.data.attestation ?? null,
+      },
+    }
+
+    return reply.status(200).send({ survey: updated })
   })
 
   // POST /v1/surveys/:id/responses — submit a survey response
@@ -227,14 +394,26 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(422).send({ error: 'Member consent required' })
     }
 
-    // Check for duplicate response — #231 PR1: findUnique → findFirst because
-    // the @@unique([surveyId, memberId]) constraint was dropped per R2. PR2
-    // replaces with Survey.responsePolicy enforcement (R3).
+    // Issue #241 Slice 2 / R3 / R8 — responsePolicy enforcement. Replaces the
+    // prior "any duplicate → 200 duplicate:true" shortcut with policy-driven
+    // semantics. Imported responses (memberId IS NULL) bypass policy
+    // enforcement; that path is unreachable here (auth route).
     const existing = await fastify.prisma.surveyResponse.findFirst({
       where: { surveyId, memberId },
+      orderBy: { completedAt: 'desc' },
     })
+    let wasOverwrite = false
     if (existing) {
-      return reply.status(200).send({ duplicate: true, responseId: existing.id })
+      if (survey.responsePolicy === 'ONCE') {
+        return reply.status(409).send({
+          error: 'You have already responded.',
+          code: 'POLICY_ONCE_DUPLICATE',
+        })
+      }
+      if (survey.responsePolicy === 'LATEST_OVERWRITES') {
+        wasOverwrite = true
+      }
+      // MULTIPLE: fall through and insert a new row.
     }
 
     // Determine the CX event type based on survey type
@@ -249,23 +428,37 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     // Extract open-ended text for sentiment analysis
     const openEndedText = extractOpenEndedText(answers)
 
-    // Create the response and update response count in a transaction
-    const [response] = await fastify.prisma.$transaction([
-      fastify.prisma.surveyResponse.create({
-        data: {
-          surveyId,
-          memberId,
-          brandId,
-          answers: answers as Prisma.InputJsonValue,
-          score: score ?? null,
-          channel,
-        },
-      }),
-      fastify.prisma.survey.update({
-        where: { id: surveyId },
-        data: { responsesCount: { increment: 1 } },
-      }),
-    ])
+    // Create or update the response per policy. LATEST_OVERWRITES updates
+    // the most recent row's answers/score/completedAt; MULTIPLE/ONCE always
+    // insert a new row (ONCE is gated above so it only inserts the first one).
+    const [response] = wasOverwrite && existing
+      ? await fastify.prisma.$transaction([
+          fastify.prisma.surveyResponse.update({
+            where: { id: existing.id },
+            data: {
+              answers: answers as Prisma.InputJsonValue,
+              score: score ?? null,
+              channel,
+              completedAt: new Date(),
+            },
+          }),
+        ])
+      : await fastify.prisma.$transaction([
+          fastify.prisma.surveyResponse.create({
+            data: {
+              surveyId,
+              memberId,
+              brandId,
+              answers: answers as Prisma.InputJsonValue,
+              score: score ?? null,
+              channel,
+            },
+          }),
+          fastify.prisma.survey.update({
+            where: { id: surveyId },
+            data: { responsesCount: { increment: 1 } },
+          }),
+        ])
 
     // ── Integration Point 1: Enqueue CX event into the loyalty pipeline ──
     // This feeds directly into the existing campaign trigger evaluation
