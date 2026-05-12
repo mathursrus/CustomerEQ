@@ -1,168 +1,313 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
+import { PaginatedTable, type Column } from '@/components/ui/paginated-table'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { FilterChips, type ChipGroup } from './components/FilterChips'
+import { SurveyRowMenu, type SurveyState } from './components/SurveyRowMenu'
+
+// Issue #241 Slice 3 — surveys list rewrite per spec §1.
 
 interface Survey {
   id: string
   name: string
+  description: string | null
+  programId: string
   type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
+  status: SurveyState
+  updatedAt: string
   _count?: { responses: number }
-  triggerCategory: string | null
-  triggerKey: string | null
-  createdAt: string
 }
 
-async function getSurveys(token: string | null): Promise<Survey[]> {
-  try {
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-    const res = await fetch(`${API_URL}/v1/surveys`, { cache: 'no-store', headers })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.data ?? data.surveys ?? (Array.isArray(data) ? data : [])
-  } catch {
-    return []
-  }
+interface SurveysResponse {
+  data: Survey[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
-const statusColors: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-700',
-  DRAFT: 'bg-gray-100 text-gray-700',
-  PAUSED: 'bg-yellow-100 text-yellow-700',
-  CLOSED: 'bg-red-100 text-red-700',
+interface ProgramLite {
+  id: string
+  name: string
 }
 
-const typeColors: Record<string, string> = {
+const STATUS_GROUP: ChipGroup = {
+  key: 'status',
+  label: 'Status',
+  // Per spec §1: All / Draft / Active / Stopped. Paused not in chips (reachable via "All").
+  options: [
+    { value: 'DRAFT', label: 'Draft' },
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'STOPPED', label: 'Stopped' },
+  ],
+}
+
+const TYPE_GROUP: ChipGroup = {
+  key: 'type',
+  label: 'Type',
+  options: [
+    { value: 'NPS', label: 'NPS' },
+    { value: 'CSAT', label: 'CSAT' },
+    { value: 'CES', label: 'CES' },
+    { value: 'CUSTOM', label: 'Custom' },
+  ],
+}
+
+const TYPE_PILL: Record<string, string> = {
   NPS: 'bg-indigo-100 text-indigo-700',
   CSAT: 'bg-blue-100 text-blue-700',
   CES: 'bg-purple-100 text-purple-700',
-  CUSTOM: 'bg-gray-100 text-gray-700',
+  CUSTOM: 'bg-slate-100 text-slate-600',
 }
 
-function CopyWidgetButton({ surveyId }: { surveyId: string }) {
-  const [copied, setCopied] = useState(false)
-  const snippet = `<script src="${API_URL}/v1/public/surveys/${surveyId}/widget.js"></script>`
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        navigator.clipboard.writeText(snippet)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }}
-      title="Copy widget code"
-      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${copied ? 'border-green-300 bg-green-50 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-    >
-      {copied ? (
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-        </svg>
-      ) : (
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
-        </svg>
-      )}
-      {copied ? 'Copied!' : 'Widget'}
-    </button>
-  )
+function relTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 export default function SurveysPage() {
   const { getToken } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [surveys, setSurveys] = useState<Survey[]>([])
+  const [programs, setPrograms] = useState<Record<string, string>>({})
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  // URL-driven filter state. Initialize from search params so a shared/bookmarked
+  // URL renders the same filtered view.
+  const [filters, setFilters] = useState<Record<string, string[]>>(() => {
+    const status = searchParams.get('status')
+    const type = searchParams.get('type')
+    return {
+      status: status ? status.split(',').filter(Boolean) : [],
+      type: type ? type.split(',').filter(Boolean) : [],
+    }
+  })
+
+  const fetchSurveys = useCallback(async () => {
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/surveys`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const json = (await res.json()) as SurveysResponse
+      setSurveys(json.data ?? [])
+      setTotal(json.total ?? (json.data?.length ?? 0))
+    } catch {
+      setSurveys([])
+    }
+  }, [getToken])
+
+  // Fetch programs once for the Name-column meta-line join (Survey has programId
+  // but no Prisma relation; client-side lookup avoids extending the API schema).
+  const fetchPrograms = useCallback(async () => {
+    try {
+      const token = await getAuthToken(getToken)
+      const res = await fetch(`${API_URL}/v1/programs`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const json = (await res.json()) as { data?: ProgramLite[]; programs?: ProgramLite[] }
+      const list = json.data ?? json.programs ?? []
+      setPrograms(Object.fromEntries(list.map((p) => [p.id, p.name])))
+    } catch {
+      // Program names are best-effort; the list still renders without them.
+    }
+  }, [getToken])
 
   useEffect(() => {
-    getToken().then((token) => getSurveys(token).then(setSurveys))
-  }, [getToken])
+    void fetchSurveys()
+    void fetchPrograms()
+  }, [fetchSurveys, fetchPrograms])
+
+  // Sync filter state to the URL so the view is shareable.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (filters.status?.length) params.set('status', filters.status.join(','))
+    if (filters.type?.length) params.set('type', filters.type.join(','))
+    const qs = params.toString()
+    router.replace(qs ? `/admin/surveys?${qs}` : '/admin/surveys', { scroll: false })
+  }, [filters, router])
+
+  const handleFilterChange = (key: string, values: string[]) => {
+    setFilters((prev) => ({ ...prev, [key]: values }))
+    setPage(1)
+  }
+
+  // Client-side filtering — current page size (25) keeps this trivial.
+  // If list grows large enough to need server-side filtering, push the
+  // values into the GET /v1/surveys query string.
+  const filtered = surveys.filter((s) => {
+    const sFilter = filters.status ?? []
+    const tFilter = filters.type ?? []
+    if (sFilter.length && !sFilter.includes(s.status)) return false
+    if (tFilter.length && !tFilter.includes(s.type)) return false
+    return true
+  })
+
+  // Helper for SurveyRowMenu — supertest-style fetch with bearer auth.
+  const callApi = useCallback(
+    async (path: string, init?: { method?: string; body?: unknown }) => {
+      const token = await getAuthToken(getToken)
+      return fetch(`${API_URL}${path}`, {
+        method: init?.method ?? 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      })
+    },
+    [getToken],
+  )
+
+  const columns: Column<Survey>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      render: (s) => {
+        const programName = programs[s.programId]
+        return (
+          <div>
+            <Link
+              href={`/admin/surveys/${s.id}`}
+              className="font-medium text-slate-900 hover:text-indigo-600"
+            >
+              {s.name}
+            </Link>
+            {(s.description || programName) && (
+              <div className="mt-0.5 text-xs text-slate-500">
+                {s.description ? <span>{s.description}</span> : null}
+                {s.description && programName ? <span> · </span> : null}
+                {programName ? <span>{programName}</span> : null}
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      render: (s) => (
+        <span
+          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_PILL[s.type] ?? 'bg-slate-100 text-slate-600'}`}
+        >
+          {s.type === 'CUSTOM' ? 'Custom' : s.type}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (s) => <StatusBadge status={s.status} />,
+    },
+    {
+      key: 'responses',
+      label: 'Responses',
+      render: (s) => (
+        <span className="tabular-nums text-slate-700">{s._count?.responses ?? 0}</span>
+      ),
+    },
+    {
+      key: 'updated',
+      label: 'Updated',
+      render: (s) => <span className="text-xs text-slate-500">{relTime(s.updatedAt)}</span>,
+    },
+  ]
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Surveys</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage NPS, CSAT, CES and custom surveys</p>
+          <h1 className="text-2xl font-bold text-slate-900">Surveys</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage NPS, CSAT, CES and custom surveys</p>
         </div>
         <Link
           href="/admin/surveys/new"
           data-testid="create-survey-btn"
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
         >
-          Create Survey
+          + New survey
         </Link>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <table data-testid="surveys-table" className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Trigger</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Responses</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Incentive Points</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {surveys.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
-                  No surveys yet.{' '}
-                  <Link href="/admin/surveys/new" className="text-indigo-600 hover:underline">
-                    Create your first survey
-                  </Link>
-                </td>
-              </tr>
-            ) : (
-              surveys.map((survey) => (
-                <tr key={survey.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">
-                    <Link href={`/admin/surveys/${survey.id}`} className="hover:text-indigo-600">
-                      {survey.name}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${typeColors[survey.type] ?? 'bg-gray-100 text-gray-700'}`}>
-                      {survey.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {survey.triggerKey ? (
-                      <span
-                        data-testid={`trigger-badge-${survey.id}`}
-                        className="inline-flex rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700"
-                      >
-                        {survey.triggerKey.replace(/_/g, ' ')}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[survey.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                      {survey.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-700">{survey._count?.responses ?? 0}</td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {new Date(survey.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    {survey.status === 'ACTIVE' && <CopyWidgetButton surveyId={survey.id} />}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="mb-4">
+        <FilterChips
+          groups={[STATUS_GROUP, TYPE_GROUP]}
+          selected={filters}
+          onChange={handleFilterChange}
+        />
       </div>
+
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
+      <PaginatedTable<Survey>
+        testId="surveys-table"
+        columns={columns}
+        data={filtered}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        onRowDoubleClick={(s) => router.push(`/admin/surveys/${s.id}`)}
+        renderRowActions={(s) => (
+          <div className="flex items-center justify-end gap-1.5">
+            <Link
+              href={`/admin/surveys/${s.id}/edit`}
+              data-testid={`survey-row-edit-${s.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              aria-label="Edit"
+            >
+              ✎
+            </Link>
+            <SurveyRowMenu
+              surveyId={s.id}
+              state={s.status}
+              surveyName={s.name}
+              callApi={callApi}
+              onActionComplete={() => {
+                setActionError(null)
+                void fetchSurveys()
+              }}
+              onActionError={(msg) => setActionError(msg)}
+            />
+          </div>
+        )}
+        emptyMessage={
+          <span>
+            No surveys yet.{' '}
+            <Link href="/admin/surveys/new" className="text-indigo-600 hover:underline">
+              Create your first survey
+            </Link>
+          </span>
+        }
+      />
     </div>
   )
 }
