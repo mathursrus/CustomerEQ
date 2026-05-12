@@ -38,7 +38,9 @@ export function SurveyFormRenderer(props: SurveyFormRendererProps) {
 
   const consentText = survey.consentTextOverride ?? brand.consentTextDefault ?? ''
 
-  const visibleQuestions = survey.questions.filter((q) => shouldShowQuestion(q, currentAnswers))
+  // Defensive: surveys created via legacy flows or mid-creation may not have a
+  // questions array yet. Treat missing/null as empty so the renderer never throws.
+  const visibleQuestions = (survey.questions ?? []).filter((q) => shouldShowQuestion(q, currentAnswers))
 
   return (
     <div

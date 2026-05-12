@@ -306,16 +306,36 @@ test.describe('Survey Rule Builder — /admin/surveys/new (Steps 3 & 4)', () => 
 test.describe('Loop Monitor — survey detail page (/admin/surveys/:id)', () => {
   const surveyId = 'survey-loop-test-456'
 
+  // Issue #241 Slice 4a — LoopMonitor moved inside the new Response collapsible
+  // section. With `responses: []` (responsesCount === 0), R32 defaults the
+  // section collapsed; tests must click the chevron to reveal the LoopMonitor
+  // before asserting on its inner test IDs.
+  async function expandResponseSection(page: Parameters<typeof test>[1]['page']) {
+    await page.getByRole('button', { name: /^Response$/ }).click()
+  }
+
   async function setupSurveyPage(
     page: Parameters<typeof test>[1]['page'],
     surveyData: Record<string, unknown>,
     loopMonitorData: Record<string, unknown>,
   ) {
+    // The new detail page calls additional GETs to compose the Configuration
+    // summary section. Stub each one with a 200 so the page reaches its loaded
+    // state — content of these responses isn't asserted in this suite.
     await page.route(`${API}/v1/surveys/${surveyId}`, async (route) => {
-      await route.fulfill({ json: surveyData })
+      await route.fulfill({ json: { survey: surveyData } })
     })
     await page.route(`${API}/v1/surveys/${surveyId}/loop-monitor`, async (route) => {
       await route.fulfill({ json: loopMonitorData })
+    })
+    await page.route(`${API}/v1/brand-themes/**`, async (route) => {
+      await route.fulfill({ json: { theme: { id: 'thm_test', name: 'Test Theme', primaryColor: '#6366f1', secondaryColor: '#818cf8', backgroundColor: '#ffffff', textColor: '#111827', buttonColor: '#6366f1', buttonTextColor: '#ffffff', accentColor: '#6366f1', fontFamily: 'system-ui', headingSize: 'md', bodySize: 'md', maxWidth: 'md', borderRadius: 'md', cardStyle: 'shadow', backgroundImageUrl: null } } })
+    })
+    await page.route(`${API}/v1/me`, async (route) => {
+      await route.fulfill({ json: { brand: { id: 'brand-test', name: 'Test Brand', logoUrl: null, consentTextDefault: null, termsUrl: null, privacyPolicyUrl: null, memberIdentifierKind: 'email' } } })
+    })
+    await page.route(`${API}/v1/programs`, async (route) => {
+      await route.fulfill({ json: { data: [] } })
     })
   }
 
@@ -337,6 +357,7 @@ test.describe('Loop Monitor — survey detail page (/admin/surveys/:id)', () => 
     )
 
     await page.goto(`/admin/surveys/${surveyId}`)
+    await expandResponseSection(page)
 
     await expect(page.getByTestId('loop-monitor')).toBeVisible()
     await expect(page.getByTestId('pipeline-stages')).toBeVisible()
@@ -362,29 +383,31 @@ test.describe('Loop Monitor — survey detail page (/admin/surveys/:id)', () => 
     )
 
     await page.goto(`/admin/surveys/${surveyId}`)
+    await expandResponseSection(page)
 
     await expect(page.getByTestId('latency-strip')).toBeVisible()
     await expect(page.getByTestId('sla-status')).toContainText('Within SLA')
   })
 
   test('Loop Monitor placeholder shown for DRAFT survey (no API call needed)', async ({ page }) => {
-    await page.route(`${API}/v1/surveys/${surveyId}`, async (route) => {
-      await route.fulfill({
-        json: {
-          id: surveyId,
-          name: 'Draft Survey',
-          type: 'NPS',
-          status: 'DRAFT',
-          responses: [],
-          triggerCategory: null,
-          triggerKey: null,
-          surveyTypeOverride: null,
-          createdAt: new Date().toISOString(),
-        },
-      })
-    })
+    await setupSurveyPage(
+      page,
+      {
+        id: surveyId,
+        name: 'Draft Survey',
+        type: 'NPS',
+        status: 'DRAFT',
+        responses: [],
+        triggerCategory: null,
+        triggerKey: null,
+        surveyTypeOverride: null,
+        createdAt: new Date().toISOString(),
+      },
+      {},
+    )
 
     await page.goto(`/admin/surveys/${surveyId}`)
+    await expandResponseSection(page)
 
     // Component renders a static placeholder when not ACTIVE
     await expect(page.getByTestId('loop-monitor-placeholder')).toBeVisible()
@@ -409,6 +432,7 @@ test.describe('Loop Monitor — survey detail page (/admin/surveys/:id)', () => 
     )
 
     await page.goto(`/admin/surveys/${surveyId}`)
+    await expandResponseSection(page)
 
     await expect(page.getByTestId('loop-monitor-warning')).toBeVisible()
 
@@ -435,6 +459,7 @@ test.describe('Loop Monitor — survey detail page (/admin/surveys/:id)', () => 
     )
 
     await page.goto(`/admin/surveys/${surveyId}`)
+    await expandResponseSection(page)
 
     await page.getByTestId('stage-responsesReceived').click()
 

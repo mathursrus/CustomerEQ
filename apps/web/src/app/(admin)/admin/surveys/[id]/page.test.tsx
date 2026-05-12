@@ -99,15 +99,18 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     expect(screen.getByText(/share link/i)).toBeInTheDocument()
     // Configuration body visible (survey title from the preview)
     expect(screen.getByRole('heading', { name: 'Quick check-in' })).toBeInTheDocument()
-    // Response body hidden (placeholder not rendered)
-    expect(screen.queryByText(/Response analytics/i)).toBeNull()
+    // Response body hidden — neither the deferral note nor LoopMonitor's placeholder render
+    expect(screen.queryByText(/sibling sub-issue/i)).toBeNull()
+    expect(screen.queryByTestId('loop-monitor-placeholder')).toBeNull()
   })
 
   it('with responsesCount>0: Distribution collapsed, Response expanded, Configuration collapsed', async () => {
     mockApi({ survey: { ...SURVEY_ALL_TYPES, _count: { responses: 7 } } })
     const Page = (await import('./page')).default
     render(<Page />)
-    await waitFor(() => expect(screen.getByText(/Response analytics/i)).toBeInTheDocument())
+    // The deferral note + LoopMonitor placeholder render inside the expanded Response section
+    await waitFor(() => expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument())
+    expect(screen.getByTestId('loop-monitor-placeholder')).toBeInTheDocument()
     expect(screen.queryByText(/share link/i)).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Quick check-in' })).toBeNull()
   })
