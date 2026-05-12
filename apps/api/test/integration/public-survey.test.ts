@@ -28,7 +28,6 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
-      incentivePoints: 50,
     })
 
     const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
@@ -36,7 +35,9 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(survey.id)
     expect(res.body.brand.name).toBe(brand.name)
-    expect(res.body.incentivePoints).toBe(50)
+    // Issue #241 — `incentivePoints` removed from response shape; the field
+    // is no longer on Survey (D19/D40/D50).
+    expect(res.body.incentivePoints).toBeUndefined()
   })
 
   it('returns 404 for a DRAFT survey on the public endpoint', async () => {
@@ -48,10 +49,10 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for a CLOSED survey on the public endpoint', async () => {
+  it('returns 404 for a STOPPED survey on the public endpoint', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'CLOSED' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'STOPPED' })
 
     const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
     expect(res.status).toBe(404)
@@ -491,33 +492,14 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
   })
 
   // ---------------------------------------------------------------------------
-  // Edge: incentive points + sentiment + 404 for missing survey
+  // Edge: sentiment + 404 for missing survey
   // ---------------------------------------------------------------------------
-
-  it('includes incentivePoints and enqueues the incentive event', async () => {
-    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
-    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    await createConsentedMember({ brandId: brand.id, email: 'incentive@example.com' })
-    const survey = await createSurvey({
-      brandId: brand.id,
-      programId: program.id,
-      status: 'ACTIVE',
-      incentivePoints: 200,
-    })
-
-    const res = await unauthenticatedRequest()
-      .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberId: 'incentive@example.com', answers: { q1: 7 }, score: 7 })
-
-    expect(res.status).toBe(201)
-    expect(res.body.incentivePoints).toBe(200)
-
-    const loyaltyJobs = InMemoryQueue.getJobs('loyalty-events')
-    const incentiveJob = loyaltyJobs.find(
-      (j) => (j.data as { payload?: { incentive?: boolean } }).payload?.incentive === true,
-    )
-    expect(incentiveJob).toBeDefined()
-  })
+  //
+  // Issue #241 — the prior "includes incentivePoints and enqueues the incentive
+  // event" test is removed. `Survey.incentivePoints` is dropped (D19/D40/D50);
+  // the response handler no longer emits a second `cx.survey_completed` event.
+  // Earning is now driven by EarningRule rows keyed on the cx event the
+  // handler already emits (Integration Point 1).
 
   it('enqueues sentiment analysis when the response contains open-ended text', async () => {
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })

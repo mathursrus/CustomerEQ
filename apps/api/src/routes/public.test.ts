@@ -122,7 +122,6 @@ describe('generateWidgetJs', () => {
     name: 'Customer NPS',
     type: 'NPS',
     questions: [{ id: 'q1', text: 'How likely to recommend?', type: 'rating', required: true }],
-    incentivePoints: 50,
     brand: { name: 'TestBrand' },
   }
 
@@ -153,14 +152,11 @@ describe('generateWidgetJs', () => {
     expect(js).toContain('\\u003e')
   })
 
-  it('includes incentive points badge when survey has incentivePoints', () => {
+  // Issue #241 — the prior "incentive points badge" tests are removed.
+  // `Survey.incentivePoints` is gone (D19/D40/D50); points never appear on
+  // the form. The widget no longer renders or references incentive points.
+  it('does not render an incentive points badge', () => {
     const js = generateWidgetJs(survey, 'https://api.example.com')
-    expect(js).toContain('incentivePoints')
-  })
-
-  it('handles null incentivePoints', () => {
-    const noIncentive = { ...survey, incentivePoints: null }
-    const js = generateWidgetJs(noIncentive, 'https://api.example.com')
-    expect(js).toContain('incentivePoints')
+    expect(js).not.toContain('incentivePoints')
   })
 })

@@ -25,7 +25,6 @@ const MOCK_CREATED_SURVEY = {
   name: 'Post-Purchase NPS',
   type: 'NPS',
   status: 'DRAFT',
-  incentivePoints: 50,
   createdAt: '2026-03-27T00:00:00Z',
   _count: { responses: 0 },
   responses: [],

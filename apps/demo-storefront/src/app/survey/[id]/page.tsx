@@ -26,7 +26,6 @@ interface SurveyData {
   name: string
   type: string
   questions: Question[]
-  incentivePoints: number | null
 }
 
 type PageState =
@@ -157,11 +156,6 @@ export default function SurveyPage() {
     <div className="max-w-lg mx-auto">
       <div className="mb-2 text-xs text-gray-400">{BRAND_NAME}</div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">{data.name}</h1>
-      {data.incentivePoints != null && data.incentivePoints > 0 && (
-        <p className="text-sm font-medium mb-6" style={{ color: 'var(--brand-primary)' }}>
-          Complete this survey to earn {data.incentivePoints} bonus StarPoints!
-        </p>
-      )}
 
       <div className="mb-4 text-xs text-gray-500">
         Responding as: <strong>{email}</strong>

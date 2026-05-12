@@ -28,13 +28,10 @@ describe('Survey schema validation', () => {
       expect(result.success).toBe(true)
     })
 
-    it('accepts survey with incentive points', () => {
-      const result = CreateSurveySchema.safeParse({
-        ...validPayload,
-        incentivePoints: 100,
-      })
-      expect(result.success).toBe(true)
-    })
+    // Issue #241 — `incentivePoints` is dropped from CreateSurveySchema
+    // (D19/D40/D50). The prior "accepts survey with incentive points" test
+    // is removed; Zod's default strip semantics silently drop the unknown
+    // key, so asserting against the parse result is non-behavioral.
 
     it('rejects survey without name', () => {
       const result = CreateSurveySchema.safeParse({
@@ -109,7 +106,7 @@ describe('Survey schema validation', () => {
 
   describe('UpdateSurveyStatusSchema', () => {
     it('accepts ACTIVE, PAUSED, CLOSED', () => {
-      for (const status of ['ACTIVE', 'PAUSED', 'CLOSED']) {
+      for (const status of ['ACTIVE', 'PAUSED', 'STOPPED']) {
         expect(UpdateSurveyStatusSchema.safeParse({ status }).success).toBe(true)
       }
     })

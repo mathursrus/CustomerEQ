@@ -84,13 +84,14 @@ export default function CheckoutConfirmPage() {
     const { email } = state
     setNps({ phase: 'submitting' })
     try {
-      const res = await fetch(`/api/storefront/survey/${surveyId}`, {
+      await fetch(`/api/storefront/survey/${surveyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberEmail: email, answers: { q1: score }, score, channel: 'link', consent: true }),
       })
-      const data = await res.json() as { incentivePoints?: number }
-      setNps({ phase: 'done', points: data.incentivePoints ?? 50 })
+      // Issue #241 — incentive points are no longer surfaced on the form (D19/D40/D50);
+      // demo confirmation shows the fixture default.
+      setNps({ phase: 'done', points: 50 })
     } catch {
       setNps({ phase: 'hidden' })
     }

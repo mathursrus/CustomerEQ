@@ -168,7 +168,8 @@ async function main() {
   console.log(`  ✓ Theme: StarBrew Theme (${themeId ?? 'created'})\n`)
 
   // ── 4. NPS survey ───────────────────────────────────────────────────────────
-  // Issue #291 — thankYouMessage / showIncentivePoints moved from BrandTheme to Survey.
+  // Issue #241 — incentivePoints + showIncentivePoints removed: earning flows through EarningRule
+  // keyed on cx events. Issue #291 — thankYouMessage moved from BrandTheme to Survey.
   console.log('4/10 Creating surveys…')
 
   // Look up existing surveys to avoid creating duplicates on re-runs.
@@ -189,9 +190,7 @@ async function main() {
       programId,
       type: 'NPS',
       themeId,
-      incentivePoints: 50,
       thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
-      showIncentivePoints: true,
       questions: [
         {
           id: 'q1',
@@ -230,9 +229,7 @@ async function main() {
       programId,
       type: 'CSAT',
       themeId,
-      incentivePoints: 25,
       thankYouMessage: 'Thank you for your feedback! Your voice helps us make every cup better.',
-      showIncentivePoints: true,
       questions: [
         {
           id: 'q1',

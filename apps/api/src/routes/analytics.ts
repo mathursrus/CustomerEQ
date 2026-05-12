@@ -391,7 +391,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Per-survey breakdown — always return all surveys with stats
     const allSurveys = await fastify.prisma.survey.findMany({
-      where: { brandId, status: { in: ['ACTIVE', 'CLOSED'] } },
+      where: { brandId, status: { in: ['ACTIVE', 'STOPPED'] } },
       select: { id: true, name: true, type: true, responsesCount: true },
     })
 

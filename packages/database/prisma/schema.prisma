@@ -74,7 +74,7 @@ enum SurveyStatus {
   DRAFT
   ACTIVE
   PAUSED
-  CLOSED
+  STOPPED // renamed from CLOSED per #241 / R25
 }
 
 enum ConversationStatus {
@@ -603,13 +603,13 @@ model Survey {
   brand              Brand            @relation(fields: [brandId], references: [id])
   programId          String
   name               String
+  title              String?          // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
   type               SurveyType       @default(NPS)
   questions          Json             // Question definitions (array of question objects)
   settings           Json?            // Distribution settings, branding, etc.
   status             SurveyStatus     @default(DRAFT)
   responsesCount     Int              @default(0)
   distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
-  incentivePoints    Int?             // Points awarded for completing the survey
   themeId            String?
   theme              BrandTheme?      @relation(fields: [themeId], references: [id])
   triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
@@ -626,7 +626,8 @@ model Survey {
   // Issue #291 — per-survey thank-you copy/routing/toggle (moved from SurveyTheme)
   thankYouMessage               String        @default("Thank you for your feedback!")
   thankYouRedirectUrl           String?
-  showIncentivePoints           Boolean       @default(true)
+  // Issue #241 — showIncentivePoints + incentivePoints removed (D19, D40, D50): points never appear
+  // on the form; earning consolidates to EarningRule keyed on cx events.
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 

@@ -9,8 +9,7 @@ export async function createSurvey(opts: {
   name?: string
   type?: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
   questions?: unknown[]
-  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  incentivePoints?: number | null
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
   settings?: Record<string, unknown>
   // Issue #79/#117 trigger fields
   triggerCategory?: string | null
@@ -53,7 +52,6 @@ export async function createSurvey(opts: {
       questions: (opts.questions ?? defaultQuestions) as Prisma.InputJsonValue,
       settings: opts.settings as Prisma.InputJsonValue ?? undefined,
       status: opts.status ?? 'ACTIVE',
-      incentivePoints: opts.incentivePoints !== undefined ? opts.incentivePoints : null,
       triggerCategory: opts.triggerCategory ?? null,
       triggerKey: opts.triggerKey ?? null,
       surveyTypeOverride: opts.surveyTypeOverride ?? null,
@@ -69,14 +67,12 @@ export async function createNpsSurvey(opts: {
   brandId: string
   programId: string
   name?: string
-  incentivePoints?: number | null
 }) {
   return createSurvey({
     brandId: opts.brandId,
     programId: opts.programId,
     type: 'NPS',
     name: opts.name ?? 'NPS Survey',
-    incentivePoints: opts.incentivePoints !== undefined ? opts.incentivePoints : null,
   })
 }
 

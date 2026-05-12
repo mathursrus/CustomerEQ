@@ -277,13 +277,10 @@ describe('CreateSurveySchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts survey with incentive points', () => {
-    const result = CreateSurveySchema.safeParse({
-      ...validSurvey,
-      incentivePoints: 100,
-    })
-    expect(result.success).toBe(true)
-  })
+  // Issue #241 — `incentivePoints` is dropped from the schema (D19/D40/D50).
+  // Zod's default strip semantics drop unknown keys silently, so passing the
+  // field is now equivalent to passing nothing. The prior "rejects negative
+  // incentive points" test is removed for the same reason.
 
   it('rejects survey with empty name', () => {
     const result = CreateSurveySchema.safeParse({ ...validSurvey, name: '' })
@@ -305,14 +302,6 @@ describe('CreateSurveySchema', () => {
       const result = CreateSurveySchema.safeParse({ ...validSurvey, type })
       expect(result.success).toBe(true)
     }
-  })
-
-  it('rejects negative incentive points', () => {
-    const result = CreateSurveySchema.safeParse({
-      ...validSurvey,
-      incentivePoints: -50,
-    })
-    expect(result.success).toBe(false)
   })
 
   it('accepts survey with themeId', () => {
@@ -373,8 +362,12 @@ describe('UpdateSurveyStatusSchema', () => {
     expect(UpdateSurveyStatusSchema.safeParse({ status: 'PAUSED' }).success).toBe(true)
   })
 
-  it('accepts CLOSED status', () => {
-    expect(UpdateSurveyStatusSchema.safeParse({ status: 'CLOSED' }).success).toBe(true)
+  it('accepts STOPPED status (renamed from CLOSED in #241)', () => {
+    expect(UpdateSurveyStatusSchema.safeParse({ status: 'STOPPED' }).success).toBe(true)
+  })
+
+  it('rejects legacy CLOSED status', () => {
+    expect(UpdateSurveyStatusSchema.safeParse({ status: 'CLOSED' }).success).toBe(false)
   })
 
   it('rejects DRAFT status (cannot go back to draft)', () => {
@@ -574,21 +567,20 @@ describe('Survey schemas — thank-you fields (Issue #291)', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.thankYouMessage).toBe('Thank you for your feedback!')
-      expect(result.data.showIncentivePoints).toBe(true)
       expect(result.data.thankYouRedirectUrl).toBeUndefined()
     }
   })
 
-  it('CreateSurveySchema accepts custom thankYouMessage and showIncentivePoints', () => {
+  it('CreateSurveySchema accepts custom thankYouMessage', () => {
+    // Issue #241 — `showIncentivePoints` is dropped from the schema. The
+    // thank-you message remains per-survey.
     const result = CreateSurveySchema.safeParse({
       ...validSurveyBase,
       thankYouMessage: 'Thanks for your time!',
-      showIncentivePoints: false,
     })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.thankYouMessage).toBe('Thanks for your time!')
-      expect(result.data.showIncentivePoints).toBe(false)
     }
   })
 
@@ -608,10 +600,11 @@ describe('Survey schemas — thank-you fields (Issue #291)', () => {
     expect(result.success).toBe(false)
   })
 
-  it('UpdateSurveySchema accepts the three thank-you fields independently', () => {
+  it('UpdateSurveySchema accepts the thank-you fields independently', () => {
+    // Issue #241 — `showIncentivePoints` is dropped; only the two thank-you
+    // fields remain on UpdateSurveySchema.
     expect(UpdateSurveySchema.safeParse({ thankYouMessage: 'X' }).success).toBe(true)
     expect(UpdateSurveySchema.safeParse({ thankYouRedirectUrl: 'https://x.test' }).success).toBe(true)
-    expect(UpdateSurveySchema.safeParse({ showIncentivePoints: false }).success).toBe(true)
   })
 })
 

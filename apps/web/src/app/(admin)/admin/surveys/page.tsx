@@ -9,9 +9,8 @@ interface Survey {
   id: string
   name: string
   type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
   _count?: { responses: number }
-  incentivePoints: number | null
   triggerCategory: string | null
   triggerKey: string | null
   createdAt: string
@@ -152,7 +151,6 @@ export default function SurveysPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">{survey._count?.responses ?? 0}</td>
-                  <td className="px-6 py-4 text-gray-700">{survey.incentivePoints ?? '—'}</td>
                   <td className="px-6 py-4 text-gray-500">
                     {new Date(survey.createdAt).toLocaleDateString()}
                   </td>

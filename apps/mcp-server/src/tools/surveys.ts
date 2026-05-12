@@ -27,7 +27,6 @@ export function registerSurveyTools(server: McpServer, fetch: ApiFetch = apiFetc
       type: z.enum(['rating', 'text']),
       required: z.boolean().default(true),
     })).describe('Survey questions'),
-    incentivePoints: z.number().int().positive().optional().describe('Points awarded for completion'),
   })
 
   server.tool(
@@ -59,7 +58,7 @@ export function registerSurveyTools(server: McpServer, fetch: ApiFetch = apiFetc
     'Activate, pause, or close a survey. Valid transitions: DRAFT->ACTIVE, ACTIVE->PAUSED, ACTIVE->CLOSED, PAUSED->ACTIVE, PAUSED->CLOSED.',
     z.object({
       surveyId: z.string().describe('Survey ID'),
-      status: z.enum(['ACTIVE', 'PAUSED', 'CLOSED']).describe('New status'),
+      status: z.enum(['ACTIVE', 'PAUSED', 'STOPPED']).describe('New status'),
     }).shape,
     async ({ surveyId, status }) => {
       const res = await fetch(`/v1/surveys/${surveyId}/status`, { method: 'PATCH', body: { status } })

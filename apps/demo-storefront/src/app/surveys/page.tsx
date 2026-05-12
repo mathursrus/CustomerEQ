@@ -8,7 +8,6 @@ interface Survey {
   id: string
   name: string
   type: string
-  incentivePoints: number | null
 }
 
 export default function SurveysPage() {
@@ -78,11 +77,6 @@ export default function SurveysPage() {
             <div>
               <p className="font-semibold text-gray-900 text-sm">{survey.name}</p>
               <p className="text-xs text-gray-400 mt-0.5">{survey.type}</p>
-              {survey.incentivePoints != null && survey.incentivePoints > 0 && (
-                <p className="text-xs font-medium mt-1" style={{ color: 'var(--brand-primary)' }}>
-                  +{survey.incentivePoints} StarPoints
-                </p>
-              )}
             </div>
             <button
               onClick={() => takeSurvey(survey.id)}

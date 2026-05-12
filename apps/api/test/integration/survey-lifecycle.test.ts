@@ -285,9 +285,9 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
     // Close the survey
     const closeRes = await request
       .patch(`/v1/surveys/${survey.id}/status`)
-      .send({ status: 'CLOSED' })
+      .send({ status: 'STOPPED' })
     expect(closeRes.status).toBe(200)
-    expect(closeRes.body.status).toBe('CLOSED')
+    expect(closeRes.body.status).toBe('STOPPED')
 
     // Try to submit a response — survey is no longer ACTIVE
     const submitRes = await request
