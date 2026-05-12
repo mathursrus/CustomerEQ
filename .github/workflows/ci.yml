@@ -109,10 +109,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Issue #343: skip image build on doc-only commits. Skip-list (negation)
+      # semantics: paths-filter starts with the full changeset, excludes anything
+      # matching a `!`-prefixed pattern, and returns true if any file is left.
+      # Skip-list over whitelist because under-build (silent skip → stale-image
+      # deploy) is a real bug; over-build (spurious rebuild on a doc pattern we
+      # forgot to list) is recoverable wasted CI. New top-level dirs are
+      # default-included; only listed patterns are skipped.
+      - name: Determine if build is needed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            build:
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/pull_request_template.md'
+              - '!CODEOWNERS'
+              - '!.gitattributes'
+              - '!LICENSE'
+
+      - name: Skip if doc-only
+        if: steps.changes.outputs.build == 'false'
+        run: echo "Doc-only change; skipping image build (issue #343)."
+
       - name: Set up Docker Buildx
+        if: steps.changes.outputs.build == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build api image
+        if: steps.changes.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -133,12 +160,14 @@ jobs:
       # and exercises the exact module tree that crashed in #273. CI is
       # complementary to the existing CD-side `Verify API health` gate.
       - name: Verify API image module resolution
+        if: steps.changes.outputs.build == 'true'
         run: |
           docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
             --input-type=module \
             -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build worker image
+        if: steps.changes.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -150,12 +179,14 @@ jobs:
           cache-to: type=gha,scope=worker,mode=max
 
       - name: Verify Worker image module resolution
+        if: steps.changes.outputs.build == 'true'
         run: |
           docker run --rm --entrypoint node ceq-worker:${{ github.sha }} \
             --input-type=module \
             -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Build web image
+        if: steps.changes.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
