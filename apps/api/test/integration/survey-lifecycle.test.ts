@@ -122,7 +122,8 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
       .send({ status: 'ACTIVE' })
 
     expect(res.status).toBe(422)
-    expect(res.body.error).toMatch(/at least one question/i)
+    // Issue #241 Slice 2 — error contract updated per RFC §"Endpoint error contracts".
+    expect(res.body.code).toBe('NO_QUESTIONS')
   })
 
   // ---------------------------------------------------------------------------
@@ -177,7 +178,7 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
   // 6. Duplicate response
   // ---------------------------------------------------------------------------
 
-  it('returns duplicate=true when the same member submits to the same survey twice', async () => {
+  it('responsePolicy MULTIPLE (default) — same member can submit twice; both rows persisted', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const member = await createConsentedMember({ brandId: brand.id })
@@ -195,14 +196,22 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
       .send({ memberId: member.id, answers: { q1: 7 }, score: 7 })
     expect(first.status).toBe(201)
 
-    // Second submission — duplicate
+    // Second submission — with default MULTIPLE policy this inserts a new
+    // row rather than short-circuiting (Issue #241 Slice 2 / R8). The old
+    // "duplicate=true" 200 shortcut is removed.
     const second = await request
       .post(`/v1/surveys/${survey.id}/responses`)
       .send({ memberId: member.id, answers: { q1: 9 }, score: 9 })
+    expect(second.status).toBe(201)
 
-    expect(second.status).toBe(200)
-    expect(second.body.duplicate).toBe(true)
-    expect(second.body.responseId).toBe(first.body.responseId)
+    const prisma = getTestPrisma()
+    const rows = await prisma.surveyResponse.findMany({
+      where: { surveyId: survey.id, memberId: member.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.score).toBe(7)
+    expect(rows[1]!.score).toBe(9)
   })
 
   // ---------------------------------------------------------------------------

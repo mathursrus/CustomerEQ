@@ -45,10 +45,6 @@ const PublicSurveyResponseSchema = z.object({
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
 })
 
-const RespondQuerySchema = z.object({
-  member_id: z.string().min(1).optional(),
-})
-
 // Schema for webhook-triggered survey distribution
 const SurveyTriggerSchema = z.object({
   memberEmail: z.string().email('Valid email is required'),
@@ -205,14 +201,6 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { id: surveyId } = request.params as { id: string }
 
-      const queryParse = RespondQuerySchema.safeParse(request.query)
-      if (!queryParse.success) {
-        return reply.status(422).send({
-          error: 'Validation failed',
-          message: queryParse.error.errors.map((e) => e.message).join(', '),
-        })
-      }
-
       const parse = PublicSurveyResponseSchema.safeParse(request.body)
       if (!parse.success) {
         return reply.status(422).send({
@@ -223,26 +211,23 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const data = parse.data
-      const queryMemberId = queryParse.data.member_id?.trim()
       const bodyMemberId = (data.memberId ?? data.memberEmail ?? '').trim()
 
-      // Channel attribution: URL query wins, then body. No identifier at all
-      // is a 400 — auto-enroll requires *something* to identify the responder.
-      let identifierValue: string
-      let enrolledVia: 'EMBEDDED_FORM' | 'SURVEY_RESPONSE'
-      if (queryMemberId) {
-        identifierValue = queryMemberId
-        enrolledVia = 'EMBEDDED_FORM'
-      } else if (bodyMemberId) {
-        identifierValue = bodyMemberId
-        enrolledVia = 'SURVEY_RESPONSE'
-      } else {
+      // Issue #241 Slice 2 (RFC clarification, PR #327) — channel attribution
+      // now derives from the request body's `channel` field rather than the
+      // URL-vs-body heuristic. The widget hardcodes `channel: 'in_app'`
+      // (verified at public.ts widget JS template); standalone defaults to
+      // `'link'`. The `?email=` / `?member_id=` URL plumbing is gone from the
+      // page handler in Slice 5; this server endpoint stops reading those.
+      if (!bodyMemberId) {
         return reply.status(400).send({
           error: 'NO_IDENTIFIER',
-          message:
-            'Survey response requires an identifier — supply ?member_id=… in the URL or memberId/memberEmail in the body.',
+          message: 'Survey response requires an identifier — supply memberId or memberEmail in the body.',
         })
       }
+      const identifierValue = bodyMemberId
+      const enrolledVia: 'EMBEDDED_FORM' | 'SURVEY_RESPONSE' =
+        data.channel === 'in_app' ? 'EMBEDDED_FORM' : 'SURVEY_RESPONSE'
 
       const { answers, score, channel } = data
 
@@ -327,9 +312,10 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       }
       if (policy === 'ONCE' && priorResponse) {
         return reply.status(409).send({
-          error: 'RESPONSE_ALREADY_EXISTS',
+          // Issue #241 Slice 2 — error code per RFC §"Endpoint error contracts".
+          error: 'You have already responded.',
+          code: 'POLICY_ONCE_DUPLICATE',
           priorResponseId: priorResponse.id,
-          message: 'This survey accepts only one response per member.',
         })
       }
 

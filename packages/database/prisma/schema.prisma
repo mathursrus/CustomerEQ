@@ -604,6 +604,7 @@ model Survey {
   programId          String
   name               String
   title              String?          // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
+  description        String?          // Issue #241 Slice 2 — list-page meta line (R26 / D26); nullable
   type               SurveyType       @default(NPS)
   questions          Json             // Question definitions (array of question objects)
   settings           Json?            // Distribution settings, branding, etc.

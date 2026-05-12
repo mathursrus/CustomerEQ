@@ -349,6 +349,98 @@ describe('UpdateSurveySchema', () => {
     const result = UpdateSurveySchema.safeParse({ questions: [] })
     expect(result.success).toBe(false)
   })
+
+  // Issue #241 Slice 2 — strict() rejects unknown keys. The four consent-
+  // override fields are intentionally outside the schema so they fall through
+  // to the strict reject.
+  it('rejects unknown keys with strict() (e.g. consentMode on general PATCH)', () => {
+    const result = UpdateSurveySchema.safeParse({
+      consentMode: 'IMPLIED_ON_SUBMIT',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const unrecognized = result.error.issues.find((i) => i.code === 'unrecognized_keys')
+      expect(unrecognized).toBeDefined()
+    }
+  })
+
+  it('accepts the new Slice 2 fields (title, description, responsePolicy, consentTextOverride)', () => {
+    const result = UpdateSurveySchema.safeParse({
+      title: 'Customer feedback',
+      description: 'Quarterly NPS',
+      responsePolicy: 'LATEST_OVERWRITES',
+      consentTextOverride: 'I agree to the {{privacy}} terms.',
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
+// ─── isScoreField validation (Issue #241 Slice 2 — R22 / D-score) ──────────
+
+describe('CreateSurveySchema — isScoreField validation', () => {
+  const baseQuestion = {
+    id: 'q1',
+    text: 'How likely are you to recommend us?',
+    type: 'rating' as const,
+    required: true,
+  }
+  const surveyWith = (questions: Array<Record<string, unknown>>) => ({
+    name: 'Test Survey',
+    programId: 'prog_1',
+    type: 'NPS' as const,
+    questions,
+  })
+
+  it('accepts a survey with exactly one isScoreField rating question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([{ ...baseQuestion, isScoreField: true }]),
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a survey with no isScoreField marked (custom survey, no score)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([{ id: 'q1', text: 'Open-ended feedback', type: 'text', required: false }]),
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a survey with two isScoreField questions (at-most-one rule)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { ...baseQuestion, id: 'q1', isScoreField: true },
+        { ...baseQuestion, id: 'q2', isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects isScoreField on a Likert question (multi-statement; no single score)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Rate each statement', type: 'likert', required: true, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects isScoreField on a text question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Tell us more', type: 'text', required: false, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts isScoreField on a slider question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Score', type: 'slider', required: true, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(true)
+  })
 })
 
 // ─── UpdateSurveyStatusSchema ───────────────────────────────────────────────
