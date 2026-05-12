@@ -5,6 +5,9 @@ const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
   PAUSED: 'bg-yellow-100 text-yellow-700',
   ARCHIVED: 'bg-red-100 text-red-600',
+  // Issue #241 Slice 1 — SurveyStatus.CLOSED renamed to STOPPED; reuses the
+  // ARCHIVED visual (both are terminal states with no further responses).
+  STOPPED: 'bg-red-100 text-red-600',
 }
 
 export function StatusBadge({ status }: { status: string }) {
