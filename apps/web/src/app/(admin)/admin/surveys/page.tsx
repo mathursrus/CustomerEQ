@@ -83,7 +83,9 @@ export default function SurveysPage() {
   const searchParams = useSearchParams()
 
   const [surveys, setSurveys] = useState<Survey[]>([])
-  const [programs, setPrograms] = useState<Record<string, string>>({})
+  // `null` = not yet fetched; `{}` = fetched and the brand has zero programs
+  // (distinguishes the loading flicker from the "fresh brand" empty state).
+  const [programs, setPrograms] = useState<Record<string, string> | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
@@ -125,12 +127,18 @@ export default function SurveysPage() {
         cache: 'no-store',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        // Treat HTTP failure as "loaded, none known" so the page falls back to
+        // the safest UX (disabled "+ New survey" + empty-state hint) rather
+        // than promising an action that will server-side-error.
+        setPrograms({})
+        return
+      }
       const json = (await res.json()) as { data?: ProgramLite[]; programs?: ProgramLite[] }
       const list = json.data ?? json.programs ?? []
       setPrograms(Object.fromEntries(list.map((p) => [p.id, p.name])))
     } catch {
-      // Program names are best-effort; the list still renders without them.
+      setPrograms({})
     }
   }, [getToken])
 
@@ -152,6 +160,14 @@ export default function SurveysPage() {
     setFilters((prev) => ({ ...prev, [key]: values }))
     setPage(1)
   }
+
+  // Treat the button as enabled while programs are still loading (initial null);
+  // disable only after we've confirmed the brand has zero programs.
+  const programsLoaded = programs !== null
+  const hasPrograms = !programsLoaded || Object.keys(programs).length > 0
+  // Fresh-brand state: both fetches resolved AND both are empty. Surfaces a
+  // stronger empty state that points the operator at /admin/programs/new.
+  const isFreshBrand = programsLoaded && Object.keys(programs).length === 0 && surveys.length === 0
 
   // Client-side filtering — current page size (25) keeps this trivial.
   // If list grows large enough to need server-side filtering, push the
@@ -185,7 +201,7 @@ export default function SurveysPage() {
       key: 'name',
       label: 'Name',
       render: (s) => {
-        const programName = programs[s.programId]
+        const programName = programs?.[s.programId]
         return (
           <div>
             <Link
@@ -242,30 +258,65 @@ export default function SurveysPage() {
           <h1 className="text-2xl font-bold text-slate-900">Surveys</h1>
           <p className="mt-1 text-sm text-slate-500">Manage NPS, CSAT, CES and custom surveys</p>
         </div>
-        <Link
-          href="/admin/surveys/new"
-          data-testid="create-survey-btn"
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+        {hasPrograms ? (
+          <Link
+            href="/admin/surveys/new"
+            data-testid="create-survey-btn"
+            className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+          >
+            + New survey
+          </Link>
+        ) : (
+          // Survey rows must reference a Program, and Brand has no programs yet.
+          // Render as a non-interactive span (title attr is unreliable on
+          // disabled <button>s in some browsers).
+          <span
+            data-testid="create-survey-btn-disabled"
+            title="Create a program first to enable surveys."
+            aria-disabled="true"
+            className="rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-400 cursor-not-allowed"
+          >
+            + New survey
+          </span>
+        )}
+      </div>
+
+      {isFreshBrand ? (
+        <div
+          data-testid="surveys-fresh-brand-empty"
+          className="rounded-xl border border-slate-200 bg-white p-12 text-center"
         >
-          + New survey
-        </Link>
-      </div>
-
-      <div className="mb-4">
-        <FilterChips
-          groups={[STATUS_GROUP, TYPE_GROUP]}
-          selected={filters}
-          onChange={handleFilterChange}
-        />
-      </div>
-
-      {actionError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {actionError}
+          <h2 className="text-base font-semibold text-slate-900">
+            Set up your loyalty program first
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+            Surveys collect feedback against a loyalty program. Create your program
+            first to start sending NPS, CSAT, CES, and custom surveys to your customers.
+          </p>
+          <Link
+            href="/admin/programs/new"
+            className="mt-6 inline-flex rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+          >
+            Create program
+          </Link>
         </div>
-      )}
+      ) : (
+        <>
+          <div className="mb-4">
+            <FilterChips
+              groups={[STATUS_GROUP, TYPE_GROUP]}
+              selected={filters}
+              onChange={handleFilterChange}
+            />
+          </div>
 
-      <PaginatedTable<Survey>
+          {actionError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {actionError}
+            </div>
+          )}
+
+          <PaginatedTable<Survey>
         testId="surveys-table"
         columns={columns}
         data={filtered}
@@ -308,6 +359,8 @@ export default function SurveysPage() {
           </span>
         }
       />
+        </>
+      )}
     </div>
   )
 }
