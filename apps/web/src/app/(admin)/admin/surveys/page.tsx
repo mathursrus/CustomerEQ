@@ -7,8 +7,9 @@ import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { PaginatedTable, type Column } from '@/components/ui/paginated-table'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { FilterChips, type ChipGroup } from './components/FilterChips'
+import { FilterChips } from './components/FilterChips'
 import { SurveyRowMenu, type SurveyState } from './components/SurveyRowMenu'
+import { STATUS_GROUP, TYPE_GROUP, TYPE_PILL, relTime } from './list-page.logic'
 
 // Issue #241 Slice 3 — surveys list rewrite per spec §1.
 
@@ -34,47 +35,6 @@ interface SurveysResponse {
 interface ProgramLite {
   id: string
   name: string
-}
-
-const STATUS_GROUP: ChipGroup = {
-  key: 'status',
-  label: 'Status',
-  // Per spec §1: All / Draft / Active / Stopped. Paused not in chips (reachable via "All").
-  options: [
-    { value: 'DRAFT', label: 'Draft' },
-    { value: 'ACTIVE', label: 'Active' },
-    { value: 'STOPPED', label: 'Stopped' },
-  ],
-}
-
-const TYPE_GROUP: ChipGroup = {
-  key: 'type',
-  label: 'Type',
-  options: [
-    { value: 'NPS', label: 'NPS' },
-    { value: 'CSAT', label: 'CSAT' },
-    { value: 'CES', label: 'CES' },
-    { value: 'CUSTOM', label: 'Custom' },
-  ],
-}
-
-const TYPE_PILL: Record<string, string> = {
-  NPS: 'bg-indigo-100 text-indigo-700',
-  CSAT: 'bg-blue-100 text-blue-700',
-  CES: 'bg-purple-100 text-purple-700',
-  CUSTOM: 'bg-slate-100 text-slate-600',
-}
-
-function relTime(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(ms / 60_000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ago`
-  return new Date(iso).toLocaleDateString()
 }
 
 export default function SurveysPage() {

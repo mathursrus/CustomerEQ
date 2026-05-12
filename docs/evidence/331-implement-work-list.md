@@ -149,3 +149,49 @@ Before starting phase 2 (implement-tests):
 1. User has confirmed the 5 open questions above (or accepted recommendations).
 2. Branch `feature/241-slice-3-surveys-list` is created off main.
 3. (Implicit) Slice 1+2 verified green on main — done.
+
+---
+
+## Test Coverage Map (FRAIM phase 3 catch-up — 2026-05-12)
+
+This map was added retroactively after the user flagged that I skipped phases. Walks every acceptance bullet in #331 + every line item in spec §1; maps to test coverage.
+
+### Acceptance criteria from #331 → tests
+
+| Acceptance bullet | Test(s) | Status |
+|---|---|---|
+| `/admin/surveys` renders new column set (Name + meta · Type pill · Status badge · Responses · Updated · row actions) | (none directly — no RTL harness) + manual validation | **Manual-only**; document deferral |
+| Filter chips (Status + Type) filter correctly; URL `?status=&type=` round-trips | `STATUS_GROUP` + `TYPE_GROUP` config tests (new in phase-3 catch-up); URL round-trip exercised manually | **Partial** — config tested; URL round-trip is manual |
+| `<SurveyRowMenu>` shows state-allowed items per Survey.status | `SurveyRowMenu.test.ts` — 4 visibility tests covering DRAFT/ACTIVE/PAUSED/STOPPED | **Covered** |
+| `+ New survey` click → POST + redirect to `/[id]/edit?tab=basics` with exactly one row created | **Deferred to Slice 4** (Server Component reverted) | **Deferred** |
+| Back/forward nav from `/new` does NOT create duplicate drafts | **Deferred to Slice 4** | **Deferred** |
+| Status badge vocabulary `Draft / Active / Paused / Stopped` (no `Closed`) | `STATUS_GROUP` config test (verifies enum values); `StatusBadge` renders `Stopped` text from `STOPPED` enum via existing logic | **Covered** |
+| All local gates pass | typecheck + lint + 1083 unit + 380 integration | **Covered** |
+| CI green | pending PR review | **Pending** |
+
+### Spec §1 requirements → tests
+
+| Spec line | Test(s) | Status |
+|---|---|---|
+| Path `/admin/surveys` | next-app routing, no test needed | N/A (framework) |
+| Single primary CTA `+ New survey` | manual + disabled-state logic test | **Manual + indirect** |
+| Columns left-to-right (Name + meta · Type · Status · Responses · Updated · row actions) | `relTime` helper tested for Updated column; column rendering itself is JSX-coupled | **Partial** — helper covered; layout is manual |
+| Row click → detail (Programs/Members convention) | `<Link>` href + onRowDoubleClick passed through to PaginatedTable | **Manual** |
+| Row actions ✎ + ⋯ | menu visibility tests cover ⋯; ✎ is a static Link | **Covered** |
+| ⋯ menu state-aware items (Duplicate/Discard/Pause/Stop/Restart/Delete) | `SurveyRowMenu.test.ts` visibility + action tests (16 cases) | **Covered** |
+| Filter chips Status (All/Draft/Active/Stopped) + Type (NPS/CSAT/CES/Custom) — NO Trigger or Distribution chips | `STATUS_GROUP` + `TYPE_GROUP` config tests (new) | **Covered** |
+| Status badges = converged vocab Draft/Active/Paused/Stopped (no CLOSED) | `STATUS_GROUP` config test asserts STOPPED present, CLOSED absent | **Covered** |
+
+### Gaps + actions
+
+Three gaps were addressable as pure-helper tests (no RTL):
+
+1. **`relTime` helper** — extracted to `list-page.logic.ts` + tested. Covers just-now, minutes, hours, days, >30d fallback.
+2. **`STATUS_GROUP` + `TYPE_GROUP` config** — extracted to `list-page.logic.ts` + tested. Asserts spec §1 compliance: no PAUSED in chips, no CLOSED anywhere, all 4 types listed.
+3. **Server Component flow (`/new` POST + redirect, back/forward nav)** — code is reverted to legacy wizard; tests deferred to Slice 4 when the rewrite lands.
+
+Remaining "manual-only" items (column rendering layout, URL round-trip, row click navigation): require an RTL/jsdom harness that the web package doesn't have today. Out of scope for Slice 3 catch-up — Slice 4 will need this harness for the editor anyway, so adding RTL there is more natural.
+
+### Test-first discipline
+
+This audit was retroactive. Tests for Slice 3 were written *after* implementation, not against the spec first. For Slice 4 onward: tests against acceptance criteria authored before code, watched fail, then implemented.
