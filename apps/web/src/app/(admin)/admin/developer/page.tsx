@@ -36,7 +36,6 @@ interface DevConfig {
     id: string
     name: string
     type: string
-    incentivePoints: number | null
     shareUrl: string
     embedSnippet: string
   }>
@@ -271,7 +270,6 @@ export default function DeveloperPage() {
                     <div className="text-sm font-medium text-gray-900">{s.name}</div>
                     <div className="text-xs text-gray-500 mt-0.5">
                       {s.type}
-                      {s.incentivePoints ? ` · +${s.incentivePoints} pts reward` : ''}
                     </div>
                   </div>
                   <button

@@ -7,10 +7,12 @@ export async function createSurvey(opts: {
   brandId: string
   programId: string
   name?: string
+  // Issue #241 Slice 1/2 — respondent-facing title (#326) + list-page description (#329)
+  title?: string | null
+  description?: string | null
   type?: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
   questions?: unknown[]
-  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  incentivePoints?: number | null
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
   settings?: Record<string, unknown>
   // Issue #79/#117 trigger fields
   triggerCategory?: string | null
@@ -21,6 +23,9 @@ export async function createSurvey(opts: {
   consentTextOverride?: string | null
   consentSuppressedAttestedBy?: string | null
   consentSuppressedAttestedAt?: Date | null
+  // Issue #291 — per-survey thank-you copy/routing (moved from BrandTheme).
+  thankYouMessage?: string
+  thankYouRedirectUrl?: string | null
 }) {
   const prisma = getTestPrisma()
   counter++
@@ -49,11 +54,12 @@ export async function createSurvey(opts: {
       brandId: opts.brandId,
       programId: opts.programId,
       name: opts.name ?? `Test Survey ${counter}`,
+      title: opts.title ?? null,
+      description: opts.description ?? null,
       type: opts.type ?? 'NPS',
       questions: (opts.questions ?? defaultQuestions) as Prisma.InputJsonValue,
       settings: opts.settings as Prisma.InputJsonValue ?? undefined,
       status: opts.status ?? 'ACTIVE',
-      incentivePoints: opts.incentivePoints !== undefined ? opts.incentivePoints : null,
       triggerCategory: opts.triggerCategory ?? null,
       triggerKey: opts.triggerKey ?? null,
       surveyTypeOverride: opts.surveyTypeOverride ?? null,
@@ -61,6 +67,8 @@ export async function createSurvey(opts: {
       consentTextOverride: opts.consentTextOverride ?? null,
       consentSuppressedAttestedBy: opts.consentSuppressedAttestedBy ?? null,
       consentSuppressedAttestedAt: opts.consentSuppressedAttestedAt ?? null,
+      ...(opts.thankYouMessage !== undefined ? { thankYouMessage: opts.thankYouMessage } : {}),
+      thankYouRedirectUrl: opts.thankYouRedirectUrl ?? null,
     },
   })
 }
@@ -69,14 +77,12 @@ export async function createNpsSurvey(opts: {
   brandId: string
   programId: string
   name?: string
-  incentivePoints?: number | null
 }) {
   return createSurvey({
     brandId: opts.brandId,
     programId: opts.programId,
     type: 'NPS',
     name: opts.name ?? 'NPS Survey',
-    incentivePoints: opts.incentivePoints !== undefined ? opts.incentivePoints : null,
   })
 }
 

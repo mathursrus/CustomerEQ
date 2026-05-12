@@ -28,7 +28,6 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
       brandId: brand.id,
       programId: program.id,
       status: 'ACTIVE',
-      incentivePoints: 50,
     })
 
     const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
@@ -36,7 +35,9 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(survey.id)
     expect(res.body.brand.name).toBe(brand.name)
-    expect(res.body.incentivePoints).toBe(50)
+    // Issue #241 — `incentivePoints` removed from response shape; the field
+    // is no longer on Survey (D19/D40/D50).
+    expect(res.body.incentivePoints).toBeUndefined()
   })
 
   it('returns 404 for a DRAFT survey on the public endpoint', async () => {
@@ -48,10 +49,10 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 for a CLOSED survey on the public endpoint', async () => {
+  it('returns 404 for a STOPPED survey on the public endpoint', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'CLOSED' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'STOPPED' })
 
     const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
     expect(res.status).toBe(404)
@@ -137,10 +138,12 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
   })
 
   // ---------------------------------------------------------------------------
-  // Auto-enroll: EMBEDDED_FORM channel (URL-query-supplied identifier)
+  // Auto-enroll: EMBEDDED_FORM channel (Issue #241 Slice 2 — derived from
+  // body.channel === 'in_app' instead of the prior URL-query heuristic that
+  // was removed alongside the ?email=/?member_id= page params per D51/#209).
   // ---------------------------------------------------------------------------
 
-  it('auto-enrolls a new member when memberId comes from URL query — enrolledVia = EMBEDDED_FORM', async () => {
+  it('auto-enrolls a new member when channel = in_app — enrolledVia = EMBEDDED_FORM', async () => {
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const survey = await createSurvey({
@@ -151,11 +154,12 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     })
 
     const res = await unauthenticatedRequest()
-      .post(`/v1/public/surveys/${survey.id}/respond?member_id=${encodeURIComponent('embed@example.com')}`)
+      .post(`/v1/public/surveys/${survey.id}/respond`)
       .send({
-        // Body intentionally has no memberId — URL query is the carrier.
+        memberId: 'embed@example.com',
         answers: { q1: 8 },
         score: 8,
+        channel: 'in_app', // widget-internal hint; brands don't pass this themselves
       })
 
     expect(res.status).toBe(201)
@@ -169,7 +173,9 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(member?.enrolledVia).toBe('EMBEDDED_FORM')
   })
 
-  it('URL query takes priority when both URL query and body memberId are present', async () => {
+  it('URL query is no longer consulted — channel field is the sole signal', async () => {
+    // Issue #241 Slice 2 — even if a stale caller still sends ?member_id=,
+    // it must be ignored. The body's memberId + channel determine attribution.
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
@@ -177,13 +183,14 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     const res = await unauthenticatedRequest()
       .post(`/v1/public/surveys/${survey.id}/respond?member_id=url@example.com`)
       .send({
-        memberId: 'body@example.com', // ignored
+        memberId: 'body@example.com',
         answers: { q1: 7 },
         score: 7,
+        channel: 'link',
       })
 
     expect(res.status).toBe(201)
-    expect(res.body.enrolledVia).toBe('EMBEDDED_FORM')
+    expect(res.body.enrolledVia).toBe('SURVEY_RESPONSE')
 
     const prisma = getTestPrisma()
     const fromUrl = await prisma.member.findUnique({
@@ -192,11 +199,12 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     const fromBody = await prisma.member.findUnique({
       where: { brandId_externalId: { brandId: brand.id, externalId: 'body@example.com' } },
     })
-    expect(fromUrl).not.toBeNull()
-    expect(fromBody).toBeNull()
+    // Body wins; URL ignored entirely.
+    expect(fromBody).not.toBeNull()
+    expect(fromUrl).toBeNull()
   })
 
-  it('returns 400 NO_IDENTIFIER when neither URL query nor body supplies an identifier', async () => {
+  it('returns 400 NO_IDENTIFIER when the body supplies no identifier', async () => {
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
@@ -264,7 +272,7 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
   // R3 — responsePolicy enforcement
   // ---------------------------------------------------------------------------
 
-  it('responsePolicy = ONCE — second submission returns 409 RESPONSE_ALREADY_EXISTS', async () => {
+  it('responsePolicy = ONCE — second submission returns 409 POLICY_ONCE_DUPLICATE', async () => {
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     await createConsentedMember({ brandId: brand.id, email: 'once@example.com' })
@@ -285,7 +293,8 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
       .send({ memberId: 'once@example.com', answers: { q1: 10 }, score: 10 })
 
     expect(second.status).toBe(409)
-    expect(second.body.error).toBe('RESPONSE_ALREADY_EXISTS')
+    // Issue #241 Slice 2 — error contract updated per RFC §"Endpoint error contracts".
+    expect(second.body.code).toBe('POLICY_ONCE_DUPLICATE')
     expect(second.body.priorResponseId).toBe(first.body.surveyResponseId)
   })
 
@@ -491,33 +500,14 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
   })
 
   // ---------------------------------------------------------------------------
-  // Edge: incentive points + sentiment + 404 for missing survey
+  // Edge: sentiment + 404 for missing survey
   // ---------------------------------------------------------------------------
-
-  it('includes incentivePoints and enqueues the incentive event', async () => {
-    const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })
-    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
-    await createConsentedMember({ brandId: brand.id, email: 'incentive@example.com' })
-    const survey = await createSurvey({
-      brandId: brand.id,
-      programId: program.id,
-      status: 'ACTIVE',
-      incentivePoints: 200,
-    })
-
-    const res = await unauthenticatedRequest()
-      .post(`/v1/public/surveys/${survey.id}/respond`)
-      .send({ memberId: 'incentive@example.com', answers: { q1: 7 }, score: 7 })
-
-    expect(res.status).toBe(201)
-    expect(res.body.incentivePoints).toBe(200)
-
-    const loyaltyJobs = InMemoryQueue.getJobs('loyalty-events')
-    const incentiveJob = loyaltyJobs.find(
-      (j) => (j.data as { payload?: { incentive?: boolean } }).payload?.incentive === true,
-    )
-    expect(incentiveJob).toBeDefined()
-  })
+  //
+  // Issue #241 — the prior "includes incentivePoints and enqueues the incentive
+  // event" test is removed. `Survey.incentivePoints` is dropped (D19/D40/D50);
+  // the response handler no longer emits a second `cx.survey_completed` event.
+  // Earning is now driven by EarningRule rows keyed on the cx event the
+  // handler already emits (Integration Point 1).
 
   it('enqueues sentiment analysis when the response contains open-ended text', async () => {
     const brand = await createBrand({ consentMode: 'IMPLIED_ON_SUBMIT' })

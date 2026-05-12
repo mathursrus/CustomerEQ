@@ -277,13 +277,10 @@ describe('CreateSurveySchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts survey with incentive points', () => {
-    const result = CreateSurveySchema.safeParse({
-      ...validSurvey,
-      incentivePoints: 100,
-    })
-    expect(result.success).toBe(true)
-  })
+  // Issue #241 — `incentivePoints` is dropped from the schema (D19/D40/D50).
+  // Zod's default strip semantics drop unknown keys silently, so passing the
+  // field is now equivalent to passing nothing. The prior "rejects negative
+  // incentive points" test is removed for the same reason.
 
   it('rejects survey with empty name', () => {
     const result = CreateSurveySchema.safeParse({ ...validSurvey, name: '' })
@@ -305,14 +302,6 @@ describe('CreateSurveySchema', () => {
       const result = CreateSurveySchema.safeParse({ ...validSurvey, type })
       expect(result.success).toBe(true)
     }
-  })
-
-  it('rejects negative incentive points', () => {
-    const result = CreateSurveySchema.safeParse({
-      ...validSurvey,
-      incentivePoints: -50,
-    })
-    expect(result.success).toBe(false)
   })
 
   it('accepts survey with themeId', () => {
@@ -360,6 +349,98 @@ describe('UpdateSurveySchema', () => {
     const result = UpdateSurveySchema.safeParse({ questions: [] })
     expect(result.success).toBe(false)
   })
+
+  // Issue #241 Slice 2 — strict() rejects unknown keys. The four consent-
+  // override fields are intentionally outside the schema so they fall through
+  // to the strict reject.
+  it('rejects unknown keys with strict() (e.g. consentMode on general PATCH)', () => {
+    const result = UpdateSurveySchema.safeParse({
+      consentMode: 'IMPLIED_ON_SUBMIT',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const unrecognized = result.error.issues.find((i) => i.code === 'unrecognized_keys')
+      expect(unrecognized).toBeDefined()
+    }
+  })
+
+  it('accepts the new Slice 2 fields (title, description, responsePolicy, consentTextOverride)', () => {
+    const result = UpdateSurveySchema.safeParse({
+      title: 'Customer feedback',
+      description: 'Quarterly NPS',
+      responsePolicy: 'LATEST_OVERWRITES',
+      consentTextOverride: 'I agree to the {{privacy}} terms.',
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
+// ─── isScoreField validation (Issue #241 Slice 2 — R22 / D-score) ──────────
+
+describe('CreateSurveySchema — isScoreField validation', () => {
+  const baseQuestion = {
+    id: 'q1',
+    text: 'How likely are you to recommend us?',
+    type: 'rating' as const,
+    required: true,
+  }
+  const surveyWith = (questions: Array<Record<string, unknown>>) => ({
+    name: 'Test Survey',
+    programId: 'prog_1',
+    type: 'NPS' as const,
+    questions,
+  })
+
+  it('accepts a survey with exactly one isScoreField rating question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([{ ...baseQuestion, isScoreField: true }]),
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a survey with no isScoreField marked (custom survey, no score)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([{ id: 'q1', text: 'Open-ended feedback', type: 'text', required: false }]),
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a survey with two isScoreField questions (at-most-one rule)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { ...baseQuestion, id: 'q1', isScoreField: true },
+        { ...baseQuestion, id: 'q2', isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects isScoreField on a Likert question (multi-statement; no single score)', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Rate each statement', type: 'likert', required: true, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects isScoreField on a text question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Tell us more', type: 'text', required: false, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts isScoreField on a slider question', () => {
+    const result = CreateSurveySchema.safeParse(
+      surveyWith([
+        { id: 'q1', text: 'Score', type: 'slider', required: true, isScoreField: true },
+      ]),
+    )
+    expect(result.success).toBe(true)
+  })
 })
 
 // ─── UpdateSurveyStatusSchema ───────────────────────────────────────────────
@@ -373,8 +454,12 @@ describe('UpdateSurveyStatusSchema', () => {
     expect(UpdateSurveyStatusSchema.safeParse({ status: 'PAUSED' }).success).toBe(true)
   })
 
-  it('accepts CLOSED status', () => {
-    expect(UpdateSurveyStatusSchema.safeParse({ status: 'CLOSED' }).success).toBe(true)
+  it('accepts STOPPED status (renamed from CLOSED in #241)', () => {
+    expect(UpdateSurveyStatusSchema.safeParse({ status: 'STOPPED' }).success).toBe(true)
+  })
+
+  it('rejects legacy CLOSED status', () => {
+    expect(UpdateSurveyStatusSchema.safeParse({ status: 'CLOSED' }).success).toBe(false)
   })
 
   it('rejects DRAFT status (cannot go back to draft)', () => {
@@ -574,21 +659,20 @@ describe('Survey schemas — thank-you fields (Issue #291)', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.thankYouMessage).toBe('Thank you for your feedback!')
-      expect(result.data.showIncentivePoints).toBe(true)
       expect(result.data.thankYouRedirectUrl).toBeUndefined()
     }
   })
 
-  it('CreateSurveySchema accepts custom thankYouMessage and showIncentivePoints', () => {
+  it('CreateSurveySchema accepts custom thankYouMessage', () => {
+    // Issue #241 — `showIncentivePoints` is dropped from the schema. The
+    // thank-you message remains per-survey.
     const result = CreateSurveySchema.safeParse({
       ...validSurveyBase,
       thankYouMessage: 'Thanks for your time!',
-      showIncentivePoints: false,
     })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.thankYouMessage).toBe('Thanks for your time!')
-      expect(result.data.showIncentivePoints).toBe(false)
     }
   })
 
@@ -608,10 +692,11 @@ describe('Survey schemas — thank-you fields (Issue #291)', () => {
     expect(result.success).toBe(false)
   })
 
-  it('UpdateSurveySchema accepts the three thank-you fields independently', () => {
+  it('UpdateSurveySchema accepts the thank-you fields independently', () => {
+    // Issue #241 — `showIncentivePoints` is dropped; only the two thank-you
+    // fields remain on UpdateSurveySchema.
     expect(UpdateSurveySchema.safeParse({ thankYouMessage: 'X' }).success).toBe(true)
     expect(UpdateSurveySchema.safeParse({ thankYouRedirectUrl: 'https://x.test' }).success).toBe(true)
-    expect(UpdateSurveySchema.safeParse({ showIncentivePoints: false }).success).toBe(true)
   })
 })
 

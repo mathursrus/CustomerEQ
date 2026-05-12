@@ -17,7 +17,7 @@ const developerRoutes: FastifyPluginAsync = async (fastify) => {
       }),
       fastify.prisma.survey.findMany({
         where: { brandId: request.brandId, status: 'ACTIVE' },
-        select: { id: true, name: true, type: true, incentivePoints: true },
+        select: { id: true, name: true, type: true },
         orderBy: { createdAt: 'desc' },
       }),
       fastify.prisma.externalSignalSource.findMany({
@@ -40,7 +40,6 @@ const developerRoutes: FastifyPluginAsync = async (fastify) => {
         id: s.id,
         name: s.name,
         type: s.type,
-        incentivePoints: s.incentivePoints,
         shareUrl: `${WEB_BASE_URL}/survey/${s.id}`,
         embedSnippet: `<script src="${API_BASE_URL}/v1/public/surveys/${s.id}/widget.js"></script>`,
       })),

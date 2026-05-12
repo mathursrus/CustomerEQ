@@ -69,11 +69,11 @@ interface SurveyData {
   type: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM'
   brand: { name: string; logoUrl?: string | null }
   questions: SurveyQuestion[]
-  incentivePoints?: number
   // Issue #291 — per-survey overrides on Survey (was on BrandTheme).
+  // Issue #241 — `incentivePoints` + `showIncentivePoints` removed (D19/D40/D50):
+  // points never appear on the form; earning is driven by EarningRule cx events.
   thankYouMessage?: string
   thankYouRedirectUrl?: string | null
-  showIncentivePoints?: boolean
   theme?: BrandTheme
   hasCxRules?: boolean
 }
@@ -362,8 +362,6 @@ export default function SurveyResponsePage() {
   const borderRadius = theme?.borderRadius ?? '0.75rem'
   const cardStyle = theme?.cardStyle ?? 'shadow-sm border border-gray-200'
   const maxWidthPx = MAX_WIDTH_MAP[theme?.maxWidth ?? ''] ?? '672px' // default ~max-w-2xl
-  // Issue #291 — showIncentivePoints moved from theme to Survey.
-  const showIncentive = survey?.showIncentivePoints !== false // default true
 
   /* ---------------------------------------------------------------- */
   /*  Render states                                                   */
@@ -428,17 +426,9 @@ export default function SurveyResponsePage() {
           </div>
           <h2 className="text-xl font-bold" style={{ color: 'var(--ceq-text)' }}>Thank You!</h2>
           <p className="mt-2 text-gray-600">{thankYouMsg}</p>
-          {showIncentive && survey?.incentivePoints && (
-            <div
-              className="mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold"
-              style={{ backgroundColor: 'color-mix(in srgb, var(--ceq-primary) 10%, white)', color: 'var(--ceq-primary)' }}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-              </svg>
-              You earned {survey.incentivePoints} points!
-            </div>
-          )}
+          {/* Issue #241 — "You earned N points" badge removed (D19): points
+              never appear on the form. Earning happens via EarningRule cx
+              events on the response handler. */}
           {/* R8: CX rules exist — a loyalty/offer action may be triggered */}
           {survey?.hasCxRules && (
             <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-left">
@@ -483,14 +473,8 @@ export default function SurveyResponsePage() {
             {survey.brand.name}
           </p>
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{survey.name}</h1>
-          {showIncentive && survey.incentivePoints && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
-              </svg>
-              Earn {survey.incentivePoints} points for completing this survey!
-            </div>
-          )}
+          {/* Issue #241 — "Earn N points" header badge removed (D19): points
+              never appear on the form. */}
         </div>
       </div>
 

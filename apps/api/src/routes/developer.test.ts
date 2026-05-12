@@ -6,7 +6,7 @@ import developerRoutes from './developer.js'
 
 function buildApp(options: {
   brand: { id: string; name: string } | null
-  surveys: Array<{ id: string; name: string; type: string; incentivePoints: number | null }>
+  surveys: Array<{ id: string; name: string; type: string }>
   sources: Array<{
     id: string
     name: string
@@ -64,7 +64,7 @@ describe('developerRoutes', () => {
     app = buildApp({
       brand: { id: 'brand_acme', name: 'Acme Coffee' },
       surveys: [
-        { id: 'srv_1', name: 'Post-Purchase NPS', type: 'NPS', incentivePoints: 50 },
+        { id: 'srv_1', name: 'Post-Purchase NPS', type: 'NPS' },
       ],
       sources: [
         { id: 'src_1', name: 'Google Reviews', sourceType: 'GOOGLE_BUSINESS_PROFILE', syncMode: 'WEBHOOK', credentialRef: 'secret_123' },
@@ -85,7 +85,6 @@ describe('developerRoutes', () => {
       id: 'srv_1',
       name: 'Post-Purchase NPS',
       type: 'NPS',
-      incentivePoints: 50,
     })
     // Embed snippet is a proper <script> tag pointing at widget.js
     expect(body.surveys[0].embedSnippet).toContain('<script')

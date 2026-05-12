@@ -130,8 +130,30 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
     const resourceType = routeConfig?.auditResourceType ?? action.split('.')[0] ?? 'unknown'
     const resourceId = extractResourceId(routePath, request.url)
 
+    // Issue #241 / NFR-S5 — capture request IP into AuditEvent.metadata via
+    // the existing JSON column (no schema change). request.ip honors Fastify's
+    // trust-proxy chain when configured. If unavailable (misconfigured trust
+    // proxy, or a code path that bypassed the network layer), log a structured
+    // WARN but never block the audit row — `requestIp: null` is acceptable.
+    let requestIp: string | null
+    try {
+      requestIp = request.ip ?? null
+    } catch {
+      requestIp = null
+    }
+    if (requestIp === null) {
+      fastify.log.warn(
+        { event: 'audit.ip_unavailable', route: routePath, brandId: request.brandId },
+        'request.ip unavailable; persisting AuditEvent.metadata.requestIp = null',
+      )
+    }
+    const enrichedMetadata = {
+      ...(request.audit?.metadata ?? {}),
+      requestIp,
+    }
+
     const metadata = allowlist
-      ? filterMetadata(request.audit?.metadata ?? {}, allowlist)
+      ? filterMetadata(enrichedMetadata, allowlist)
       : {
           method: request.method,
           path: request.url,
