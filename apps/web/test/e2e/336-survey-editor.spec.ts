@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { test, expect, devices, type Page, type Route } from '@playwright/test'
 
 // Issue #241 Slice 4b (#336) — admin survey editor E2E.
 //
@@ -176,18 +176,28 @@ async function mockApi(
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ survey }) })
   })
 
-  await page.route(`**/v1/brand-themes/${THEME_ID}`, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ theme: MOCK_THEME }) }),
-  )
-  await page.route('**/v1/brand-themes', (route: Route) =>
+  // /v1/themes — full theme records (Phase 5 API-shape diff lesson: editor
+  // calls /v1/themes, not /v1/brand-themes; the latter never existed in apps/api).
+  await page.route('**/v1/themes', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ themes: [MOCK_THEME] }),
+      body: JSON.stringify({ themes: [MOCK_THEME], defaultThemeId: THEME_ID }),
     }),
   )
-  await page.route('**/v1/me', (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ brand: MOCK_BRAND }) }),
+  // /v1/admin/brand/profile — canonical brand read (replaces the previous /v1/me
+  // placeholder that didn't exist in apps/api).
+  await page.route('**/v1/admin/brand/profile', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        brand: MOCK_BRAND,
+        themes: [{ id: THEME_ID, name: 'Indigo', isDefault: true, swatches: ['#6366f1', '#818cf8', '#fff'] }],
+        memberCount: 0,
+        supportEmail: 'support@test.example',
+      }),
+    }),
   )
   await page.route('**/v1/programs', (route: Route) =>
     route.fulfill({
@@ -292,11 +302,18 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     await mockApi(page, { captureMutations: (m) => mutations.push(m) })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=basics`)
-    await expect(page.getByRole('button', { name: /more.*menu/i })).toBeVisible({ timeout: 20000 })
+    // Discard surfaces as a DRAFT-only footer button per work-list §N (Phase 4
+    // note — More-menu refactor is deferred). Footer button → confirm modal.
+    await expect(page.getByTestId('discard-draft-btn')).toBeVisible({ timeout: 20000 })
 
-    await page.getByRole('button', { name: /more.*menu/i }).click()
-    await page.getByRole('menuitem', { name: /discard draft/i }).click()
-    await page.getByRole('button', { name: /discard|delete/i }).click()
+    await page.getByTestId('discard-draft-btn').click()
+    // The DiscardDraftModal exposes a destructive "Discard draft" confirm CTA;
+    // scope to the dialog to avoid colliding with the footer button that
+    // opened it.
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^discard draft$/i })
+      .click()
 
     await expect.poll(() => mutations.filter((m) => m.method === 'DELETE').length, {
       timeout: 5000,
@@ -304,26 +321,22 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     await expect(page).toHaveURL(/\/admin\/surveys$/, { timeout: 10000 })
   })
 
-  test('Consent override: amber callout + ConsentAttestationModal on save', async ({ page }) => {
+  test('Consent override: more-permissive selection opens ConsentAttestationModal; confirm PATCHes /consent-mode', async ({ page }) => {
     const mutations: Array<{ method: string; url: string; body: unknown }> = []
     await mockClerk(page)
     await mockApi(page, { captureMutations: (m) => mutations.push(m) })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=basics`)
-    await expect(page.getByRole('combobox', { name: /consent mode/i })).toBeVisible({
-      timeout: 20000,
-    })
+    await expect(page.getByLabel(/consent mode/i)).toBeVisible({ timeout: 20000 })
 
-    // Pick the more-permissive override (brand=EXPLICIT, choose IMPLIED).
-    await page.getByRole('combobox', { name: /consent mode/i }).selectOption({ label: /override.*implied/i })
-    // Amber callout appears.
-    await expect(page.getByText(/this deviation will be logged/i)).toBeVisible()
+    // Brand default is EXPLICIT — pick the IMPLIED_ON_SUBMIT override. The
+    // <select> is native (not a combobox role); use the value, not the label.
+    await page.getByLabel(/consent mode/i).selectOption('IMPLIED_ON_SUBMIT')
 
-    // Trigger save (blur or explicit save button — depends on state. In DRAFT
-    // we rely on the attestation modal firing inline.)
+    // R10: the modal fires immediately; no PATCH lands until confirmation.
     await expect(page.getByRole('dialog', { name: /attest/i })).toBeVisible({ timeout: 10000 })
 
-    await page.getByLabel(/reason/i).fill('Compliance approved this loosening')
+    await page.getByLabel(/reason for deviation/i).fill('Compliance approved this loosening')
     await page.getByLabel(/i attest/i).check()
     await page
       .getByRole('button', { name: /confirm.*attestation|attest.*confirm|^confirm$/i })
@@ -333,23 +346,71 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
       () => mutations.filter((m) => m.url.includes('/consent-mode')).length,
       { timeout: 5000 },
     ).toBeGreaterThan(0)
+    const consentPatch = mutations.find((m) => m.url.includes('/consent-mode'))
+    expect((consentPatch?.body as Record<string, unknown>).consentMode).toBe('IMPLIED_ON_SUBMIT')
+    expect((consentPatch?.body as Record<string, unknown>).consentReason).toContain('Compliance')
+  })
+})
+
+// Mobile-emulator gate (work-list §F: mobileValidationRequired: yes).
+// LookFeelTab renders BOTH viewports side-by-side regardless of the host
+// browser viewport — this case proves the Mobile preview actually mounts and
+// carries the 375px constraint when the page is loaded on an emulated phone
+// profile (iPhone 12 minus the webkit browser swap, which Playwright forbids
+// inside a describe block), which is the device profile §F names. Skill
+// source: skills/quality/mobile-emulator-validation.md.
+const IPHONE_12_PROFILE = (() => {
+  // `devices['iPhone 12']` ships `defaultBrowserType: 'webkit'`; lifting the
+  // remaining device options (viewport / userAgent / isMobile / hasTouch /
+  // deviceScaleFactor) gives us a real mobile profile on chromium without
+  // forcing a new worker.
+  const { defaultBrowserType: _ignored, ...rest } = devices['iPhone 12']
+  return rest
+})()
+
+test.describe('Mobile-emulator validation — LookFeelTab on iPhone 12', () => {
+  test.use(IPHONE_12_PROFILE)
+
+  test('Look & Feel renders Mobile preview (375px) side-by-side with Desktop on a mobile device profile', async ({
+    page,
+  }) => {
+    await mockClerk(page)
+    await mockApi(page)
+
+    await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=look-feel`)
+
+    // The look-feel tab is preselected via ?tab. Wait for the previews.
+    await expect(page.getByTestId('preview-mobile')).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('preview-desktop')).toBeVisible()
+
+    // R17: mobile preview marks its viewport so downstream consumers
+    // (PreviewSurvey) constrain to 375px regardless of the host viewport.
+    await expect(page.getByTestId('preview-mobile')).toHaveAttribute('data-viewport', 'mobile')
+
+    // Capture evidence per skills/quality/mobile-emulator-validation.md.
+    await page.screenshot({
+      path: '../../docs/evidence/ui-polish/336/lookfeel-iphone12.png',
+      fullPage: true,
+    })
   })
 })
 
 test.describe('/new Server Component — thin shell', () => {
-  test('clicking + New survey on the list → /new → POST /v1/surveys → editor?tab=basics', async ({ page }) => {
-    const mutations: Array<{ method: string; url: string; body: unknown }> = []
+  test('+ New survey link points at /admin/surveys/new (Server Component entry)', async ({ page }) => {
     await mockClerk(page)
-    await mockApi(page, { captureMutations: (m) => mutations.push(m) })
+    await mockApi(page)
 
+    // The Server Component at /admin/surveys/new performs server-side fetches
+    // (auth → GET programs → POST surveys → redirect) that CANNOT be
+    // intercepted by page.route() because they run in the Next.js runtime,
+    // not the browser. Verifying the full server-component round-trip requires
+    // a real backing API. At the e2e layer, restrict the assertion to the
+    // contract the LIST page owns: the CTA's href.
     await page.goto('/admin/surveys')
     await expect(page.getByTestId('create-survey-btn')).toBeVisible({ timeout: 20000 })
-
-    await page.getByTestId('create-survey-btn').click()
-    await expect.poll(() => mutations.filter((m) => m.method === 'POST').length, { timeout: 10000 })
-      .toBeGreaterThan(0)
-    await expect(page).toHaveURL(new RegExp(`/admin/surveys/${SURVEY_ID}/edit\\?tab=basics`), {
-      timeout: 10000,
-    })
+    await expect(page.getByTestId('create-survey-btn')).toHaveAttribute(
+      'href',
+      '/admin/surveys/new',
+    )
   })
 })

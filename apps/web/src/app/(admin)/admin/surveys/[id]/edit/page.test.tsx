@@ -28,10 +28,14 @@ import {
 // ─── Stable mocks at module scope (Slice 4a Lesson 2) ───────────────────────
 const STABLE_GET_TOKEN = async () => 'test-token'
 const STABLE_USE_AUTH = { getToken: STABLE_GET_TOKEN }
+const STABLE_USE_USER = {
+  user: { primaryEmailAddress: { emailAddress: 'admin@test.example' } },
+}
 const SEARCH_PARAMS_HOLDER = { current: new URLSearchParams() }
 
 vi.mock('@clerk/nextjs', () => ({
   useAuth: () => STABLE_USE_AUTH,
+  useUser: () => STABLE_USE_USER,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -57,13 +61,10 @@ function mockApi(opts: { survey?: typeof MOCK_DRAFT_SURVEY } = {}) {
     if (url.endsWith(`/v1/surveys/${survey.id}`)) {
       return new Response(JSON.stringify({ survey }), { status: 200 })
     }
-    if (url.includes('/v1/brand-themes/')) {
-      return new Response(JSON.stringify({ theme: MOCK_THEME_DEFAULT }), { status: 200 })
-    }
-    if (url.endsWith('/v1/brand-themes')) {
+    if (url.endsWith('/v1/themes')) {
       return new Response(JSON.stringify({ themes: MOCK_THEME_LIBRARY }), { status: 200 })
     }
-    if (url.endsWith('/v1/me')) {
+    if (url.endsWith('/v1/admin/brand/profile')) {
       return new Response(JSON.stringify({ brand: MOCK_BRAND_EXPLICIT }), { status: 200 })
     }
     if (url.endsWith('/v1/programs')) {

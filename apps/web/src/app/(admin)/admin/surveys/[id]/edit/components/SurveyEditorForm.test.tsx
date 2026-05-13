@@ -27,8 +27,13 @@ import {
 const STABLE_PATCH = vi.fn(async () => new Response(null, { status: 200 }))
 const STABLE_DISCARD = vi.fn(async () => new Response(null, { status: 204 }))
 const STABLE_ACTIVATE = vi.fn(async () => new Response(null, { status: 200 }))
+const STABLE_PATCH_CONSENT = vi.fn(async () => new Response(null, { status: 200 }))
 
-function renderForm(opts: { survey?: typeof MOCK_DRAFT_SURVEY; tab?: string } = {}) {
+function renderForm(opts: {
+  survey?: typeof MOCK_DRAFT_SURVEY
+  tab?: 'basics' | 'questions' | 'look-feel' | 'points-thank-you'
+  patchConsentMode?: typeof STABLE_PATCH_CONSENT
+} = {}) {
   return render(
     <SurveyEditorForm
       survey={opts.survey ?? MOCK_DRAFT_SURVEY}
@@ -36,9 +41,11 @@ function renderForm(opts: { survey?: typeof MOCK_DRAFT_SURVEY; tab?: string } = 
       themes={MOCK_THEME_LIBRARY}
       programs={[MOCK_PROGRAM_NPS_WITH_RULE]}
       initialTab={opts.tab ?? 'basics'}
+      attestedBy="admin@test.example"
       patchSurvey={STABLE_PATCH}
       deleteSurvey={STABLE_DISCARD}
       activateSurvey={STABLE_ACTIVATE}
+      patchConsentMode={opts.patchConsentMode ?? STABLE_PATCH_CONSENT}
     />,
   )
 }
@@ -129,6 +136,70 @@ describe('<SurveyEditorForm>', () => {
       // Unedited fields must NOT appear in the patch body (per-section semantics
       // mirroring OrganizationSettingsForm.handleSaveSection).
       expect(body).not.toHaveProperty('thankYouMessage')
+    })
+  })
+
+  // R10 wiring — Phase 5 implement-validate caught that Phase 4 had shipped the
+  // modal component but never wired it into the editor. These tests guard the
+  // wiring: more-permissive override opens the modal; confirm routes through
+  // patchConsentMode (not the generic /v1/surveys/:id PATCH); cancel reverts
+  // the dropdown to the prior value.
+  describe('consent attestation wiring (R10)', () => {
+    it('selecting a more-permissive override opens the attestation modal without firing a PATCH', () => {
+      STABLE_PATCH.mockClear()
+      STABLE_PATCH_CONSENT.mockClear()
+      renderForm()
+      const select = screen.getByLabelText(/consent mode/i)
+      // Brand default is EXPLICIT — pick the IMPLIED_ON_SUBMIT override.
+      fireEvent.change(select, { target: { value: 'IMPLIED_ON_SUBMIT' } })
+      expect(screen.getByRole('dialog', { name: /attest/i })).toBeInTheDocument()
+      expect(STABLE_PATCH).not.toHaveBeenCalled()
+      expect(STABLE_PATCH_CONSENT).not.toHaveBeenCalled()
+    })
+
+    it('confirming the attestation routes through patchConsentMode with the reason + attestedBy', async () => {
+      STABLE_PATCH.mockClear()
+      STABLE_PATCH_CONSENT.mockClear()
+      renderForm()
+      fireEvent.change(screen.getByLabelText(/consent mode/i), {
+        target: { value: 'IMPLIED_ON_SUBMIT' },
+      })
+      fireEvent.change(screen.getByLabelText(/reason for deviation/i), {
+        target: { value: 'Legal approved widget-only inline consent.' },
+      })
+      fireEvent.click(screen.getByLabelText(/i attest/i))
+      fireEvent.click(
+        screen.getByRole('button', { name: /confirm.*attestation|attest.*confirm|^confirm$/i }),
+      )
+      // Settle pending microtasks.
+      await screen.findByRole('tab', { name: /basics/i })
+      expect(STABLE_PATCH_CONSENT).toHaveBeenCalled()
+      const [body] = STABLE_PATCH_CONSENT.mock.calls.at(-1) ?? []
+      expect(body).toEqual(
+        expect.objectContaining({
+          consentMode: 'IMPLIED_ON_SUBMIT',
+          consentReason: 'Legal approved widget-only inline consent.',
+          attestedBy: 'admin@test.example',
+        }),
+      )
+      // The generic /v1/surveys/:id PATCH must NOT carry the consent change —
+      // consent-mode mutations route through the dedicated endpoint per R10.
+      const consentPatchCalls = STABLE_PATCH.mock.calls.filter(([, b]) => {
+        const body = b as Record<string, unknown>
+        return 'consentMode' in body
+      })
+      expect(consentPatchCalls.length).toBe(0)
+    })
+
+    it('cancelling the modal reverts the dropdown to its prior value', () => {
+      renderForm()
+      const select = screen.getByLabelText(/consent mode/i) as HTMLSelectElement
+      expect(select.value).toBe('INHERIT')
+      fireEvent.change(select, { target: { value: 'IMPLIED_ON_SUBMIT' } })
+      expect(screen.getByRole('dialog', { name: /attest/i })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+      expect(screen.queryByRole('dialog', { name: /attest/i })).not.toBeInTheDocument()
+      expect((screen.getByLabelText(/consent mode/i) as HTMLSelectElement).value).toBe('INHERIT')
     })
   })
 })

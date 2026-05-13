@@ -27,6 +27,17 @@ export interface BasicsTabProps {
   survey: EditorSurvey
   brand: EditorBrand
   programs: ProgramWithEarningRule[]
+  /** Controlled consent mode (optional — falls back to local state if absent). */
+  consentMode?: ConsentMode
+  /** Controlled consent text override (optional — falls back to local state). */
+  consentTextOverride?: string | null
+  /**
+   * Optional dedicated callback for consent changes. When provided, replaces
+   * the implicit onFieldChange('consentMode'/'consentTextOverride') calls so
+   * the parent (SurveyEditorForm) can gate more-permissive overrides behind
+   * the attestation modal per R10.
+   */
+  onConsentChange?: (next: { consentMode: ConsentMode; consentTextOverride: string | null }) => void
   onFieldChange: (field: string, value: unknown) => void
   onTypeChange: (next: SurveyType) => void
   disabled: boolean
@@ -61,6 +72,9 @@ export function BasicsTab({
   survey,
   brand,
   programs,
+  consentMode: consentModeProp,
+  consentTextOverride: consentTextOverrideProp,
+  onConsentChange,
   onFieldChange,
   onTypeChange,
   disabled,
@@ -76,12 +90,14 @@ export function BasicsTab({
   const [titleError, setTitleError] = useState<string | null>(null)
 
   const [pendingType, setPendingType] = useState<SurveyType | null>(null)
-  const [consentMode, setConsentMode] = useState<ConsentMode>(
+  const [localConsentMode, setLocalConsentMode] = useState<ConsentMode>(
     effectiveConsentMode(survey, brand),
   )
-  const [consentTextOverride, setConsentTextOverride] = useState<string | null>(
+  const [localConsentText, setLocalConsentText] = useState<string | null>(
     survey.consentTextOverride,
   )
+  const consentMode = consentModeProp ?? localConsentMode
+  const consentTextOverride = consentTextOverrideProp ?? localConsentText
 
   const hasQuestions = (survey.questions?.length ?? 0) > 0
 
@@ -107,8 +123,12 @@ export function BasicsTab({
     consentMode: ConsentMode
     consentTextOverride: string | null
   }) {
-    setConsentMode(next.consentMode)
-    setConsentTextOverride(next.consentTextOverride)
+    setLocalConsentMode(next.consentMode)
+    setLocalConsentText(next.consentTextOverride)
+    if (onConsentChange) {
+      onConsentChange(next)
+      return
+    }
     onFieldChange('consentMode', next.consentMode)
     onFieldChange('consentTextOverride', next.consentTextOverride)
   }

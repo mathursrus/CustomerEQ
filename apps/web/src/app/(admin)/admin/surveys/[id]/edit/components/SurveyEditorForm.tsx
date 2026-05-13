@@ -27,11 +27,38 @@ import type {
 import { useAutoSave } from '../hooks/useAutoSave'
 import { ActivateModal } from './ActivateModal'
 import { BasicsTab } from './BasicsTab'
+import { ConsentAttestationModal } from './ConsentAttestationModal'
 import { DiscardDraftModal } from './DiscardDraftModal'
 import { LookFeelTab } from './LookFeelTab'
 import { PointsAndThankYouTab } from './PointsAndThankYouTab'
 import { QuestionsTab } from './QuestionsTab'
 import { TabHeader, type TabId } from './TabHeader'
+
+type ConsentModeValue = 'INHERIT' | 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
+type EffectiveConsentMode = 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
+
+function initialConsentMode(survey: EditorSurvey): ConsentModeValue {
+  const stored = (survey as { consentMode?: ConsentModeValue | null }).consentMode
+  if (stored === 'EXPLICIT' || stored === 'IMPLIED_ON_SUBMIT') return stored
+  return 'INHERIT'
+}
+
+function resolveEffective(
+  brandMode: EffectiveConsentMode,
+  override: ConsentModeValue,
+): EffectiveConsentMode {
+  return override === 'INHERIT' ? brandMode : override
+}
+
+// R10: more-permissive override (drops the opt-in) requires attestation.
+function isMorePermissiveOverride(
+  brandMode: EffectiveConsentMode,
+  nextOverride: ConsentModeValue,
+): boolean {
+  if (nextOverride === 'INHERIT') return false
+  const effective = resolveEffective(brandMode, nextOverride)
+  return brandMode === 'EXPLICIT' && effective === 'IMPLIED_ON_SUBMIT'
+}
 
 const TAB_FIELDS: Record<TabId, string[]> = {
   basics: [
@@ -55,9 +82,15 @@ export interface SurveyEditorFormProps {
   themes: BrandThemeLite[]
   programs: ProgramWithEarningRule[]
   initialTab?: TabId
+  attestedBy: string
   patchSurvey: (url: string, body: Record<string, unknown>) => Promise<Response>
   deleteSurvey: () => Promise<Response>
   activateSurvey: (id: string) => Promise<Response>
+  patchConsentMode: (body: {
+    consentMode: ConsentModeValue
+    consentReason: string
+    attestedBy: string
+  }) => Promise<Response>
   onActivate?: () => void
   onDiscard?: () => void
 }
@@ -74,9 +107,11 @@ export function SurveyEditorForm({
   themes,
   programs,
   initialTab,
+  attestedBy,
   patchSurvey,
   deleteSurvey,
   activateSurvey,
+  patchConsentMode,
   onActivate,
   onDiscard,
 }: SurveyEditorFormProps) {
@@ -88,6 +123,14 @@ export function SurveyEditorForm({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [consentMode, setConsentMode] = useState<ConsentModeValue>(initialConsentMode(survey))
+  const [consentTextOverride, setConsentTextOverride] = useState<string | null>(
+    survey.consentTextOverride,
+  )
+  const [pendingConsent, setPendingConsent] = useState<{
+    nextMode: ConsentModeValue
+    nextText: string | null
+  } | null>(null)
 
   const isReadOnly = survey.status === 'STOPPED'
   const isAutoSaveMode = survey.status === 'DRAFT'
@@ -117,6 +160,64 @@ export function SurveyEditorForm({
     },
     [isReadOnly, isAutoSaveMode, triggerSave],
   )
+
+  // R10: Operator picks a more-permissive consent override → gate behind the
+  // attestation modal. The dropdown UI value updates so the operator sees their
+  // selection reflected (and the amber callout in the sub-block), but no PATCH
+  // fires until the modal is confirmed. Cancelling the modal reverts both
+  // mode + text override to their last attested state.
+  const handleConsentChange = useCallback(
+    (next: { consentMode: ConsentModeValue; consentTextOverride: string | null }) => {
+      if (isReadOnly) return
+      const requiresAttestation = isMorePermissiveOverride(brand.consentMode, next.consentMode)
+      // Reflect the operator's choice in the dropdown immediately.
+      setConsentMode(next.consentMode)
+      setConsentTextOverride(next.consentTextOverride)
+      if (requiresAttestation) {
+        setPendingConsent({ nextMode: next.consentMode, nextText: next.consentTextOverride })
+        return
+      }
+      // Stricter or inherit: write straight through the normal save path.
+      handleFieldChange('consentMode', next.consentMode)
+      handleFieldChange('consentTextOverride', next.consentTextOverride)
+    },
+    [brand.consentMode, isReadOnly, handleFieldChange],
+  )
+
+  const submitConsentAttestation = useCallback(
+    async (body: {
+      consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
+      consentReason: string
+      attestedBy: string
+    }): Promise<Response> => {
+      const res = await patchConsentMode(body)
+      if (res.ok && pendingConsent) {
+        // Persist alongside any text override the operator typed before opening the modal.
+        setValues((prev) => ({
+          ...prev,
+          consentMode: pendingConsent.nextMode,
+          consentTextOverride: pendingConsent.nextText,
+        }))
+        setDirtyFields((prev) => {
+          const next = new Set(prev)
+          next.delete('consentMode')
+          next.delete('consentTextOverride')
+          return next
+        })
+        setSavedAt(new Date().toISOString())
+        setPendingConsent(null)
+      }
+      return res
+    },
+    [patchConsentMode, pendingConsent],
+  )
+
+  const cancelConsentAttestation = useCallback(() => {
+    // Revert dropdown + text override to the survey's last-attested state.
+    setConsentMode(initialConsentMode(survey))
+    setConsentTextOverride(survey.consentTextOverride)
+    setPendingConsent(null)
+  }, [survey])
 
   const handleTypeChange = useCallback(
     (next: 'NPS' | 'CSAT' | 'CES' | 'CUSTOM') => {
@@ -245,6 +346,9 @@ export function SurveyEditorForm({
             survey={survey}
             brand={brand}
             programs={programs}
+            consentMode={consentMode}
+            consentTextOverride={consentTextOverride}
+            onConsentChange={handleConsentChange}
             onFieldChange={handleFieldChange}
             onTypeChange={handleTypeChange}
             disabled={isReadOnly}
@@ -330,6 +434,17 @@ export function SurveyEditorForm({
         onDiscarded={handleDiscarded}
         onClose={() => setDiscardOpen(false)}
       />
+
+      {pendingConsent !== null && pendingConsent.nextMode !== 'INHERIT' && (
+        <ConsentAttestationModal
+          open
+          surveyId={survey.id}
+          attestedBy={attestedBy}
+          nextConsentMode={pendingConsent.nextMode as EffectiveConsentMode}
+          onSubmit={submitConsentAttestation}
+          onClose={cancelConsentAttestation}
+        />
+      )}
     </div>
   )
 }

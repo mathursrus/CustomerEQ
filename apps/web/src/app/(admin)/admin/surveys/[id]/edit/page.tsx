@@ -1,16 +1,21 @@
 // Issue #241 Slice 4b (#336) — Admin survey editor route.
 // Replaces the 20-line redirect stub from Slice 3 with the real editor shell.
 //
-// Load sequence mirrors the Slice 4a detail page so cache + fixture
-// expectations stay consistent across the admin surveys experience:
-//   GET /v1/surveys/:id   (survey)
-//   GET /v1/brand-themes  (theme library for Look & Feel)
-//   GET /v1/me            (brand — consentMode, termsUrl, etc.)
-//   GET /v1/programs      (program list + EarningRule for Points tab)
+// Load sequence:
+//   GET /v1/surveys/:id            (survey)
+//   GET /v1/themes                 (full theme records for Look & Feel preview)
+//   GET /v1/admin/brand/profile    (brand — consentMode, termsUrl, etc.)
+//   GET /v1/programs               (program list + EarningRule for Points tab)
+//
+// Phase 5 API-shape diff (work-list §I) replaced the placeholders
+// `/v1/brand-themes` + `/v1/me` from the Phase 4 spike — neither endpoint
+// exists in apps/api. The brand profile endpoint is the canonical brand read
+// (lazy-upserts the row on first load); themes come from /v1/themes (with
+// full color records the preview consumes).
 
 'use client'
 
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -37,6 +42,9 @@ export default function EditSurveyPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { getToken } = useAuth()
+
+  const { user } = useUser()
+  const attestedBy = user?.primaryEmailAddress?.emailAddress ?? 'unknown'
 
   const surveyId = (params?.id ?? '') as string
   const initialTab = parseInitialTab(searchParams?.get('tab'))
@@ -81,6 +89,12 @@ export default function EditSurveyPage() {
     [callApi],
   )
 
+  const patchConsentMode = useCallback(
+    async (body: { consentMode: string; consentReason: string; attestedBy: string }) =>
+      callApi(`/v1/surveys/${surveyId}/consent-mode`, { method: 'PATCH', body }),
+    [callApi, surveyId],
+  )
+
   const loadAll = useCallback(async () => {
     if (!surveyId) return
     setLoading(true)
@@ -95,9 +109,9 @@ export default function EditSurveyPage() {
           : (surveyData as EditorSurvey)
       setSurvey(loadedSurvey)
 
-      const [themesRes, meRes, programsRes] = await Promise.all([
-        callApi('/v1/brand-themes').catch(() => null),
-        callApi('/v1/me').catch(() => null),
+      const [themesRes, brandProfileRes, programsRes] = await Promise.all([
+        callApi('/v1/themes').catch(() => null),
+        callApi('/v1/admin/brand/profile').catch(() => null),
         callApi('/v1/programs').catch(() => null),
       ])
 
@@ -109,9 +123,9 @@ export default function EditSurveyPage() {
         setThemes(themesData.themes ?? themesData.data ?? [])
       }
 
-      if (meRes && meRes.ok) {
-        const meData = (await meRes.json()) as { brand?: EditorBrand }
-        if (meData.brand) setBrand(meData.brand)
+      if (brandProfileRes && brandProfileRes.ok) {
+        const profileData = (await brandProfileRes.json()) as { brand?: EditorBrand }
+        if (profileData.brand) setBrand(profileData.brand)
       }
 
       if (programsRes && programsRes.ok) {
@@ -165,9 +179,11 @@ export default function EditSurveyPage() {
       themes={themes}
       programs={programs}
       initialTab={initialTab}
+      attestedBy={attestedBy}
       patchSurvey={patchSurvey}
       deleteSurvey={deleteSurvey}
       activateSurvey={activateSurvey}
+      patchConsentMode={patchConsentMode}
       onActivate={handleActivated}
       onDiscard={handleDiscarded}
     />
