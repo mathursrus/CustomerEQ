@@ -119,18 +119,27 @@ jobs:
         uses: actions/checkout@v4
 
       # Issue #343: skip image build on doc-only commits. Skip-list (negation)
-      # semantics: paths-filter starts with the full changeset, excludes anything
-      # matching a `!`-prefixed pattern, and returns true if any file is left.
-      # Skip-list over whitelist because under-build (silent skip → stale-image
-      # deploy) is a real bug; over-build (spurious rebuild on a doc pattern we
-      # forgot to list) is recoverable wasted CI. New top-level dirs are
-      # default-included; only listed patterns are skipped.
+      # semantics: paths-filter starts with everything (the leading '**' pattern)
+      # and excludes anything matching a `!`-prefixed pattern. Returns true if
+      # any file remains after exclusion. Skip-list over whitelist because
+      # under-build (silent skip → stale-image deploy) is a real bug; over-build
+      # (spurious rebuild on a doc pattern we forgot to list) is recoverable
+      # wasted CI. New top-level dirs are default-included; only listed
+      # patterns are skipped.
+      #
+      # Issue #351 (this fix): the leading '**' positive pattern is REQUIRED.
+      # dorny/paths-filter uses last-match-wins semantics and needs a positive
+      # pattern to seed the match set. With only negation patterns, dorny had
+      # no baseline to subtract from and defaulted to true for every change,
+      # making the skip path unreachable. PR #350 (doc-only) exposed this:
+      # build steps ran while `Skip if doc-only` was skipped.
       - name: Determine if build is needed
         id: changes
         uses: dorny/paths-filter@v3
         with:
           filters: |
             build:
+              - '**'
               - '!**/*.md'
               - '!docs/**'
               - '!.github/ISSUE_TEMPLATE/**'
@@ -139,9 +148,16 @@ jobs:
               - '!.gitattributes'
               - '!LICENSE'
 
+      # Issue #351 (this fix): the previous `run: echo "...issue #343..."`
+      # single-line form was truncated by the YAML parser at the `#` (inline
+      # comment). Bash received an unterminated string and exited 2, failing
+      # the job. Literal block scalar (|) preserves the value verbatim. The
+      # `#` was also dropped from the message text (now "issue 343") as a
+      # defense against future single-line refactors reintroducing the bug.
       - name: Skip if doc-only
         if: steps.changes.outputs.build == 'false'
-        run: echo "Doc-only change; skipping image build (issue #343)."
+        run: |
+          echo "Doc-only change; skipping image build (issue 343)."
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.build == 'true'

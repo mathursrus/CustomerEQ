@@ -84,9 +84,18 @@ jobs:
             echo "Result: all changes match the doc-only skip set; skipping deploy."
           fi
 
+      # Issue #351 (this fix): the previous `run: echo "...issue #343..."`
+      # single-line form was truncated by the YAML parser at the `#` (inline
+      # comment). Bash received an unterminated string and exited 2, failing
+      # the job on every doc-only main commit (commit 7e83b076 was the first
+      # observed failure). Literal block scalar (|) preserves the value
+      # verbatim. The `#` was also dropped from the message text (now
+      # "issue 343") as a defense against future single-line refactors
+      # reintroducing the bug.
       - name: Skip if doc-only
         if: steps.changes.outputs.build == 'false'
-        run: echo "Doc-only change; skipping ACR build + Container Apps redeploy (issue #343)."
+        run: |
+          echo "Doc-only change; skipping ACR build + Container Apps redeploy (issue 343)."
 
       - name: Log in to Azure
         if: steps.changes.outputs.build == 'true'
