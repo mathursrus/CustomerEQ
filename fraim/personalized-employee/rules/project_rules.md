@@ -159,3 +159,35 @@ Three constraints apply to every migration, generated or hand-written:
 ## 23. Bulk Import Consent Contract Differs From Live-Response Consent
 
 Rule 13 (GDPR/CCPA) requires respecting `Member.consentGivenAt` before processing data. This gate applies to **live survey responses** where consent is captured in real time. It does **not** apply to **bulk historical import processors**: the integrator has already verified consent at export time, and `resolveOrEnrollMember(BULK_IMPORT)` auto-stamps consent for newly enrolled members. Bulk import processors must set `memberId` after successful member resolution unconditionally — do not gate it on `member.consentGivenAt`.
+
+## 24. FRAIM is the Mandated Workflow for All Agent Work
+
+All AI agents operating in this repository — autonomous, semi-autonomous, or human-supervised — MUST execute work through the FRAIM workflow (discovery catalog under `fraim/` in this repo; runtime via the `mcp__fraim__*` tools). **No deviations.**
+
+- For tasks that map to a FRAIM job (`feature-implementation`, `technical-design`, `feature-specification`, `code-refactoring`, `pr-iteration`, `test-execution`, `issue-preparation`, `retrospective`, etc.), execute every phase the job defines, in order, with the required deliverables on disk under `docs/evidence/` (or wherever the job specifies).
+- For tasks that do not map cleanly to a FRAIM job, surface the gap to the user before starting and request guidance. Do not proceed ad-hoc.
+- The MCP discovery + runtime tools are the canonical entry points: `mcp__fraim__list_fraim_jobs`, `mcp__fraim__get_fraim_job`, `mcp__fraim__get_fraim_file`, `mcp__fraim__seekMentoring`. `seekMentoring` is the **only** sanctioned way to advance phase state.
+- Skipping a phase ("nothing to do here" / "the spec doesn't mention this") is not allowed without explicit user authorization. Phases that don't apply (e.g., `implement-repro` for a feature) must be marked N/A with the reason in the evidence doc, not silently dropped.
+- Phases marked "wait for external signal" are hold-points — see Rule 25a.
+
+Why: prior incidents (most recently #335 Slice 4a / PR #340) show that agents who skip or shortcut FRAIM phases produce work that fails review — silent removals of hero-feature UI, missed regression triage, incomplete traceability, retrospectives that don't capture review iterations. FRAIM's phased discipline is the safeguard. The cost of running the full workflow is bounded; the cost of skipping a phase is unbounded (rework, broken trust, incidents).
+
+## 25. Default to Wait + Verify (Operational Hold-Point Discipline)
+
+This rule exists because in a single session of Slice 4a of #241 (PR #340) the agent made 7 distinct mistakes that share one root: it optimized for "advance and report done" rather than "wait and verify." The mistakes ranged from auto-completing FRAIM hold-points, to destroying a working tree with `git checkout <base> -- .`, to silently removing UI tied to Rule 2 (hero pipeline), to writing test mocks that broke `useCallback` deps. Each was individually recoverable; the pattern was not. Five sub-rules pre-empt that pattern.
+
+**25a. Hold-points never auto-complete.** Before calling `seekMentoring(status='complete')` on a FRAIM phase, check the phase intent: is it a hold-point (waits for external signal — user feedback, PR review, CI result)? If yes, the only valid `status='complete'` trigger is an explicit user signal like "proceed," "check the PR," "PR merged," "approved." Auto-advancing because "I have nothing to do right now" is wrong. FRAIM's `address-feedback` phase is the canonical hold-point — it waits for review comments, not the agent's patience.
+
+**25b. Destructive action requires a written alternative.** Before any destructive command — `git checkout <branch> -- .`, `git reset --hard`, `git rm`, `Remove-Item -Recurse`, deleting evidence files, force-pushing — the tool call's description field must name one alternative the agent considered and rejected, with the reason. If no alternative can be named, the agent stops and looks harder. `git stash` + branch swap is almost always a safer substitute for `git checkout <branch> -- .`. `git worktree add` is the safer substitute for "I just want to test something on a different branch quickly."
+
+**25c. Spec / RFC / work-list "deferred" or "remove" instructions require project-rule cross-reference before commit.** Before treating any "deferred to sibling sub-issue" or "remove from this slice" instruction as license to delete UI, capability, or component, answer in the scoping artifact: does this touch the loyalty event pipeline (Rule 2)? existing user flows (Rule 18)? tenant scoping (Rule 6)? hero-feature visibility (Rule 2)? If any answer is yes, surface the trade-off to the user with the rule cross-reference before committing the removal. Local spec language is not authoritative when it conflicts with project rules.
+
+**25d. Trace fixtures and mocks through the production consumer before writing.** Before committing any test fixture or mock to disk, trace one full round-trip: what code does the production consumer execute against this fixture? What hooks (`useEffect`, `useCallback`) capture parts as deps? Is the mock-object reference stable across calls? Does the token / format match the canonical regex? Skipping this trace produces test fixtures that look fine in isolation but cause infinite render loops or token-syntax mismatches when wired up.
+
+**25e. Failure triage uses surgical diff, not whole-tree reset.** Never start fixing a failing test before confirming whether the same test failed on the base branch. The diff is mechanical and safe:
+- WRONG: `git checkout <base-branch> -- .` (overwrites the whole working tree).
+- RIGHT: `git stash` then `git checkout <base-branch>` (clean swap, returns via `git stash pop`).
+- ALSO RIGHT: `git worktree add /tmp/base <base-branch>` (truly side-by-side, no impact on current tree).
+- ALSO RIGHT: `git show <base-branch>:<path>` if only reading.
+
+The success criterion for Rule 25 is not "the agent catches the mistake before the user flags it" — that is still after-the-fact apology. The success criterion is "the rule pre-empts the wrong action before it is taken."
