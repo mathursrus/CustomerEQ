@@ -347,13 +347,13 @@ Per FRAIM constitution §IV (Prototype-First) and the principle "Get a walking s
 
 ## L. Open questions / deferrals (for later phases)
 
-| # | Question | Defer to |
-|---|---|---|
-| OQ1 | Where do the `mockSurveyDraft` / `mockBrandThemeLibrary` / `mockProgramWithEarningRule` / `mockBrandWithConsentMode` test fixtures live in `packages/config/src/test-utils/`? | Phase 3 — adding before first use per project rule R8. |
-| OQ2 | Does the surveys list page's `+ New survey` button (Slice 3) point to `/admin/surveys/new` or carry an old href? | Phase 4 — verify before implementing /new Server Component (one-line edit if needed; falls under Modified file #33 above). |
-| OQ3 | Embedded preview's Mobile rendering — does Slice 4a's `<PreviewSurvey viewport="mobile">` already constrain to mobile width, or does Slice 4b's LookFeelTab need an extra wrapper? | Phase 4 — read `apps/web/src/components/survey-form/PreviewSurvey.tsx` (existing) to confirm. |
-| OQ4 | Auto-save indicator copy across multiple in-flight PATCHes (operator tabs rapidly) — show last-saved time or "Saving N changes…"? | Phase 4 — RFC says "Saved · Xs ago" so use last-saved-at after the queue settles. |
-| OQ5 | Type-change modal copy for the case "preset has 5 questions, switching to Custom" — Custom is "keep" per R6, no modal. Confirm with reviewer if behavior changes. | Out of scope — R6 is authoritative. |
+| # | Question | Defer to | Resolution |
+|---|---|---|---|
+| OQ1 | Where do the `mockSurveyDraft` / `mockBrandThemeLibrary` / `mockProgramWithEarningRule` / `mockBrandWithConsentMode` test fixtures live in `packages/config/src/test-utils/`? | Phase 3 — adding before first use per project rule R8. | **Resolved Phase 3 (2026-05-13)**: existing Slice 4a pattern co-locates `__fixtures__/` next to consumers (`apps/web/src/components/survey-form/__fixtures__/`). `packages/config/src/test-utils/factories/` is the **DB/Prisma integration** tier (factories call into Prisma). Slice 4b adds `apps/web/src/app/(admin)/admin/surveys/[id]/edit/__fixtures__/editor-fixtures.ts` with `MOCK_DRAFT_SURVEY`/`MOCK_ACTIVE_SURVEY`/`MOCK_STOPPED_SURVEY`/`MOCK_BRAND_EXPLICIT`/`MOCK_BRAND_IMPLIED`/`MOCK_BRAND_NO_TERMS`/`MOCK_THEME_LIBRARY`/`MOCK_PROGRAM_NPS_WITH_RULE`/`MOCK_PROGRAM_CSAT_NO_RULE`. R8 still applies to integration-tier mocks. |
+| OQ2 | Does the surveys list page's `+ New survey` button (Slice 3) point to `/admin/surveys/new` or carry an old href? | Phase 4 — verify before implementing /new Server Component (one-line edit if needed; falls under Modified file #33 above). | **Resolved Phase 3 (2026-05-13)**: list page already points to `/admin/surveys/new` (`apps/web/src/app/(admin)/admin/surveys/page.tsx:223` — `<Link href="/admin/surveys/new">`). Modified file #33 in §C.6 is a **no-op**; the existing href just becomes the new Server Component route once Phase 4 lands. |
+| OQ3 | Embedded preview's Mobile rendering — does Slice 4a's `<PreviewSurvey viewport="mobile">` already constrain to mobile width, or does Slice 4b's LookFeelTab need an extra wrapper? | Phase 4 — read `apps/web/src/components/survey-form/PreviewSurvey.tsx` (existing) to confirm. | **Resolved Phase 3 (2026-05-13)**: `<PreviewSurvey>` already constrains viewport via `VIEWPORT_MAX_WIDTH` (`apps/web/src/components/survey-form/PreviewSurvey.tsx:28-31, 47-49` → mobile=375px). LookFeelTab needs **no extra wrapper**. |
+| OQ4 | Auto-save indicator copy across multiple in-flight PATCHes (operator tabs rapidly) — show last-saved time or "Saving N changes…"? | Phase 4 — RFC says "Saved · Xs ago" so use last-saved-at after the queue settles. | Carried into Phase 4 — copy choice is "Saved · Xs ago" per RFC. |
+| OQ5 | Type-change modal copy for the case "preset has 5 questions, switching to Custom" — Custom is "keep" per R6, no modal. Confirm with reviewer if behavior changes. | Out of scope — R6 is authoritative. | n/a (out of scope). |
 
 ---
 
@@ -361,9 +361,9 @@ Per FRAIM constitution §IV (Prototype-First) and the principle "Get a walking s
 
 | Phase | Status | Notes |
 |---|---|---|
-| 1 — implement-scoping | **In progress** | This document. Will be marked complete after commit + push + `seekMentoring` call. |
-| 2 — implement-repro | **N/A** | Slice 4b is a feature, not a bug. To be documented at Phase 2 entry with rationale. |
-| 3 — implement-tests | Pending | Test-first per `feedback_fraim_phases_not_optional.md`. 12 new test files (C.4) authored before each corresponding component lands. |
+| 1 — implement-scoping | **Complete** | Work-list authored, committed (`08d693e`), and pushed. |
+| 2 — implement-repro | **N/A** | Slice 4b is a feature, not a bug. Confirmed at Phase 3 entry. |
+| 3 — implement-tests | **Complete (2026-05-13)** | 12 RTL/vitest files in `[id]/edit/{components,hooks}/` + page-level RTL + 2 Playwright e2e specs (`336-survey-editor.spec.ts`, `336-surveys-list.spec.ts`) + shared `__fixtures__/editor-fixtures.ts`. Vitest run: all 12 fail loudly with clear errors (11 module-not-found for unbuilt components, 1 page-level with 5 assertion failures against the legacy redirect stub). Zero tests skipped — R11a satisfied. Slice 4a tests remain green (11/11) once `packages/consent-text` is built — Slice 4b changes are isolated. **Test-setup gap to flag in Phase 4**: `pnpm test:smoke` (root) runs turbo on packages but `apps/web` has no `test:smoke` script — Slice 4a's existing vitest tests do not run under the smoke alias either. This is **pre-existing** and out of Slice 4b scope per R21; flag for the PR description so reviewers know `pnpm --filter @customerEQ/web test` is the path to exercise both Slice 4a + 4b. |
 | 4 — implement-code | Pending | Walking skeleton → tabs → modals → /new → legacy deletion → architecture-doc. |
 | 5 — implement-validate | Pending | Local gates + Playwright e2e + API-shape diff (§I) + mobile-emulator validation (§F). |
 | 6 — implement-security-review | Pending | `reviewScope = diff`; admin-only surface; OWASP-Top-10 web checklist + privacy review. |
