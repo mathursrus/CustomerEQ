@@ -75,7 +75,7 @@ afterEach(() => {
 })
 
 describe('/admin/surveys/[id] · detail page rewrite', () => {
-  it('renders the three sections in the order Distribution / Response / Configuration summary', async () => {
+  it('renders the four sections in the order Distribution / Loop Monitor / Response / Configuration summary', async () => {
     const Page = (await import('./page')).default
     render(<Page />)
     await waitFor(
@@ -84,34 +84,38 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     )
     const headings = screen.getAllByRole('heading').map((h) => h.textContent)
     const distributionIdx = headings.findIndex((t) => t?.includes('Distribution'))
-    const responseIdx = headings.findIndex((t) => t?.includes('Response'))
-    const configIdx = headings.findIndex((t) => t?.includes('Configuration'))
+    const loopMonitorIdx = headings.findIndex((t) => t?.toLowerCase().includes('loop monitor'))
+    const responseIdx = headings.findIndex((t) => t === 'Response')
+    const configIdx = headings.findIndex((t) => t?.includes('Configuration summary'))
     expect(distributionIdx).toBeGreaterThanOrEqual(0)
-    expect(responseIdx).toBeGreaterThan(distributionIdx)
+    expect(loopMonitorIdx).toBeGreaterThan(distributionIdx)
+    expect(responseIdx).toBeGreaterThan(loopMonitorIdx)
     expect(configIdx).toBeGreaterThan(responseIdx)
   })
 
-  it('with responsesCount=0: Distribution expanded, Response collapsed, Configuration expanded', async () => {
+  it('with responsesCount=0: Distribution expanded, Loop Monitor expanded, Response collapsed, Configuration expanded (R32b)', async () => {
     const Page = (await import('./page')).default
     render(<Page />)
-    await waitFor(() => expect(screen.getByText(/share link/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Share link')).toBeInTheDocument())
     // Distribution body visible (Share link tile rendered)
-    expect(screen.getByText(/share link/i)).toBeInTheDocument()
+    expect(screen.getByText('Share link')).toBeInTheDocument()
+    // Loop Monitor body visible — placeholder shell reaches the DOM (LoopMonitor's own fetch is stubbed by mockApi)
+    expect(await screen.findByTestId('loop-monitor-placeholder')).toBeInTheDocument()
     // Configuration body visible (survey title from the preview)
     expect(screen.getByRole('heading', { name: 'Quick check-in' })).toBeInTheDocument()
-    // Response body hidden — neither the deferral note nor LoopMonitor's placeholder render
+    // Response body hidden — deferral note must not be visible
     expect(screen.queryByText(/sibling sub-issue/i)).toBeNull()
-    expect(screen.queryByTestId('loop-monitor-placeholder')).toBeNull()
   })
 
-  it('with responsesCount>0: Distribution collapsed, Response expanded, Configuration collapsed', async () => {
+  it('with responsesCount>0: Distribution collapsed, Loop Monitor expanded, Response expanded, Configuration collapsed', async () => {
     mockApi({ survey: { ...SURVEY_ALL_TYPES, _count: { responses: 7 } } })
     const Page = (await import('./page')).default
     render(<Page />)
-    // The deferral note + LoopMonitor placeholder render inside the expanded Response section
+    // Loop Monitor stays expanded regardless of responsesCount (R32b)
+    expect(await screen.findByTestId('loop-monitor-placeholder')).toBeInTheDocument()
+    // Response body visible — deferral note inside it
     await waitFor(() => expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument())
-    expect(screen.getByTestId('loop-monitor-placeholder')).toBeInTheDocument()
-    expect(screen.queryByText(/share link/i)).toBeNull()
+    expect(screen.queryByText('Share link')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Quick check-in' })).toBeNull()
   })
 

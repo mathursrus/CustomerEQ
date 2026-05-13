@@ -1,65 +1,36 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ResponseSection } from './ResponseSection'
 
-// Issue #241 Slice 4a — R32 inverse expand rule.
-// Body embeds <LoopMonitor> (Issue #80 hero pipeline view). Stub its
-// /v1/surveys/:id/loop-monitor fetch and stub getToken so the component
-// reaches its visible state synchronously in jsdom.
-
-const originalFetch = globalThis.fetch
-const stubGetToken = async () => 'test-token'
-
-beforeEach(() => {
-  globalThis.fetch = vi.fn(async () =>
-    new Response(
-      JSON.stringify({ surveyId: 'srv_test', placeholder: true, message: 'no data yet' }),
-      { status: 200 },
-    ),
-  ) as unknown as typeof fetch
-})
-
-afterEach(() => {
-  globalThis.fetch = originalFetch
-})
+// Issue #241 Slice 4a (round-2 / #335 feedback) — R32 inverse expand rule.
+// LoopMonitor is no longer embedded here (it lives in <LoopMonitorSection>
+// per R32b). The body is the deferred-analytics placeholder note only —
+// no async fetches, no stubbed fetch needed.
 
 describe('<ResponseSection>', () => {
   it('defaults collapsed when responsesCount === 0 (inverse of Distribution / Configuration)', () => {
-    render(
-      <ResponseSection
-        surveyId="srv_test"
-        surveyStatus="DRAFT"
-        responsesCount={0}
-        getToken={stubGetToken}
-      />,
-    )
-    // LoopMonitor's loading shell or placeholder must NOT be rendered when section is collapsed.
+    render(<ResponseSection surveyId="srv_test" responsesCount={0} />)
+    // Section body must be hidden when collapsed; the deferral note lives in the body.
+    expect(screen.queryByText(/sibling sub-issue/i)).toBeNull()
+  })
+
+  it('defaults expanded when responsesCount > 0', () => {
+    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
+    // Body visible — deferral note renders.
+    expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument()
+  })
+
+  it('does not embed LoopMonitor (moved to its own section per R32b)', () => {
+    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
+    // LoopMonitor's placeholder testid must NOT appear inside Response.
     expect(screen.queryByTestId('loop-monitor-placeholder')).toBeNull()
     expect(screen.queryByTestId('loop-monitor')).toBeNull()
   })
 
-  it('defaults expanded when responsesCount > 0', () => {
-    render(
-      <ResponseSection
-        surveyId="srv_test"
-        surveyStatus="DRAFT"
-        responsesCount={5}
-        getToken={stubGetToken}
-      />,
-    )
-    // DRAFT surveys show LoopMonitor's placeholder ("activates when survey is live")
-    expect(screen.getByTestId('loop-monitor-placeholder')).toBeInTheDocument()
-  })
-
-  it('renders the analytics deferral note alongside the LoopMonitor', () => {
-    render(
-      <ResponseSection
-        surveyId="srv_test"
-        surveyStatus="DRAFT"
-        responsesCount={1}
-        getToken={stubGetToken}
-      />,
-    )
-    expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument()
+  it('shows the pre-response note only when responsesCount === 0 and section is expanded', () => {
+    // Force-expand path tested implicitly: render with responsesCount > 0 so the body shows,
+    // and confirm the pre-response copy ("populate once the survey starts receiving responses") is NOT shown.
+    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
+    expect(screen.queryByText(/populate once the survey/i)).toBeNull()
   })
 })

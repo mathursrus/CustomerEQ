@@ -18,6 +18,7 @@ import type {
 
 import { ConfigurationSummarySection } from './components/ConfigurationSummarySection'
 import { DistributionSection } from './components/DistributionSection'
+import { LoopMonitorSection } from './components/LoopMonitorSection'
 import { ResponseSection } from './components/ResponseSection'
 import { SurveyDetailShell } from './components/SurveyDetailShell'
 
@@ -168,12 +169,16 @@ export default function SurveyDetailPage() {
         status={status}
         responsesCount={responsesCount}
         apiUrl={API_URL}
+        memberIdentifierKind={effectiveBrand.memberIdentifierKind}
+      />
+      <LoopMonitorSection
+        surveyId={surveyId}
+        surveyStatus={status}
+        getToken={getToken}
       />
       <ResponseSection
         surveyId={surveyId}
-        surveyStatus={status}
         responsesCount={responsesCount}
-        getToken={getToken}
       />
       <ConfigurationSummarySection
         survey={survey}
