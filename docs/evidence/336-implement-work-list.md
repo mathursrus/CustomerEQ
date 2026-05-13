@@ -379,7 +379,7 @@ Per FRAIM constitution §IV (Prototype-First) and the principle "Get a walking s
 
 ## N. Resumption pointer
 
-**Next session entry point**: connect FRAIM with this session ID, then call `seekMentoring({ jobName: 'feature-implementation', issueNumber: '336', currentPhase: 'implement-scoping', status: 'complete', findings: { issueType: 'feature' } })` if not already done — OR directly enter `implement-tests` with `status: 'starting'`. This work-list is the authoritative scoping artifact.
+**Next session entry point**: `fraim_connect` (a fresh session ID is issued each connect — do not try to reuse the old one; FRAIM session state is reconstructed from the work-list + this resumption pointer, not from the session ID), then call `seekMentoring({ jobName: 'feature-implementation', jobId: '336', issueNumber: '336', currentPhase: '<next-phase>', status: 'starting' })` where `<next-phase>` is the next pending row in §M's phase ledger. This work-list is the authoritative scoping artifact — read it before §M to know what landed, then call `seekMentoring`. Phase 3 was closed at FRAIM on 2026-05-13 via session `65d62df1-...`; the next pending phase is **Phase 4 — implement-code** (commit `f6f5921`).
 
 **Critical references for future sessions**:
 - This work-list: `docs/evidence/336-implement-work-list.md` (this file)
