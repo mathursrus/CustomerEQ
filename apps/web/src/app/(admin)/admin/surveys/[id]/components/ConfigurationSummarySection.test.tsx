@@ -44,7 +44,7 @@ describe('<ConfigurationSummarySection>', () => {
     expect(screen.queryByRole('heading', { name: 'Quick check-in' })).toBeNull()
   })
 
-  it('renders the dl summary entries (type, status, program, theme, response policy, thank-you snippet)', () => {
+  it('renders the four tab-aligned subsections in editor-tab order (R28 amendment)', () => {
     render(
       <ConfigurationSummarySection
         survey={SURVEY_ALL_TYPES}
@@ -54,9 +54,36 @@ describe('<ConfigurationSummarySection>', () => {
         responsesCount={0}
       />,
     )
-    expect(screen.getByText(/Type/i)).toBeInTheDocument()
-    expect(screen.getByText(/Status/i)).toBeInTheDocument()
+    // Four <h4> subsection headers must appear in editor-tab order:
+    // Basics → Questions → Look & Feel → Points & Thank You (R3 / R28).
+    const headers = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)
+    expect(headers).toEqual(['Basics', 'Questions', 'Look & Feel', 'Points & Thank You'])
+  })
+
+  it('surfaces the program name and the response policy under Basics', () => {
+    render(
+      <ConfigurationSummarySection
+        survey={SURVEY_ALL_TYPES}
+        brand={baseBrand}
+        theme={THEME_DISTINCT}
+        programName="Fixture Program"
+        responsesCount={0}
+      />,
+    )
     expect(screen.getByText('Fixture Program')).toBeInTheDocument()
     expect(screen.getByText(/Multiple responses/i)).toBeInTheDocument()
+  })
+
+  it('notes that points are configured in the program under Points & Thank You', () => {
+    render(
+      <ConfigurationSummarySection
+        survey={SURVEY_ALL_TYPES}
+        brand={baseBrand}
+        theme={THEME_DISTINCT}
+        programName="Fixture Program"
+        responsesCount={0}
+      />,
+    )
+    expect(screen.getByText(/Set in the program/i)).toBeInTheDocument()
   })
 })
