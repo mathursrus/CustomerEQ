@@ -64,7 +64,14 @@ function truncate(text: string, max: number): string {
 }
 
 export function SurveyConfigDl({ survey, brand, theme, programName }: SurveyConfigDlProps) {
-  const chrome = survey.settings.chromeMatrix
+  // The Slice 1/2 API returns `settings: null` for surveys with no custom
+  // settings (the column is nullable and not seeded with `{}` for legacy rows).
+  // The local SurveyResolved type declares settings as always-present, which
+  // diverges from runtime; tolerate the null at the boundary rather than
+  // changing the type contract for the renderer family (Slice 4b will
+  // tighten this in the editor's own type when settings becomes
+  // editor-managed).
+  const chrome = survey.settings?.chromeMatrix
   const standaloneChrome = chrome?.standalone
   const embeddedChrome = chrome?.embedded
 
