@@ -25,7 +25,9 @@ import type {
   ProgramWithEarningRule,
 } from '../__fixtures__/editor-fixtures'
 import { useAutoSave } from '../hooks/useAutoSave'
+import { ActivateModal } from './ActivateModal'
 import { BasicsTab } from './BasicsTab'
+import { DiscardDraftModal } from './DiscardDraftModal'
 import { LookFeelTab } from './LookFeelTab'
 import { PointsAndThankYouTab } from './PointsAndThankYouTab'
 import { QuestionsTab } from './QuestionsTab'
@@ -73,18 +75,19 @@ export function SurveyEditorForm({
   programs,
   initialTab,
   patchSurvey,
+  deleteSurvey,
   activateSurvey,
   onActivate,
   onDiscard,
 }: SurveyEditorFormProps) {
-  void activateSurvey
-  void onDiscard
   const [activeTab, setActiveTab] = useState<TabId>(isTabId(initialTab) ? initialTab : 'basics')
   const [values, setValues] = useState<Record<string, unknown>>({})
   const [dirtyFields, setDirtyFields] = useState<Set<string>>(new Set())
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [activateOpen, setActivateOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const isReadOnly = survey.status === 'STOPPED'
   const isAutoSaveMode = survey.status === 'DRAFT'
@@ -192,6 +195,22 @@ export function SurveyEditorForm({
     programs.find((p) => p.id === ((values.programId as string | undefined) ?? survey.programId)) ??
     programs[0]
 
+  const themeForActivate = themes.find((t) => t.id === survey.themeId) ?? themes[0] ?? null
+
+  function handleActivateClicked() {
+    setActivateOpen(true)
+  }
+
+  function handleActivated() {
+    setActivateOpen(false)
+    onActivate?.()
+  }
+
+  function handleDiscarded() {
+    setDiscardOpen(false)
+    onDiscard?.()
+  }
+
   return (
     <div className="flex flex-col">
       <TabHeader
@@ -200,7 +219,7 @@ export function SurveyEditorForm({
         surveyStatus={survey.status}
         savedAt={savedAt}
         isAnyTabDirty={isAnyTabDirty}
-        onActivate={onActivate ?? (() => {})}
+        onActivate={handleActivateClicked}
         tabDirty={tabDirty}
       />
 
@@ -279,6 +298,38 @@ export function SurveyEditorForm({
           </button>
         </div>
       )}
+
+      {survey.status === 'DRAFT' && (
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3">
+          <button
+            type="button"
+            data-testid="discard-draft-btn"
+            onClick={() => setDiscardOpen(true)}
+            className="text-sm font-medium text-red-600 hover:text-red-700"
+          >
+            Discard draft
+          </button>
+        </div>
+      )}
+
+      <ActivateModal
+        open={activateOpen}
+        survey={survey}
+        brand={brand}
+        theme={themeForActivate}
+        activateSurvey={activateSurvey}
+        onActivated={handleActivated}
+        onClose={() => setActivateOpen(false)}
+      />
+
+      <DiscardDraftModal
+        open={discardOpen}
+        surveyId={survey.id}
+        surveyName={survey.name}
+        deleteSurvey={(_id) => deleteSurvey()}
+        onDiscarded={handleDiscarded}
+        onClose={() => setDiscardOpen(false)}
+      />
     </div>
   )
 }
