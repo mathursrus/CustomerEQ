@@ -89,7 +89,7 @@ export interface SurveyEditorFormProps {
   patchConsentMode: (body: {
     consentMode: ConsentModeValue
     consentReason: string
-    attestedBy: string
+    attestation: { confirmed: true; reason: string }
   }) => Promise<Response>
   onActivate?: () => void
   onDiscard?: () => void
@@ -188,7 +188,7 @@ export function SurveyEditorForm({
     async (body: {
       consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
       consentReason: string
-      attestedBy: string
+      attestation: { confirmed: true; reason: string }
     }): Promise<Response> => {
       const res = await patchConsentMode(body)
       if (res.ok && pendingConsent) {

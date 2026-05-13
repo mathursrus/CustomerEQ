@@ -347,8 +347,14 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
       { timeout: 5000 },
     ).toBeGreaterThan(0)
     const consentPatch = mutations.find((m) => m.url.includes('/consent-mode'))
-    expect((consentPatch?.body as Record<string, unknown>).consentMode).toBe('IMPLIED_ON_SUBMIT')
-    expect((consentPatch?.body as Record<string, unknown>).consentReason).toContain('Compliance')
+    const body = consentPatch?.body as Record<string, unknown>
+    expect(body.consentMode).toBe('IMPLIED_ON_SUBMIT')
+    expect(body.consentReason).toContain('Compliance')
+    // Wire format matches UpdateConsentModeSchema (.strict()) per A04-001 fix.
+    expect(body.attestation).toEqual({
+      confirmed: true,
+      reason: expect.stringContaining('Compliance'),
+    })
   })
 })
 

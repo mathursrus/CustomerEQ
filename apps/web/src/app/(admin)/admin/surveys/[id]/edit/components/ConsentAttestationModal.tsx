@@ -23,12 +23,27 @@ type ConsentMode = 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
 export interface ConsentAttestationModalProps {
   open: boolean
   surveyId: string
+  /**
+   * Displayed in the dialog body ("Attesting as <email>") for operator UX
+   * only. The audit row's actor is stamped server-side from the verified
+   * Clerk user id — not from this prop — so the client cannot impersonate.
+   */
   attestedBy: string
   nextConsentMode: ConsentMode
+  /**
+   * Wire shape matches `UpdateConsentModeSchema` in
+   * `packages/shared/src/zod/survey.schema.ts` — `.strict()` rejects any
+   * extra keys (the prior `attestedBy` shape would 422 in production).
+   * The handler at `PATCH /v1/surveys/:id/consent-mode` enforces R10 by
+   * requiring `attestation.confirmed === true` for more-permissive overrides.
+   */
   onSubmit: (body: {
     consentMode: ConsentMode
     consentReason: string
-    attestedBy: string
+    attestation: {
+      confirmed: true
+      reason: string
+    }
   }) => Promise<Response>
   onClose: () => void
 }
@@ -81,7 +96,7 @@ export function ConsentAttestationModal({
       const res = await onSubmit({
         consentMode: nextConsentMode,
         consentReason: reason,
-        attestedBy,
+        attestation: { confirmed: true, reason },
       })
       if (!res.ok) {
         setError(await readErrorMessage(res))

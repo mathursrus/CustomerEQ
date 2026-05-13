@@ -90,8 +90,11 @@ export default function EditSurveyPage() {
   )
 
   const patchConsentMode = useCallback(
-    async (body: { consentMode: string; consentReason: string; attestedBy: string }) =>
-      callApi(`/v1/surveys/${surveyId}/consent-mode`, { method: 'PATCH', body }),
+    async (body: {
+      consentMode: string
+      consentReason: string
+      attestation: { confirmed: true; reason: string }
+    }) => callApi(`/v1/surveys/${surveyId}/consent-mode`, { method: 'PATCH', body }),
     [callApi, surveyId],
   )
 

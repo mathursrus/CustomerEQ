@@ -87,7 +87,7 @@ describe('<ConsentAttestationModal>', () => {
   })
 
   describe('PATCH /v1/surveys/:id/consent-mode body shape', () => {
-    it('sends consentMode + reason + attestedBy on confirm', async () => {
+    it('sends consentMode + reason + attestation envelope matching UpdateConsentModeSchema', async () => {
       const submitFn = vi.fn(async () => new Response(null, { status: 200 }))
       setup({ submitFn })
       fireEvent.change(screen.getByLabelText(/reason/i), { target: { value: 'Compliance review' } })
@@ -98,13 +98,15 @@ describe('<ConsentAttestationModal>', () => {
       // Allow microtasks.
       await screen.findByRole('dialog')
       const body = submitFn.mock.calls.at(-1)?.[0] as Record<string, unknown>
-      expect(body).toEqual(
-        expect.objectContaining({
-          consentMode: 'IMPLIED_ON_SUBMIT',
-          consentReason: 'Compliance review',
-          attestedBy: USER_EMAIL,
-        }),
-      )
+      // Wire format matches packages/shared/src/zod/survey.schema.ts:164
+      // UpdateConsentModeSchema (`.strict()`). Prior shape sent `attestedBy`
+      // which the server would have rejected with FIELD_DISALLOWED — see
+      // A04-001 in docs/evidence/336-feature-implementation-evidence.md.
+      expect(body).toEqual({
+        consentMode: 'IMPLIED_ON_SUBMIT',
+        consentReason: 'Compliance review',
+        attestation: { confirmed: true, reason: 'Compliance review' },
+      })
     })
 
     it('HTTP 422 from the endpoint surfaces inline (modal stays open with the error)', async () => {

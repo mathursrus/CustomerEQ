@@ -157,7 +157,7 @@ describe('<SurveyEditorForm>', () => {
       expect(STABLE_PATCH_CONSENT).not.toHaveBeenCalled()
     })
 
-    it('confirming the attestation routes through patchConsentMode with the reason + attestedBy', async () => {
+    it('confirming the attestation routes through patchConsentMode with the schema-correct attestation envelope', async () => {
       STABLE_PATCH.mockClear()
       STABLE_PATCH_CONSENT.mockClear()
       renderForm()
@@ -175,13 +175,18 @@ describe('<SurveyEditorForm>', () => {
       await screen.findByRole('tab', { name: /basics/i })
       expect(STABLE_PATCH_CONSENT).toHaveBeenCalled()
       const [body] = STABLE_PATCH_CONSENT.mock.calls.at(-1) ?? []
-      expect(body).toEqual(
-        expect.objectContaining({
-          consentMode: 'IMPLIED_ON_SUBMIT',
-          consentReason: 'Legal approved widget-only inline consent.',
-          attestedBy: 'admin@test.example',
-        }),
-      )
+      // Wire format matches UpdateConsentModeSchema (strict) in
+      // packages/shared/src/zod/survey.schema.ts:164 — the previous shape
+      // sent `attestedBy` which the server's .strict() schema would have
+      // rejected with FIELD_DISALLOWED. See docs/evidence/336-feature-implementation-evidence.md A04-001.
+      expect(body).toEqual({
+        consentMode: 'IMPLIED_ON_SUBMIT',
+        consentReason: 'Legal approved widget-only inline consent.',
+        attestation: {
+          confirmed: true,
+          reason: 'Legal approved widget-only inline consent.',
+        },
+      })
       // The generic /v1/surveys/:id PATCH must NOT carry the consent change —
       // consent-mode mutations route through the dedicated endpoint per R10.
       const consentPatchCalls = STABLE_PATCH.mock.calls.filter(([, b]) => {
