@@ -186,7 +186,7 @@ Activation gates: (a) `Survey.questions.length >= 1`, (b) all required fields co
 ### §7. Detail page — 4 collapsible sections
 
 - **Path**: `/admin/surveys/[id]`.
-- **Layout**: single vertical layout. Four sections stacked top-to-bottom, all collapsible. Same shell regardless of survey state. Header chrome (breadcrumb, status pill, audit-trail badge if consent overridden, Edit + More buttons) is in identical position across DRAFT / ACTIVE / PAUSED / STOPPED.
+- **Layout**: single vertical layout. Four sections stacked top-to-bottom, all collapsible. Same shell regardless of survey state. Header chrome (breadcrumb, survey name, **type pill, status pill**, audit-trail badge if consent overridden, Edit + More buttons, **plus a meta-line under the name surfacing `description · programName`**) is in identical position across DRAFT / ACTIVE / PAUSED / STOPPED. **Type and status pills SHALL use the same rounded-full footprint but a visually distinct fill treatment** so an operator scanning the header can tell them apart at a glance: status is SOLID (loud — it changes and gates distribution); type is OUTLINED (quiet — set at creation and immutable post-activation).
 - **All collapsibles use the platform-standard chevron** (`▼` rotating -90deg when collapsed) — same icon set as Organization Settings.
 
 The four sections, top to bottom:

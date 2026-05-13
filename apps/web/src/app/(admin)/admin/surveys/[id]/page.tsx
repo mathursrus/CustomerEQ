@@ -159,6 +159,9 @@ export default function SurveyDetailPage() {
     <SurveyDetailShell
       surveyId={surveyId}
       surveyName={survey.name}
+      surveyType={survey.type}
+      description={survey.description}
+      programName={programName}
       status={status}
       hasConsentOverride={Boolean(survey.consentMode)}
       callApi={callApi}
