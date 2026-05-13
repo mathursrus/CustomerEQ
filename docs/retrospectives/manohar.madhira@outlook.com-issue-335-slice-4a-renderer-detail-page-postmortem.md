@@ -171,3 +171,94 @@ Memory updates queued for write at end of session:
 1. **Architecture doc updated this slice** — §6 + §9.1 patterns are now load-bearing for Slice 4b + Slice 5 reuse.
 2. **No new lint rule** — quality findings in Phase 8 were all rationale-deferrals, not enforcement gaps.
 3. **No CI change required** — the existing `pnpm test:e2e` gate catches the same class of issues I caught locally; the disk-full environment failure is operational not pipeline.
+
+---
+
+## Round 1 — Post-PR-Open Manual-Testing Pass (2026-05-13)
+
+### Context
+
+Slice 4a's original PR #340 was auto-closed by GitHub when `gh pr merge 334 --delete-branch` deleted its base branch (root-cause documented in the #343 retrospective). PR #353 re-submitted the same head against `main` as the new base. During the manual-testing pass against PR #353, the user surfaced 10 distinct items in one conversational session. All addressed; PR squash-merged as `c143745`; post-merge deploy success at 07:54:47 UTC, 14:16 wall-clock; healthcheck PASS.
+
+### What Went Wrong (Round 1)
+
+1. **LoopMonitor not visible in manual testing (P0).** I had re-embedded `<LoopMonitor>` inside `<ResponseSection>` during the original Slice 4a (commit `40b0419`). For DRAFT surveys (responsesCount=0), the Response section defaults *collapsed* per R32 — which combined with bad chevron affordance made the hero pipeline structurally unreachable on every newly-opened survey. Root cause: I read R32 (Response collapse default) and #80 R37 (LoopMonitor on detail page) as compatible without modeling the operator's actual JTBD — "I just activated a survey; show me the pipeline immediately." Fix: promoted LoopMonitor to its own always-default-expanded section between Distribution and Response (new R32b).
+
+2. **Chevron affordance was structurally undiscoverable.** Unicode `▼` with rotation, no hover state, no Show/Hide affordance. User reported "I don't see any options to collapse" — the toggles were rendering correctly but operators couldn't tell they were interactive. Root cause: I built the primitive in isolation against the spec text ("platform-standard `▼` chevron") without comparing against the rest of the admin app's clickable headers, and didn't manually test affordance discoverability. Fix: SVG chevron, hover/focus states, full-row click target, explicit "Show"/"Hide" suffix label.
+
+3. **DRAFT share-link copies a 404 URL.** `apps/api/src/routes/public.ts:147` filters `where: { id, status: 'ACTIVE' }` — DRAFT surveys 404 publicly by design. The Distribution tile showed the URL unconditionally, so the operator copied a URL that didn't yet work. Root cause: I treated the spec's distribution-surface enumeration as state-agnostic. Fix: state-aware warning banner (new R33).
+
+4. **"Coming soon" stubs were product-design clutter.** Two `StubTile`s for email integration + QR code felt right at coding time (showing the V0 intent per spec §7) but in manual testing came across as unfinished UI rather than future-state preview. User direction: hide stubs entirely until implemented. Root cause: I conflated "spec lists this as a distribution surface" with "ship a UI placeholder for it." Fix: deleted both stubs; tiles will reintroduce as real implementations.
+
+5. **Configuration summary's right column didn't correlate with editor tabs.** Round-1 sub-feedback after the Round-1 main feedback was addressed: the flat 7-row `<dl>` worked at coding time but bore no visual relationship to the editor's tab structure (Basics → Questions → Look & Feel → Points & Thank You per spec §2 / R3). Operators reading the summary couldn't map a row to the editor tab that owns it. Root cause: spec R28 said "compact text summary" without specifying the structure to mirror — I picked the simplest structure rather than the one that connects to the rest of the surface. Fix: restructured into 4 subsections in editor-tab order; R28 amended to lock it.
+
+6. **Settings null runtime crash from my own round-1 commit (`1ec2c97`).** The local `SurveyResolved` type declared `settings` as always-present `{ chromeMatrix?: ChromeMatrix } & Record<string, unknown>`. Slice 1/2 API returns `settings: null` for surveys with no custom settings (nullable column, not seeded with `{}`). Read `survey.settings.chromeMatrix` unconditionally → runtime crash on any survey the test fixture didn't cover. Root cause: I trusted the local type contract instead of verifying API runtime shape; my test fixture had `settings: {}` which masked the issue. Fix: `survey.settings?.chromeMatrix` optional chain at the boundary.
+
+7. **CollapsibleSection chrome was generous compared to admin-app convention.** ~73px collapsed-header height (incl. margin) was visually larger than Stripe / Linear / Vercel-style ~48-52px section chrome. On ACTIVE-with-responses surveys this pushed Loop Monitor + Response below the fold despite their default-expanded state. Root cause: I sized the chrome to look "comfortable" without referencing peer admin pages or the spec's collapse defaults' end-goal (which is to surface analytics fast). Fix: light tighten to ~52px (`px-6 py-4` → `px-5 py-3`, `mb-4` → `mb-3`, `text-base` → `text-sm` on the `<h2>`).
+
+8. **Embed snippet missing the integration contract.** Original snippet: `<script src="…/widget.js"></script>` — no `data-survey`, no prefill attrs. Spec R16 A1 mandates the three brand-populated data attributes (`data-prefill-<kind>` + `data-prefill-first-name` + `data-prefill-last-name`). I copied the legacy widget snippet shape (which was correct for the old API) without checking R16. Root cause: I scoped Slice 4a's embed surface as "render the snippet" without re-reading the contract the brand integrator actually needs to template against. Fix: snippet now includes the full A1 attribute set, brand-aware identifier kind. New R34 codifies the surface.
+
+9. **Detail header had no survey type indicator.** I rendered name + status + audit pill but not type. Operators scanning across survey tabs couldn't tell NPS vs CSAT without scrolling to the Configuration summary. Root cause: the spec mock missed the type pill (user-acknowledged); I copied the mock without questioning whether the operator's JTBD needed it. Fix: outlined type pill next to name; status remains solid pill — visual distinguisher (outlined vs solid) so the two badges read as distinct categories without color-only cues. Plus a meta-line under the `<h1>` surfacing `description · programName` to match the list page's name-column second line.
+
+10. **Audit-trail gap: Phase 12 Step 4 skipped through the entire round.** This is the meta-finding the user surfaced with "Ensure you are following FRAIM phases." I made each fix as the user surfaced it, ran Rule 11 gates, committed, and pushed onto PR #353 — but never opened `docs/evidence/335-feature-implementation-feedback.md` to append the Round-1 entries that Phase 12 Step 4 mandates, and did not call `seekMentoring` through the round. Round-1 audit trail was retro-applied after the user flagged the gap. Coaching moment captured: `manohar.madhira@outlook.com-2026-05-13T00-15-00-engage-fraim-phase-ledger-during-feedback-rounds.md`.
+
+### Root Cause Analysis (Round 1)
+
+Two distinct root-cause clusters across the 10 items:
+
+**Cluster A — Spec-driven implementation without operator-JTBD modeling (items 1, 2, 3, 4, 5, 7, 9):**
+
+Seven of the ten items share the same shape: the spec text was followed literally, but the resulting UI behaved poorly in the operator's hands. R32's "Response default collapsed" was correct at the spec level but compounded with chevron affordance to hide the hero pipeline; the spec's "4 distribution surfaces" was correct at the spec level but bored holes in the UI when 2 of the 4 were future-state stubs.
+
+**Phase-1 prevention**: every spec requirement that decides whether the operator sees a UI element should have a paired "operator JTBD test" — "with this requirement applied, walk through the scenario where a fresh operator opens this surface for the first time. Does the JTBD they're trying to do work end-to-end?" If no, surface to the user before locking the scope.
+
+**Cluster B — API-runtime-shape vs local-type-contract divergence (item 6):**
+
+The local `SurveyResolved` type was a fixture-driven contract, not an API-observation-driven contract. Test fixtures populated `settings: {}`; the API populates `settings: null` for legacy rows; my code read the field unconditionally.
+
+**Phase-5 prevention**: when validating against jsdom-mocked fixtures, also fire one real API request from the dev server (or curl) and diff the shape against the local type. Mismatches are bugs waiting to happen on real data.
+
+**Meta finding (item 10) is procedural, not technical:**
+
+Phase 12's audit trail was treated as optional. The user had to explicitly remind me. Coaching moment captured; the operational fix is to write the Round-N section header to the feedback file as soon as the first feedback item lands, then append items as they're addressed — inline, not retroactive.
+
+### What Went Right (Round 1)
+
+1. **Each round-1 fix shipped on PR #353 with passing CI before the next one was raised.** No accumulation; no stacking-and-untangling at merge time.
+2. **Spec amendments rode with the implementation.** R28 amended, R32 amended, R32b / R33 / R34 added — same PR as the code change. Spec didn't drift behind the implementation.
+3. **The light section-chrome tighten was the right scope** — user explicitly anchored "I am not a designer" so we didn't over-correct; ended up matching Stripe / Linear / Vercel density without committing to a platform-wide typography overhaul.
+4. **The "show artifact before publishing" rule fired correctly** for the chore-issue body (this PR's parent issue #354) — drafted in chat, user approved, then filed.
+5. **The merge-rebase to drop slice-3 commits** was clean — `git rebase --onto origin/main 013d2fe HEAD` replayed 9 slice-4a-specific commits cleanly onto current main; PR diff dropped from 50 files / 5041 insertions to 45 files / 4749 insertions.
+
+### Lessons Learned (Round 1)
+
+1. **Spec compliance ≠ operator usability.** Following the spec's UI requirements to the letter still produced 7 items where the operator's JTBD broke. Add "operator first-time-open dry-run" to the Phase-1 scoping checklist.
+2. **State-aware UI elements need state-aware affordances.** Anything that 404s, errors, or is empty on a specific status (e.g., DRAFT) needs the UI to communicate the state before the operator interacts. Banners, disabled states, "available after activation" labels — pick one, but don't ship the URL/embed/etc. naked.
+3. **"Coming soon" stubs are not free product real estate.** Each one is a contract the operator reads. Until the feature ships, either hide entirely or render it as documentation (read-only spec preview), not as a UI placeholder.
+4. **Mirror the editor's structure on the summary surface.** When the editor has tabs, the summary that describes the editor's output should have parallel structure. Operators read the two surfaces together; congruent structure means lower cognitive load.
+5. **API-shape verification is a Phase-5 step, not a fixture exercise.** Local types can drift from API runtime shape silently. One real GET call against the dev server before declaring Phase 5 done catches the gap.
+6. **Phase 12 audit trail is inline, never retro.** Open the feedback file as soon as the first user item lands; append entries as fixes ship; close the round with `seekMentoring` only after the file is current. Retro-applying makes the round look correct but loses the "first-fix → fast-fix" trace.
+
+### Prevention Measures (Round 1)
+
+| Measure | Where it lives | Trigger |
+|---|---|---|
+| Operator JTBD dry-run at Phase 1 | Phase-1 scoping checklist (work-list field "Operator JTBD walkthroughs") | Every Phase 1 for any UI feature |
+| State-aware affordance audit at Phase 5 | Phase-5 validation: walk every UI surface in every survey status (DRAFT / ACTIVE / PAUSED / STOPPED) and assert each clearly signals what the operator can/can't do | UI features |
+| Hide-vs-stub decision at scoping | Phase-1 rule: stubs require explicit user approval; default is to hide until the feature ships | Every "Coming soon" tile / button |
+| Editor-tab mirror check | Phase-4 implementation step: any summary-of-editor surface gets its structure validated against the editor's actual tab order | Detail-page-style summaries |
+| API-shape diff at Phase 5 | Phase-5 validation: one real GET against dev server, diff against local type, fix any field that's `null` in runtime but always-present in type | Every component reading a typed API shape |
+| Phase 12 ledger-first | Operational rule (now in the coaching moment): open feedback file before first fix, append per item, close with `seekMentoring(complete)` | Every Phase 12 round |
+
+### Agent Rule Updates Made to avoid recurrence (Round 1)
+
+1. **Coaching moment**: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-13T00-15-00-engage-fraim-phase-ledger-during-feedback-rounds.md` — captured during the Round 1 mid-stream correction.
+2. **Existing memory** [[feedback-show-artifact-before-publishing]] fired correctly for the chore-issue #354 body draft.
+3. **Existing memory** [[feedback-phase-8-findings-are-decisions]] was in place but Phase 8 had no new findings to test it against this round.
+4. **Project rules R10 + R24 + R25** fired correctly: every commit on PR #353 went through the feature branch; the `--delete-branch` pre-check fired correctly when merging #353 (no open PRs depended on the slice-4a branch).
+
+### Process Effectiveness (Round 1)
+
+- **Time from first user item to merge**: roughly 5 hours of conversational session (across both calendar days).
+- **CI minutes consumed**: 6 PR-CI runs (~22 min each) + 1 main-CI run (~20 min) + 1 deploy (~14 min) ≈ ~150 runner-minutes per round. Could be cut roughly in half by the trigger-and-parallelization optimizations the user identified during this round; tracked as #343 follow-up.
+- **Number of mid-stream user interventions**: 3 — "Ensure you are following FRAIM phases", "Configuration section inside Configuration Summary does not match the mock", "current 50px border for each section seems too large". Each correctly surfaced before a bad pattern shipped further.
