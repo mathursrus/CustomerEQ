@@ -119,3 +119,112 @@ No blocking findings. Phase advances to `implement-completeness-review`.
 | Local pre-push gates (R11) | All green |
 
 Phase 8 closes with **0 unaddressed findings**.
+
+---
+
+## Round 1 Feedback — post-PR-open manual-testing pass
+
+*Received: 2026-05-12 / 2026-05-13 across a single conversational session.*
+
+The original Slice 4a shipped via PR #340, which was auto-closed by GitHub when `gh pr merge 334 --delete-branch` deleted its base branch (see #343 retrospective). PR #353 is the re-submission against `main` as the new base. Once the dev server was brought up against PR #353's head, the user ran a manual-testing pass against `/admin/surveys/[id]` and surfaced the items below. Each was addressed via a commit on PR #353; the audit trail is appended retroactively after the user explicitly flagged Phase-12 Step-4 was being skipped — see coaching moment `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-13T00-15-00-engage-fraim-phase-ledger-during-feedback-rounds.md`.
+
+### Comment 1 — ADDRESSED (P0)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Loop monitor was supposed to be implemented — found during regression testing (see in Post mortem), but I don't see any loop monitor display section in the page."*
+- **Resolution**: Promoted `<LoopMonitor>` to its own always-default-expanded section between Distribution and Response. New `<LoopMonitorSection>` component; Response section reverts to deferred-analytics placeholder body. Spec amended (new **R32b** in §7).
+- **Commit**: `03a1786`
+- **Status**: ADDRESSED
+
+### Comment 2 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Distribution, Response, Configuration are each supposed to be collapsible with specific logic which expands automatically and when. I don't see any options to collapse."*
+- **Resolution**: Replaced Unicode `▼` with SVG chevron; whole section header now clickable with `hover:bg-gray-50`, focus ring, and a "Show"/"Hide" label suffix. Behavior (open/close, `aria-expanded`) unchanged.
+- **Commit**: `03a1786` (CollapsibleSection rewrite)
+- **Status**: ADDRESSED
+
+### Comment 3 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"I tried copying the share link and opening in another tab. Got Survey not found. I don't know if it data issue or a bug."*
+- **Diagnosis**: `apps/api/src/routes/public.ts:147` filters `where: { id, status: 'ACTIVE' }`. DRAFT surveys 404 publicly by design. The admin tile was showing the URL unconditionally.
+- **Resolution**: Added a non-blocking amber banner (new **R33**) inside `DistributionSection` for `status === 'DRAFT'` that explains the link/embed won't respond until activation. Values stay visible so the operator can stage host-page integrations before activation.
+- **Commit**: `03a1786`
+- **Status**: ADDRESSED
+
+### Comment 4 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Is generation of QR Code in Slice 4b?"* / *"In hindsight, I think we should not show email integration at this time. When the feature is implemented, we can show it."*
+- **Resolution**: Both `StubTile`s for QR code and email integration removed from `DistributionSection`. Section reflows to two tiles (Share link + Embed snippet) until each feature ships under its own sub-issue.
+- **Commit**: `03a1786`
+- **Status**: ADDRESSED
+
+### Comment 5 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Configuration summary does not match the Mock — neither in typography, nor in sections. Note that Survey shown should be a preview of customers will see. Can't tell whether it is a preview or something else."*
+- **Resolution (preview clarity)**: Added a "Survey preview — what your customers will see" header on the left column and a "Configuration" header on the right of `ConfigurationSummarySection`. The two-header treatment makes the customer-facing preview unambiguous.
+- **Resolution (typography)**: Deferred per follow-up user direction in the same session — typography uniformity will be applied platform-wide once more designs converge. Filed under "platform-wide design pass" rather than fixed in this round.
+- **Commit**: `03a1786`
+- **Status**: ADDRESSED
+
+### Comment 6 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Embed Link should now have 3 fields that brand should populate: The ID corresponding to the Brand Member Identifier and 2 optional name fields. I don't see that in the link."*
+- **Resolution**: Embed snippet now includes `data-survey="{id}"` + a brand-aware identifier attribute (`data-prefill-email` / `data-prefill-phone` / `data-prefill-external-id` per `brand.memberIdentifierKind`) + `data-prefill-first-name` + `data-prefill-last-name` with `{{...}}` placeholder values brands replace via host-side templating. Matches spec R16 A1 contract. New **R34** codifies the surface.
+- **Commit**: `03a1786`
+- **Status**: ADDRESSED
+
+### Comment 7 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Configuration section inside Configuration Summary does not match the mock. It is important to keep that UI for this section to correlate with the tabs of the new Survey creator."*
+- **Resolution**: Restructured `SurveyConfigDl` from a flat 7-row `<dl>` into four subsections that map 1:1 to the editor's tab structure per spec §2 / R3: **Basics → Questions → Look & Feel → Points & Thank You**. Each subsection has a small `<dl>` with its tab's relevant rows. R28 amended to mandate four subsections in editor-tab order.
+- **Commit**: `1ec2c97`
+- **Status**: ADDRESSED
+
+### Comment 8 — ADDRESSED (runtime bug from my own code in commit `1ec2c97`)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session (reported runtime error)
+- **Comment**: *"Now this Runtime TypeError — Cannot read properties of null (reading 'chromeMatrix') at SurveyConfigDl.tsx:67"*
+- **Diagnosis**: Commit `1ec2c97` read `survey.settings.chromeMatrix` unconditionally. The Slice 1/2 API returns `settings: null` for surveys with no custom settings (column is nullable, not seeded with `{}`). The local `SurveyResolved` type declared `settings` as always-present, which diverged from runtime.
+- **Resolution**: Optional chain `survey.settings?.chromeMatrix` at the boundary in `SurveyConfigDl`; left the type contract alone for the renderer family (Slice 4b will tighten when settings becomes editor-managed).
+- **Commit**: `6d597ac`
+- **Status**: ADDRESSED
+
+### Comment 9 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"In fact that is why I was thinking that current 50px border for each section seems too large, but I am not a designer."* (in the context of discussing whether to reorder sections for ACTIVE surveys)
+- **Resolution**: Light tighten of `CollapsibleSection` chrome: `px-6 py-4` → `px-5 py-3`, `mb-4` → `mb-3`, `text-base font-semibold` → `text-sm font-semibold` on the `<h2>`. Collapsed section header drops from ~73px to ~52px (≈29% reduction), in line with Stripe / Linear / Vercel section density. Body padding kept at `py-4` so expanded content still has breathing room.
+- **Commit**: `6d597ac`
+- **Status**: ADDRESSED
+
+### Comment 10 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational-session
+- **Comment**: *"Sample data has the type of survey in the name. The Survey type should be shown next to the name (missed in mock as well). Second — the type and the status should have a visual distinguisher (mock showed a bullet, suggest what would appeal). In the Surveys list where is the second line below Survey name coming from? For the brand-health initiative. We should show the same below the Survey name in Detail form."*
+- **Resolution**: `SurveyDetailShell` extended with two pieces:
+  - **Type pill** rendered next to the survey name. Reuses the list page's TYPE_PILL color mapping (NPS-indigo / CSAT-blue / CES-purple / CUSTOM-slate) in OUTLINED form (border + transparent fill) rather than the list page's solid filled pill. Pairs with the existing solid `<StatusBadge>` for visual distinguishability: same rounded-full footprint, different fill — status is loud (it changes), type is quiet (immutable).
+  - **Meta-line** under the `<h1>` surfacing `description · programName` (same shape as the list page's Name-column second line) in `text-sm text-gray-500` with a faded bullet joiner. Renders only when at least one part has content.
+- **Spec amendment**: §7 header-chrome description updated to call out the type pill, the meta-line, and the outlined-vs-solid pill treatment requirement.
+- **Commit**: `8eadd96`
+- **Status**: ADDRESSED
+
+---
+
+## Round 1 — Re-validation Summary
+
+| Gate | Result |
+|---|---|
+| `pnpm --filter @customerEQ/web typecheck` | 0 errors |
+| `pnpm --filter @customerEQ/web lint` | 0 errors (pre-existing warnings only; no new ones from round-1 commits) |
+| `pnpm --filter @customerEQ/web test` | 154 / 154 passing (+9 from the Phase-8 baseline of 145) |
+| `pnpm test:smoke` (16 packages) | All green |
+| `pnpm build` | 12 packages green |
+| Manual browser revalidation at `http://localhost:3000/admin/surveys/[id]` | Items 1–3, 5–10 confirmed PASS by the user during the session; item 4 is a deletion with no UI to re-check |
+
+All 10 round-1 items closed. Awaiting CI on PR #353 commit `8eadd96` to land green, then merge.
