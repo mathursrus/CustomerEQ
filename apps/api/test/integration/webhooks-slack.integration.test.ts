@@ -160,4 +160,82 @@ describe('POST /v1/webhooks/slack/events', () => {
 
     expect(res.status).toBe(400)
   })
+
+  // ─── Test 6: Cross-brand thread injection rejected (C1 regression) ────────
+  // Attacker scenario: Brand A controls their own Slack workspace and signing secret.
+  // They craft a thread_ts that matches a slackTs belonging to Brand B's conversation,
+  // sign the payload with Brand A's own valid signing secret, and POST as Brand A.
+  // Without the brandId-scoped lookup, the handler would write the attacker's text
+  // into Brand B's conversation. With the fix, the handler must return 403 and not
+  // write any message to Brand B.
+  it('rejects a thread reply when the parent conversation belongs to a different brand', async () => {
+    const prisma = getTestPrisma()
+
+    // Brand A — attacker (has Slack configured)
+    const attackerSecret = 'attacker_brand_a_signing_secret'
+    const brandA = await createBrand({ name: 'AttackerBrandA' })
+    await prisma.brand.update({
+      where: { id: brandA.id },
+      data: { slackSigningSecret: attackerSecret },
+    })
+
+    // Brand B — victim (also has Slack configured; signing secret irrelevant for the attack)
+    const brandB = await createBrand({ name: 'VictimBrandB' })
+    await prisma.brand.update({
+      where: { id: brandB.id },
+      data: { slackSigningSecret: 'victim_brand_b_signing_secret' },
+    })
+
+    const victimMember = await createMember({ brandId: brandB.id, email: 'victim@example.com' })
+    const victimConv = await createConversation({
+      brandId: brandB.id,
+      memberId: victimMember.id,
+      channel: 'SLACK',
+    })
+
+    // Seed an AGENT message on Brand B with slackTs = T
+    const sharedThreadTs = '9999000000.000001'
+    await prisma.message.create({
+      data: {
+        conversationId: victimConv.id,
+        role: 'AGENT',
+        content: 'victim original message',
+        slackTs: sharedThreadTs,
+      },
+    })
+    const messagesBefore = await prisma.message.count({ where: { conversationId: victimConv.id } })
+
+    // Attacker forges a payload referencing Brand B's thread_ts, but signs with their own secret
+    const attackerPayload = JSON.stringify({
+      type: 'event_callback',
+      event: {
+        type: 'message',
+        thread_ts: sharedThreadTs,
+        text: 'injected by attacker',
+        user: 'U_ATTACKER',
+      },
+    })
+    const ts = Math.floor(Date.now() / 1000).toString()
+    const sig = sign(attackerSecret, ts, attackerPayload)
+
+    const req = unauthenticatedRequest()
+    const res = await req
+      .post('/v1/webhooks/slack/events')
+      .set('Content-Type', 'application/json')
+      .set('X-Brand-Id', brandA.id)
+      .set('X-Slack-Request-Timestamp', ts)
+      .set('X-Slack-Signature', sig)
+      .send(attackerPayload)
+
+    // Must reject — payload signature is valid for brand A but the thread belongs to brand B
+    expect(res.status).toBe(403)
+
+    // Brand B's conversation must NOT have been written to
+    const messagesAfter = await prisma.message.count({ where: { conversationId: victimConv.id } })
+    expect(messagesAfter).toBe(messagesBefore)
+    const injected = await prisma.message.findFirst({
+      where: { conversationId: victimConv.id, content: 'injected by attacker' },
+    })
+    expect(injected).toBeNull()
+  })
 })

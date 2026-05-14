@@ -117,9 +117,27 @@ const supportAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
     const existing = await fastify.prisma.conversation.findFirst({
       where: { id, brandId: request.brandId },
+      select: { id: true, updatedAt: true },
     })
     if (!existing) {
       return reply.status(404).send({ error: 'Conversation not found' })
+    }
+
+    // Optimistic-concurrency check (spec §7 invariant). When the caller supplies
+    // expectedUpdatedAt, reject the write if another agent has updated the row.
+    // This is the agent-collision guard that lets the UI prompt for a refresh
+    // instead of silently overwriting another agent's status change.
+    if (parse.data.expectedUpdatedAt !== undefined) {
+      const expectedMs =
+        typeof parse.data.expectedUpdatedAt === 'number'
+          ? parse.data.expectedUpdatedAt
+          : new Date(parse.data.expectedUpdatedAt).getTime()
+      if (existing.updatedAt.getTime() !== expectedMs) {
+        return reply.status(409).send({
+          error: 'Conversation has been updated by another agent since you loaded it. Reload to see the latest state and try again.',
+          currentUpdatedAt: existing.updatedAt.toISOString(),
+        })
+      }
     }
 
     const updateData: Prisma.ConversationUpdateInput = {

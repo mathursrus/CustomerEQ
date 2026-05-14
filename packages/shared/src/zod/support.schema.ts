@@ -13,6 +13,17 @@ export const CreateConversationSchema = z.object({
 export const UpdateConversationStatusSchema = z.object({
   status: ConversationStatusEnum,
   assignee: z.string().email().optional(),
+  /**
+   * Optimistic-concurrency token. If supplied, the server compares against
+   * `Conversation.updatedAt`. A mismatch (a different agent updated the row
+   * since the caller fetched it) returns 409 STALE. UIs are expected to read
+   * `updatedAt` from the conversation GET and pass it back here.
+   *
+   * Accepted as ISO-8601 string OR epoch milliseconds; the server normalizes.
+   * Optional for backwards compatibility — calls that omit it skip the check
+   * (existing automated paths like resolveConversation don't need it).
+   */
+  expectedUpdatedAt: z.union([z.string().datetime(), z.number().int()]).optional(),
 })
 
 // --- Message ---
