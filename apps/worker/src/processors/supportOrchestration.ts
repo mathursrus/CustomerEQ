@@ -1,4 +1,5 @@
 import type { Job, ConnectionOptions } from 'bullmq'
+import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
@@ -8,6 +9,8 @@ import {
   type SupportRuleMatch,
   type SupportOrchestrationPayload,
   type KBChunkRetrieved,
+  type SlackOutboundPayload,
+  QUEUES,
 } from '@customerEQ/shared'
 import { classifySupportIntent } from '@customerEQ/ai/src/support/intent.js'
 import { draftSupportReply } from '@customerEQ/ai/src/support/reply.js'
@@ -29,6 +32,18 @@ function getRedis(): Redis {
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379'
   _redis = new Redis(url, { maxRetriesPerRequest: null })
   return _redis
+}
+
+let _slackQueue: Queue | null = null
+function getSlackQueue(): Queue {
+  if (!_slackQueue) {
+    _slackQueue = new Queue(QUEUES.SLACK_OUTBOUND, { connection: getRedis() })
+  }
+  return _slackQueue
+}
+
+async function enqueueSlackOutbound(payload: SlackOutboundPayload): Promise<void> {
+  await getSlackQueue().add('notify', payload)
 }
 
 export function createSupportOrchestrationProcessor(_connection: ConnectionOptions) {
@@ -120,7 +135,7 @@ async function runOrchestration(ctx: OrchestrationCtx): Promise<void> {
   })
 
   for (const match of ruleResult.matchedRules) {
-    if (await dispatchTier(match, { conversationId, intent, draft })) {
+    if (await dispatchTier(match, { conversationId, brandId, intent, draft })) {
       logger.info({ conversationId, ruleId: match.ruleId, tier: match.actionMode }, 'dispatched')
       return
     }
@@ -137,11 +152,12 @@ async function dispatchTier(
   match: SupportRuleMatch,
   args: {
     conversationId: string
+    brandId: string
     intent: { intent: string; topic: string }
     draft: { reply: string; citedChunkIds: string[]; confidence: number; shouldEscalate: boolean }
   },
 ): Promise<boolean> {
-  const { conversationId, intent, draft } = args
+  const { conversationId, brandId, intent, draft } = args
   switch (match.actionMode) {
     case 'AUTO_REPLY': {
       if (draft.confidence < match.confidenceThreshold || draft.shouldEscalate) return false
@@ -182,7 +198,13 @@ async function dispatchTier(
           rulesMatched: { push: match.ruleId },
         },
       })
-      logger.info({ conversationId, assignee: match.escalateToAssignee }, 'agent draft ready (notification deferred to Slice 4)')
+      await enqueueSlackOutbound({
+        brandId,
+        conversationId,
+        kind: 'DRAFT_READY',
+        text: 'AI draft ready for review',
+      })
+      logger.info({ conversationId, assignee: match.escalateToAssignee }, 'agent draft ready')
       return true
     }
     case 'ESCALATE': {
@@ -196,6 +218,12 @@ async function dispatchTier(
           topic: intent.topic,
           rulesMatched: { push: match.ruleId },
         },
+      })
+      await enqueueSlackOutbound({
+        brandId,
+        conversationId,
+        kind: 'ESCALATED',
+        text: 'Conversation escalated; please follow up',
       })
       return true
     }

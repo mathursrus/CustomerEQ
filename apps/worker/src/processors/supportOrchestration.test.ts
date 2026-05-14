@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Hoisted mocks — all upstream deps before processor import.
+
+// Mock BullMQ Queue so enqueueSlackOutbound doesn't try to connect to Redis.
+const queueMock = vi.hoisted(() => ({
+  add: vi.fn().mockResolvedValue({}),
+}))
+vi.mock('bullmq', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('bullmq')>()
+  return {
+    ...actual,
+    Queue: vi.fn().mockImplementation(() => queueMock),
+  }
+})
+
 const prismaMock = vi.hoisted(() => {
   const mock = {
     conversation: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
@@ -58,6 +71,8 @@ beforeEach(() => {
   aiMock.draftSupportReply.mockReset()
   embedMock.generateEmbedding.mockReset()
   lockMock.withConversationLock.mockClear()
+  queueMock.add.mockReset()
+  queueMock.add.mockResolvedValue({})
 })
 
 const baseJob = {
@@ -224,6 +239,11 @@ describe('supportOrchestration processor — DRAFT_FOR_AGENT', () => {
         }),
       }),
     )
+    expect(queueMock.add).toHaveBeenCalledOnce()
+    expect(queueMock.add).toHaveBeenCalledWith(
+      'notify',
+      expect.objectContaining({ kind: 'DRAFT_READY', conversationId: 'conv1' }),
+    )
   })
 })
 
@@ -266,6 +286,11 @@ describe('supportOrchestration processor — ESCALATE', () => {
           assignee: 'agent_b',
         }),
       }),
+    )
+    expect(queueMock.add).toHaveBeenCalledOnce()
+    expect(queueMock.add).toHaveBeenCalledWith(
+      'notify',
+      expect.objectContaining({ kind: 'ESCALATED', conversationId: 'conv1' }),
     )
   })
 })
