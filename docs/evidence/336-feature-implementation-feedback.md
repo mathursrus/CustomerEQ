@@ -294,3 +294,52 @@ Per Phase 12 Step 3 protocol, the following recurring corrective feedback is cap
 | `mock-drift-is-my-responsibility` | User tests functionality; closing mock-to-implementation drift is the agent's job — run a self-driven sweep after functional pass, no permission needed |
 
 ---
+
+## Phase 12 Round 1 quality findings (`implement-quality`)
+
+Deep code-quality scan of the Round 1 diff (commits `312ce64` + `52549b7` + `b3d4b19` + `5dbcb0c`). Four findings; all Low or Info; one ADDRESSED inline, three accepted with rationale below.
+
+### QUALITY CHECK FAILURE — Q12-001 — `#dc2626` error color hardcoded (3 sites) — Low — ADDRESSED
+
+- **File**: `apps/web/src/components/survey-form/SurveyFormRenderer.tsx:163` (question-error), `:215` (consent-error); `apps/web/src/app/survey/[id]/page.tsx:328` (memberId-error)
+- **Finding**: Three near-identical error-line `<p>` elements use the literal color `#dc2626`. The renderer otherwise consumes `--ceq-*` CSS variables; error styling deserves the same indirection so a future theme update can override it.
+- **Decision**: Extract a small `<RendererErrorLine>` co-located with `SurveyFormRenderer` and reuse it across all three sites. Color stays at `#dc2626` (project-wide error red — matches `CampaignForm.tsx`, `mystery/[id]/page.tsx`, and the BasicsTab inline-error pattern; introducing a `--ceq-error-color` token would also require a `BrandThemeLite.errorColor` field + a default in every theme, and is out of scope here).
+- **Status**: ADDRESSED
+
+### QUALITY CHECK FAILURE — Q12-002 — `QuestionsTab.tsx` exceeds 500-line threshold (1369 lines) — Low — accepted
+
+- **File**: `apps/web/src/app/(admin)/admin/surveys/[id]/edit/components/QuestionsTab.tsx`
+- **Finding**: The file contains the main `QuestionsTab` component (~430 lines), 9 per-type config editors (`RangeWithLabels`, `SliderEditor`, `TextEditor`, `OptionsWithOther`, `RankingEditor`, `MatrixEditor`, `LikertEditor`, `ImageChoiceEditor`, `FileUploadEditor`), 4 shared helpers (`SectionHeader`, `NumberField`, `TextField`, `StringListEditor`), plus the `SkipRuleEditor` (V1-018). All helpers are private to `QuestionsTab` — no other consumer.
+- **Decision**: Accept. Splitting into 9 + 1 new files for one consumer trades one big-but-cohesive file for a directory tree with no reuse upside. The components are well-named and the file is straightforward to navigate (each `case` in `TypeConfigEditor` points at a single editor). Phase 8 quality already extracted the high-value shared components (`ModalShell`, `parseErrorResponse`); the remaining decomposition would be churn-for-its-own-sake.
+- **Status**: Accepted (no fix)
+
+### QUALITY CHECK FAILURE — Q12-003 — `SurveyEditorForm.tsx` exceeds 500-line threshold (715 lines) — Low — accepted
+
+- **File**: `apps/web/src/app/(admin)/admin/surveys/[id]/edit/components/SurveyEditorForm.tsx`
+- **Finding**: The file is the editor orchestrator — it owns the page header (V1-027), state-aware primary actions (V1-023), the consent-attestation flow (R10), the autosave-flush logic (V1-017), the field-editability filter wiring (V1-022), and the modal mounts. ~310 lines pre-Round-1, ~715 post-Round-1.
+- **Decision**: Accept. The growth is intent-aligned — most lines are JSX for the four state-aware action variants and the breadcrumb + status header. Extracting an `<EditorPageHeader>` component is reasonable but its only consumer is this file and it depends on most of the form's state (status / dirty flags / status-transition handlers). The extraction would create a wide prop-drilled component without isolation benefit.
+- **Status**: Accepted (no fix)
+
+### QUALITY CHECK FAILURE — Q12-004 — New `_helpers/` directory placement — Info — accepted
+
+- **Path**: `apps/web/src/app/(admin)/admin/surveys/_helpers/`
+- **Files**: `presets.ts` (PRESET_QUESTIONS_NPS / _CSAT / _CES, `isUnchangedPreset`, `freshPresetFor`), `field-editability.ts` (`isFieldEditable`, `FIELD_EDITABILITY`)
+- **Finding**: A new helpers directory under the admin surveys route group. Could potentially live in a higher-level shared location (e.g. `packages/shared/src/surveys/`).
+- **Decision**: Accept. Both modules are admin-surveys-scoped:
+  - `presets.ts` is consumed by `/new/page.tsx` and `BasicsTab.tsx` (both under the admin surveys tree).
+  - `field-editability.ts` is the client-side mirror of `apps/api/src/routes/surveys.ts:25-45` and is consumed only by `BasicsTab.tsx` + `SurveyEditorForm.tsx`. Promoting to `packages/shared` would require duplicating the server's allowlist there too, which would create a tight coupling between the API surface and a shared utility package — not a desirable pattern.
+- **Status**: Accepted (no fix)
+
+### Action plan — Q12-001 addressed
+
+Extracted `RendererErrorLine` in `apps/web/src/components/survey-form/SurveyFormRenderer.tsx` (co-located, not exported externally — only the 3 sites consume it). Three call sites collapse to a single component invocation each.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pnpm --filter @customerEQ/web typecheck` | clean |
+| `pnpm --filter @customerEQ/web test` | 29 files / 251 tests pass |
+| `pnpm test` (full) | 17/17 turbo tasks successful |
+
+---

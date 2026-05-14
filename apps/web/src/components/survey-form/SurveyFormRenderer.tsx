@@ -18,6 +18,37 @@ function resolveChrome(input: RendererInput): ChromeMatrix[keyof ChromeMatrix] {
   return matrix[input.channel]
 }
 
+// Inline-error line shared across the renderer's three error surfaces
+// (question, consent, and the prefix-slot member-id field rendered by the
+// respondent page). Exported so the respondent page can reuse the same
+// pattern for the member-id field without duplicating the markup.
+// Issue #336 Phase 12 Q12-001.
+export function RendererErrorLine({
+  slug,
+  message,
+  indent,
+}: {
+  slug: string
+  message: string
+  indent?: boolean
+}) {
+  return (
+    <p
+      role="alert"
+      data-error={slug}
+      style={{
+        marginTop: '0.375rem',
+        ...(indent ? { marginLeft: '1.625rem' } : null),
+        color: '#dc2626',
+        fontFamily: 'var(--ceq-font-family)',
+        fontSize: 'var(--ceq-body-size)',
+      }}
+    >
+      {message}
+    </p>
+  )
+}
+
 export function SurveyFormRenderer(props: SurveyFormRendererProps) {
   const { survey, theme, brand, channel, viewport, mode, readOnly, answers, onAnswerChange, prefixSlot, onSubmit, submitLabel, submitDisabled, consentChecked, onConsentCheckedChange, errors } = props
 
@@ -111,18 +142,7 @@ export function SurveyFormRenderer(props: SurveyFormRendererProps) {
                   readOnly={readOnly}
                 />
                 {qError ? (
-                  <p
-                    role="alert"
-                    data-error={`question-${q.id}`}
-                    style={{
-                      marginTop: '0.375rem',
-                      color: '#dc2626',
-                      fontFamily: 'var(--ceq-font-family)',
-                      fontSize: 'var(--ceq-body-size)',
-                    }}
-                  >
-                    {qError}
-                  </p>
+                  <RendererErrorLine slug={`question-${q.id}`} message={qError} />
                 ) : null}
               </li>
             )
@@ -166,19 +186,7 @@ export function SurveyFormRenderer(props: SurveyFormRendererProps) {
               />
             )}
             {errors?.consent ? (
-              <p
-                role="alert"
-                data-error="consent"
-                style={{
-                  marginTop: '0.375rem',
-                  marginLeft: '1.625rem',
-                  color: '#dc2626',
-                  fontFamily: 'var(--ceq-font-family)',
-                  fontSize: 'var(--ceq-body-size)',
-                }}
-              >
-                {errors.consent}
-              </p>
+              <RendererErrorLine slug="consent" message={errors.consent} indent />
             ) : null}
           </div>
         ) : null}

@@ -17,7 +17,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
-import { SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
+import { RendererErrorLine, SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
 import type {
   AnswersState,
   BrandLite,
@@ -390,18 +390,7 @@ export default function SurveyResponsePage() {
         />
       </label>
       {memberIdError ? (
-        <p
-          role="alert"
-          data-error="memberId"
-          style={{
-            marginTop: '0.375rem',
-            color: '#dc2626',
-            fontFamily: 'var(--ceq-font-family)',
-            fontSize: 'var(--ceq-body-size)',
-          }}
-        >
-          {memberIdError}
-        </p>
+        <RendererErrorLine slug="memberId" message={memberIdError} />
       ) : null}
     </div>
   )
