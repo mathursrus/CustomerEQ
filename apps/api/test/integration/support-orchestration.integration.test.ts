@@ -289,3 +289,63 @@ describe('supportOrchestration — integration', () => {
     expect(captured[0]?.content).toBe('exact')
   })
 })
+
+describe('supportOrchestration — performance gate', () => {
+  it('p95 < 3s with 10k KBChunks indexed for the brand', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand({ name: 'PerfBrand' })
+    const member = await createMember({ brandId: brand.id })
+    const article = await prisma.kBArticle.create({
+      data: { brandId: brand.id, title: 't', body: 'b', status: 'PUBLISHED', publishedAt: new Date() },
+    })
+
+    // Bulk insert via raw SQL — 10k chunks chunked into 500-row batches.
+    // Use deterministic embeddings for stability.
+    const batch = 10000
+    const chunkSize = 500
+    for (let start = 0; start < batch; start += chunkSize) {
+      const values: string[] = []
+      const end = Math.min(start + chunkSize, batch)
+      for (let i = start; i < end; i++) {
+        const emb = deterministicEmbedding(`bulk-${i}`)
+        // single-quote escape the id + content + vector literal — these are static strings under our control
+        values.push(`('bulk_${i}', '${article.id}', '${brand.id}', ${i}, 'content ${i}', 10, '[${emb.join(',')}]'::public.vector, 'EMBEDDED', NOW(), NOW())`)
+      }
+      // NOTE: $executeRawUnsafe — values are interpolated, NOT user input. This is test-only seeding.
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "kb_chunks" ("id", "articleId", "brandId", "chunkIndex", "content", "tokenCount", "embedding", "embedStatus", "createdAt", "updatedAt") VALUES ${values.join(',')}`,
+      )
+    }
+
+    // Update Postgres statistics after bulk insert so the query planner uses the HNSW index.
+    await prisma.$executeRawUnsafe('ANALYZE "kb_chunks"')
+
+    await createSupportRule({ brandId: brand.id, intentFilters: ['shipping_question'], actionMode: 'AUTO_REPLY', confidenceThreshold: 0.5 })
+
+    aiMock.classifySupportIntent.mockResolvedValue({
+      intent: 'shipping_question', topic: 't', sensitivity: 'low', customerSentiment: 'neutral', confidence: 0.9,
+    })
+    embedMock.generateEmbedding.mockResolvedValue(deterministicEmbedding('bulk-42'))
+    aiMock.draftSupportReply.mockResolvedValue({
+      reply: '...', citedChunkIds: [], confidence: 0.9, shouldEscalate: false, reason: null,
+    })
+
+    // Run 5 orchestrations, take p95
+    const durations: number[] = []
+    for (let i = 0; i < 5; i++) {
+      const conv = await createConversation({ brandId: brand.id, memberId: member.id })
+      const m = await createMessage({ conversationId: conv.id, role: 'CUSTOMER', content: 'q' })
+      const t0 = Date.now()
+      await processSupportOrchestration({
+        data: { conversationId: conv.id, brandId: brand.id, memberId: member.id, messageId: m.id, messageContent: 'q' },
+        id: `perf-${i}`,
+      } as never)
+      durations.push(Date.now() - t0)
+    }
+    durations.sort((a, b) => a - b)
+    const p95 = durations[Math.floor(durations.length * 0.95)]
+    // eslint-disable-next-line no-console
+    console.log(`Orchestrator p95: ${p95}ms (samples: ${durations.join(', ')})`)
+    expect(p95).toBeLessThan(3000)
+  }, 180_000)
+})
