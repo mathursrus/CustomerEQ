@@ -15,6 +15,8 @@ import { auth } from '@clerk/nextjs/server'
 
 import { API_URL } from '@/lib/config'
 
+import { freshPresetFor } from '../_helpers/presets'
+
 interface Program {
   id: string
   name: string
@@ -30,22 +32,10 @@ interface SurveyCreatedResponse {
   id?: string
 }
 
-const DEFAULT_NPS_QUESTIONS = [
-  {
-    id: 'q1',
-    type: 'rating',
-    text: 'On a scale of 0-10, how likely are you to recommend us to a friend or colleague?',
-    required: true,
-    config: { min: 0, max: 10 },
-  },
-  {
-    id: 'q2',
-    type: 'text',
-    text: 'What is the primary reason for your score?',
-    required: false,
-    config: { multiline: true },
-  },
-]
+// Initial NPS preset for newly-created drafts. Sourced from the shared
+// preset module so /new and the BasicsTab type-swap stay in lock-step,
+// including the isScoreField=true flag on the standard rating question.
+const DEFAULT_NPS_QUESTIONS = freshPresetFor('NPS')
 
 async function fetchPrograms(token: string | null): Promise<Program[]> {
   const res = await fetch(`${API_URL}/v1/programs`, {
@@ -69,7 +59,10 @@ async function createDraftSurvey(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
-      name: 'Untitled survey',
+      // Issue #241 — name starts empty so the operator sees the placeholder
+      // ("e.g. NPS Q3 launch") rather than "Untitled survey" as a pre-fill.
+      // R23 activation gate enforces non-empty before the survey can go live.
+      name: '',
       programId,
       type: 'NPS',
       questions: DEFAULT_NPS_QUESTIONS,

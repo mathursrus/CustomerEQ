@@ -34,6 +34,11 @@ export interface LookFeelTabProps {
   survey: EditorSurvey
   brand: EditorBrand
   themes: BrandThemeLite[]
+  /** Canonical brand-default theme id (Brand.defaultThemeId via GET /v1/themes).
+   *  Used to (a) preselect when survey.themeId is null and (b) badge the right
+   *  theme card. Falls back to themes[0]?.id only if the brand has no default
+   *  configured. */
+  defaultThemeId?: string | null
   onChange: (patch: { themeId?: string; settings?: Record<string, unknown> }) => void
   disabled: boolean
 }
@@ -67,6 +72,7 @@ export function LookFeelTab({
   survey,
   brand,
   themes,
+  defaultThemeId,
   onChange,
   disabled,
 }: LookFeelTabProps) {
@@ -74,7 +80,13 @@ export function LookFeelTab({
   const [chromeMatrix, setChromeMatrix] = useState<ChromeMatrix>(() =>
     resolveChromeMatrix(survey),
   )
-  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(survey.themeId)
+  // Preselect order: explicit survey.themeId → brand default → first theme in
+  // the library (only used if the brand has no default set yet). GET /v1/themes
+  // orders themes by createdAt desc, so themes[0] is the most recent theme
+  // and is NOT a reliable default — we read Brand.defaultThemeId instead.
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(
+    survey.themeId ?? defaultThemeId ?? themes[0]?.id ?? null,
+  )
 
   const theme = useMemo<BrandThemeLite | null>(
     () => themes.find((t) => t.id === selectedThemeId) ?? themes[0] ?? null,
@@ -94,15 +106,14 @@ export function LookFeelTab({
 
   function handleChromeToggle(channel: Channel, row: 'logo' | 'name' | 'title') {
     if (disabled) return
-    setChromeMatrix((prev) => {
-      const next: ChromeMatrix = {
-        standalone: { ...prev.standalone },
-        embedded: { ...prev.embedded },
-      }
-      next[channel][row] = !prev[channel][row]
-      onChange({ settings: { chromeMatrix: next } })
-      return next
-    })
+    const next: ChromeMatrix = {
+      standalone: { ...chromeMatrix.standalone },
+      embedded: { ...chromeMatrix.embedded },
+    }
+    next[channel][row] = !chromeMatrix[channel][row]
+    setChromeMatrix(next)
+    // Preserve other settings keys (e.g. future ones) when patching chromeMatrix.
+    onChange({ settings: { ...(survey.settings ?? {}), chromeMatrix: next } })
   }
 
   return (
@@ -162,17 +173,27 @@ export function LookFeelTab({
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-gray-900">Theme</legend>
         <p className="text-xs text-gray-500">
-          Themes come from your brand library. To create or edit themes, go to Organization Settings.
+          Pick from any theme defined for your brand. The brand&apos;s default
+          theme is selected automatically; you can override per survey.
         </p>
-        <div role="radiogroup" aria-label="Theme" className="grid gap-2 sm:grid-cols-2">
+        {/* Color-swatch cards per mock §241 lines 884-917. */}
+        <div
+          role="radiogroup"
+          aria-label="Theme"
+          className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
+        >
           {themes.map((t) => {
             const selected = t.id === selectedThemeId
+            const isBrandDefault = defaultThemeId !== null && defaultThemeId !== undefined && t.id === defaultThemeId
             return (
               <label
                 key={t.id}
-                className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm ${
-                  selected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'
-                } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                data-testid={`theme-card-${t.id}`}
+                className={`flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
+                  selected
+                    ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
+                    : 'border-gray-200 hover:border-gray-300'
+                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
               >
                 <input
                   type="radio"
@@ -183,16 +204,31 @@ export function LookFeelTab({
                   checked={selected}
                   disabled={disabled}
                   onChange={() => handleThemeSelect(t.id)}
-                  className="h-4 w-4 accent-indigo-600"
+                  className="sr-only"
                 />
-                <span className="flex items-center gap-2">
+                <span aria-hidden="true" className="flex gap-1">
                   <span
-                    aria-hidden="true"
-                    className="inline-block h-4 w-4 rounded-full border border-gray-300"
+                    className="h-[18px] w-[18px] rounded"
                     style={{ backgroundColor: t.primaryColor }}
                   />
-                  {t.name}
+                  <span
+                    className="h-[18px] w-[18px] rounded"
+                    style={{ backgroundColor: t.backgroundColor }}
+                  />
+                  <span
+                    className="h-[18px] w-[18px] rounded"
+                    style={{ backgroundColor: t.textColor }}
+                  />
                 </span>
+                <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+                <span className="text-[11px] text-gray-500">
+                  {t.fontFamily}
+                </span>
+                {isBrandDefault && (
+                  <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-600">
+                    Brand default
+                  </span>
+                )}
               </label>
             )
           })}
@@ -204,38 +240,63 @@ export function LookFeelTab({
         <p className="text-xs text-gray-500">
           Toggle which header elements appear in each channel.
         </p>
-        <div
+        {/* Use a real <table> so headers and toggle cells share column widths
+            by browser layout — same approach the mock §241 lines 924-947
+            uses. Off state contrasts against the row background (gray-400
+            track + white knob) so the off pill is still visible. */}
+        <table
           data-testid="chrome-matrix"
-          className="overflow-hidden rounded-md border border-gray-200"
+          className="w-full overflow-hidden rounded-md border border-gray-200 text-sm"
         >
-          <div className="grid grid-cols-[1fr_auto_auto] items-center bg-gray-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-            <span>Element</span>
-            <span className="px-3">Standalone</span>
-            <span className="px-3">Embedded</span>
-          </div>
-          {CHROME_ROWS.map((row) => (
-            <div
-              key={row.key}
-              data-row={row.key}
-              className="grid grid-cols-[1fr_auto_auto] items-center border-t border-gray-100 px-3 py-2 text-sm"
-            >
-              <span className="text-gray-900">{row.label}</span>
-              {(['standalone', 'embedded'] as Channel[]).map((channel) => (
-                <label key={channel} className="flex items-center justify-center px-3">
-                  <input
-                    type="checkbox"
-                    data-testid={`chrome-toggle-${channel}-${row.key}`}
-                    aria-label={`${row.label} in ${channel} channel`}
-                    checked={chromeMatrix[channel][row.key]}
-                    disabled={disabled}
-                    onChange={() => handleChromeToggle(channel, row.key)}
-                    className="h-4 w-4 accent-indigo-600"
-                  />
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
+          <thead>
+            <tr className="bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
+              <th className="px-3 py-2 text-left font-medium">Element</th>
+              <th className="px-3 py-2 text-center font-medium">Standalone (link)</th>
+              <th className="px-3 py-2 text-center font-medium">Embedded (widget)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CHROME_ROWS.map((row) => (
+              <tr key={row.key} data-row={row.key} className="border-t border-gray-100">
+                <td className="px-3 py-2.5 text-gray-900">{row.label}</td>
+                {(['standalone', 'embedded'] as Channel[]).map((channel) => {
+                  const on = chromeMatrix[channel][row.key]
+                  return (
+                    <td key={channel} className="px-3 py-2.5 text-center">
+                      <label
+                        className={`inline-flex items-center ${
+                          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          data-testid={`chrome-toggle-${channel}-${row.key}`}
+                          aria-label={`${row.label} in ${channel} channel`}
+                          checked={on}
+                          disabled={disabled}
+                          onChange={() => handleChromeToggle(channel, row.key)}
+                          className="sr-only"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`relative inline-block h-[18px] w-[32px] rounded-full transition-colors ${
+                            on ? 'bg-indigo-600' : 'bg-gray-400'
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-[left] ${
+                              on ? 'left-[16px]' : 'left-[2px]'
+                            }`}
+                          />
+                        </span>
+                      </label>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </fieldset>
     </div>
   )

@@ -777,7 +777,11 @@ model SurveyResponse {
   externalRespondentId String?            // source-system respondent ID for deduplication
 
   // R2 — `@@unique([surveyId, memberId])` removed; policy-controlled by Survey.responsePolicy (R3).
-  // #262 — partial unique index for live-response dedup lives in migration, not schema.
+  // #262 added a partial unique index `survey_responses_live_dedup` for live
+  // rows (importBatchId IS NULL, memberId IS NOT NULL). Issue #336 Phase 11
+  // dropped that index (migration 20260514120000_drop_live_dedup_unique)
+  // because it broke responsePolicy='MULTIPLE' (documented to "always insert
+  // a new row"). Per-policy dedup is enforced at the API handler level.
   @@index([surveyId, memberId]) // R3 enforcement lookups + import history
   @@index([brandId, completedAt])
   @@index([clusterId])

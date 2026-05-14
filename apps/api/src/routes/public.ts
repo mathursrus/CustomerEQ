@@ -148,15 +148,43 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         select: {
           id: true,
           name: true,
+          // Issue #241 — title is respondent-facing chrome (R7) so the
+          // public renderer must read it.
+          title: true,
+          description: true,
           type: true,
+          status: true,
+          programId: true,
+          themeId: true,
           questions: true,
+          // Issue #241 — settings carries chromeMatrix (R18) that the
+          // respondent renderer reads at render time.
+          settings: true,
+          responsePolicy: true,
+          // Issue #241 — consent override (R12 / R14). When null the
+          // renderer inherits the brand default.
+          consentMode: true,
+          consentTextOverride: true,
           // Issue #291 — per-survey thank-you copy/routing moved from BrandTheme to Survey.
           // Issue #241 — `showIncentivePoints` and `incentivePoints` removed (D19/D40/D50):
           // points never appear on the form; earning is driven by EarningRule cx events.
           thankYouMessage: true,
           thankYouRedirectUrl: true,
-          // Issue #291 — brand.logoUrl exposed so renderer can rebind theme.logoUrl → survey.brand.logoUrl.
-          brand: { select: { name: true, logoUrl: true } },
+          // Issue #241 — brand carries the fields BrandLite expects for the
+          // SurveyFormRenderer: consentMode/text default, terms/privacy
+          // URLs, memberIdentifierKind. R15 / R17 depend on these.
+          brand: {
+            select: {
+              id: true,
+              name: true,
+              logoUrl: true,
+              consentMode: true,
+              consentTextDefault: true,
+              termsUrl: true,
+              privacyPolicyUrl: true,
+              memberIdentifierKind: true,
+            },
+          },
           theme: true,
           _count: { select: { surveyRules: true } },
         },
@@ -315,6 +343,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           // Issue #241 Slice 2 — error code per RFC §"Endpoint error contracts".
           error: 'You have already responded.',
           code: 'POLICY_ONCE_DUPLICATE',
+          // duplicate:true signals the respondent page to render the
+          // "Already responded" screen rather than a generic error banner.
+          // The P2002 race-condition path below sends the same flag so
+          // both routes look identical to the client.
+          duplicate: true,
           priorResponseId: priorResponse.id,
         })
       }
@@ -345,23 +378,51 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           select: { id: true },
         })
       } else {
-        const created = await fastify.prisma.$transaction([
-          fastify.prisma.surveyResponse.create({
-            data: {
-              surveyId,
-              memberId: member.id,
-              brandId,
-              answers: answers as Prisma.InputJsonValue,
-              score: score ?? null,
-              channel,
-            },
-          }),
-          fastify.prisma.survey.update({
-            where: { id: surveyId },
-            data: { responsesCount: { increment: 1 } },
-          }),
-        ])
-        response = created[0]
+        try {
+          const created = await fastify.prisma.$transaction([
+            fastify.prisma.surveyResponse.create({
+              data: {
+                surveyId,
+                memberId: member.id,
+                brandId,
+                answers: answers as Prisma.InputJsonValue,
+                score: score ?? null,
+                channel,
+              },
+            }),
+            fastify.prisma.survey.update({
+              where: { id: surveyId },
+              data: { responsesCount: { increment: 1 } },
+            }),
+          ])
+          response = created[0]
+        } catch (err) {
+          // The partial unique index `survey_responses_live_dedup` (migration
+          // 20260505000000_survey_import_batch/migration.sql:36) enforces
+          // one live response per (surveyId, memberId) regardless of
+          // Survey.responsePolicy. Hitting it here means we raced with a
+          // prior submit (or the ONCE-policy priorResponse lookup missed
+          // because it happened between our SELECT and INSERT). Return a
+          // clean 409 with `duplicate: true` so the respondent page renders
+          // the "Already responded" screen instead of an opaque 500.
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            (err as { code?: string }).code === 'P2002'
+          ) {
+            const existing = await fastify.prisma.surveyResponse.findFirst({
+              where: { surveyId, memberId: member.id, importBatchId: null },
+              select: { id: true },
+            })
+            return reply.status(409).send({
+              error: 'You have already responded.',
+              code: 'POLICY_ONCE_DUPLICATE',
+              duplicate: true,
+              priorResponseId: existing?.id ?? null,
+            })
+          }
+          throw err
+        }
       }
 
       const ingestedAt = new Date().toISOString()

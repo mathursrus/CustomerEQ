@@ -11,9 +11,24 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  /* Locked to the light-mode values until the app is fully dark-mode-ready.
+   *
+   * The original `--background: #0f172a` flip caused a major regression on
+   * any page where a layout container had no explicit bg-* class — most
+   * visibly the admin <main> at apps/web/src/app/(admin)/layout.tsx:117,
+   * which is transparent. With dark-mode on, the body's dark navy showed
+   * through main wherever page content didn't fully cover it, producing
+   * a huge black rectangle (Issue #336 Phase 11 verification screenshot:
+   * "black box appears when selecting a Theme").
+   *
+   * Cards and inputs across the admin are still hardcoded to bg-white
+   * (see the input-color override below for the parallel reasoning), so
+   * flipping foreground colors on the body would also produce invisible
+   * text on those white surfaces. Keep both vars on light values until
+   * a proper dark-mode pass ships. */
   :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
+    --background: #ffffff;
+    --foreground: #0f172a;
   }
 }
 

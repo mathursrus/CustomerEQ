@@ -67,6 +67,7 @@ export const MOCK_DRAFT_SURVEY: EditorSurvey = {
   status: 'DRAFT',
   programId: PROGRAM_ID_NPS,
   themeId: THEME_ID_DEFAULT,
+  consentMode: null,
   consentTextOverride: null,
   responsePolicy: 'MULTIPLE',
   thankYouMessage: 'Thanks for your feedback!',

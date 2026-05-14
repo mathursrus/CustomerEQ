@@ -1,0 +1,23 @@
+-- Issue #336 Phase 11 follow-up: drop the partial unique index on
+-- survey_responses(surveyId, memberId) for live (non-import) rows. The index
+-- was added in 20260505000000_survey_import_batch to "preserve original
+-- deduplication behaviour" but that behaviour itself was the bug —
+-- Survey.responsePolicy = 'MULTIPLE' is documented as "always insert a new
+-- row" (apps/api/src/routes/public.ts: responsePolicy enforcement R3) and
+-- the DB-level partial unique made the second submit by the same member
+-- crash with Prisma P2002 → HTTP 500 instead of accepting it.
+--
+-- Per-policy dedup is enforced in the API handler:
+--   - ONCE:              priorResponse SELECT + 409 POLICY_ONCE_DUPLICATE
+--   - LATEST_OVERWRITES: prisma.surveyResponse.update on the priorResponse row
+--   - MULTIPLE:          plain insert (this migration unblocks it)
+--
+-- The defensive P2002 catch in public.ts stays in place to gracefully
+-- handle the millisecond race window for ONCE policy (two concurrent
+-- submits passing the priorResponse SELECT before either INSERT lands).
+--
+-- The non-unique index `survey_responses_surveyId_memberId_idx`
+-- (added in 20260504000000_survey_response_data_model_rework) is retained
+-- for priorResponse SELECT performance.
+
+DROP INDEX IF EXISTS "survey_responses_live_dedup";

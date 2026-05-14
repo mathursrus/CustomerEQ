@@ -62,18 +62,24 @@ function buildIndicator(
 export function TabHeader({
   activeTab,
   onTabChange,
-  surveyStatus,
-  savedAt,
-  isAnyTabDirty,
-  onActivate,
+  surveyStatus: _surveyStatus,
+  savedAt: _savedAt,
+  isAnyTabDirty: _isAnyTabDirty,
+  onActivate: _onActivate,
   tabDirty,
 }: TabHeaderProps) {
-  const indicator = buildIndicator(surveyStatus, savedAt, isAnyTabDirty, tabDirty)
+  void _surveyStatus
+  void _savedAt
+  void _isAnyTabDirty
+  void _onActivate
 
+  // The page header (rendered above this component by SurveyEditorForm)
+  // owns the saved indicator + Discard / Activate buttons per mock §241
+  // lines 533-545. TabHeader's job is just the numbered tab nav.
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3">
+    <header className="border-b border-gray-200 bg-white px-6">
       <div role="tablist" aria-label="Survey editor tabs" className="flex items-center gap-1">
-        {TABS.map((t) => {
+        {TABS.map((t, idx) => {
           const selected = activeTab === t.id
           const dirty = Boolean(tabDirty?.[t.id])
           return (
@@ -87,13 +93,23 @@ export function TabHeader({
               data-tab-dirty={dirty ? 'true' : 'false'}
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(t.id)}
-              className={`relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`relative flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm transition-colors ${
                 selected
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'border-indigo-600 font-medium text-indigo-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-900'
               }`}
             >
-              {t.label}
+              <span
+                aria-hidden="true"
+                className={`flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-semibold ${
+                  selected
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {idx + 1}
+              </span>
+              <span>{t.label}</span>
               {dirty && (
                 <span
                   aria-hidden="true"
@@ -103,23 +119,6 @@ export function TabHeader({
             </button>
           )
         })}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span
-          data-testid="autosave-indicator"
-          className="text-xs font-medium text-gray-500"
-        >
-          {indicator}
-        </span>
-        <button
-          type="button"
-          onClick={onActivate}
-          disabled={surveyStatus === 'STOPPED'}
-          className="rounded-md bg-indigo-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          Activate
-        </button>
       </div>
     </header>
   )

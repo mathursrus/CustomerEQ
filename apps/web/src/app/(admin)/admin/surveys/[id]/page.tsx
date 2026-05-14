@@ -27,9 +27,6 @@ type SurveyState = SurveyResolved['status']
 interface SurveyApiShape extends SurveyResolved {
   _count?: { responses: number }
   responsesCount?: number
-  // The Slice 1 / Slice 2 API may also carry consentMode (set when an override
-  // is active) and createdAt / updatedAt — read but don't require.
-  consentMode?: string | null
   updatedAt?: string
 }
 
@@ -149,6 +146,7 @@ export default function SurveyDetailPage() {
       id: 'brand-unknown',
       name: 'Your brand',
       logoUrl: null,
+      consentMode: 'EXPLICIT',
       consentTextDefault: null,
       termsUrl: null,
       privacyPolicyUrl: null,

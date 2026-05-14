@@ -3,6 +3,8 @@
 // (Slice 5) is the second consumer and only then will a shared shape be
 // justified. Keeping the type local for now avoids premature cross-package churn.
 
+import type { ReactNode } from 'react'
+
 import type { SurveyQuestion } from '@customerEQ/shared'
 
 export type Channel = 'standalone' | 'embedded'
@@ -13,6 +15,7 @@ export interface BrandLite {
   id: string
   name: string
   logoUrl: string | null
+  consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
   consentTextDefault: string | null
   termsUrl: string | null
   privacyPolicyUrl: string | null
@@ -53,6 +56,8 @@ export interface SurveyResolved {
   programId: string
   themeId: string | null
   questions: SurveyQuestion[]
+  // Issue #241 — survey-level consent override. Null → inherit brand default.
+  consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT' | null
   consentTextOverride: string | null
   responsePolicy: 'ONCE' | 'MULTIPLE' | 'LATEST_OVERWRITES'
   thankYouMessage: string
@@ -72,6 +77,36 @@ export interface RendererInput {
   readOnly?: boolean
   answers: AnswersState
   onAnswerChange?: (questionId: string, value: unknown) => void
+  /**
+   * Slot rendered above the question list (between title and questions).
+   * Used by the live respondent page to inject the member-id input per R15
+   * without bleeding respondent-state plumbing into the renderer.
+   */
+  prefixSlot?: ReactNode
+  /**
+   * Fires when the form is submitted in mode='live'. Preview mode ignores.
+   */
+  onSubmit?: () => void
+  submitLabel?: string
+  submitDisabled?: boolean
+  /**
+   * Controlled consent-checkbox state for the EXPLICIT consent path.
+   * The respondent page tracks this so it can include `consent: true` in
+   * the POST body — the API rejects with 400 CONSENT_REQUIRED otherwise.
+   * Preview mode ignores both and renders an interactive but disabled box.
+   */
+  consentChecked?: boolean
+  onConsentCheckedChange?: (next: boolean) => void
+  /**
+   * Field-level validation errors surfaced by the respondent page. Each
+   * value renders next to the offending control (consent → under the
+   * checkbox; questions → under the question card) so the operator sees
+   * what's missing inline rather than via a generic banner.
+   */
+  errors?: {
+    consent?: string
+    questions?: Record<string, string>
+  }
 }
 
 export const DEFAULT_CHROME_MATRIX: ChromeMatrix = {

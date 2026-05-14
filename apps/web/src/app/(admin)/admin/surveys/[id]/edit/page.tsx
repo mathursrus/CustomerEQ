@@ -52,6 +52,11 @@ export default function EditSurveyPage() {
   const [survey, setSurvey] = useState<EditorSurvey | null>(null)
   const [brand, setBrand] = useState<EditorBrand | null>(null)
   const [themes, setThemes] = useState<BrandThemeLite[]>([])
+  // Brand.defaultThemeId is the canonical "brand default" pointer — themes
+  // themselves come back ordered by createdAt desc from GET /v1/themes, so
+  // themes[0] is the most recent theme, not the default. We pass this id
+  // down so LookFeelTab can preselect + badge the right card.
+  const [defaultThemeId, setDefaultThemeId] = useState<string | null>(null)
   const [programs, setPrograms] = useState<ProgramWithEarningRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -84,8 +89,8 @@ export default function EditSurveyPage() {
   }, [callApi, surveyId])
 
   const activateSurvey = useCallback(
-    async (id: string) =>
-      callApi(`/v1/surveys/${id}/status`, { method: 'PATCH', body: { status: 'ACTIVE' } }),
+    async (id: string, status: 'ACTIVE' | 'PAUSED' | 'STOPPED' = 'ACTIVE') =>
+      callApi(`/v1/surveys/${id}/status`, { method: 'PATCH', body: { status } }),
     [callApi],
   )
 
@@ -122,8 +127,10 @@ export default function EditSurveyPage() {
         const themesData = (await themesRes.json()) as {
           themes?: BrandThemeLite[]
           data?: BrandThemeLite[]
+          defaultThemeId?: string | null
         }
         setThemes(themesData.themes ?? themesData.data ?? [])
+        setDefaultThemeId(themesData.defaultThemeId ?? null)
       }
 
       if (brandProfileRes && brandProfileRes.ok) {
@@ -180,6 +187,7 @@ export default function EditSurveyPage() {
       survey={survey}
       brand={brand}
       themes={themes}
+      defaultThemeId={defaultThemeId}
       programs={programs}
       initialTab={initialTab}
       attestedBy={attestedBy}

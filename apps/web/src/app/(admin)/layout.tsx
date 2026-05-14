@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
 
 const navLinks: { href: string; label: string; section?: string }[] = [
@@ -113,8 +113,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <UserButton />
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        {/* Page content.
+         *  - `min-h-0` is the canonical Tailwind/flex fix that lets `flex-1
+         *    overflow-y-auto` actually clip overflowing content. Without it,
+         *    flex items default to `min-height: auto` (the size of their
+         *    content), so a tall child pushed <main> past the parent's
+         *    100vh, the body started scrolling too, and the user saw two
+         *    scrollbars + an apparent "second page" below the first.
+         *  - `bg-white` keeps the canvas consistent so the admin-layout's
+         *    bg-gray-50 (line 37) never shows through as a contrasting
+         *    "box" between content and the empty area at the bottom. */}
+        <main className="flex-1 min-h-0 overflow-y-auto bg-white p-4 md:p-6">{children}</main>
       </div>
     </div>
   )

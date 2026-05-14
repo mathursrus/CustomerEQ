@@ -44,7 +44,10 @@ export function PointsAndThankYouTab({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const cxEvent = cxEventForType(survey.type)
-  const rule = program?.earningRules.find((r) => r.cxEventForType === cxEvent)
+  // earningRules can be undefined on the program payload — fall back to []
+  // to keep the editor functional while the operator still sees the
+  // "No points configured for <type>" empty-state below.
+  const rule = program?.earningRules?.find((r) => r.cxEventForType === cxEvent)
   const currency = program?.pointCurrencyName ?? 'points'
 
   function insertToken(token: string) {
