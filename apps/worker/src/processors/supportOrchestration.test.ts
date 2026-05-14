@@ -1,14 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Hoisted mocks — all upstream deps before processor import.
-const prismaMock = vi.hoisted(() => ({
-  conversation: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
-  message: { findMany: vi.fn(), create: vi.fn() },
-  supportRule: { findMany: vi.fn() },
-  member: { findUnique: vi.fn() },
-  brand: { findUnique: vi.fn() },
-  $queryRaw: vi.fn(),
-}))
+const prismaMock = vi.hoisted(() => {
+  const mock = {
+    conversation: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
+    message: { findMany: vi.fn(), create: vi.fn() },
+    supportRule: { findMany: vi.fn() },
+    member: { findUnique: vi.fn() },
+    brand: { findUnique: vi.fn() },
+    $queryRaw: vi.fn(),
+    $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+    // $transaction is a plain function (not vi.fn) so mockReset() in beforeEach
+    // doesn't wipe its implementation. It closes over `mock` to always use the
+    // current $queryRaw and $executeRawUnsafe mocks after each reset.
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      // tx.$queryRaw: first call returns the schema sentinel required by the
+      // SET search_path preamble; second call delegates to the outer $queryRaw
+      // mock so test setups (prismaMock.$queryRaw.mockResolvedValue([...])) work.
+      let callCount = 0
+      const txQueryRaw = (...args: unknown[]) => {
+        callCount++
+        if (callCount === 1) return Promise.resolve([{ current_schema: 'public' }])
+        return (mock.$queryRaw as (...a: unknown[]) => unknown)(...args)
+      }
+      return fn({ $queryRaw: txQueryRaw, $executeRawUnsafe: mock.$executeRawUnsafe })
+    },
+  }
+  return mock
+})
 vi.mock('@customerEQ/database', () => ({ prisma: prismaMock }))
 
 const aiMock = vi.hoisted(() => ({
@@ -28,8 +47,12 @@ import { processSupportOrchestration } from './supportOrchestration.js'
 
 beforeEach(() => {
   Object.values(prismaMock).forEach((v) => {
-    if (typeof v === 'function') (v as ReturnType<typeof vi.fn>).mockReset()
-    else Object.values(v as Record<string, unknown>).forEach((fn) => (fn as ReturnType<typeof vi.fn>).mockReset())
+    if (typeof v === 'function') {
+      const fn = v as ReturnType<typeof vi.fn>
+      if (typeof fn.mockReset === 'function') fn.mockReset()
+    } else {
+      Object.values(v as Record<string, unknown>).forEach((fn) => (fn as ReturnType<typeof vi.fn>).mockReset())
+    }
   })
   aiMock.classifySupportIntent.mockReset()
   aiMock.draftSupportReply.mockReset()
