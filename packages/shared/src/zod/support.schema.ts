@@ -76,6 +76,14 @@ export const UpdateSupportRuleSchema = CreateSupportRuleBaseSchema.partial().ext
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 })
 
+// Public conversation creation — accepts either Bearer email OR anonymous (X-Brand-Id + anonId)
+export const StartConversationPublicSchema = z.object({
+  initialMessage: z.string().min(1).max(5000),
+  anonId: z.string().min(8).max(128).optional(),
+  email: z.string().email().optional(),
+})
+export type StartConversationPublicInput = z.infer<typeof StartConversationPublicSchema>
+
 // Inferred types
 export type CreateConversation = z.infer<typeof CreateConversationSchema>
 export type SendMessage = z.infer<typeof SendMessageSchema>
