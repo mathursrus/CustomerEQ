@@ -1,13 +1,20 @@
 // Issue #241 Slice 4b (#336) — TabHeader RTL.
 //
-// Validates the 4-tab nav per spec §2 / R3 / R5:
+// Issue #336 Phase 12 V1-014 / V1-023 / V1-027 restructured the editor page:
+// the auto-save indicator and the state-aware primary actions (Activate /
+// Pause / Resume / Stop / Restart) moved up to the page header rendered
+// inside `SurveyEditorForm`, and `TabHeader` is now strictly the numbered
+// horizontal tab nav (mock §241 lines 64-72 / 548-553). Indicator and
+// activate coverage that previously lived here is now exercised through
+// `SurveyEditorForm.test.tsx` + the editor e2e suite at
+// `apps/web/test/e2e/336-survey-editor.spec.ts`.
+//
+// What this file still owns:
 //   - Tab order: Basics → Questions → Look & Feel → Points & Thank You.
-//     Rules tab is intentionally absent (D14 — Rules deferred to a future slice).
-//   - Activate button persistent across all tabs (R5).
-//   - Auto-save indicator copy varies by survey status (R29):
-//       DRAFT          → "Saved · Xs ago" / "Saving…" / "Draft" (initial).
-//       ACTIVE/PAUSED  → "Unsaved in <tab>" when dirty (text per RFC).
-//       STOPPED        → "Stopped — Restart to edit".
+//     Rules tab is intentionally absent (D14 — Rules deferred).
+//   - Active-tab `aria-selected="true"` semantics.
+//   - Click-through wiring to `onTabChange`.
+//   - Numbered step indicator visibility (V1-014).
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -30,11 +37,15 @@ describe('<TabHeader>', () => {
     )
     const tabs = screen.getAllByRole('tab')
     expect(tabs).toHaveLength(4)
+    // The visible-text content includes the numbered step prefix (V1-014).
+    // We match the trailing label per tab rather than asserting on the
+    // exact "1Basics" / "2Questions" concatenation so the spec-order check
+    // stays readable.
     expect(tabs.map((t) => t.textContent)).toEqual([
-      'Basics',
-      'Questions',
-      'Look & Feel',
-      'Points & Thank You',
+      '1Basics',
+      '2Questions',
+      '3Look & Feel',
+      '4Points & Thank You',
     ])
     // Rules tab is hidden entirely (D14).
     expect(screen.queryByRole('tab', { name: /rules/i })).not.toBeInTheDocument()
@@ -52,11 +63,11 @@ describe('<TabHeader>', () => {
         onActivate={NOOP}
       />,
     )
-    fireEvent.click(screen.getByRole('tab', { name: 'Questions' }))
+    fireEvent.click(screen.getByRole('tab', { name: /Questions/ }))
     expect(onTabChange).toHaveBeenCalledWith('questions')
-    fireEvent.click(screen.getByRole('tab', { name: 'Look & Feel' }))
+    fireEvent.click(screen.getByRole('tab', { name: /Look & Feel/ }))
     expect(onTabChange).toHaveBeenLastCalledWith('look-feel')
-    fireEvent.click(screen.getByRole('tab', { name: 'Points & Thank You' }))
+    fireEvent.click(screen.getByRole('tab', { name: /Points & Thank You/ }))
     expect(onTabChange).toHaveBeenLastCalledWith('points-thank-you')
   })
 
@@ -71,116 +82,26 @@ describe('<TabHeader>', () => {
         onActivate={NOOP}
       />,
     )
-    expect(screen.getByRole('tab', { name: 'Look & Feel' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'Basics' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: /Look & Feel/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /Basics/ })).toHaveAttribute('aria-selected', 'false')
   })
 
-  describe('auto-save indicator copy by survey status', () => {
-    it('DRAFT + no savedAt → "Draft" (initial state, never edited)', () => {
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="DRAFT"
-          savedAt={null}
-          isAnyTabDirty={false}
-          onActivate={NOOP}
-        />,
-      )
-      expect(screen.getByTestId('autosave-indicator')).toHaveTextContent(/draft/i)
-    })
-
-    it('DRAFT + savedAt within the last 60s → "Saved · just now" or similar relative-time copy', () => {
-      const tenSecondsAgo = new Date(Date.now() - 10_000).toISOString()
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="DRAFT"
-          savedAt={tenSecondsAgo}
-          isAnyTabDirty={false}
-          onActivate={NOOP}
-        />,
-      )
-      expect(screen.getByTestId('autosave-indicator')).toHaveTextContent(/saved/i)
-    })
-
-    it('ACTIVE + dirty → "Unsaved in <tab>" (RFC §Save behavior by state)', () => {
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="ACTIVE"
-          savedAt={null}
-          isAnyTabDirty
-          onActivate={NOOP}
-        />,
-      )
-      expect(screen.getByTestId('autosave-indicator')).toHaveTextContent(/unsaved/i)
-    })
-
-    it('STOPPED → "Stopped — Restart to edit" (R29 read-only mode)', () => {
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="STOPPED"
-          savedAt={null}
-          isAnyTabDirty={false}
-          onActivate={NOOP}
-        />,
-      )
-      expect(screen.getByTestId('autosave-indicator')).toHaveTextContent(/stopped — restart to edit/i)
-    })
-  })
-
-  describe('Activate button', () => {
-    it('renders the Activate CTA across all tabs in DRAFT (R5 persistent across tabs)', () => {
-      const tabs = ['basics', 'questions', 'look-feel', 'points-thank-you'] as const
-      for (const tab of tabs) {
-        const { unmount } = render(
-          <TabHeader
-            activeTab={tab}
-            onTabChange={NOOP}
-            surveyStatus="DRAFT"
-            savedAt={null}
-            isAnyTabDirty={false}
-            onActivate={NOOP}
-          />,
-        )
-        expect(screen.getByRole('button', { name: /^activate$/i })).toBeInTheDocument()
-        unmount()
-      }
-    })
-
-    it('clicking Activate calls onActivate (parent opens <ActivateModal>)', () => {
-      const onActivate = vi.fn()
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="DRAFT"
-          savedAt={null}
-          isAnyTabDirty={false}
-          onActivate={onActivate}
-        />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /^activate$/i }))
-      expect(onActivate).toHaveBeenCalledOnce()
-    })
-
-    it('STOPPED: Activate button is disabled (R29 — operator must Restart from detail page first)', () => {
-      render(
-        <TabHeader
-          activeTab="basics"
-          onTabChange={NOOP}
-          surveyStatus="STOPPED"
-          savedAt={null}
-          isAnyTabDirty={false}
-          onActivate={NOOP}
-        />,
-      )
-      expect(screen.getByRole('button', { name: /^activate$/i })).toBeDisabled()
-    })
+  it('shows a numbered step indicator (1..4) inside each tab button (V1-014)', () => {
+    render(
+      <TabHeader
+        activeTab="basics"
+        onTabChange={NOOP}
+        surveyStatus="DRAFT"
+        savedAt={null}
+        isAnyTabDirty={false}
+        onActivate={NOOP}
+      />,
+    )
+    const tabs = screen.getAllByRole('tab')
+    // Step number is rendered as the leading aria-hidden glyph in each tab.
+    expect(tabs[0].textContent).toMatch(/^1/)
+    expect(tabs[1].textContent).toMatch(/^2/)
+    expect(tabs[2].textContent).toMatch(/^3/)
+    expect(tabs[3].textContent).toMatch(/^4/)
   })
 })

@@ -91,11 +91,34 @@ describe('<BasicsTab>', () => {
       expect(onTypeChange).toHaveBeenCalledWith('CSAT')
     })
 
-    it('R6: switching to Custom does NOT open the confirmation modal (Custom == "keep")', () => {
+    // Issue #336 Phase 12 V1-013 — Custom is no longer a silent "keep" of the
+    // current question set. The mock §241 line 600 defines Custom as "Blank
+    // canvas", so picking Custom now swaps the question set the same way
+    // NPS / CSAT / CES presets do: silently when the current questions
+    // match the current type's preset (or are empty), and behind the R6
+    // modal when the operator has customized questions that would be lost.
+    it('R6: switching to Custom with empty questions silently swaps (no modal)', () => {
       const onTypeChange = vi.fn()
-      renderTab({ onTypeChange })
+      renderTab({
+        onTypeChange,
+        survey: { ...MOCK_DRAFT_SURVEY, questions: [] },
+      })
       fireEvent.click(screen.getByRole('radio', { name: /custom/i }))
       expect(screen.queryByRole('dialog', { name: /change survey type/i })).not.toBeInTheDocument()
+      expect(onTypeChange).toHaveBeenCalledWith('CUSTOM')
+    })
+
+    it('R6: switching to Custom with customized questions opens the confirmation modal', () => {
+      const onTypeChange = vi.fn()
+      // MOCK_DRAFT_SURVEY ships a single seed question that does NOT match
+      // the canonical NPS preset (which has 2 questions per
+      // _helpers/presets.ts). isUnchangedPreset returns false → modal opens.
+      renderTab({ onTypeChange })
+      fireEvent.click(screen.getByRole('radio', { name: /custom/i }))
+      expect(screen.getByRole('dialog', { name: /change survey type/i })).toBeInTheDocument()
+      expect(onTypeChange).not.toHaveBeenCalled()
+      // Confirming the modal commits the type swap.
+      fireEvent.click(screen.getByRole('button', { name: /change type/i }))
       expect(onTypeChange).toHaveBeenCalledWith('CUSTOM')
     })
 
