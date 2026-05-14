@@ -121,20 +121,13 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // POST /v1/public/support/conversations/:id/messages — send a message
+  // POST /v1/public/support/conversations/:id/messages — send a message (Bearer or anonymous)
   fastify.post(
     '/public/support/conversations/:id/messages',
     { config: { public: true } },
     async (request, reply) => {
       const authHeader = request.headers.authorization
-      if (!authHeader?.startsWith('Bearer ')) {
-        return reply.status(401).send({ error: 'Authentication required' })
-      }
-      const memberEmail = authHeader.slice(7).trim()
-      if (!memberEmail || !memberEmail.includes('@')) {
-        return reply.status(401).send({ error: 'Invalid authentication token' })
-      }
-
+      const hasBearer = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
       const { id: conversationId } = request.params as { id: string }
 
       const parse = SendMessageSchema.safeParse(request.body)
@@ -144,6 +137,52 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
           message: parse.error.errors.map((e) => e.message).join(', '),
           details: parse.error.errors,
         })
+      }
+
+      if (!hasBearer) {
+        // Anonymous flow — look up conversation by ID and verify it's an anon conversation
+        const body = request.body as Record<string, unknown>
+        const anonId = typeof body.anonId === 'string' ? body.anonId : undefined
+
+        const conversation = await fastify.prisma.conversation.findFirst({
+          where: { id: conversationId, memberId: null },
+          select: { id: true, brandId: true, status: true, anonId: true },
+        })
+        if (!conversation) {
+          return reply.status(404).send({ error: 'Conversation not found' })
+        }
+        // Soft ownership check: if the conversation has an anonId, require it to match
+        if (conversation.anonId && anonId && conversation.anonId !== anonId) {
+          return reply.status(403).send({ error: 'Forbidden' })
+        }
+        if (conversation.status === 'CLOSED' || conversation.status === 'RESOLVED') {
+          return reply.status(409).send({ error: 'Conversation is closed' })
+        }
+
+        const message = await fastify.prisma.message.create({
+          data: { conversationId, role: 'CUSTOMER', content: parse.data.content },
+        })
+
+        await enqueueSupportOrchestration({
+          conversationId,
+          brandId: conversation.brandId,
+          memberId: null,
+          messageId: message.id,
+          messageContent: parse.data.content,
+        })
+
+        return reply.status(201).send({
+          messageId: message.id,
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+        })
+      }
+
+      // Bearer-flow (email-based auth)
+      const memberEmail = authHeader!.slice(7).trim()
+      if (!memberEmail || !memberEmail.includes('@')) {
+        return reply.status(401).send({ error: 'Invalid authentication token' })
       }
 
       // Verify member exists and conversation belongs to them
