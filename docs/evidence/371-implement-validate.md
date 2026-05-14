@@ -93,11 +93,35 @@ Test Files  1 failed | 29 passed (30)
 
 ## E. Manual verification — operator flow
 
-Server Component routes that emit zero visible content (this one redirects-only) cannot be eye-tested for UI — the validation point is "does the redirect land the operator in the right place." The seven unit tests assert exactly that contract end-to-end through the fetch boundary; no UI assertion adds value.
+Server Component routes that emit zero visible content (this one redirects-only) cannot be eye-tested for UI — the validation point is "does the redirect land the operator in the right place." The seven unit tests assert exactly that contract end-to-end through the fetch boundary.
 
-The route's reported production symptom — "Uncaught (in promise) Error: An error occurred in the Server Components render" — was caused by the unhandled rejection demonstrated by T1. T1 reproduces that symptom in CI and the fix makes it pass; the operator-facing equivalent is "redirect lands instead of console error". Confirmed via test.
+The route's reported production symptom — "Uncaught (in promise) Error: An error occurred in the Server Components render" — was caused by the unhandled rejection demonstrated by T1. T1 reproduces that symptom in CI and the fix makes it pass.
 
-A live prod-like browser check is captured for the retrospective as a follow-up smoke item; not blocking this PR.
+### Live browser proof (added after user pushback)
+
+Followed up unit-test coverage with a real-runtime test in a Playwright-driven Chromium against `pnpm dev` on `http://localhost:3000`:
+
+**Setup**: enabled `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` in `apps/web/.env.local` (removed after the test), killed the API on :4000 so any inbound fetch fails. Bypass causes Clerk's `auth()` to throw in the Server Component because no middleware-set session context exists — i.e. exact same failure shape that production was hitting.
+
+**Navigation**: `await page.goto('http://localhost:3000/admin/surveys/new')`.
+
+**Server log** (`pnpm dev` stdout):
+```
+ GET /admin/surveys/new 307 in 3026ms
+ GET /admin/surveys?error=auth-failed 200 in 1199ms
+ GET /admin/surveys 200 in 69ms
+```
+HTTP 307 = clean redirect, NOT a 500 / unhandled rejection. **No "Error occurred in the Server Components render" / no `digest` error logged anywhere.**
+
+**Resulting URL**: `http://localhost:3000/admin/surveys?error=auth-failed` (exactly the redirect target T2 asserts in vitest).
+
+**Console**: 8 errors, ALL of them `Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://clerk.test.example.fake/...clerk.browser.js` — the dev-bypass placeholder Clerk host. Unrelated to my fix; absent in production where Clerk's real host resolves. **Zero "Server Components render error" / zero "digest" entries.**
+
+**Screenshot**: clean list page renders — Surveys heading, "+ New survey" CTA, "No surveys yet. Create your first survey" empty state. Saved to `371-auth-failed-redirect.png` (local artefact, not committed). Documented for PR comment.
+
+**What this validates**: every claim my unit tests make at the fetch boundary holds in the actual Next.js 15 runtime. `redirect()` propagates as `NEXT_REDIRECT` through real React Server Components, the `?error=` query string survives the redirect, and the operator lands on a render-able page instead of the cryptic digest error.
+
+**What this does NOT validate**: the happy-path branch (login → empty-org with programs → POST creates survey → redirect to editor). Validating that requires a real Clerk session on the Playwright browser, which needs interactive sign-in. Captured for post-merge production smoke or a follow-up Playwright spec with stored auth state.
 
 ## F. Definition of Done (from work-list §E)
 
