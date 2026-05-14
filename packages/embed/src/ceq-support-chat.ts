@@ -236,6 +236,7 @@ class CeqSupportChat extends HTMLElement {
   private isLoading = false
   private bootConfig: BootConfig | null = null
   private escalatedBannerShown = false
+  private csatSubmitted = false
   private statusPollTimer: ReturnType<typeof setTimeout> | null = null
   private csatTimers: Map<number, ReturnType<typeof setTimeout>> = new Map()
 
@@ -637,11 +638,45 @@ class CeqSupportChat extends HTMLElement {
 
   // ─── CSAT ─────────────────────────────────────────────────────────────────
 
-  private onCsatClick(rating: 'THUMBS_UP' | 'THUMBS_DOWN'): void {
-    console.info('[ceq-support-chat] CSAT submit deferred to Slice 4', {
-      rating,
-      conversationId: this.conversationId,
-    })
+  private async onCsatClick(rating: 'THUMBS_UP' | 'THUMBS_DOWN'): Promise<void> {
+    if (!this.conversationId) return
+    if (this.csatSubmitted) return // prevent double-submit
+    const body: Record<string, string> = { rating }
+    if (!this.token) body.anonId = this.getOrCreateAnonId()
+    try {
+      const res = await fetch(
+        `${this.apiBase}/v1/public/support/conversations/${this.conversationId}/csat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
+      if (res.ok) {
+        this.csatSubmitted = true
+        this.renderCsatThanks(rating)
+      } else {
+        // Leave CsatBar visible — customer can retry
+        // eslint-disable-next-line no-console
+        console.warn('[ceq-support-chat] CSAT submit failed', res.status)
+      }
+    } catch (err) {
+      // network error — leave CsatBar visible
+      // eslint-disable-next-line no-console
+      console.warn('[ceq-support-chat] CSAT submit network error', err)
+    }
+  }
+
+  private renderCsatThanks(rating: 'THUMBS_UP' | 'THUMBS_DOWN'): void {
+    const root = this.shadowRoot
+    if (!root) return
+    const bar = root.querySelector('.ceq-csat-bar')
+    if (bar) {
+      const text = rating === 'THUMBS_UP'
+        ? 'Thanks for your feedback!'
+        : "Sorry — we'll follow up."
+      bar.innerHTML = `<div class="ceq-csat-thanks" style="padding:8px 12px;font-size:13px;color:#666;">${text}</div>`
+    }
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────────
