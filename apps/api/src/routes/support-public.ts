@@ -352,6 +352,23 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   )
+  // GET /v1/public/support/conversations/:id — minimal status endpoint for widget polling
+  // Returns { id, status } only — no PII, public-readable so the widget can poll for escalation
+  fastify.get(
+    '/public/support/conversations/:id',
+    { config: { public: true } },
+    async (request, reply) => {
+      const { id: conversationId } = request.params as { id: string }
+      const conversation = await fastify.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { id: true, status: true },
+      })
+      if (!conversation) {
+        return reply.status(404).send({ error: 'Conversation not found' })
+      }
+      return reply.status(200).send({ id: conversation.id, status: conversation.status })
+    },
+  )
 }
 
 export default supportPublicRoutes
