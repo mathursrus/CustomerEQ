@@ -17,6 +17,32 @@ interface ChatMessage {
   timestamp: string
 }
 
+interface BootConfig {
+  brandName: string
+  theme: {
+    primaryColor: string
+    accentColor: string
+    backgroundColor: string
+    textColor: string
+    buttonColor: string
+    buttonTextColor: string
+    fontFamily: string
+    borderRadius: string
+  }
+  widget: {
+    position: 'BOTTOM_RIGHT' | 'BOTTOM_LEFT'
+    launcherIconUrl: string | null
+    darkModeAuto: boolean
+    greeting: string
+    offlineMessage: string
+    csatPromptText: string
+    escalateButtonText: string
+    showCsatAfterAi: boolean
+    csatTimeoutSeconds: number
+    anonAllowed: boolean
+  }
+}
+
 const STYLES = `
 :host {
   display: block;
@@ -44,6 +70,7 @@ const STYLES = `
 }
 .ceq-launcher:hover { transform: scale(1.05); }
 .ceq-launcher svg { width: 24px; height: 24px; fill: #fff; }
+.ceq-launcher img { width: 28px; height: 28px; object-fit: contain; }
 .ceq-panel {
   display: none;
   flex-direction: column;
@@ -121,6 +148,46 @@ const STYLES = `
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-4px); }
 }
+.ceq-agent-banner {
+  margin: 4px 0;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #166534;
+  align-self: stretch;
+}
+.ceq-csat-bar {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #4b5563;
+}
+.ceq-csat-bar button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ceq-csat-bar button:hover { background: #e5e7eb; }
+.ceq-offline-msg {
+  padding: 16px;
+  background: #fef9c3;
+  color: #713f12;
+  font-size: 13px;
+  border-top: 1px solid #fde68a;
+  text-align: center;
+}
 .ceq-input-area {
   display: flex;
   padding: 12px;
@@ -167,6 +234,10 @@ class CeqSupportChat extends HTMLElement {
   private messages: ChatMessage[] = []
   private eventSource: EventSource | null = null
   private isLoading = false
+  private bootConfig: BootConfig | null = null
+  private escalatedBannerShown = false
+  private statusPollTimer: ReturnType<typeof setTimeout> | null = null
+  private csatTimers: Map<number, ReturnType<typeof setTimeout>> = new Map()
 
   private get brandId(): string { return this.getAttribute('brand-id') ?? '' }
   private get token(): string { return this.getAttribute('token') ?? '' }
@@ -179,31 +250,108 @@ class CeqSupportChat extends HTMLElement {
 
   connectedCallback() {
     this.render()
+    this.loadBootConfig()
   }
 
   disconnectedCallback() {
     this.eventSource?.close()
+    if (this.statusPollTimer) clearTimeout(this.statusPollTimer)
+    this.csatTimers.forEach((t) => clearTimeout(t))
+  }
+
+  // ─── Boot config + theming ────────────────────────────────────────────────
+
+  private async loadBootConfig(): Promise<void> {
+    if (!this.apiBase || !this.brandId) return
+    try {
+      const url = `${this.apiBase}/v1/public/support/widget-config?brandId=${encodeURIComponent(this.brandId)}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        this.bootConfig = null
+        return
+      }
+      this.bootConfig = await res.json() as BootConfig
+      this.applyTheme()
+      this.applyWidgetCopy()
+    } catch {
+      this.bootConfig = null
+    }
+  }
+
+  private applyTheme(): void {
+    if (!this.bootConfig) return
+    const host = this.shadowRoot!.host as HTMLElement
+    const t = this.bootConfig.theme
+    host.style.setProperty('--ceq-primary-color', t.primaryColor)
+    host.style.setProperty('--ceq-background-color', t.backgroundColor)
+    host.style.setProperty('--ceq-chat-bubble-color', t.accentColor)
+    host.style.setProperty('--ceq-font-family', t.fontFamily)
+    if (this.bootConfig.widget.darkModeAuto && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      host.style.setProperty('--ceq-background-color', '#1a1a1a')
+      host.style.setProperty('--ceq-primary-color', t.primaryColor)
+    }
+  }
+
+  private applyWidgetCopy(): void {
+    if (!this.bootConfig) return
+
+    // Reposition the host element based on widget.position
+    const host = this.shadowRoot!.host as HTMLElement
+    if (this.bootConfig.widget.position === 'BOTTOM_LEFT') {
+      host.style.left = '20px'
+      host.style.right = 'auto'
+    } else {
+      host.style.right = '20px'
+      host.style.left = 'auto'
+    }
+
+    // Swap launcher icon if a custom URL is set
+    const launcher = this.shadowRoot!.querySelector('.ceq-launcher')
+    if (launcher && this.bootConfig.widget.launcherIconUrl) {
+      launcher.innerHTML = `<img src="${this.escapeAttr(this.bootConfig.widget.launcherIconUrl)}" alt="" />`
+    }
+
+    // Inject greeting as first AI message if messages list is empty
+    if (this.messages.length === 0) {
+      this.messages.push({
+        role: 'AI',
+        content: this.bootConfig.widget.greeting,
+        timestamp: new Date().toISOString(),
+      })
+      // Re-render messages area only (avoid full re-render that would reset focus)
+      this.render()
+    }
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  private get isAnonBlocked(): boolean {
+    return this.bootConfig?.widget.anonAllowed === false && !this.token
   }
 
   private render(scrollToEnd = false) {
+    const panelTitle = this.bootConfig?.brandName ?? 'Support Chat'
+
     this.shadow.innerHTML = `
       <style>${STYLES}</style>
       <div class="ceq-panel ${this.state === 'closed' ? '' : 'open'}" id="panel">
         <div class="ceq-header">
-          <h3>Support Chat</h3>
+          <h3>${this.escapeHtml(panelTitle)}</h3>
           <button class="ceq-close" id="close-btn" aria-label="Close chat">&times;</button>
         </div>
         <div class="ceq-messages" id="messages" aria-live="polite" role="log">
-          ${this.messages.map((m) => `
-            <div class="ceq-msg ${m.role.toLowerCase()}">${this.escapeHtml(m.content)}</div>
-          `).join('')}
+          ${this.renderMessages()}
           ${this.isLoading ? '<div class="ceq-typing" aria-label="Agent is typing"><span>.</span><span>.</span><span>.</span></div>' : ''}
+          ${this.escalatedBannerShown ? '<div class="ceq-agent-banner">An agent has joined the conversation.</div>' : ''}
         </div>
         ${this.state === 'error' ? '<div class="ceq-error">Something went wrong. Please try again.</div>' : ''}
-        <div class="ceq-input-area">
-          <input type="text" class="ceq-input" id="msg-input" placeholder="Type a message..." ${this.isLoading ? 'disabled' : ''}>
-          <button class="ceq-send" id="send-btn" ${this.isLoading ? 'disabled' : ''}>Send</button>
-        </div>
+        ${this.isAnonBlocked
+          ? `<div class="ceq-offline-msg">${this.escapeHtml(this.bootConfig?.widget.offlineMessage ?? "We're not online right now. Leave us a message and we'll get back to you.")}</div>`
+          : `<div class="ceq-input-area">
+              <input type="text" class="ceq-input" id="msg-input" placeholder="Type a message..." ${this.isLoading ? 'disabled' : ''}>
+              <button class="ceq-send" id="send-btn" ${this.isLoading ? 'disabled' : ''}>Send</button>
+            </div>`
+        }
       </div>
       <button class="ceq-launcher ${this.state !== 'closed' ? 'hidden' : ''}" id="launcher" aria-label="Open support chat" style="${this.state !== 'closed' ? 'display:none' : ''}">
         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
@@ -218,10 +366,40 @@ class CeqSupportChat extends HTMLElement {
       if ((e as KeyboardEvent).key === 'Enter') this.handleSend()
       if ((e as KeyboardEvent).key === 'Escape') this.close()
     })
+
+    // Bind CSAT click handlers
+    this.shadow.querySelectorAll('[data-csat]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const rating = (e.currentTarget as HTMLElement).getAttribute('data-csat') as 'THUMBS_UP' | 'THUMBS_DOWN'
+        this.onCsatClick(rating)
+      })
+    })
+
     if (scrollToEnd) {
       this.scrollToBottom()
     }
   }
+
+  private renderMessages(): string {
+    const showCsat = this.bootConfig?.widget.showCsatAfterAi ?? false
+    const csatPrompt = this.bootConfig?.widget.csatPromptText ?? 'Did this help?'
+
+    return this.messages.map((m, i) => {
+      const msgHtml = `<div class="ceq-msg ${m.role.toLowerCase()}">${this.escapeHtml(m.content)}</div>`
+      const isAiOrAgent = m.role === 'AI' || m.role === 'AGENT'
+      // Show CsatBar after AI/agent messages if enabled
+      const csatHtml = (showCsat && isAiOrAgent)
+        ? `<div class="ceq-csat-bar" data-msg-idx="${i}">
+            <span>${this.escapeHtml(csatPrompt)}</span>
+            <button data-csat="THUMBS_UP" aria-label="Thumbs up">&#128077;</button>
+            <button data-csat="THUMBS_DOWN" aria-label="Thumbs down">&#128078;</button>
+           </div>`
+        : ''
+      return msgHtml + csatHtml
+    }).join('')
+  }
+
+  // ─── Open / close ─────────────────────────────────────────────────────────
 
   private open() {
     this.state = 'open'
@@ -238,6 +416,8 @@ class CeqSupportChat extends HTMLElement {
     this.render()
     this.dispatchEvent(new CustomEvent('ceq:chat-closed', { bubbles: true }))
   }
+
+  // ─── Send / conversation ───────────────────────────────────────────────────
 
   private async handleSend() {
     const input = this.shadow.getElementById('msg-input') as HTMLInputElement
@@ -267,13 +447,22 @@ class CeqSupportChat extends HTMLElement {
   }
 
   private async startConversation(message: string) {
+    const useAnon = !this.token
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const body: Record<string, string> = { initialMessage: message }
+
+    if (useAnon) {
+      headers['X-Brand-Id'] = this.brandId
+      body['anonId'] = this.getOrCreateAnonId()
+    } else {
+      headers['Authorization'] = `Bearer ${this.token}`
+      body['memberEmail'] = this.token
+    }
+
     const res = await fetch(`${this.apiBase}/v1/public/support/conversations`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ memberEmail: this.token, initialMessage: message }),
+      headers,
+      body: JSON.stringify(body),
     })
 
     if (!res.ok) throw new Error(`Failed to create conversation: ${res.status}`)
@@ -286,10 +475,20 @@ class CeqSupportChat extends HTMLElement {
 
     // Poll for AI response (SSE may not be available)
     this.pollForResponse()
+
+    // Start polling conversation status for escalation detection
+    this.statusPollTimer = setTimeout(() => this.pollStatus(), 30_000)
   }
 
   private connectSSE(streamUrl: string) {
-    const url = `${this.apiBase}${streamUrl}?token=${encodeURIComponent(this.token)}`
+    let url: string
+    if (this.token) {
+      url = `${this.apiBase}${streamUrl}?token=${encodeURIComponent(this.token)}`
+    } else {
+      // Anonymous: pass anonId as query param
+      const anonId = this.getOrCreateAnonId()
+      url = `${this.apiBase}${streamUrl}?anonId=${encodeURIComponent(anonId)}`
+    }
     this.eventSource = new EventSource(url)
 
     this.eventSource.onmessage = (event) => {
@@ -308,10 +507,13 @@ class CeqSupportChat extends HTMLElement {
             detail: { conversationId: this.conversationId, role: data.role },
           }))
         } else if (data.type === 'status' && data.status === 'ESCALATED') {
+          this.showAgentJoinedBanner()
           this.dispatchEvent(new CustomEvent('ceq:escalated', {
             bubbles: true,
             detail: { conversationId: this.conversationId, assignee: data.assignee },
           }))
+        } else if (data.type === 'conversation_status_change' && data.status === 'ESCALATED') {
+          this.showAgentJoinedBanner()
         }
       } catch {
         // Ignore parse errors
@@ -336,9 +538,13 @@ class CeqSupportChat extends HTMLElement {
       if (!this.isLoading) return // Response already received via SSE
 
       try {
+        const headers: Record<string, string> = {}
+        if (this.token) {
+          headers['Authorization'] = `Bearer ${this.token}`
+        }
         const res = await fetch(
           `${this.apiBase}/v1/public/support/conversations/${this.conversationId}/messages`,
-          { headers: { 'Authorization': `Bearer ${this.token}` } },
+          { headers },
         )
         if (!res.ok) continue
 
@@ -369,15 +575,22 @@ class CeqSupportChat extends HTMLElement {
   }
 
   private async sendMessage(content: string) {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const body: Record<string, string> = { content }
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    } else {
+      headers['X-Brand-Id'] = this.brandId
+      body['anonId'] = this.getOrCreateAnonId()
+    }
+
     const res = await fetch(
       `${this.apiBase}/v1/public/support/conversations/${this.conversationId}/messages`,
       {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
+        headers,
+        body: JSON.stringify(body),
       },
     )
 
@@ -387,10 +600,60 @@ class CeqSupportChat extends HTMLElement {
     this.pollForResponse()
   }
 
+  // ─── Anonymous flow ────────────────────────────────────────────────────────
+
+  private getOrCreateAnonId(): string {
+    const COOKIE = 'ceq_anon_id'
+    const match = document.cookie.match(new RegExp('(?:^|; )' + COOKIE + '=([^;]+)'))
+    if (match) return decodeURIComponent(match[1])
+    const id = 'anon_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+    document.cookie = `${COOKIE}=${id}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+    return id
+  }
+
+  // ─── Agent escalation polling ─────────────────────────────────────────────
+
+  private async pollStatus(): Promise<void> {
+    if (!this.conversationId) return
+    try {
+      const res = await fetch(`${this.apiBase}/v1/public/support/conversations/${this.conversationId}`)
+      if (res.ok) {
+        const conv = await res.json()
+        if (conv.status === 'ESCALATED' && !this.escalatedBannerShown) {
+          this.showAgentJoinedBanner()
+        }
+      }
+    } catch {
+      // swallow
+    }
+    this.statusPollTimer = setTimeout(() => this.pollStatus(), 30_000)
+  }
+
+  private showAgentJoinedBanner(): void {
+    if (this.escalatedBannerShown) return
+    this.escalatedBannerShown = true
+    this.render(true)
+  }
+
+  // ─── CSAT ─────────────────────────────────────────────────────────────────
+
+  private onCsatClick(rating: 'THUMBS_UP' | 'THUMBS_DOWN'): void {
+    console.info('[ceq-support-chat] CSAT submit deferred to Slice 4', {
+      rating,
+      conversationId: this.conversationId,
+    })
+  }
+
+  // ─── Utilities ────────────────────────────────────────────────────────────
+
   private escapeHtml(text: string): string {
     const div = document.createElement('div')
     div.textContent = text
     return div.innerHTML
+  }
+
+  private escapeAttr(text: string): string {
+    return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;')
   }
 
   private scrollToBottom() {
