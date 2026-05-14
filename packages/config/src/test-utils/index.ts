@@ -18,6 +18,8 @@ export { createCampaign, createCampaignEvent, createNpsCampaign } from './factor
 export { createRedemption } from './factories/redemption.factory.js'
 export { createSurvey, createNpsSurvey, createSurveyResponse } from './factories/survey.factory.js'
 export { createConversation, createMessage, createSupportRule } from './factories/support.factory.js'
+export { createKBSource } from './factories/kbSource.factory.js'
+export { createKBChunk, deterministicEmbedding } from './factories/kbChunk.factory.js'
 export { createExternalSignalSource, createExternalSignal } from './factories/externalSignals.factory.js'
 
 // Mocks
