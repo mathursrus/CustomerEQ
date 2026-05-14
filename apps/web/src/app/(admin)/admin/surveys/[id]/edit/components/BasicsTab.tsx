@@ -12,6 +12,8 @@
 
 import { useState } from 'react'
 
+import { ModalShell } from '@/components/ModalShell'
+
 import { ConsentCollectionSubBlock } from './ConsentCollectionSubBlock'
 import type {
   EditorBrand,
@@ -318,14 +320,8 @@ export function BasicsTab({
         disabled={disabled}
       />
 
-      {pendingType !== null && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Change survey type"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        >
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+      <ModalShell open={pendingType !== null} ariaLabel="Change survey type">
+        <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900">Change survey type</h3>
             <p className="mt-2 text-sm text-gray-600">
               Switching to <span className="font-medium text-gray-900">{pendingType}</span>{' '}
@@ -353,8 +349,7 @@ export function BasicsTab({
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalShell>
     </div>
   )
 }

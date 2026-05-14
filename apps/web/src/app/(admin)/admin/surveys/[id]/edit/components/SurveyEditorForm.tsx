@@ -17,6 +17,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 
+import { parseErrorResponse } from '@/lib/errors'
 import type { BrandThemeLite } from '@/components/survey-form/types'
 
 import type {
@@ -251,14 +252,7 @@ export function SurveyEditorForm({
     try {
       const res = await patchSurvey(`/v1/surveys/${survey.id}`, body)
       if (!res.ok) {
-        let message = `Save failed (HTTP ${res.status})`
-        try {
-          const parsed = (await res.json()) as { message?: string; error?: string }
-          message = parsed.message ?? parsed.error ?? message
-        } catch {
-          // body wasn't JSON
-        }
-        setSaveError(message)
+        setSaveError(await parseErrorResponse(res))
         return
       }
       setDirtyFields((prev) => {

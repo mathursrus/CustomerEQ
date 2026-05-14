@@ -21,7 +21,6 @@ import {
   MOCK_DRAFT_SURVEY,
   MOCK_STOPPED_SURVEY,
   MOCK_PROGRAM_NPS_WITH_RULE,
-  MOCK_THEME_DEFAULT,
   MOCK_THEME_LIBRARY,
 } from './__fixtures__/editor-fixtures'
 

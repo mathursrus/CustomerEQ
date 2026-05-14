@@ -34,12 +34,15 @@ export interface TabHeaderProps {
   tabDirty?: Partial<Record<TabId, boolean>>
 }
 
+const MINUTE_MS = 60_000
+const MINUTES_PER_HOUR = 60
+
 function formatSavedAt(savedAtIso: string): string {
   const elapsedMs = Date.now() - new Date(savedAtIso).getTime()
-  if (!Number.isFinite(elapsedMs) || elapsedMs < 60_000) return 'Saved · just now'
-  const minutes = Math.floor(elapsedMs / 60_000)
-  if (minutes < 60) return `Saved · ${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
+  if (!Number.isFinite(elapsedMs) || elapsedMs < MINUTE_MS) return 'Saved · just now'
+  const minutes = Math.floor(elapsedMs / MINUTE_MS)
+  if (minutes < MINUTES_PER_HOUR) return `Saved · ${minutes}m ago`
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR)
   return `Saved · ${hours}h ago`
 }
 

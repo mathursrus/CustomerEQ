@@ -72,9 +72,9 @@ export default function EditSurveyPage() {
 
   const patchSurvey = useCallback(
     async (url: string, body: Record<string, unknown>) => {
-      // useAutoSave + SurveyEditorForm pass relative URLs (e.g. /v1/surveys/:id).
-      const path = url.startsWith('http') ? url : url
-      return callApi(path, { method: 'PATCH', body })
+      // useAutoSave + SurveyEditorForm pass relative URLs (e.g. /v1/surveys/:id);
+      // callApi prepends API_URL.
+      return callApi(url, { method: 'PATCH', body })
     },
     [callApi],
   )

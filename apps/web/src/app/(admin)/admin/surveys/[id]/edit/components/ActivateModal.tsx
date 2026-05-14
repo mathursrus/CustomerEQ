@@ -13,6 +13,8 @@
 
 import { useState } from 'react'
 
+import { ModalShell } from '@/components/ModalShell'
+import { parseErrorResponse } from '@/lib/errors'
 import type { BrandThemeLite } from '@/components/survey-form/types'
 
 import type {
@@ -91,14 +93,7 @@ export function ActivateModal({
     try {
       const res = await activateSurvey(survey.id)
       if (!res.ok) {
-        let message = `Activate failed (HTTP ${res.status})`
-        try {
-          const parsed = (await res.json()) as { message?: string; error?: string }
-          message = parsed.message ?? parsed.error ?? message
-        } catch {
-          // body wasn't JSON
-        }
-        setError(message)
+        setError(await parseErrorResponse(res))
         return
       }
       onActivated()
@@ -110,12 +105,7 @@ export function ActivateModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="activate-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
-    >
+    <ModalShell open ariaLabelledBy="activate-modal-title">
       <div className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-xl">
         <header className="border-b border-gray-200 px-5 py-4">
           <h2 id="activate-modal-title" className="text-lg font-semibold text-gray-900">
@@ -188,6 +178,6 @@ export function ActivateModal({
           </button>
         </footer>
       </div>
-    </div>
+    </ModalShell>
   )
 }

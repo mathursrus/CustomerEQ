@@ -18,6 +18,9 @@
 
 import { useState } from 'react'
 
+import { ModalShell } from '@/components/ModalShell'
+import { parseErrorResponse } from '@/lib/errors'
+
 type ConsentMode = 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
 
 export interface ConsentAttestationModalProps {
@@ -61,15 +64,6 @@ function reasonHasPii(text: string): boolean {
   return PII_PATTERNS.some((re) => re.test(text))
 }
 
-async function readErrorMessage(res: Response): Promise<string> {
-  try {
-    const body = (await res.clone().json()) as { message?: string; error?: string }
-    return body.message ?? body.error ?? `Attestation failed (HTTP ${res.status})`
-  } catch {
-    return `Attestation failed (HTTP ${res.status})`
-  }
-}
-
 export function ConsentAttestationModal({
   open,
   attestedBy,
@@ -99,7 +93,7 @@ export function ConsentAttestationModal({
         attestation: { confirmed: true, reason },
       })
       if (!res.ok) {
-        setError(await readErrorMessage(res))
+        setError(await parseErrorResponse(res))
         return
       }
       setReason('')
@@ -115,12 +109,7 @@ export function ConsentAttestationModal({
   const modeLabel = nextConsentMode === 'EXPLICIT' ? 'Explicit consent' : 'Implied on submit'
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="consent-attestation-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-    >
+    <ModalShell open ariaLabelledBy="consent-attestation-title">
       <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
         <h2 id="consent-attestation-title" className="text-lg font-semibold text-gray-900">
           Attest to consent-mode deviation
@@ -208,6 +197,6 @@ export function ConsentAttestationModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

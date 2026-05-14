@@ -9,6 +9,9 @@
 
 import { useState } from 'react'
 
+import { ModalShell } from '@/components/ModalShell'
+import { parseErrorResponse } from '@/lib/errors'
+
 export interface DiscardDraftModalProps {
   open: boolean
   surveyId: string
@@ -38,14 +41,7 @@ export function DiscardDraftModal({
     try {
       const res = await deleteSurvey(surveyId)
       if (!res.ok) {
-        let message = `Discard failed (HTTP ${res.status})`
-        try {
-          const parsed = (await res.json()) as { message?: string; error?: string }
-          message = parsed.message ?? parsed.error ?? message
-        } catch {
-          // body wasn't JSON
-        }
-        setError(message)
+        setError(await parseErrorResponse(res))
         return
       }
       onDiscarded()
@@ -57,12 +53,7 @@ export function DiscardDraftModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="discard-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
-    >
+    <ModalShell open ariaLabelledBy="discard-modal-title">
       <div className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl">
         <header className="px-5 py-4">
           <h2 id="discard-modal-title" className="text-lg font-semibold text-gray-900">
@@ -102,6 +93,6 @@ export function DiscardDraftModal({
           </button>
         </footer>
       </div>
-    </div>
+    </ModalShell>
   )
 }
