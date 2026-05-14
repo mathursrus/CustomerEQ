@@ -260,6 +260,7 @@ model Brand {
   apiKeys               ApiKey[]
   webhookEndpoints      WebhookEndpoint[]
   kbSources             KBSource[]
+  supportWidgetConfig   SupportWidgetConfig?
   // Onboarding (Issue #170)
   onboardingState       OnboardingState?
   activationEvents      OnboardingActivationEvent[]
@@ -1148,6 +1149,38 @@ model KBArticle {
   @@index([brandId, category])
   @@index([brandId, sourceId])
   @@map("kb_articles")
+}
+
+model SupportWidgetConfig {
+  id      String @id @default(cuid())
+  brandId String @unique
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  // Layout / launcher
+  position        WidgetPosition @default(BOTTOM_RIGHT)
+  launcherIconUrl String?
+  darkModeAuto    Boolean        @default(false)
+
+  // Copy
+  greeting           String @default("Hi! How can we help?")
+  offlineMessage     String @default("We're not online right now. Leave us a message and we'll get back to you.")
+  csatPromptText     String @default("Did this help?")
+  escalateButtonText String @default("Talk to a human")
+
+  // Behavior
+  showCsatAfterAi    Boolean @default(true)
+  csatTimeoutSeconds Int     @default(30)
+  anonAllowed        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("support_widget_configs")
+}
+
+enum WidgetPosition {
+  BOTTOM_RIGHT
+  BOTTOM_LEFT
 }
 
 // ─── MCP OAuth ────────────────────────────────────────────────────────────────
