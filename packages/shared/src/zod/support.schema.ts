@@ -55,6 +55,25 @@ export const UpdateSupportRuleSchema = CreateSupportRuleBaseSchema.partial().ext
   status: z.enum(['ACTIVE', 'PAUSED']).optional(),
 })
 
+// --- Support Orchestration & Action Modes ---
+export const SupportActionModeSchema = z.enum(['AUTO_REPLY', 'DRAFT_FOR_AGENT', 'ESCALATE'])
+export type SupportActionMode = z.infer<typeof SupportActionModeSchema>
+
+export const ResolutionSourceSchema = z.enum(['CSAT', 'AI_TIMEOUT', 'AGENT'])
+export type ResolutionSource = z.infer<typeof ResolutionSourceSchema>
+
+export const ConversationChannelSchema = z.enum(['WIDGET', 'SLACK'])
+export type ConversationChannel = z.infer<typeof ConversationChannelSchema>
+
+export const SupportOrchestrationPayloadSchema = z.object({
+  conversationId: z.string(),
+  brandId: z.string(),
+  memberId: z.string().nullable(),
+  messageId: z.string(),
+  messageContent: z.string(),
+})
+export type SupportOrchestrationPayload = z.infer<typeof SupportOrchestrationPayloadSchema>
+
 // Inferred types
 export type CreateConversation = z.infer<typeof CreateConversationSchema>
 export type SendMessage = z.infer<typeof SendMessageSchema>

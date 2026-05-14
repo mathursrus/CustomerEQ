@@ -783,6 +783,8 @@ export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): P
 async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
   const { conversationId, brandId, memberId, messageContent } = p
 
+  if (!memberId) throw new Error('Anonymous support orchestration not yet implemented (memberId required)')
+
   // 1. Load member context
   const member = await prisma.member.findUnique({
     where: { id: memberId },
