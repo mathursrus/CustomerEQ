@@ -829,12 +829,16 @@ async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
   })
   const ruleInputs: SupportRuleInput[] = rules.map((r) => ({
     id: r.id,
+    status: r.status === 'ACTIVE' ? 'ACTIVE' as const : 'INACTIVE' as const,
+    priority: r.priority,
     intentFilters: r.intentFilters,
     tierFilters: r.tierFilters,
     healthScoreMin: r.healthScoreMin,
     healthScoreMax: r.healthScoreMax,
     topicFilters: r.topicFilters,
-    conditions: r.conditions,
+    conditions: r.conditions as Record<string, unknown>,
+    actionMode: r.actionMode,
+    confidenceThreshold: r.confidenceThreshold,
     autoRespondArticleId: r.autoRespondArticleId,
     escalateToAssignee: r.escalateToAssignee,
     awardPoints: r.awardPoints,
@@ -842,7 +846,7 @@ async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
   }))
   const matchedRules = evaluateSupportRules(ruleInputs, {
     intent,
-    tier: (member.currentTier as { name?: string } | null)?.name,
+    tier: (member.currentTier as { name?: string } | null)?.name ?? null,
     healthScore: undefined, // Phase B dependency — not available yet
     topics,
   })
@@ -875,7 +879,7 @@ async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
         kbContext,
         customerContext,
         brand?.name ?? 'Support',
-        matchedRules.autoResponseContent ?? undefined,
+        matchedRules.autoResponseArticleId ?? undefined,
       )
       return {
         responseContent: result.response,
@@ -910,16 +914,16 @@ async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
   })
 
   // 9. Execute rule actions
-  for (const rule of matchedRules.rules) {
+  for (const rule of matchedRules.matchedRules) {
     if (rule.awardPoints && rule.awardPoints > 0) {
       await enqueueEvent({
         brandId,
         memberId,
         eventType: 'support_apology_points',
-        payload: { conversationId, ruleId: rule.id, points: rule.awardPoints },
+        payload: { conversationId, ruleId: rule.ruleId, points: rule.awardPoints },
         ingestedAt: new Date().toISOString(),
       })
-      log.info({ conversationId, ruleId: rule.id, points: rule.awardPoints }, 'Support rule awarded points')
+      log.info({ conversationId, ruleId: rule.ruleId, points: rule.awardPoints }, 'Support rule awarded points')
     }
   }
 
