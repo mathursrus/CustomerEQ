@@ -5,13 +5,10 @@ import { Readability } from '@mozilla/readability'
 import * as cheerio from 'cheerio'
 import { createHash } from 'node:crypto'
 import { prisma } from '@customerEQ/database'
-import { type KBIngestionPayload, chunkArticleBody } from '@customerEQ/shared'
+import { type KBIngestionPayload } from '@customerEQ/shared'
 import { rebuildArticleChunks } from '@customerEQ/ai/src/kb/chunks.js'
 
 const logger = pino({ name: 'kb-ingestion' })
-
-const CHUNK_TARGET_TOKENS = 500
-const CHUNK_OVERLAP_TOKENS = 100
 
 // ---------------------------------------------------------------------------
 // Public API

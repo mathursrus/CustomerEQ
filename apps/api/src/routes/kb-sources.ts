@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { CreateKBSourceSchema, UpdateKBSourceSchema, QUEUES } from '@customerEQ/shared'
+import { CreateKBSourceSchema, UpdateKBSourceSchema } from '@customerEQ/shared'
 import { enqueueKbIngestion } from '../queues/bullmq.js'
 
 const kbSourceRoutes: FastifyPluginAsync = async (fastify) => {
