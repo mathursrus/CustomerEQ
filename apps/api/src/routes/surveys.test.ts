@@ -33,12 +33,18 @@ describe('Survey schema validation', () => {
     // is removed; Zod's default strip semantics silently drop the unknown
     // key, so asserting against the parse result is non-behavioral.
 
-    it('rejects survey without name', () => {
+    // Issue #336 Phase 12 — empty name is now accepted at create so the
+    // BasicsTab can render a placeholder ("e.g. NPS Q3 launch") instead of
+    // a pre-filled "Untitled survey". The activation gate at
+    // PATCH /v1/surveys/:id/status returns 422 MISSING_NAME if the operator
+    // tries to flip an empty-named survey to ACTIVE (covered separately
+    // below in the status-transition suite).
+    it('accepts survey with empty name (activation gate enforces non-empty)', () => {
       const result = CreateSurveySchema.safeParse({
         ...validPayload,
         name: '',
       })
-      expect(result.success).toBe(false)
+      expect(result.success).toBe(true)
     })
 
     it('rejects survey with empty questions array', () => {
