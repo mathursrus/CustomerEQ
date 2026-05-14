@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { CreateConversationSchema, SendMessageSchema } from '@customerEQ/shared'
+import { CreateConversationSchema, SendMessageSchema, StartConversationPublicSchema } from '@customerEQ/shared'
 import { enqueueSupportOrchestration } from '../queues/bullmq.js'
 
 const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
@@ -8,8 +8,63 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
     '/public/support/conversations',
     { config: { public: true } },
     async (request, reply) => {
-      // Authenticate member via Bearer token (email-based MVP auth, same as campaignPlay)
       const authHeader = request.headers.authorization
+      const hasBearer = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+
+      if (!hasBearer) {
+        // Anonymous flow — no Bearer token
+        const brandIdHeader = request.headers['x-brand-id']
+        if (!brandIdHeader || typeof brandIdHeader !== 'string') {
+          return reply.status(400).send({ error: 'X-Brand-Id header required for anonymous flow' })
+        }
+        const brand = await fastify.prisma.brand.findUnique({
+          where: { id: brandIdHeader },
+          select: { id: true, supportWidgetConfig: { select: { anonAllowed: true } } },
+        })
+        if (!brand) return reply.status(404).send({ error: 'Brand not found' })
+
+        const anonAllowed = brand.supportWidgetConfig?.anonAllowed ?? true
+        if (!anonAllowed) return reply.status(403).send({ error: 'Anonymous chat is disabled for this brand' })
+
+        const parse = StartConversationPublicSchema.safeParse(request.body)
+        if (!parse.success) return reply.status(422).send({ error: 'Validation failed', issues: parse.error.issues })
+
+        const { anonId, email, initialMessage } = parse.data
+        if (!anonId) return reply.status(400).send({ error: 'anonId required for anonymous flow' })
+
+        const { conversation, message } = await fastify.prisma.$transaction(async (tx) => {
+          const conv = await tx.conversation.create({
+            data: {
+              brandId: brand.id,
+              memberId: null,
+              anonId,
+              email: email ?? null,
+              channel: 'WIDGET',
+              status: 'ACTIVE',
+            },
+          })
+          const msg = await tx.message.create({
+            data: { conversationId: conv.id, role: 'CUSTOMER', content: initialMessage },
+          })
+          return { conversation: conv, message: msg }
+        })
+
+        await enqueueSupportOrchestration({
+          conversationId: conversation.id,
+          brandId: brand.id,
+          memberId: null,
+          messageId: message.id,
+          messageContent: initialMessage,
+        })
+
+        return reply.status(201).send({
+          conversationId: conversation.id,
+          status: conversation.status,
+          streamUrl: `/v1/public/support/conversations/${conversation.id}/stream`,
+        })
+      }
+
+      // Bearer-flow (email-based MVP auth, same as campaignPlay)
       if (!authHeader?.startsWith('Bearer ')) {
         return reply.status(401).send({ error: 'Authentication required' })
       }
