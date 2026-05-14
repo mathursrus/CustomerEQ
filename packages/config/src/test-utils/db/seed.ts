@@ -52,6 +52,7 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
   await deleteAll((prisma as any).kBArticle)
   await deleteAll((prisma as any).kBSource)
   await deleteAll((prisma as any).supportRule)
+  await deleteAll((prisma as any).supportWidgetConfig)
   await deleteAll((prisma as any).mcpOAuthCode)
   await deleteAll((prisma as any).apiKey)
   await deleteAll(prisma.brand)
