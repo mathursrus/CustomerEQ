@@ -8,6 +8,7 @@ import {
   type FeedbackClusteringPayload,
   type SupportOrchestrationPayload,
   type EmbeddingGenerationPayload,
+  type KBIngestionPayload,
   type HealthScoreComputationPayload,
   type ExternalSignalSyncPayload,
   type ExternalSignalIngestionPayload,
@@ -47,6 +48,7 @@ let _externalSignalSyncQueue: Queue | null = null
 let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
 let _surveyImportQueue: Queue | null = null
+let _kbIngestionQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -65,6 +67,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
   _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
+  _kbIngestionQueue = new Queue(QUEUES.KB_INGESTION, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -959,4 +962,17 @@ export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): P
     attempts: 5,
     backoff: { type: 'exponential', delay: 1000 },
   })
+}
+
+function getKbIngestionQueue(): Queue {
+  if (!_kbIngestionQueue) throw new Error('Queues not initialized.')
+  return _kbIngestionQueue
+}
+
+export async function enqueueKbIngestion(payload: KBIngestionPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    // No inline processor for KB ingestion — worker handles it asynchronously
+    return INLINE_STUB
+  }
+  return getKbIngestionQueue().add('ingest', payload)
 }
