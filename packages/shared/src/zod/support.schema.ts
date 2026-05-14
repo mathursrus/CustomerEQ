@@ -22,6 +22,25 @@ export const SendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
 })
 
+// --- Support Orchestration & Action Modes ---
+export const SupportActionModeSchema = z.enum(['AUTO_REPLY', 'DRAFT_FOR_AGENT', 'ESCALATE'])
+export type SupportActionMode = z.infer<typeof SupportActionModeSchema>
+
+export const ResolutionSourceSchema = z.enum(['CSAT', 'AI_TIMEOUT', 'AGENT'])
+export type ResolutionSource = z.infer<typeof ResolutionSourceSchema>
+
+export const ConversationChannelSchema = z.enum(['WIDGET', 'SLACK'])
+export type ConversationChannel = z.infer<typeof ConversationChannelSchema>
+
+export const SupportOrchestrationPayloadSchema = z.object({
+  conversationId: z.string(),
+  brandId: z.string(),
+  memberId: z.string().nullable(),
+  messageId: z.string(),
+  messageContent: z.string(),
+})
+export type SupportOrchestrationPayload = z.infer<typeof SupportOrchestrationPayloadSchema>
+
 // --- SupportRule ---
 const CreateSupportRuleBaseSchema = z.object({
   name: z.string().min(1).max(200),
@@ -40,6 +59,8 @@ const CreateSupportRuleBaseSchema = z.object({
       value: z.union([z.string(), z.number()]),
     })).default([]),
   }).default({ operator: 'AND', conditions: [] }),
+  actionMode: SupportActionModeSchema.optional(),
+  confidenceThreshold: z.number().min(0).max(1).optional(),
   autoRespondArticleId: z.string().optional(),
   escalateToAssignee: z.string().email().optional(),
   awardPoints: z.number().int().min(0).optional(),
@@ -52,8 +73,16 @@ export const CreateSupportRuleSchema = CreateSupportRuleBaseSchema.refine(
 )
 
 export const UpdateSupportRuleSchema = CreateSupportRuleBaseSchema.partial().extend({
-  status: z.enum(['ACTIVE', 'PAUSED']).optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 })
+
+// Public conversation creation — accepts either Bearer email OR anonymous (X-Brand-Id + anonId)
+export const StartConversationPublicSchema = z.object({
+  initialMessage: z.string().min(1).max(5000),
+  anonId: z.string().min(8).max(128).optional(),
+  email: z.string().email().optional(),
+})
+export type StartConversationPublicInput = z.infer<typeof StartConversationPublicSchema>
 
 // Inferred types
 export type CreateConversation = z.infer<typeof CreateConversationSchema>

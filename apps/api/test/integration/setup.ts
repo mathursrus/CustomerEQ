@@ -14,6 +14,8 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   enqueueExternalSignalIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('external-signal-ingestion', payload)),
   enqueueWebhookDelivery: vi.fn(async (payload: unknown) => InMemoryQueue.add('webhook-delivery', payload)),
   enqueueSurveyImportRow: vi.fn(async (payload: unknown) => InMemoryQueue.add('survey-import', payload)),
+  enqueueKbIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('kb-ingestion', payload)),
+  enqueueSupportOrchestration: vi.fn(async (payload: unknown) => InMemoryQueue.add('support-orchestration', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection

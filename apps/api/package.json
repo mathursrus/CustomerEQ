@@ -23,6 +23,7 @@
     "@customerEQ/consent-text": "workspace:*",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/shared": "workspace:*",
+    "@customerEQ/worker": "workspace:*",
     "@fastify/cors": "^11.2.0",
     "@fastify/sensible": "^6.0.4",
     "@prisma/client": "^5.13.0",
