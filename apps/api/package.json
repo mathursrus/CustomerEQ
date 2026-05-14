@@ -4,9 +4,7 @@
   "private": true,
   "type": "module",
   "main": "./dist/app.js",
-  "exports": {
-    "./lib/resolveConversation": "./src/lib/resolveConversation.ts"
-  },
+  "exports": {},
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",

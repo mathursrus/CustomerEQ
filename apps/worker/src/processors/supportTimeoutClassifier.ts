@@ -2,7 +2,7 @@ import type { Job, ConnectionOptions } from 'bullmq'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { classifyResolution } from '@customerEQ/ai/src/support/resolution.js'
-import { resolveConversation } from '@customerEQ/api/lib/resolveConversation'
+import { resolveConversation } from '../lib/resolveConversation.js'
 
 const logger = pino({ name: 'support-timeout-classifier' })
 

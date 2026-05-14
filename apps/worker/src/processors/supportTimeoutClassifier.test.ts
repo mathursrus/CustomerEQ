@@ -10,7 +10,7 @@ const aiMock = vi.hoisted(() => ({ classifyResolution: vi.fn() }))
 vi.mock('@customerEQ/ai/src/support/resolution.js', () => ({ classifyResolution: aiMock.classifyResolution }))
 
 const resolveMock = vi.hoisted(() => ({ resolveConversation: vi.fn() }))
-vi.mock('@customerEQ/api/lib/resolveConversation', () => resolveMock)
+vi.mock('../lib/resolveConversation.js', () => resolveMock)
 
 import { processSupportTimeoutClassifier } from './supportTimeoutClassifier.js'
 

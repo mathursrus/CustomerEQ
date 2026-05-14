@@ -264,9 +264,6 @@ importers:
       '@customerEQ/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@customerEQ/api':
-        specifier: workspace:*
-        version: link:../api
       '@customerEQ/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors

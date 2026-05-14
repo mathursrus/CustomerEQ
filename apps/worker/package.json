@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@customerEQ/ai": "workspace:*",
-    "@customerEQ/api": "workspace:*",
     "@customerEQ/connectors": "workspace:*",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/shared": "workspace:*",
