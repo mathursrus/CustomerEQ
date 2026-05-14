@@ -998,35 +998,37 @@ model AuditEvent {
 // ─── Support Chat Models ─────────────────────────────────────────────────────
 
 model Conversation {
-  id       String @id @default(cuid())
+  id       String              @id @default(cuid())
   brandId  String
-  brand    Brand  @relation(fields: [brandId], references: [id])
-  memberId String
-  member   Member @relation(fields: [memberId], references: [id])
+  brand    Brand               @relation(fields: [brandId], references: [id])
+  memberId String?
+  member   Member?             @relation(fields: [memberId], references: [id])
+  channel  ConversationChannel @default(WIDGET)
+  anonId   String?
+  email    String?
 
-  status     ConversationStatus @default(ACTIVE)
-  intent     String? // classified intent (billing, shipping, etc.)
-  confidence Float? // intent classification confidence
-  topic      String? // extracted topic
-  summary    String? // AI-generated conversation summary
-
-  // Escalation
-  assignee       String? // human agent email
-  caseFollowUpId String? // FK to CaseFollowUp if escalated
+  status         ConversationStatus @default(ACTIVE)
+  intent         String?
+  confidence     Float?
+  topic          String?
+  summary        String?
+  assignee       String?
+  caseFollowUpId String?
   escalatedAt    DateTime?
+  rulesMatched   String[]
 
-  // Rules matched
-  rulesMatched String[] // SupportRule IDs that fired
+  resolutionSource ResolutionSource?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
 
-  messages Message[]
-
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  resolvedAt DateTime?
-  closedAt   DateTime?
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([brandId, status])
   @@index([memberId])
+  @@index([brandId, channel, status])
+  @@index([brandId, anonId])
   @@index([brandId, createdAt])
   @@map("conversations")
 }
@@ -1034,15 +1036,20 @@ model Conversation {
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String
+  metadata       Json?
 
-  role     MessageRole // CUSTOMER, AI, AGENT
-  content  String // message text
-  metadata Json? // { kbArticleIds, customer360Snapshot, intentResult, confidence }
+  aiConfidence Float?
+  aiSources    Json?
+  draftedByAi  Boolean @default(false)
+  slackTs      String?
 
   createdAt DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, role])
   @@map("messages")
 }
 
@@ -1052,27 +1059,28 @@ model SupportRule {
   brand       Brand   @relation(fields: [brandId], references: [id])
   name        String
   description String?
-  status      String  @default("ACTIVE") // ACTIVE, PAUSED
-  priority    Int     @default(0) // lower = evaluated first
+  status      String  @default("ACTIVE")
+  priority    Int     @default(0)
 
-  // Match conditions
-  intentFilters  String[] // ["billing", "shipping"] or empty = all
-  tierFilters    String[] // ["Gold", "Platinum"] or empty = all
-  healthScoreMin Float? // match if health score >= this
-  healthScoreMax Float? // match if health score <= this
-  topicFilters   String[] // ["refund", "overcharge"] or empty = all
-  conditions     Json     @default("{}") // ConditionGroup for additional field/op/value matching
+  intentFilters  String[]
+  tierFilters    String[]
+  healthScoreMin Float?
+  healthScoreMax Float?
+  topicFilters   String[]
+  conditions     Json     @default("{}")
 
-  // Actions (multiple can fire)
-  autoRespondArticleId String? // KB article ID to auto-respond with
-  escalateToAssignee   String? // human agent email for escalation
-  awardPoints          Int? // compensatory points to award
-  triggerSurveyId      String? // post-resolution survey to trigger
+  actionMode           SupportActionMode @default(ESCALATE)
+  confidenceThreshold  Float             @default(0.8)
+  autoRespondArticleId String?
+  escalateToAssignee   String?
+  awardPoints          Int?
+  triggerSurveyId      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brandId, status])
+  @@index([brandId, status, priority])
   @@map("support_rules")
 }
 
