@@ -290,10 +290,13 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
 
     // Wait for the status PATCH.
     await expect.poll(() => mutations.filter((m) => m.url.includes('/status')).length, {
-      timeout: 5000,
+      timeout: 10000,
     }).toBeGreaterThan(0)
-    // Parent redirects to detail page.
-    await expect(page).toHaveURL(new RegExp(`/admin/surveys/${SURVEY_ID}$`), { timeout: 10000 })
+    // Parent redirects to detail page. Under 10-worker parallel load Next dev
+    // mode can take >10 s to complete the client-side router push after the
+    // mutation lands; widen the timeout so the post-mutation navigation is
+    // not the bottleneck.
+    await expect(page).toHaveURL(new RegExp(`/admin/surveys/${SURVEY_ID}$`), { timeout: 30000 })
   })
 
   test('Discard draft: confirm → DELETE /v1/surveys/:id → redirect /admin/surveys', async ({ page }) => {
@@ -316,9 +319,11 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
       .click()
 
     await expect.poll(() => mutations.filter((m) => m.method === 'DELETE').length, {
-      timeout: 5000,
+      timeout: 10000,
     }).toBeGreaterThan(0)
-    await expect(page).toHaveURL(/\/admin\/surveys$/, { timeout: 10000 })
+    // Same widened-timeout pattern as the Activate test above — post-mutation
+    // router redirect can lag under 10-worker parallel load.
+    await expect(page).toHaveURL(/\/admin\/surveys$/, { timeout: 30000 })
   })
 
   test('Consent override: more-permissive selection opens ConsentAttestationModal; confirm PATCHes /consent-mode', async ({ page }) => {

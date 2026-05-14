@@ -63,7 +63,7 @@ test.describe('Admin left nav — scrollable at small viewport heights', () => {
     await page.goto('/admin/members')
 
     const developerLink = page.locator('aside').getByRole('link', { name: 'Developer' })
-    await expect(developerLink).toBeAttachedToDOM()
+    await expect(developerLink).toBeAttached()
 
     await developerLink.scrollIntoViewIfNeeded()
     await expect(developerLink).toBeVisible()

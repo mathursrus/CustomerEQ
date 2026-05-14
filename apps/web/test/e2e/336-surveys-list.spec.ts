@@ -169,9 +169,14 @@ test.describe('Admin surveys list — /admin/surveys', () => {
     await mockApi(page)
 
     await page.goto('/admin/surveys')
+    // Under 10-worker parallel load the Next dev server takes longer to hydrate
+    // the page than the default 5 s assertion timeout; wait for the link to
+    // become interactive before clicking, otherwise the click event fires
+    // before the Next Link hydrates and the navigation never happens.
     await expect(page.getByRole('link', { name: 'CSAT live' })).toBeVisible({ timeout: 20000 })
+    await page.waitForLoadState('networkidle')
     await page.getByRole('link', { name: 'CSAT live' }).click()
-    await expect(page).toHaveURL(new RegExp(`/admin/surveys/${ACTIVE_ID}$`), { timeout: 10000 })
+    await expect(page).toHaveURL(new RegExp(`/admin/surveys/${ACTIVE_ID}$`), { timeout: 30000 })
   })
 
   test('⋯ menu visibility is state-aware (DRAFT shows Discard)', async ({ page }) => {
