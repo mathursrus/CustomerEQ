@@ -24,35 +24,34 @@ export function EmbedCode({ brandId }: EmbedCodeProps) {
     try {
       await navigator.clipboard.writeText(snippet)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
-      // Clipboard unavailable — ignore
+      // clipboard unavailable
     }
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Embed code</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Paste this snippet just before <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">&lt;/body&gt;</code> on every page where you want the widget.
+    <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-gray-900">Embed code</h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Paste just before <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] text-gray-700">&lt;/body&gt;</code> on every page. Brand ID is baked in — no further config.
           </p>
         </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
         >
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? 'Copied ✓' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 font-mono text-xs leading-relaxed text-gray-100">
-        <code>{snippet}</code>
-      </pre>
-      <p className="mt-3 text-xs text-gray-400">
-        Your brand ID is baked in. The widget will fetch its theme and copy from this site automatically — no further config needed.
-      </p>
-    </div>
+      <div className="px-4 pb-4 pt-3">
+        <pre className="overflow-x-auto rounded-md bg-[#0f1320] px-3 py-3 font-mono text-[12px] leading-relaxed text-[#e9ecf5]">
+          <code>{snippet}</code>
+        </pre>
+      </div>
+    </section>
   )
 }

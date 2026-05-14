@@ -10,18 +10,97 @@ interface WidgetFormProps {
   onChange: (config: WidgetConfig) => void
 }
 
-const POSITION_OPTIONS: { value: WidgetPosition; label: string; description: string }[] = [
-  { value: 'BOTTOM_RIGHT', label: 'Bottom right', description: 'Launcher appears in the bottom-right corner' },
-  { value: 'BOTTOM_LEFT', label: 'Bottom left', description: 'Launcher appears in the bottom-left corner' },
+const POSITION_OPTIONS: { value: WidgetPosition; label: string }[] = [
+  { value: 'BOTTOM_RIGHT', label: 'Bottom right' },
+  { value: 'BOTTOM_LEFT', label: 'Bottom left' },
 ]
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="text-[12.5px] font-semibold text-gray-700">{children}</label>
+}
+
+function Help({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11.5px] text-gray-500">{children}</p>
+}
+
+function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="space-y-1">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
-      {hint && <p className="text-xs text-gray-500">{hint}</p>}
-      {children}
+    <h3 className="text-[12px] font-bold uppercase tracking-[0.08em] text-gray-500">
+      {title}
+    </h3>
+  )
+}
+
+const inputCls =
+  'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-[13px] text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+
+interface SegmentedProps {
+  value: WidgetPosition
+  onChange: (v: WidgetPosition) => void
+}
+
+function Segmented({ value, onChange }: SegmentedProps) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Launcher position"
+      className="inline-flex gap-0.5 rounded-md border border-gray-300 bg-gray-50 p-0.5"
+    >
+      {POSITION_OPTIONS.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            type="button"
+            key={opt.value}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={`rounded px-3 py-1.5 text-[12.5px] font-medium transition ${
+              active
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
     </div>
+  )
+}
+
+interface ToggleProps {
+  label: string
+  help: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}
+
+function Toggle({ label, help, checked, onChange }: ToggleProps) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 hover:border-gray-300">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only"
+      />
+      <span
+        className={`relative mt-0.5 inline-block h-[18px] w-[30px] shrink-0 rounded-full transition ${
+          checked ? 'bg-indigo-600' : 'bg-gray-300'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-[14px] w-[14px] rounded-full bg-white shadow transition ${
+            checked ? 'translate-x-3' : 'translate-x-0'
+          }`}
+        />
+      </span>
+      <span className="leading-tight">
+        <span className="block text-[12.5px] font-semibold text-gray-900">{label}</span>
+        <span className="block text-[11.5px] text-gray-500">{help}</span>
+      </span>
+    </label>
   )
 }
 
@@ -44,14 +123,12 @@ export function WidgetForm({ initial, onChange }: WidgetFormProps) {
     setSubmitting(true)
     setError(null)
     setSuccess(false)
-
     try {
       const token = await getAuthToken(getToken)
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
-
       const body = {
         position: values.position,
         launcherIconUrl: values.launcherIconUrl || null,
@@ -64,19 +141,16 @@ export function WidgetForm({ initial, onChange }: WidgetFormProps) {
         csatTimeoutSeconds: values.csatTimeoutSeconds,
         anonAllowed: values.anonAllowed,
       }
-
       const res = await fetch(`${API_URL}/v1/support/widget-config`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(body),
       })
-
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { message?: string; error?: string }
         setError(err.message ?? err.error ?? `Save failed (${res.status})`)
         return
       }
-
       setSuccess(true)
     } catch {
       setError('Network error — please try again')
@@ -85,177 +159,147 @@ export function WidgetForm({ initial, onChange }: WidgetFormProps) {
     }
   }
 
-  const inputCls =
-    'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-50'
-  const checkCls = 'h-4 w-4 rounded border-gray-300 accent-indigo-600'
-
   return (
     <form
       onSubmit={(e) => { void handleSubmit(e) }}
-      className="space-y-6 rounded-xl border border-gray-200 bg-white p-6"
+      className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
     >
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mx-4 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {error}
         </div>
       )}
-      {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          Widget settings saved successfully.
-        </div>
-      )}
 
-      {/* Position */}
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-gray-700">Launcher position</legend>
-        <div className="space-y-2">
-          {POSITION_OPTIONS.map((opt) => (
-            <label
-              key={opt.value}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50"
-            >
+      {/* Launcher */}
+      <div className="border-b border-gray-100 px-5 py-4">
+        <div className="mb-2.5"><SectionHeader title="Launcher" /></div>
+        <div className="grid grid-cols-[1.2fr_1fr_0.7fr] gap-x-5 gap-y-3">
+          <div className="flex flex-col gap-1">
+            <FieldLabel>Position</FieldLabel>
+            <Segmented value={values.position} onChange={(v) => update('position', v)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <FieldLabel>Launcher icon URL</FieldLabel>
+            <input
+              type="url"
+              value={values.launcherIconUrl ?? ''}
+              onChange={(e) => update('launcherIconUrl', e.target.value || null)}
+              className={inputCls}
+              placeholder="https://example.com/icon.png"
+            />
+            <Help>Leave blank for default chat-bubble icon.</Help>
+          </div>
+          <div className="flex flex-col gap-1">
+            <FieldLabel>CSAT timeout</FieldLabel>
+            <div className="flex items-center gap-2">
               <input
-                type="radio"
-                name="position"
-                value={opt.value}
-                checked={values.position === opt.value}
-                onChange={() => update('position', opt.value)}
-                className="mt-0.5 accent-indigo-600"
+                type="number"
+                min={5}
+                max={600}
+                value={values.csatTimeoutSeconds}
+                onChange={(e) => update('csatTimeoutSeconds', Math.min(600, Math.max(5, Number(e.target.value))))}
+                className={`${inputCls} max-w-[90px]`}
               />
-              <span>
-                <span className="block text-sm font-medium text-gray-900">{opt.label}</span>
-                <span className="block text-xs text-gray-500">{opt.description}</span>
-              </span>
-            </label>
-          ))}
+              <Help>sec (5–600)</Help>
+            </div>
+          </div>
         </div>
-      </fieldset>
-
-      {/* Greeting */}
-      <Field label="Greeting message" hint="First message the AI sends to visitors.">
-        <textarea
-          value={values.greeting}
-          onChange={(e) => update('greeting', e.target.value)}
-          rows={2}
-          className={inputCls}
-          placeholder="Hi! How can we help?"
-        />
-      </Field>
-
-      {/* Offline message */}
-      <Field label="Offline message" hint="Shown when no agents are available.">
-        <textarea
-          value={values.offlineMessage}
-          onChange={(e) => update('offlineMessage', e.target.value)}
-          rows={2}
-          className={inputCls}
-          placeholder="We're not online right now..."
-        />
-      </Field>
-
-      {/* Launcher icon URL */}
-      <Field label="Launcher icon URL" hint="Leave blank to use the default chat bubble icon.">
-        <input
-          type="url"
-          value={values.launcherIconUrl ?? ''}
-          onChange={(e) => update('launcherIconUrl', e.target.value || null)}
-          className={inputCls}
-          placeholder="https://example.com/icon.png"
-        />
-      </Field>
-
-      {/* CSAT prompt text */}
-      <Field label="CSAT prompt text" hint="Question shown after an AI response.">
-        <input
-          type="text"
-          value={values.csatPromptText}
-          onChange={(e) => update('csatPromptText', e.target.value)}
-          className={inputCls}
-          placeholder="Did this help?"
-        />
-      </Field>
-
-      {/* Escalate button text */}
-      <Field label="Escalate button text">
-        <input
-          type="text"
-          value={values.escalateButtonText}
-          onChange={(e) => update('escalateButtonText', e.target.value)}
-          className={inputCls}
-          placeholder="Talk to a human"
-        />
-      </Field>
-
-      {/* CSAT timeout */}
-      <Field
-        label="CSAT timeout (seconds)"
-        hint="How long before the CSAT prompt auto-dismisses. Must be between 5 and 600."
-      >
-        <input
-          type="number"
-          min={5}
-          max={600}
-          value={values.csatTimeoutSeconds}
-          onChange={(e) => update('csatTimeoutSeconds', Math.min(600, Math.max(5, Number(e.target.value))))}
-          className={inputCls}
-        />
-      </Field>
-
-      {/* Checkboxes */}
-      <div className="space-y-3">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={values.showCsatAfterAi}
-            onChange={(e) => update('showCsatAfterAi', e.target.checked)}
-            className={`${checkCls} mt-0.5`}
-          />
-          <span>
-            <span className="block text-sm font-medium text-gray-700">Show CSAT after AI response</span>
-            <span className="block text-xs text-gray-500">
-              Display a thumbs-up/thumbs-down prompt after the AI answers.
-            </span>
-          </span>
-        </label>
-
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={values.darkModeAuto}
-            onChange={(e) => update('darkModeAuto', e.target.checked)}
-            className={`${checkCls} mt-0.5`}
-          />
-          <span>
-            <span className="block text-sm font-medium text-gray-700">Auto dark mode</span>
-            <span className="block text-xs text-gray-500">
-              Switch to dark theme automatically based on the visitor's OS preference.
-            </span>
-          </span>
-        </label>
-
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={values.anonAllowed}
-            onChange={(e) => update('anonAllowed', e.target.checked)}
-            className={`${checkCls} mt-0.5`}
-          />
-          <span>
-            <span className="block text-sm font-medium text-gray-700">Allow anonymous visitors</span>
-            <span className="block text-xs text-gray-500">
-              Let visitors start a chat without signing in. An anonymous ID is stored in a cookie.
-            </span>
-          </span>
-        </label>
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-      >
-        {submitting ? 'Saving…' : 'Save widget settings'}
-      </button>
+      {/* Messages */}
+      <div className="border-b border-gray-100 px-5 py-4">
+        <div className="mb-2.5"><SectionHeader title="Messages" /></div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+          <div className="flex flex-col gap-1">
+            <FieldLabel>Greeting message</FieldLabel>
+            <textarea
+              value={values.greeting}
+              onChange={(e) => update('greeting', e.target.value)}
+              rows={2}
+              className={`${inputCls} min-h-[60px] resize-y`}
+              placeholder="Hi! How can we help?"
+            />
+            <Help>First message the AI sends to visitors.</Help>
+          </div>
+          <div className="flex flex-col gap-1">
+            <FieldLabel>Offline message</FieldLabel>
+            <textarea
+              value={values.offlineMessage}
+              onChange={(e) => update('offlineMessage', e.target.value)}
+              rows={2}
+              className={`${inputCls} min-h-[60px] resize-y`}
+              placeholder="We're not online right now..."
+            />
+            <Help>Shown when no agents are available.</Help>
+          </div>
+          <div className="flex flex-col gap-1">
+            <FieldLabel>CSAT prompt text</FieldLabel>
+            <input
+              type="text"
+              value={values.csatPromptText}
+              onChange={(e) => update('csatPromptText', e.target.value)}
+              className={inputCls}
+              placeholder="Did this help?"
+            />
+            <Help>Question shown after an AI response.</Help>
+          </div>
+          <div className="flex flex-col gap-1">
+            <FieldLabel>Escalate button text</FieldLabel>
+            <input
+              type="text"
+              value={values.escalateButtonText}
+              onChange={(e) => update('escalateButtonText', e.target.value)}
+              className={inputCls}
+              placeholder="Talk to a human"
+            />
+            <Help>Label for the human-handoff button.</Help>
+          </div>
+        </div>
+      </div>
+
+      {/* Behavior */}
+      <div className="border-b border-gray-100 px-5 py-4">
+        <div className="mb-2.5"><SectionHeader title="Behavior" /></div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+          <Toggle
+            label="Show CSAT after AI response"
+            help="Display thumbs-up/down after AI answers."
+            checked={values.showCsatAfterAi}
+            onChange={(v) => update('showCsatAfterAi', v)}
+          />
+          <Toggle
+            label="Auto dark mode"
+            help="Match the visitor's OS preference."
+            checked={values.darkModeAuto}
+            onChange={(v) => update('darkModeAuto', v)}
+          />
+          <Toggle
+            label="Allow anonymous visitors"
+            help="Let visitors chat without signing in."
+            checked={values.anonAllowed}
+            onChange={(v) => update('anonAllowed', v)}
+          />
+        </div>
+      </div>
+
+      {/* Save bar */}
+      <div className="flex items-center justify-between gap-3 bg-gray-50 px-5 py-3">
+        <span
+          className={`inline-flex items-center gap-1.5 text-[12px] ${success ? 'text-green-700' : 'text-gray-500'}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${success ? 'bg-green-500' : 'bg-gray-300'}`}
+          />
+          {success ? 'Saved' : 'Unsaved changes'}
+        </span>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-md bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+        >
+          {submitting ? 'Saving…' : 'Save widget settings'}
+        </button>
+      </div>
     </form>
   )
 }
