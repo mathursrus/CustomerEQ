@@ -19,8 +19,9 @@ export const EVENT_TO_TRIGGER_KEYS: Record<string, string[]> = {
   'member.enrolled':    ['enrollment'],
   'member.anniversary': ['anniversary'],
   'member.inactive':    ['inactive_30d'],
-  'cx.support_closed':  ['after_support'],
-  'cx.nps_drop':        ['nps_drop'],
+  'cx.support_closed':   ['after_support'],
+  'cx.nps_drop':         ['nps_drop'],
+  'cx.ticket_resolved':  ['cx.ticket_resolved'],
 }
 
 const SURVEY_DISTRIBUTE_COOLDOWN_DAYS = 30
