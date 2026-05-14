@@ -19,6 +19,7 @@ import { createSurveyImportProcessor } from './processors/surveyImport.js'
 import { createSupportOrchestrationProcessor } from './processors/supportOrchestration.js'
 import { createKbIngestionProcessor } from './processors/kbIngestion.js'
 import { createSupportTimeoutClassifierProcessor } from './processors/supportTimeoutClassifier.js'
+import { createSlackOutboundProcessor } from './processors/slackOutbound.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -142,6 +143,12 @@ void slaBreachQueue.add(
   { repeat: { every: 5 * 60 * 1000 }, jobId: 'sla-breach-check-repeating' },
 )
 
+const slackOutboundWorker = new Worker(
+  QUEUES.SLACK_OUTBOUND,
+  createSlackOutboundProcessor(connection),
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // Support timeout classifier — repeating job every 1 hour
 const supportTimeoutQueue = new Queue(QUEUES.SUPPORT_TIMEOUT_CHECK, { connection })
 const supportTimeoutClassifierWorker = new Worker(
@@ -161,7 +168,7 @@ void supportTimeoutQueue.add(
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, kbIngestionWorker, slaBreachWorker, supportTimeoutClassifierWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, kbIngestionWorker, slaBreachWorker, supportTimeoutClassifierWorker, slackOutboundWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -193,6 +200,7 @@ logger.info(
       QUEUES.KB_INGESTION,
       SLA_BREACH_QUEUE,
       QUEUES.SUPPORT_TIMEOUT_CHECK,
+      QUEUES.SLACK_OUTBOUND,
     ],
   },
   'Workers started',
@@ -223,6 +231,7 @@ async function shutdown(signal: string): Promise<void> {
     slaBreachQueue.close(),
     supportTimeoutClassifierWorker.close(),
     supportTimeoutQueue.close(),
+    slackOutboundWorker.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

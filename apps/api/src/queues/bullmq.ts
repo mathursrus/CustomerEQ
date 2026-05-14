@@ -14,6 +14,7 @@ import {
   type ExternalSignalIngestionPayload,
   type WebhookDeliveryPayload,
   type SurveyImportRowPayload,
+  type SlackOutboundPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -49,6 +50,7 @@ let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
 let _surveyImportQueue: Queue | null = null
 let _kbIngestionQueue: Queue | null = null
+let _slackOutboundQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -68,6 +70,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
   _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
   _kbIngestionQueue = new Queue(QUEUES.KB_INGESTION, { connection })
+  _slackOutboundQueue = new Queue(QUEUES.SLACK_OUTBOUND, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -975,4 +978,17 @@ export async function enqueueKbIngestion(payload: KBIngestionPayload): Promise<J
     return INLINE_STUB
   }
   return getKbIngestionQueue().add('ingest', payload)
+}
+
+function getSlackOutboundQueue(): Queue {
+  if (!_slackOutboundQueue) throw new Error('Queues not initialized.')
+  return _slackOutboundQueue
+}
+
+export async function enqueueSlackOutbound(payload: SlackOutboundPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    // No inline processor for Slack outbound — worker handles it asynchronously
+    return INLINE_STUB
+  }
+  return getSlackOutboundQueue().add('notify', payload)
 }
