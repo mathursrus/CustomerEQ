@@ -151,3 +151,98 @@ describe('supportOrchestration processor — AUTO_REPLY', () => {
     )
   })
 })
+
+describe('supportOrchestration processor — DRAFT_FOR_AGENT', () => {
+  it('writes a draftedByAi message and sets status WAITING_ON_CUSTOMER + assignee', async () => {
+    prismaMock.conversation.findUniqueOrThrow.mockResolvedValue({
+      id: 'conv1', brandId: 'brand1', memberId: 'member1', status: 'ACTIVE',
+    })
+    prismaMock.message.findMany.mockResolvedValue([{ role: 'CUSTOMER', content: 'refund please' }])
+    prismaMock.supportRule.findMany.mockResolvedValue([
+      {
+        id: 'r1', status: 'ACTIVE', priority: 0,
+        intentFilters: ['refund_request'], tierFilters: [],
+        healthScoreMin: null, healthScoreMax: null, topicFilters: [], conditions: {},
+        actionMode: 'DRAFT_FOR_AGENT', confidenceThreshold: 0,
+        autoRespondArticleId: null, escalateToAssignee: 'agent_a',
+        awardPoints: null, triggerSurveyId: null,
+      },
+    ])
+    prismaMock.member.findUnique.mockResolvedValue({
+      id: 'member1', currentTier: null, pointsBalance: 0, email: null, firstName: null, lastName: null,
+    })
+    prismaMock.brand.findUnique.mockResolvedValue({ id: 'brand1', name: 'X' })
+    aiMock.classifySupportIntent.mockResolvedValue({
+      intent: 'refund_request', topic: 'returns', sensitivity: 'high', customerSentiment: 'neutral', confidence: 0.95,
+    })
+    embedMock.generateEmbedding.mockResolvedValue(new Array(1536).fill(0))
+    prismaMock.$queryRaw.mockResolvedValue([])
+    aiMock.draftSupportReply.mockResolvedValue({
+      reply: 'Could you confirm the email on the order?', citedChunkIds: [], confidence: 0.85,
+      shouldEscalate: false, reason: null,
+    })
+
+    await processSupportOrchestration(baseJob)
+
+    expect(prismaMock.message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: 'AI',
+          draftedByAi: true,
+          aiConfidence: 0.85,
+        }),
+      }),
+    )
+    expect(prismaMock.conversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'WAITING_ON_CUSTOMER',
+          assignee: 'agent_a',
+        }),
+      }),
+    )
+  })
+})
+
+describe('supportOrchestration processor — ESCALATE', () => {
+  it('sets status ESCALATED + assignee, never writes a customer-visible AI message', async () => {
+    prismaMock.conversation.findUniqueOrThrow.mockResolvedValue({
+      id: 'conv1', brandId: 'brand1', memberId: 'member1', status: 'ACTIVE',
+    })
+    prismaMock.message.findMany.mockResolvedValue([{ role: 'CUSTOMER', content: 'cancel my account' }])
+    prismaMock.supportRule.findMany.mockResolvedValue([
+      {
+        id: 'r1', status: 'ACTIVE', priority: 0,
+        intentFilters: ['account_cancellation'], tierFilters: [],
+        healthScoreMin: null, healthScoreMax: null, topicFilters: [], conditions: {},
+        actionMode: 'ESCALATE', confidenceThreshold: 0,
+        autoRespondArticleId: null, escalateToAssignee: 'agent_b',
+        awardPoints: null, triggerSurveyId: null,
+      },
+    ])
+    prismaMock.member.findUnique.mockResolvedValue({
+      id: 'member1', currentTier: null, pointsBalance: 0, email: null, firstName: null, lastName: null,
+    })
+    prismaMock.brand.findUnique.mockResolvedValue({ id: 'brand1', name: 'X' })
+    aiMock.classifySupportIntent.mockResolvedValue({
+      intent: 'account_cancellation', topic: 'account', sensitivity: 'high', customerSentiment: 'negative', confidence: 0.93,
+    })
+    embedMock.generateEmbedding.mockResolvedValue(new Array(1536).fill(0))
+    prismaMock.$queryRaw.mockResolvedValue([])
+    aiMock.draftSupportReply.mockResolvedValue({
+      reply: 'Sorry to see you go.', citedChunkIds: [], confidence: 0.9, shouldEscalate: false, reason: null,
+    })
+
+    await processSupportOrchestration(baseJob)
+
+    expect(prismaMock.message.create).not.toHaveBeenCalled()
+    expect(prismaMock.conversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'ESCALATED',
+          assignee: 'agent_b',
+        }),
+      }),
+    )
+  })
+})
