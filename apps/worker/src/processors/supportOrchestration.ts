@@ -204,13 +204,24 @@ async function dispatchTier(
 async function retrieveKBChunks(brandId: string, query: string): Promise<KBChunkRetrieved[]> {
   const embedding = await generateEmbedding(query)
   const vec = `[${embedding.join(',')}]`
-  const rows = await prisma.$queryRaw<Array<{ id: string; articleId: string; chunkIndex: number; content: string; similarity: number }>>`
-    SELECT id, "articleId", "chunkIndex", content, 1 - (embedding <=> ${vec}::vector) AS similarity
-    FROM "kb_chunks"
-    WHERE "brandId" = ${brandId} AND "embedStatus" = 'EMBEDDED'
-    ORDER BY embedding <=> ${vec}::vector
-    LIMIT ${TOP_K}
-  `
+  // Use an interactive transaction so we can prepend SET search_path to include
+  // `public`. The pgvector <=> operator lives in `public`, and in test environments
+  // Prisma's ?schema= URL scopes search_path to only the test schema, hiding the
+  // operator. Prepending the SET within the same connection guarantees the operator
+  // is found both in production (search_path unchanged) and in test schemas.
+  const rows = await prisma.$transaction(async (tx) => {
+    // Determine the current schema first, then expand search_path to also include public.
+    const schemaResult = await tx.$queryRaw<Array<{ current_schema: string }>>`SELECT current_schema()`
+    const currentSchema = schemaResult[0]?.current_schema ?? 'public'
+    await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${currentSchema}", public`)
+    return tx.$queryRaw<Array<{ id: string; articleId: string; chunkIndex: number; content: string; similarity: number }>>`
+      SELECT id, "articleId", "chunkIndex", content, 1 - (embedding <=> ${vec}::vector) AS similarity
+      FROM "kb_chunks"
+      WHERE "brandId" = ${brandId} AND "embedStatus" = 'EMBEDDED'
+      ORDER BY embedding <=> ${vec}::vector
+      LIMIT ${TOP_K}
+    `
+  })
   return rows.filter((r) => r.similarity >= SIMILARITY_THRESHOLD)
 }
 

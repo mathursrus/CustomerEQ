@@ -48,7 +48,7 @@ export async function createKBChunk(opts: {
 
   await prisma.$executeRaw`
     INSERT INTO "kb_chunks" ("id", "articleId", "brandId", "chunkIndex", "content", "tokenCount", "embedding", "embedStatus", "createdAt", "updatedAt")
-    VALUES (${id}, ${opts.articleId}, ${opts.brandId}, ${opts.chunkIndex ?? counter}, ${content}, ${tokenCount}, ${vectorLiteral}::vector, ${embedStatus}::"ChunkEmbedStatus", NOW(), NOW())
+    VALUES (${id}, ${opts.articleId}, ${opts.brandId}, ${opts.chunkIndex ?? counter}, ${content}, ${tokenCount}, ${vectorLiteral}::public.vector, ${embedStatus}::"ChunkEmbedStatus", NOW(), NOW())
   `
   return prisma.kBChunk.findUniqueOrThrow({ where: { id } })
 }
