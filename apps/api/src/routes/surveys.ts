@@ -33,7 +33,10 @@ const FIELD_EDITABILITY: Record<
   programId: (s) => s === 'DRAFT',
   // R30: responsePolicy is editable only in DRAFT and only if no responses exist yet.
   responsePolicy: (s, ctx) => s === 'DRAFT' && ctx.responsesCount === 0,
-  questions: (s) => s === 'DRAFT',
+  // Spec §State transitions line 167: Pause is for "changing questions on a
+  // live survey without losing accumulated responses." So PAUSED — like
+  // DRAFT — accepts question edits. ACTIVE / STOPPED do not.
+  questions: (s) => s === 'DRAFT' || s === 'PAUSED',
   themeId: (s) => s !== 'STOPPED',
   settings: (s) => s !== 'STOPPED',
   thankYouMessage: (s) => s !== 'STOPPED',
@@ -175,13 +178,27 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'Survey not found' })
     }
 
-    // Activation requires at least one question
+    // R23 activation gate: questions ≥1, name set, title set. Server-side
+    // check so a client that skips the BasicsTab gate (or hits the endpoint
+    // directly) still cannot ship a half-configured live survey.
     if (parse.data.status === 'ACTIVE') {
       const questions = survey.questions as unknown[]
       if (!Array.isArray(questions) || questions.length === 0) {
         return reply.status(422).send({
           error: 'Activation gate failed',
           code: 'NO_QUESTIONS',
+        })
+      }
+      if (!survey.name || survey.name.trim().length === 0) {
+        return reply.status(422).send({
+          error: 'Activation gate failed',
+          code: 'MISSING_NAME',
+        })
+      }
+      if (!survey.title || survey.title.trim().length === 0) {
+        return reply.status(422).send({
+          error: 'Activation gate failed',
+          code: 'MISSING_TITLE',
         })
       }
     }

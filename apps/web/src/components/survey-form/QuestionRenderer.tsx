@@ -55,38 +55,70 @@ export function QuestionRenderer({ question, value, onChange, mode, readOnly }: 
     case 'rating': {
       const min = cfg?.min ?? 0
       const max = cfg?.max ?? 10
+      const labels = cfg?.labels
       const ticks: number[] = []
       for (let i = min; i <= max; i += 1) ticks.push(i)
+      // Button row uses display:inline-flex inside a center-aligned wrapper so
+      // the row hugs its content on wide screens (mock §241 lines 805-807).
+      // Labels share the same wrapper and use justify-content:space-between,
+      // so "left" sits under the leftmost button and "right" under the right-
+      // most — independent of the parent container width.
+      const showLabels = Boolean(labels?.left || labels?.right)
       return (
         <div data-question-id={question.id} className="ceq-question">
           {questionLabel(question)}
-          <div role="group" aria-label={question.text} style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-            {ticks.map((n) => {
-              const selected = value === n
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => !disabled && onChange(n)}
-                  disabled={disabled}
-                  aria-pressed={selected}
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <div
+                role="group"
+                aria-label={question.text}
+                style={{ display: 'inline-flex', gap: '0.25rem', flexWrap: 'wrap' }}
+              >
+                {ticks.map((n) => {
+                  const selected = value === n
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => !disabled && onChange(n)}
+                      disabled={disabled}
+                      aria-pressed={selected}
+                      style={{
+                        minWidth: '2.25rem',
+                        minHeight: '2.25rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: BORDER_RADIUS_VAR,
+                        border: `1px solid ${SECONDARY_VAR}`,
+                        background: selected ? 'var(--ceq-primary-color)' : 'transparent',
+                        color: selected ? 'var(--ceq-button-text-color)' : TEXT_COLOR_VAR,
+                        fontFamily: FONT_VAR,
+                        fontSize: BODY_SIZE_VAR,
+                        cursor: disabled ? 'default' : 'pointer',
+                      }}
+                    >
+                      {n}
+                    </button>
+                  )
+                })}
+              </div>
+              {showLabels && (
+                <div
                   style={{
-                    minWidth: '2.25rem',
-                    minHeight: '2.25rem',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: BORDER_RADIUS_VAR,
-                    border: `1px solid ${SECONDARY_VAR}`,
-                    background: selected ? 'var(--ceq-primary-color)' : 'transparent',
-                    color: selected ? 'var(--ceq-button-text-color)' : TEXT_COLOR_VAR,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginTop: '0.25rem',
+                    gap: '0.5rem',
+                    color: TEXT_COLOR_VAR,
                     fontFamily: FONT_VAR,
                     fontSize: BODY_SIZE_VAR,
-                    cursor: disabled ? 'default' : 'pointer',
+                    opacity: 0.75,
                   }}
                 >
-                  {n}
-                </button>
-              )
-            })}
+                  <span>{labels?.left ?? ''}</span>
+                  <span>{labels?.right ?? ''}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )

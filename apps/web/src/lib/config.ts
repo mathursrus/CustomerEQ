@@ -13,10 +13,16 @@ export const API_URL =
  * Wrapper around Clerk's getToken that returns null when the auth
  * provider is unavailable (network timeout, not initialized, etc.)
  * rather than hanging indefinitely.
+ *
+ * Timeout is 10s by default. Earlier 1s timeout caused spurious 401s on
+ * auto-save when Clerk's session refresh raced the request: getToken
+ * resolved to null, the request shipped without Authorization, and the
+ * API rejected with 401. 10s is long enough to cover token refresh on
+ * a slow network but still short enough to avoid hanging the UI.
  */
 export async function getAuthToken(
   getToken: () => Promise<string | null>,
-  timeoutMs = 1000,
+  timeoutMs = 10_000,
 ): Promise<string | null> {
   try {
     return await Promise.race([
