@@ -18,6 +18,7 @@ import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
 import { createSurveyImportProcessor } from './processors/surveyImport.js'
 import { createSupportOrchestrationProcessor } from './processors/supportOrchestration.js'
 import { createKbIngestionProcessor } from './processors/kbIngestion.js'
+import { createSupportTimeoutClassifierProcessor } from './processors/supportTimeoutClassifier.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -141,11 +142,26 @@ void slaBreachQueue.add(
   { repeat: { every: 5 * 60 * 1000 }, jobId: 'sla-breach-check-repeating' },
 )
 
+// Support timeout classifier — repeating job every 1 hour
+const supportTimeoutQueue = new Queue(QUEUES.SUPPORT_TIMEOUT_CHECK, { connection })
+const supportTimeoutClassifierWorker = new Worker(
+  QUEUES.SUPPORT_TIMEOUT_CHECK,
+  createSupportTimeoutClassifierProcessor(connection),
+  { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// Schedule the hourly scan (idempotent — BullMQ deduplicates by jobId)
+void supportTimeoutQueue.add(
+  'scan',
+  {},
+  { repeat: { every: 60 * 60 * 1000 }, jobId: 'support-timeout-check-repeating' },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, kbIngestionWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, kbIngestionWorker, slaBreachWorker, supportTimeoutClassifierWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -176,6 +192,7 @@ logger.info(
       QUEUES.SUPPORT_ORCHESTRATION,
       QUEUES.KB_INGESTION,
       SLA_BREACH_QUEUE,
+      QUEUES.SUPPORT_TIMEOUT_CHECK,
     ],
   },
   'Workers started',
@@ -204,6 +221,8 @@ async function shutdown(signal: string): Promise<void> {
     kbIngestionWorker.close(),
     slaBreachWorker.close(),
     slaBreachQueue.close(),
+    supportTimeoutClassifierWorker.close(),
+    supportTimeoutQueue.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')
