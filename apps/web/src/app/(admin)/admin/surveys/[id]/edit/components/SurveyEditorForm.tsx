@@ -587,10 +587,6 @@ export function SurveyEditorForm({
       <TabHeader
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        surveyStatus={survey.status}
-        savedAt={savedAt}
-        isAnyTabDirty={isAnyTabDirty}
-        onActivate={handleActivateClicked}
         tabDirty={tabDirty}
       />
 

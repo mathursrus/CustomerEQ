@@ -1,21 +1,16 @@
-// Issue #241 Slice 4b (#336) — TabHeader: 4-tab nav + auto-save indicator
-// + persistent Activate button (R3 / R5).
+// Issue #241 Slice 4b (#336) — TabHeader: numbered 4-tab nav.
 //
 // Tab order per Spec §2: Basics → Questions → Look & Feel → Points & Thank You.
 // Rules tab is intentionally absent (D14 — Rules deferred to a future slice;
 // §E hide-vs-stub: hide entirely, don't render a coming-soon stub).
 //
-// Indicator copy table (RFC §"Save behavior by state"):
-//   DRAFT  + no savedAt     → "Draft"
-//   DRAFT  + savedAt set    → "Saved · just now" (or relative time)
-//   ACTIVE + isAnyTabDirty  → "Unsaved in <Tab>"
-//   ACTIVE + clean          → "All changes saved"
-//   STOPPED                 → "Stopped — Restart to edit"
+// The page header (rendered above this component by SurveyEditorForm) owns
+// the saved indicator + Discard / Activate buttons per mock §241 lines
+// 533-545 — TabHeader is just the numbered tab nav.
 
 'use client'
 
 export type TabId = 'basics' | 'questions' | 'look-feel' | 'points-thank-you'
-type SurveyStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED'
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'basics', label: 'Basics' },
@@ -27,55 +22,14 @@ const TABS: Array<{ id: TabId; label: string }> = [
 export interface TabHeaderProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
-  surveyStatus: SurveyStatus
-  savedAt: string | null
-  isAnyTabDirty: boolean
-  onActivate: () => void
   tabDirty?: Partial<Record<TabId, boolean>>
-}
-
-const MINUTE_MS = 60_000
-const MINUTES_PER_HOUR = 60
-
-function formatSavedAt(savedAtIso: string): string {
-  const elapsedMs = Date.now() - new Date(savedAtIso).getTime()
-  if (!Number.isFinite(elapsedMs) || elapsedMs < MINUTE_MS) return 'Saved · just now'
-  const minutes = Math.floor(elapsedMs / MINUTE_MS)
-  if (minutes < MINUTES_PER_HOUR) return `Saved · ${minutes}m ago`
-  const hours = Math.floor(minutes / MINUTES_PER_HOUR)
-  return `Saved · ${hours}h ago`
-}
-
-function buildIndicator(
-  status: SurveyStatus,
-  savedAt: string | null,
-  isAnyTabDirty: boolean,
-  tabDirty: Partial<Record<TabId, boolean>> | undefined,
-): string {
-  if (status === 'STOPPED') return 'Stopped — Restart to edit'
-  if (status === 'DRAFT') return savedAt ? formatSavedAt(savedAt) : 'Draft'
-  if (!isAnyTabDirty) return 'All changes saved'
-  const firstDirty = TABS.find((t) => tabDirty?.[t.id])
-  return `Unsaved in ${firstDirty?.label ?? 'this tab'}`
 }
 
 export function TabHeader({
   activeTab,
   onTabChange,
-  surveyStatus: _surveyStatus,
-  savedAt: _savedAt,
-  isAnyTabDirty: _isAnyTabDirty,
-  onActivate: _onActivate,
   tabDirty,
 }: TabHeaderProps) {
-  void _surveyStatus
-  void _savedAt
-  void _isAnyTabDirty
-  void _onActivate
-
-  // The page header (rendered above this component by SurveyEditorForm)
-  // owns the saved indicator + Discard / Activate buttons per mock §241
-  // lines 533-545. TabHeader's job is just the numbered tab nav.
   return (
     <header className="border-b border-gray-200 bg-white px-6">
       <div role="tablist" aria-label="Survey editor tabs" className="flex items-center gap-1">

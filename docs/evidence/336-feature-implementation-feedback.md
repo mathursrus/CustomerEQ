@@ -343,3 +343,31 @@ Extracted `RendererErrorLine` in `apps/web/src/components/survey-form/SurveyForm
 | `pnpm test` (full) | 17/17 turbo tasks successful |
 
 ---
+
+## Round 2 Feedback
+
+*Received: 2026-05-14 (user direction: "Check with CI is failing")*
+
+### V2-001 — CI build failing on two unused-symbol lint errors — ADDRESSED
+
+- **Author**: manohar.madhira@outlook.com
+- **Type**: PR-comment (user-direction in session)
+- **Surface**: Round 1 left dead code that the production `pnpm build` lint pass rejects (CI run [25871828057](https://github.com/mathursrus/CustomerEQ/actions/runs/25871828057)). Two error sites:
+  1. `apps/web/src/app/(admin)/admin/surveys/[id]/edit/components/TabHeader.tsx:49` — `'buildIndicator' is defined but never used`. The indicator-copy table and its helpers (`buildIndicator`, `formatSavedAt`, `MINUTE_MS`, `MINUTES_PER_HOUR`, the `SurveyStatus` local type) were stranded when V1-014/V1-023 moved the indicator into the page header (rendered by `SurveyEditorForm`). The four downstream props (`surveyStatus`, `savedAt`, `isAnyTabDirty`, `onActivate`) were also stranded but were silenced via `_`-prefix aliasing rather than removed from the API surface — masking the fact that nothing consumed them.
+  2. `apps/web/src/app/(admin)/layout.tsx:5` — `'useEffect' is defined but never used`. Left over from one of the in-session attempts at the black-box-on-theme-select fix (V1-029) that ultimately resolved via CSS-only (`contain: layout` on the editor tabpanel + `h-full` on `SurveyEditorForm`), so the `useEffect` import was no longer needed.
+- **Status**: ADDRESSED
+- **Fix**:
+  - `TabHeader.tsx`: Deleted `buildIndicator`, `formatSavedAt`, `MINUTE_MS`, `MINUTES_PER_HOUR`, the `SurveyStatus` local type, and the four stranded props (`surveyStatus`, `savedAt`, `isAnyTabDirty`, `onActivate`) from `TabHeaderProps`. The component now accepts exactly `{ activeTab, onTabChange, tabDirty? }`. Header comment updated to reflect the narrowed responsibility.
+  - `SurveyEditorForm.tsx`: Dropped the four newly-dead props from the `<TabHeader>` callsite; the form still computes `savedAt` / `isAnyTabDirty` / `handleActivateClicked` for its own page header rendering — those locals are not dead.
+  - `TabHeader.test.tsx`: Removed the four dead props from all 4 `<TabHeader>` test renders.
+  - `(admin)/layout.tsx`: Removed `useEffect` from the React import (left `useState`).
+- **Verification (local)**:
+  - `pnpm --filter @customerEQ/web lint` → 0 errors / 10 pre-existing warnings (unchanged from PR description).
+  - `pnpm --filter @customerEQ/web typecheck` → clean.
+  - `pnpm --filter @customerEQ/web test -- --run TabHeader SurveyEditorForm` → 15/15 pass (4 TabHeader + 11 SurveyEditorForm).
+
+### Coaching moment — V2-001 is a Phase-12-Round-1 hygiene miss
+
+- **What happened**: Round 1 Phase 12 implement-validate sub-phase reported "Pass — all touched surfaces re-validated" in the evidence file, but the validation locally only ran `pnpm typecheck` + targeted vitest suites — it never ran `pnpm build`, which is what catches lint-as-error gates. The full PR-build pipeline (`pnpm build`) was last green at the Phase 11 submission; Round 1 reintroduced two unused-symbol errors that slipped through because lint-as-error only kicks in inside the `next build` lint pass, not under `pnpm --filter ... typecheck`.
+- **Rule**: When iterating fixes on a PR that has CI gating on `pnpm build`, the local re-validation MUST include `pnpm build` (or at least `pnpm --filter @customerEQ/web lint` and `pnpm --filter @customerEQ/web build`) before declaring the validate sub-phase pass. Typecheck alone is insufficient — TypeScript permits `_`-prefixed unused vars but the project's ESLint config does not permit non-prefix-unused symbols like `buildIndicator`.
+- **Action**: Captured as raw learning under `fraim/personalized-employee/learnings/raw/`. The implement-validate sub-phase's local-verification checklist should be updated to include `pnpm build` (or at least the web-app lint pass) before reporting Pass.

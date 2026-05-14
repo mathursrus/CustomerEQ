@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
 
 const navLinks: { href: string; label: string; section?: string }[] = [

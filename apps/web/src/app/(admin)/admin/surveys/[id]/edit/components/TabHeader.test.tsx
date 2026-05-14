@@ -29,10 +29,6 @@ describe('<TabHeader>', () => {
       <TabHeader
         activeTab="basics"
         onTabChange={NOOP}
-        surveyStatus="DRAFT"
-        savedAt={null}
-        isAnyTabDirty={false}
-        onActivate={NOOP}
       />,
     )
     const tabs = screen.getAllByRole('tab')
@@ -57,10 +53,6 @@ describe('<TabHeader>', () => {
       <TabHeader
         activeTab="basics"
         onTabChange={onTabChange}
-        surveyStatus="DRAFT"
-        savedAt={null}
-        isAnyTabDirty={false}
-        onActivate={NOOP}
       />,
     )
     fireEvent.click(screen.getByRole('tab', { name: /Questions/ }))
@@ -76,10 +68,6 @@ describe('<TabHeader>', () => {
       <TabHeader
         activeTab="look-feel"
         onTabChange={NOOP}
-        surveyStatus="DRAFT"
-        savedAt={null}
-        isAnyTabDirty={false}
-        onActivate={NOOP}
       />,
     )
     expect(screen.getByRole('tab', { name: /Look & Feel/ })).toHaveAttribute('aria-selected', 'true')
@@ -91,10 +79,6 @@ describe('<TabHeader>', () => {
       <TabHeader
         activeTab="basics"
         onTabChange={NOOP}
-        surveyStatus="DRAFT"
-        savedAt={null}
-        isAnyTabDirty={false}
-        onActivate={NOOP}
       />,
     )
     const tabs = screen.getAllByRole('tab')
