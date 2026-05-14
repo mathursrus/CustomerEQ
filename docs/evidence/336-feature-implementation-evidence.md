@@ -324,3 +324,253 @@ UI surfaces in Slice 4b use the existing Tailwind v4 baseline + the `apps/web/sr
 | 7 — implement-regression | Complete — Unit + Integration + E2E (10-worker) suites green for #241 umbrella surfaces; 30 pre-existing non-umbrella failures filed as 5 new issues (#358-#362) plus 1 documented flake; 3 orphaned legacy specs deleted; 5 Slice 4b/4a spec corrections + 3 parallel-worker hardenings landed. |
 | 8 — implement-quality | Complete — 5 quality findings ADDRESSED (`<ModalShell>` + `parseErrorResponse()` extractions, dead-ternary fix, named magic-number constants, bonus lint-error cleanup); 256/256 unit + 17/17 Slice 4b e2e under workers=10 verify the refactor preserves behavior. |
 | 9 — implement-completeness-review | **Complete (this session)** — Feature-requirement matrix 25/25 Met (2 phase-deferred rows); Technical-design matrix 17/17 Met; 0 UNADDRESSED feedback; validation-mode audit clean. |
+
+---
+
+## Security Review — Phase 12 Round 1 re-validation
+
+### Executive Summary
+
+- **Findings**: 0 Critical, 0 High, 0 Medium, 2 Low, 1 Info.
+- **Dispositions**: 0 fix, 0 file, 3 accept (defense-in-depth and pre-existing exposure).
+- **Escalation**: none. Round 1 ships unblocked.
+- **Next action**: proceed to `implement-regression`.
+
+### Review Scope
+
+- **reviewType**: `embedded-diff-review`
+- **reviewScope**: `diff`
+- **target**: commits `312ce64` + `52549b7` + `b3d4b19` on `feature/336-impl-241-slice-4b-...` against `origin/main`.
+- **surfaceAreaPaths**:
+  - `apps/api/src/routes/public.ts`
+  - `apps/api/src/routes/surveys.ts`
+  - `apps/web/src/app/(admin)/admin/surveys/**`
+  - `apps/web/src/app/survey/[id]/page.tsx`
+  - `apps/web/src/app/(admin)/layout.tsx`
+  - `apps/web/src/app/globals.css`
+  - `apps/web/src/components/survey-form/**`
+  - `apps/web/src/lib/config.ts`
+  - `packages/database/prisma/migrations/20260514120000_drop_live_dedup_unique/migration.sql`
+  - `packages/database/prisma/schema.prisma` (comment only)
+  - `packages/shared/src/zod/survey.schema.ts`
+
+### Threat Surface Summary
+
+| Surface | Evidence |
+|---|---|
+| `web` | `apps/web/src/app/**/*.tsx` and `apps/web/src/components/**/*.tsx` (editor + respondent renderer) |
+| `api` | `apps/api/src/routes/public.ts`, `apps/api/src/routes/surveys.ts` (`fastify.{get,post,patch}`) |
+
+No `llm-app`, `data-pipeline`, `mobile`, or `capability-authoring` content in the diff. The 5 coaching-moment markdown files written under `fraim/personalized-employee/learnings/raw/` are personalized-employee learnings — not capability-authoring per the threat-surface heuristic.
+
+### Coverage Matrix
+
+| Category | Status | Notes |
+|---|---|---|
+| OWASP Web A01 Broken access control | Pass | State-aware field editability mirrored client-side from server allowlist (`apps/web/src/app/(admin)/admin/surveys/_helpers/field-editability.ts`); server `FIELD_EDITABILITY` (`apps/api/src/routes/surveys.ts:25-45`) remains the enforcement boundary. Client mirror is a UX convenience, not a security gate. |
+| OWASP Web A02 Cryptographic failures | N/A | No crypto introduced or modified. |
+| OWASP Web A03 Injection | Pass | All DB access through Prisma typed query API; no raw SQL except the migration's `DROP INDEX IF EXISTS`. No `innerHTML` / `dangerouslySetInnerHTML` introduced in the diff. |
+| OWASP Web A04 Insecure design | Pass | Migration drops the partial unique index; per-policy dedup is enforced in `apps/api/src/routes/public.ts:341-405` for ONCE / LATEST_OVERWRITES / MULTIPLE, plus a defensive P2002 catch around the create path. Race window enumerated in `S-336-LOW-001` below. |
+| OWASP Web A05 Security misconfiguration | Pass | `globals.css` dark-mode `--background` locked to the light-mode value (the app is not dark-mode-ready); admin-layout `h-screen overflow-hidden` retained; no new headers / CORS / CSP changes. |
+| OWASP Web A06 Vulnerable components | N/A | No new dependencies. |
+| OWASP Web A07 Identification & authentication | Pass | `getAuthToken` timeout bumped from 1s to 10s in `apps/web/src/lib/config.ts`. Failure mode unchanged (token absent → 401 from API). Longer wait is anti-flake, not auth bypass. |
+| OWASP Web A08 Software & data integrity | Pass | No CI/CD or build pipeline changes. |
+| OWASP Web A09 Logging failures | Pass | API still emits structured pino logs on all paths; no logging removed. |
+| OWASP Web A10 SSRF | N/A | No outbound HTTP from new code. |
+| OWASP API A01 Broken object-level auth | Pass | `/v1/public/surveys/:id` enforces `status: 'ACTIVE'` filter at the query level. Per-tenant scoping unchanged. |
+| OWASP API A02 Broken authentication | Pass | Public route remains public by design (`config: { public: true }`); admin routes unchanged. |
+| OWASP API A03 Broken object property-level auth | Low → accept | Expanded response payload of `/v1/public/surveys/:id` — see `S-336-LOW-002`. |
+| OWASP API A04 Unrestricted resource consumption | N/A | No new endpoints; no rate-limit changes. |
+| OWASP API A05 BFLA | Pass | No new admin endpoints. State-transition actions (Pause / Resume / Stop / Restart) reuse existing `/v1/surveys/:id/status` with the same auth + brand-scope checks. |
+| OWASP API A06 Unrestricted access to sensitive flows | Pass | Activation gate at `apps/api/src/routes/surveys.ts:179-203` adds R23 enforcement (questions ≥ 1, name non-empty, title non-empty). No flow loosened. |
+| OWASP API A07 SSRF | N/A | None. |
+| OWASP API A08 Security misconfiguration | Low → accept | Migration `20260514120000_drop_live_dedup_unique` — see `S-336-LOW-001`. |
+| OWASP API A09 Improper inventory management | Pass | No new public APIs; existing `/v1/public/surveys/:id` payload extended within the documented response contract. |
+| OWASP API A10 Unsafe consumption of APIs | N/A | No outbound API consumption. |
+| Secrets in code | Pass | `grep -rn` across the diff for AWS keys, GitHub PATs, OpenAI / Anthropic keys, JWT secrets, Stripe keys, private keys — 0 hits. No new env vars introduced. |
+| Privacy & PII | Info → accept | `S-336-INFO-001` documents the only PII-adjacent surface (priorResponseId echo). |
+
+### Findings
+
+#### `S-336-LOW-001` — Partial unique index dropped from `survey_responses`
+
+- **Severity**: Low
+- **OWASP**: API A08 / Web A04
+- **File**: `packages/database/prisma/migrations/20260514120000_drop_live_dedup_unique/migration.sql`
+- **Evidence**: `DROP INDEX IF EXISTS "survey_responses_live_dedup";` removes the DB-level dedup safety net for live (non-import) responses.
+- **Risk**: A two-request race between the API's `priorResponse` SELECT and the subsequent INSERT could now land two rows for the same `(surveyId, memberId)` in ONCE policy. The window is millisecond-narrow (single SELECT then single INSERT inside a `$transaction`) but no longer rejected at the DB layer.
+- **Disposition**: accept
+- **Rationale**: the partial unique index was the bug — it broke `Survey.responsePolicy = 'MULTIPLE'` (documented as "always insert a new row"), causing P2002 → HTTP 500 on every legitimate re-submit by the same member (V1-033 in `docs/evidence/336-feature-implementation-feedback.md`). Per-policy dedup now lives in the API handler at `apps/api/src/routes/public.ts:341-405`:
+   - ONCE → `priorResponse` SELECT + 409 `POLICY_ONCE_DUPLICATE`
+   - LATEST_OVERWRITES → `prisma.surveyResponse.update` on the priorResponse row
+   - MULTIPLE → plain insert (unblocked by this migration)
+  The defensive P2002 catch around the create path translates any remaining race-window collision into a clean 409 with `duplicate: true`. The non-unique index `survey_responses_surveyId_memberId_idx` is retained for `priorResponse` lookup performance.
+
+#### `S-336-LOW-002` — Public response payload expanded
+
+- **Severity**: Low
+- **OWASP**: API A03 (BOPLA)
+- **File**: `apps/api/src/routes/public.ts:139-185`
+- **Evidence**: `/v1/public/surveys/:id` (unauthenticated) now returns `description`, `settings` (chrome matrix), `consentMode`, `consentTextOverride`, plus `brand.id`, `brand.consentMode`, `brand.consentTextDefault`, `brand.termsUrl`, `brand.privacyPolicyUrl`, `brand.memberIdentifierKind`.
+- **Risk**: brand-level config leaks to anonymous callers.
+- **Disposition**: accept
+- **Rationale**: every new field is required for the respondent renderer to match the editor preview by construction (R14 / R17). Per-property analysis:
+  - `description` — public marketing copy (already surfaced in the surveys list page).
+  - `settings.chromeMatrix` — UI toggles for which chrome elements render; no secret.
+  - `consentMode` / `consentTextOverride` — required to render the right consent UI (checkbox vs paragraph vs blank). Public consent text was already exposed via `consentTextDefault`.
+  - `brand.id` — a cuid (unguessable). Already implicitly correlatable from `brand.name` + `brand.logoUrl` which were already exposed.
+  - `brand.consentMode` / `consentTextDefault` — public consent disclosure copy. Required for the renderer.
+  - `brand.termsUrl` / `privacyPolicyUrl` — required to wire the consent disclosure link tokens.
+  - `brand.memberIdentifierKind` — controls whether the respondent input is email / phone / external_id. Not sensitive.
+  No PII, no credentials, no tokens. Coverage matrix row OWASP-API-A03 stays Pass.
+
+#### `S-336-INFO-001` — `priorResponseId` echoed in 409 body
+
+- **Severity**: Info
+- **OWASP**: Privacy
+- **File**: `apps/api/src/routes/public.ts:382-401` (P2002 catch) and `apps/api/src/routes/public.ts:341-352` (ONCE-policy 409 path)
+- **Evidence**: both paths set `priorResponseId: existing?.id` / `priorResponse.id` in the 409 response.
+- **Risk**: confirms "you have responded before" — but the caller already knows because they just attempted to re-submit. No public endpoint to fetch the prior response by id.
+- **Disposition**: accept
+- **Rationale**: pre-existing behavior on the ONCE 409 path; the P2002 catch matches that contract for consistency. No new disclosure surface.
+
+### Prioritized Remediation Queue
+
+Empty. All findings disposed as `accept` with rationale captured in the Findings section. No items routed to `fix` or `file`.
+
+### Verification Evidence
+
+- **Secrets scan**: 0 hits across diff. Searched for `AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`, `sk_live_`, `BEGIN .+ PRIVATE KEY`.
+- **Auth/crypto firewall**: none of the diff paths touch `**/auth/**`, `**/crypto/**`, `**/session*`, `**/jwt*`, `**/oauth*`, `**/password*`. The only auth-adjacent edit is `getAuthToken`'s timeout (`apps/web/src/lib/config.ts`) — value-only, not algorithm.
+- **Migration verified applied**: `npx prisma migrate deploy` against `customerEQ-postgres` reported `Applying migration 20260514120000_drop_live_dedup_unique`.
+- **API smoke**: `pnpm --filter @customerEQ/api test:smoke` green (after V1-016 test relax in commit `b3d4b19`).
+- **Manual respondent submit (duplicate path)**: user-confirmed in the session — 409 with `duplicate: true` produces the "Already responded" screen.
+
+### Applied Fixes and Filed Work Items
+
+None this round. All 3 findings accepted. Round 1 already shipped in commits `312ce64`, `52549b7`, `b3d4b19`.
+
+### Accepted / Deferred / Blocked
+
+- **Accepted** — `S-336-LOW-001`: DB constraint drop. Approver: implicit in V1-033 user direction ("errors in Slice 1,2,3,4a,4b all needs to be fixed now"). Mitigation: per-policy enforcement in API handler + defensive P2002 catch.
+- **Accepted** — `S-336-LOW-002`: public payload expansion. Approver: required for R14 / R17 respondent-preview parity. No sensitive field added.
+- **Accepted** — `S-336-INFO-001`: `priorResponseId` in 409 body. Approver: pre-existing behavior on the ONCE 409 path; P2002 catch matches that contract.
+
+### Compliance Control Mapping
+
+Not applicable. No active regulation framework is configured for this repository's FRAIM session. Per project Rule 13 (GDPR/CCPA), Member consent handling is unchanged — the consent boolean flows through `getConsentTextForSurvey` and `resolveOrEnrollMember`'s `consentGivenAt` server-stamp on auto-enroll. Soft-delete contract on `Member` records unchanged.
+
+### Run Metadata
+
+| Field | Value |
+|---|---|
+| Run date | 2026-05-14 |
+| Branch | `feature/336-impl-241-slice-4b-...` |
+| Head SHA | `b3d4b19` |
+| Base | `origin/main` |
+| reviewScope | `diff` |
+| Surfaces | `web`, `api` |
+| Skills loaded | `threat-surface-classification`, `owasp-top-10-web-review`, `owasp-api-top-10-review`, `secrets-in-code-check`, `privacy-and-pii-review`, `finding-disposition`, `security-review-results-structure` |
+| Auto-fixes applied | 0 (cap not approached) |
+| Cap hit | No |
+| Skill errors | None |
+| FRAIM session | `f5a6db31-0a36-4168-a181-740d0fda7854` |
+
+---
+
+## Completeness Review — Phase 12 Round 1 re-validation
+
+Round 1 was a defect-resolution pass, not a scope change. None of the 33 V1-* items in `docs/evidence/336-feature-implementation-feedback.md` introduced new feature requirements or new technical-design commitments — every fix brought the implementation up to a commitment that was previously claimed `Met` in the Phase 9 matrices but turned out to be partially broken (e.g., R6 type-change modal *opened* but did not *apply* because `survey` was passed to BasicsTab instead of `liveSurvey`).
+
+This section confirms that the Phase 9 traceability matrices (25/25 feature-requirement Met, 17/17 technical-design Met) remain valid after Round 1, and re-verifies each commitment that a V1-* item touched.
+
+### Re-verification of touched commitments
+
+| Commitment | Phase 9 status | V1-* items that touched it | Re-verification | Status post-Round-1 |
+|---|---|---|---|---|
+| R3 — Four horizontal tabs with auto-save indicator + persistent Activate (spec §2 / R3 / R5) | Met | V1-014 (numbered tabs), V1-023 (state-aware actions) | TabHeader.test.tsx (4 tests, all pass on commit `5dbcb0c`) — tab order, click-through, aria-selected, numbered indicator | Met |
+| R4 — Auto-save on blur in DRAFT, no duplicate POSTs | Met | V1-015 (auth-token timeout race), V1-017 (flush before Activate) | useAutoSave.test.ts (10 tests pass), getAuthToken timeout 1s→10s in `apps/web/src/lib/config.ts`, flush logic in `SurveyEditorForm.handleActivateClicked` | Met |
+| R6 — Type 4-card grid + type-change modal + preset places isScoreField=true | Met | V1-004 (modal apply via liveSurvey), V1-013 (CSAT/CES presets + auto-swap) | BasicsTab.test.tsx 'R6: switching preset → modal opens when questions exist' + 'with empty questions silently swaps' + 'cancel preserves type' — 3 R6 tests pass | Met |
+| R7 — Survey title required field, R8 Internal name required | Met | V1-016 (CreateSurveySchema name relaxed, activation gate moved to PATCH /:id/status) | apps/api/src/routes/surveys.ts:179-203 — MISSING_NAME / MISSING_TITLE codes; activation tested manually by user | Met |
+| R10 / R11 — Consent override attestation + EXPLICIT consent at submit | Met | V1-030 (consentChecked controlled prop), V1-031 (field-level error UI) | SurveyFormRenderer.consentChecked + onConsentCheckedChange props, server still requires `consent: true` for EXPLICIT mode (public.ts:295), manually verified by user | Met |
+| R14 — Consent preview matches respondent view | Met | V1-009 (EXPLICIT checkbox in renderer preview), V1-021 (respondent uses SurveyFormRenderer) | SurveyFormRenderer renders checkbox + ConsentDisclosure for EXPLICIT (lines 116-160), respondent page consumes the same renderer | Met |
+| R15 — Standalone surveys render member-identification input | Met | V1-021 (respondent rewrite) | Respondent page renders memberId via prefixSlot of SurveyFormRenderer, label/type driven by `brand.memberIdentifierKind` | Met |
+| R17 — Channel-first preview tabs + Desktop+Mobile side-by-side | Met | V1-027 (mock drift sweep, no functional change) | LookFeelTab.test.tsx exercises preview tabs; user-confirmed manually | Met |
+| R18 — Per-channel chrome matrix toggle | Met | V1-028 (toggle alignment + off-state readability) | Chrome matrix is now a `<table>` with toggle-switch UI per mock §241 lines 924-947 | Met |
+| R20 / R21 — Points read-only display + 3-chip variable picker | Met | V1-001 (defensive guard on undefined earningRules) | PointsAndThankYouTab.test.tsx passes; defensive guard does not change documented behavior, only prevents crash on partial fixture | Met |
+| R22 / Primary score field — isScoreField at-most-one on rating/slider | Met | V1-008 (isScoreField UI toggle wired) | QuestionsTab.tsx Scoring section gates on `SCOREABLE_TYPES` (rating, slider); `handleScoreFieldToggle` enforces at-most-one client-side; server validateScoreFields enforces invariant | Met |
+| R23 — Activate gates (questions≥1, title required, consent attested) | Met | V1-017 (flush + liveSurvey to modal), V1-016 (name added to gate) | ActivateModal.test.tsx evaluates gates from `liveSurvey`; server activation gate at surveys.ts:179-203 now also enforces name/title presence | Met |
+| R29 — State-aware field editability + 409 on disallowed | Met | V1-005 (type lock UI on non-DRAFT), V1-022 (server allows questions in DRAFT+PAUSED; client mirror) | Server FIELD_EDITABILITY at surveys.ts:25-45 updated `questions: (s) => s === 'DRAFT' || s === 'PAUSED'`; client mirror at `_helpers/field-editability.ts`; BasicsTab disables type / program / responsePolicy per state with 🔒 LOCKED chips | Met |
+| R30 — responsePolicy locks once responsesCount > 0 | Met | V1-022 (client-side gate added) | Same — `isFieldEditable('responsePolicy', state, { responsesCount })` reads the existing context | Met |
+| NFR — Auto-save resilience | Met | V1-015 (10s token wait) | getAuthToken timeout bumped; PATCH no longer ships without Authorization on Clerk session refresh | Met |
+
+### Phase 9 matrices unchanged after Round 1
+
+All 25 feature-requirement rows and 17 technical-design rows in the Phase 9 evidence remain `Met`. Round 1 strengthened proof on several rows (e.g., R6 modal now applies; auto-save no longer drops the auth header) but did not alter the commitment surface.
+
+### Feedback completeness
+
+`feedback-completeness-verification` against `docs/evidence/336-feature-implementation-feedback.md`:
+
+| Section | Items | UNADDRESSED |
+|---|---|---|
+| Phase 8 quality findings (Q8-001 … Q8-005 + 2 NO-OP) | 5 + 2 | 0 |
+| Phase 12 Round 1 manual-verification feedback (V1-001 … V1-033) | 33 | 0 |
+| Phase 12 Round 1 quality findings (Q12-001 … Q12-004) | 4 | 0 (1 ADDRESSED, 3 accepted with rationale) |
+
+Total: **42 feedback items, 0 UNADDRESSED**. The single literal "UNADDRESSED" string match in the file is in the header documentation that explains the status vocabulary, not an actual unaddressed item.
+
+### Standing Work List (`docs/evidence/336-implement-work-list.md`) status
+
+The work-list was authored in Phase 1 and tracked through Phase 11. Round 1 fixes are not in scope for the original work-list because they are post-submission defect resolution captured in the feedback ledger (the correct artifact per Phase 12 contract). No work-list update required.
+
+### Design Standards Alignment (UI surfaces)
+
+User-confirmed during manual verification:
+
+- **Editor page header** — mock §241 lines 533-545 (breadcrumb · H1 + status badge · saved indicator · primary actions) — `git diff` shows alignment; visually verified by user.
+- **Numbered tabs** — mock §241 lines 64-72 / 548-553 — verified by `TabHeader.test.tsx` 'shows a numbered step indicator (1..4)'.
+- **Type cards** — mock §241 lines 578-602 — verbiage + icons match verbatim (V1-011).
+- **"Not sure which to pick?" quick guide** — mock §241 lines 603-612 — verbiage match (V1-012).
+- **Theme picker swatch cards** — mock §241 lines 884-917 — 3-swatch preview + "Brand default" badge driven by `Brand.defaultThemeId` (V1-019, V1-027).
+- **Chrome matrix toggles** — mock §241 lines 237-242 / 924-947 — `<table>` layout with toggle-switch UI; user-confirmed alignment + off-state readability (V1-028).
+- **Question card chrome** — mock §241 lines 263-275 — Q1·/Q2· prefix, grip handle (⠿), duplicate (⎘) + delete (×) actions, "+ Add question" dashed tile (V1-027).
+
+### Blocking conditions check
+
+- Feature-requirement matrix `Partial`/`Unmet` rows: 0 ✓
+- Technical-design matrix `Partial`/`Unmet` rows: 0 ✓
+- Unresolved named design callouts: 0 ✓
+- UNADDRESSED feedback items: 0 ✓
+- Required validation modes not executed: 0 ✓
+
+Phase passes.
+
+---
+
+## Architecture Update — Phase 12 Round 1 re-validation
+
+### Change-detection summary
+
+Round 1 fix commits (`312ce64`, `ce276ee`, `5dbcb0c`, `b3d4b19`, `52549b7`) were scanned against `docs/architecture/architecture.md` to detect material architectural shifts beyond what Phase 10 already documented. **Three updates were warranted; the rest of Round 1 was defect-fixing within already-documented patterns.**
+
+### Updates applied to `docs/architecture/architecture.md` §6
+
+1. **"Channel/viewport-aware renderer family"** *(existing entry, expanded)* — Slice 4a's commitment said respondent live mode would land in Slice 5; it actually landed in Slice 4b. Updated the entry to (a) document the realization, (b) name `apps/web/src/app/survey/[id]/page.tsx` as the live-mode adapter, (c) describe the new `RendererErrorLine` shared-error-surface contract introduced by Q12-001, (d) describe the new controlled props (`errors`, `consentChecked`, `onConsentCheckedChange`, `prefixSlot`, `onSubmit`, `submitLabel`, `submitDisabled`), and (e) note that the ~1000-line legacy bespoke respondent renderer was deleted in Slice 4b — so future contributors don't recreate it.
+
+2. **"Client mirror of the state-aware field-editability allowlist"** *(new entry)* — Round 1 added `apps/web/src/app/(admin)/admin/surveys/_helpers/field-editability.ts` and a filter step on every outbound PATCH body. Without this mirror, the activation-time field flush could re-send a DRAFT-only field after `responsesCount > 0` and trip a server-side 409 that blocks activation. The mirror is a UX guard; the server allowlist remains the authority. Adds a "Pairing rule" that ships the mirror in lockstep with any server-side `FIELD_EDITABILITY` change.
+
+3. **"Policy-aware application-layer dedup for survey responses"** *(new entry)* — The most significant architectural shift in Round 1. Documents that response dedup now lives in the API handler (`apps/api/src/routes/public.ts`) and is policy-aware: ONCE returns 409, LATEST_OVERWRITES updates in place, MULTIPLE plain-inserts. The previously-existing DB partial-unique index `survey_responses_live_dedup` was dropped in `20260514120000_drop_live_dedup_unique` because it ignored `Survey.responsePolicy` and crashed second submits under MULTIPLE. Adds a general rule: when a uniqueness invariant depends on a row's logical state that lives on a different table, enforce it in the application layer — not in a partial-unique index the DB evaluates without that context.
+
+### Changes considered and not made
+
+- **`contain: layout` for nested-scroll regions** — declined. This is a tactical Chromium fix for one specific surface (the editor tabpanel) and not a general architectural commitment. Documented in the V1-024/V1-025/V1-026/V1-029/V1-030 row of the feedback ledger; no doc update needed because no other page is currently mounting a scrollable region inside the admin shell.
+- **`/v1/public/surveys/:id` response expansion** — declined. Adding `title`, `description`, `settings`, `consentMode`, `consentTextOverride`, and `brand.{id,consentMode,consentTextDefault,termsUrl,privacyPolicyUrl,memberIdentifierKind}` to an existing endpoint's response payload is an additive contract change, not an architectural one. Captured in the feedback ledger as part of V1-010 and verified in the validate evidence — `apps/api/src/routes/public.ts` and the renderer's `SurveyResolved` type both reference the same Zod-driven shape, so the change is type-safe end to end.
+- **`CreateSurveySchema.name` / `UpdateSurveySchema.name` relaxation** — declined. Moving the empty-name rejection from the schema to the activation gate (`PATCH /:id/status` → 409 `MISSING_NAME`) is a contract refinement, not a layer/responsibility shift. Captured by the updated `survey.schema.test.ts` + `surveys.test.ts` tests ("accepts empty name (activation gate enforces non-empty)") and by the existing §6 "State-aware PATCH field allowlist" entry, which already covers the principle of state-gated server-side enforcement.
+
+### Verification
+
+- `docs/architecture/architecture.md` Round 1 diff: +3 entries / 1 expanded, 0 deletions in §6; §3.1 unchanged (Phase 10's "State-aware save trigger on the edit route" still accurate).
+- Cross-checked against the feedback ledger: every Round 1 V1-* item that affected a documented pattern (V1-007 / V1-008 / V1-031 → application-layer dedup; V1-016 / V1-022 → field-editability mirror; Q12-001 → renderer error surface) now has a paragraph that documents the resulting pattern for future contributors.
+
+Phase passes.
