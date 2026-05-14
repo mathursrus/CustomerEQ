@@ -39,14 +39,14 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Create conversation + initial message in transaction
-      const conversation = await fastify.prisma.$transaction(async (tx) => {
+      const { conversation, message } = await fastify.prisma.$transaction(async (tx) => {
         const conv = await tx.conversation.create({
           data: { brandId: member.brandId, memberId: member.id, status: 'ACTIVE' },
         })
-        await tx.message.create({
+        const msg = await tx.message.create({
           data: { conversationId: conv.id, role: 'CUSTOMER', content: initialMessage },
         })
-        return conv
+        return { conversation: conv, message: msg }
       })
 
       // Enqueue orchestration pipeline (async)
@@ -54,6 +54,7 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         conversationId: conversation.id,
         brandId: member.brandId,
         memberId: member.id,
+        messageId: message.id,
         messageContent: initialMessage,
       })
 
@@ -125,6 +126,7 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         conversationId,
         brandId: member.brandId,
         memberId: member.id,
+        messageId: message.id,
         messageContent: parse.data.content,
       })
 

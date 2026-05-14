@@ -30,6 +30,7 @@ import campaignPlayRoutes from './routes/campaignPlay.js'
 import supportPublicRoutes from './routes/support-public.js'
 import supportAdminRoutes from './routes/support-admin.js'
 import kbRoutes from './routes/kb.js'
+import kbSourceRoutes from './routes/kb-sources.js'
 import intentRoutes from './routes/intent.js'
 import healthScoresRoutes from './routes/healthScores.js'
 import cxPlaybooksRoutes from './routes/cxPlaybooks.js'
@@ -136,6 +137,7 @@ export async function buildApp() {
   await fastify.register(supportPublicRoutes, { prefix: '/v1' })
   await fastify.register(supportAdminRoutes, { prefix: '/v1' })
   await fastify.register(kbRoutes, { prefix: '/v1' })
+  await fastify.register(kbSourceRoutes, { prefix: '/v1' })
   await fastify.register(intentRoutes, { prefix: '/v1' })
   await fastify.register(healthScoresRoutes, { prefix: '/v1' })
   await fastify.register(cxPlaybooksRoutes, { prefix: '/v1' })

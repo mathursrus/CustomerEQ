@@ -46,12 +46,8 @@ export interface FeedbackClusteringPayload {
   triggeredBy?: string
 }
 
-export interface SupportOrchestrationPayload {
-  conversationId: string
-  brandId: string
-  memberId: string
-  messageContent: string
-}
+// SupportOrchestrationPayload is now defined in zod/support.schema.ts and re-exported from index.ts
+// Import it as: import { SupportOrchestrationPayload } from '@customerEQ/shared'
 
 export interface EmbeddingGenerationPayload {
   articleId: string
