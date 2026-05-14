@@ -226,45 +226,49 @@ enum ResponsePolicy {
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
-  id                    String                      @id @default(cuid())
-  clerkOrgId            String                      @unique // Clerk organization ID → brandId mapping
-  name                  String
+  id                     String                      @id @default(cuid())
+  clerkOrgId             String                      @unique // Clerk organization ID → brandId mapping
+  name                   String
   // Step 1.5 org-profile fields (Issue #170)
-  siteDomain            String?
-  logoUrl               String?
+  siteDomain             String?
+  logoUrl                String?
   // Issue #231 — Survey response data model rework
-  memberIdentifierKind  MemberIdentifierKind        @default(EMAIL) // R4
-  consentMode           ConsentMode                 @default(EXPLICIT) // R16
-  consentTextDefault    String? // R16 — brand-wide disclosure / checkbox text
-  privacyPolicyUrl      String? // R16 — captured at brand onboarding
-  termsUrl              String? // R16 — captured at brand onboarding
+  memberIdentifierKind   MemberIdentifierKind        @default(EMAIL) // R4
+  consentMode            ConsentMode                 @default(EXPLICIT) // R16
+  consentTextDefault     String? // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl       String? // R16 — captured at brand onboarding
+  termsUrl               String? // R16 — captured at brand onboarding
   // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
-  defaultThemeId        String?
-  defaultTheme          BrandTheme?                 @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
+  defaultThemeId         String?
+  defaultTheme           BrandTheme?                 @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
   // Issue #277 — Organization Settings: orgSize (renamed from sizeCategory), timezone, locale.
-  orgSize               OrgSizeCategory?
-  timezone              String                      @default("UTC")
-  locale                String                      @default("en-US")
-  programs              Program[]
-  members               Member[]
-  surveys               Survey[]
-  brandThemes           BrandTheme[]                @relation("BrandThemes")
-  questionTemplates     QuestionTemplate[]
-  alertRules            AlertRule[]
-  caseFollowUps         CaseFollowUp[]
-  conversations         Conversation[]
-  supportRules          SupportRule[]
-  cxPlaybooks           CxPlaybook[]
-  externalSignalSources ExternalSignalSource[]
-  externalSignals       ExternalSignal[]
-  apiKeys               ApiKey[]
-  webhookEndpoints      WebhookEndpoint[]
-  kbSources             KBSource[]
-  supportWidgetConfig   SupportWidgetConfig?
+  orgSize                OrgSizeCategory?
+  timezone               String                      @default("UTC")
+  locale                 String                      @default("en-US")
+  programs               Program[]
+  members                Member[]
+  surveys                Survey[]
+  brandThemes            BrandTheme[]                @relation("BrandThemes")
+  questionTemplates      QuestionTemplate[]
+  alertRules             AlertRule[]
+  caseFollowUps          CaseFollowUp[]
+  conversations          Conversation[]
+  supportRules           SupportRule[]
+  cxPlaybooks            CxPlaybook[]
+  externalSignalSources  ExternalSignalSource[]
+  externalSignals        ExternalSignal[]
+  apiKeys                ApiKey[]
+  webhookEndpoints       WebhookEndpoint[]
+  kbSources              KBSource[]
+  supportWidgetConfig    SupportWidgetConfig?
+  // Issue #369 — Slack support integration fields
+  slackSupportWebhookUrl String?
+  slackSigningSecret     String?
+  csatResponses          CSATResponse[]
   // Onboarding (Issue #170)
-  onboardingState       OnboardingState?
-  activationEvents      OnboardingActivationEvent[]
-  createdAt             DateTime                    @default(now())
+  onboardingState        OnboardingState?
+  activationEvents       OnboardingActivationEvent[]
+  createdAt              DateTime                    @default(now())
 
   @@map("brands")
 }
@@ -1022,9 +1026,10 @@ model Conversation {
   resolvedAt       DateTime?
   closedAt         DateTime?
 
-  messages  Message[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  messages     Message[]
+  csatResponse CSATResponse?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([brandId, status])
   @@index([memberId])
@@ -1181,6 +1186,25 @@ model SupportWidgetConfig {
 enum WidgetPosition {
   BOTTOM_RIGHT
   BOTTOM_LEFT
+}
+
+enum CSATRating {
+  THUMBS_UP
+  THUMBS_DOWN
+}
+
+model CSATResponse {
+  id             String       @id @default(cuid())
+  conversationId String       @unique
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  brandId        String
+  brand          Brand        @relation(fields: [brandId], references: [id])
+  rating         CSATRating
+  comment        String?
+  createdAt      DateTime     @default(now())
+
+  @@index([brandId, createdAt])
+  @@map("csat_responses")
 }
 
 // ─── MCP OAuth ────────────────────────────────────────────────────────────────
