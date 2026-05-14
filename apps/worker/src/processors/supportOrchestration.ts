@@ -1,5 +1,5 @@
 import type { Job, ConnectionOptions } from 'bullmq'
-import IORedis from 'ioredis'
+import { Redis } from 'ioredis'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import {
@@ -23,11 +23,11 @@ const LOCK_TTL_MS = 60_000
 const LOCK_RETRY_DELAY_MS = 250
 const LOCK_MAX_RETRIES = 60
 
-let _redis: IORedis | null = null
-function getRedis(): IORedis {
+let _redis: Redis | null = null
+function getRedis(): Redis {
   if (_redis) return _redis
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379'
-  _redis = new IORedis(url, { maxRetriesPerRequest: null })
+  _redis = new Redis(url, { maxRetriesPerRequest: null })
   return _redis
 }
 

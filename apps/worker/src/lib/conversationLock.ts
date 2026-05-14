@@ -1,4 +1,4 @@
-import type Redis from 'ioredis'
+import type { Redis } from 'ioredis'
 import { randomUUID } from 'node:crypto'
 
 export interface ConversationLockOptions {

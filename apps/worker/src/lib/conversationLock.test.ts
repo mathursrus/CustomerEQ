@@ -12,7 +12,7 @@ function makeRedis(setReturns: Array<'OK' | null>): FakeRedis {
   return { set: setMock, del: vi.fn().mockResolvedValue(1) }
 }
 
-beforeEach(() => vi.useRealTimers())
+beforeEach(() => { vi.useRealTimers() })
 
 describe('withConversationLock', () => {
   it('runs the task when the lock is acquired on first try', async () => {

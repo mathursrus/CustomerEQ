@@ -61,6 +61,6 @@ export async function draftSupportReply(
     citedChunkIds: raw.cited_chunk_ids,
     confidence: raw.confidence,
     shouldEscalate: raw.should_escalate,
-    reason: raw.reason,
+    reason: raw.reason ?? null,
   }
 }
