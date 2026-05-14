@@ -102,6 +102,15 @@ export interface WebhookDeliveryPayload {
   data: Record<string, unknown>
 }
 
+export interface SlackOutboundPayload {
+  brandId: string
+  conversationId: string
+  kind: 'DRAFT_READY' | 'ESCALATED' | 'TIMEOUT_RESOLVED' | 'CSAT_NEGATIVE'
+  text: string
+}
+
+export type SupportTimeoutCheckPayload = Record<string, never>
+
 export type {
   HealthScoreComputationPayload,
   HealthScoreWeights,

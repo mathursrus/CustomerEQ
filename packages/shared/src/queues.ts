@@ -14,6 +14,8 @@ export const QUEUES = {
   WEBHOOK_DELIVERY: 'webhook-delivery',
   SURVEY_DISTRIBUTE: 'survey-distribute',
   SURVEY_IMPORT: 'survey-import',
+  SUPPORT_TIMEOUT_CHECK: 'support-timeout-check',
+  SLACK_OUTBOUND: 'slack-outbound',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
