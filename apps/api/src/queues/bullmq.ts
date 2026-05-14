@@ -17,11 +17,10 @@ import {
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
   evaluateConditions,
-  evaluateSupportRules,
 } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
-import type { SupportRuleInput } from '@customerEQ/shared'
-import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
+import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding } from '@customerEQ/ai'
+import { processSupportOrchestration } from '@customerEQ/worker/processors/supportOrchestration'
 import { processHealthScoreComputation } from './healthScore.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import type { ClusterDefinition, ClusterTrend } from '@customerEQ/ai'
@@ -777,209 +776,13 @@ export async function enqueueAlertEvaluation(payload: AlertEvaluationPayload): P
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Support Orchestration — inline processor
+// Support Orchestration — inline processor (thin shim)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function inlineSupportOrchestration(p: SupportOrchestrationPayload) {
-  const { conversationId, brandId, memberId, messageContent } = p
-
-  if (!memberId) throw new Error('Anonymous support orchestration not yet implemented (memberId required)')
-
-  // 1. Load member context
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: { id: true, firstName: true, lastName: true, email: true, currentTier: true, pointsBalance: true },
-  })
-  if (!member) throw new Error(`Member ${memberId} not found`)
-
-  const brand = await prisma.brand.findUnique({ where: { id: brandId }, select: { name: true } })
-
-  // 2. Load conversation history
-  const messages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    select: { role: true, content: true },
-  })
-  const conversationHistory = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
-
-  // 3. Classify intent (graceful degradation — Phase C dependency)
-  let intent = 'unknown'
-  let confidence = 0
-  let topics: string[] = []
-  try {
-    // ClassifyIntent is a Phase C prerequisite; if not available, degrade gracefully
-    // For now, use simple keyword-based fallback
-    intent = classifyIntentFallback(messageContent)
-    confidence = 0.5
-    topics = extractTopicsFallback(messageContent)
-  } catch (err) {
-    log.warn({ err, conversationId }, 'Intent classification failed, using fallback')
-  }
-
-  // Update conversation with intent
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { intent, confidence, topic: topics[0] ?? null },
-  })
-
-  // 4. Evaluate support rules
-  const rules = await prisma.supportRule.findMany({
-    where: { brandId, status: 'ACTIVE' },
-    orderBy: { priority: 'asc' },
-  })
-  const ruleInputs: SupportRuleInput[] = rules.map((r) => ({
-    id: r.id,
-    status: r.status === 'ACTIVE' ? 'ACTIVE' as const : 'INACTIVE' as const,
-    priority: r.priority,
-    intentFilters: r.intentFilters,
-    tierFilters: r.tierFilters,
-    healthScoreMin: r.healthScoreMin,
-    healthScoreMax: r.healthScoreMax,
-    topicFilters: r.topicFilters,
-    conditions: r.conditions as Record<string, unknown>,
-    actionMode: r.actionMode,
-    confidenceThreshold: r.confidenceThreshold,
-    autoRespondArticleId: r.autoRespondArticleId,
-    escalateToAssignee: r.escalateToAssignee,
-    awardPoints: r.awardPoints,
-    triggerSurveyId: r.triggerSurveyId,
-  }))
-  const matchedRules = evaluateSupportRules(ruleInputs, {
-    intent,
-    tier: (member.currentTier as { name?: string } | null)?.name ?? null,
-    healthScore: undefined, // Phase B dependency — not available yet
-    topics,
-  })
-
-  // Update conversation with matched rules
-  if (matchedRules.ruleIds.length > 0) {
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { rulesMatched: matchedRules.ruleIds },
-    })
-  }
-
-  // 5. KB context (Phase C dependency — graceful degradation)
-  const kbContext = '' // No KB available yet
-
-  // 6. Customer 360 context (Phase A dependency — graceful degradation)
-  const customerContext = [
-    member.firstName ? `Name: ${member.firstName} ${member.lastName ?? ''}`.trim() : '',
-    (member.currentTier as { name?: string } | null)?.name ? `Tier: ${(member.currentTier as { name?: string }).name}` : '',
-    `Points: ${member.pointsBalance}`,
-  ].filter(Boolean).join(', ')
-
-  // 7. Generate response (fallback if BAML/LLM not available)
-  const aiResult = await (async () => {
-    try {
-      const result = await aiGenerateSupportResponse(
-        messageContent,
-        conversationHistory,
-        intent,
-        kbContext,
-        customerContext,
-        brand?.name ?? 'Support',
-        matchedRules.autoResponseArticleId ?? undefined,
-      )
-      return {
-        responseContent: result.response,
-        responseConfidence: result.confidence,
-        shouldEscalate: result.shouldEscalate,
-        escalationReason: result.escalationReason ?? undefined as string | undefined,
-      }
-    } catch (err) {
-      log.warn({ err, conversationId }, 'LLM response generation failed, using fallback')
-      return {
-        responseContent: generateFallbackResponse(intent, member.firstName ?? 'there', brand?.name ?? 'us'),
-        responseConfidence: 0.5,
-        shouldEscalate: true,
-        escalationReason: 'LLM unavailable — auto-escalating to human agent' as string | undefined,
-      }
-    }
-  })()
-  const { responseContent, responseConfidence, shouldEscalate, escalationReason } = aiResult
-
-  // 8. Store AI message
-  await prisma.message.create({
-    data: {
-      conversationId,
-      role: 'AI',
-      content: responseContent,
-      metadata: {
-        intentResult: { intent, confidence, topics },
-        responseConfidence: responseConfidence,
-        rulesMatched: matchedRules.ruleIds,
-      },
-    },
-  })
-
-  // 9. Execute rule actions
-  for (const rule of matchedRules.matchedRules) {
-    if (rule.awardPoints && rule.awardPoints > 0) {
-      await enqueueEvent({
-        brandId,
-        memberId,
-        eventType: 'support_apology_points',
-        payload: { conversationId, ruleId: rule.ruleId, points: rule.awardPoints },
-        ingestedAt: new Date().toISOString(),
-      })
-      log.info({ conversationId, ruleId: rule.ruleId, points: rule.awardPoints }, 'Support rule awarded points')
-    }
-  }
-
-  // 10. Escalate if needed
-  if (shouldEscalate || matchedRules.shouldEscalate) {
-    const assignee = matchedRules.escalateToAssignee ?? undefined
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: {
-        status: 'ESCALATED',
-        assignee,
-        escalatedAt: new Date(),
-      },
-    })
-    log.info({ conversationId, assignee, escalationReason }, 'Conversation escalated')
-  }
-
-  return { intent, matchedRules: matchedRules.ruleIds.length, shouldEscalate }
-}
-
-/** Simple keyword-based intent classification fallback (Phase C not yet available) */
-function classifyIntentFallback(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes('charge') || lower.includes('bill') || lower.includes('invoice') || lower.includes('payment') || lower.includes('refund')) return 'billing'
-  if (lower.includes('ship') || lower.includes('deliver') || lower.includes('track') || lower.includes('package')) return 'shipping'
-  if (lower.includes('return') || lower.includes('exchange')) return 'returns'
-  if (lower.includes('account') || lower.includes('password') || lower.includes('login') || lower.includes('sign in')) return 'account'
-  if (lower.includes('broken') || lower.includes('defect') || lower.includes('quality') || lower.includes('damage')) return 'complaint'
-  if (lower.includes('feature') || lower.includes('suggest') || lower.includes('wish') || lower.includes('would be nice')) return 'feature_request'
-  if (lower.includes('thank') || lower.includes('great') || lower.includes('love') || lower.includes('excellent') || lower.includes('awesome')) return 'praise'
-  return 'other'
-}
-
-/** Extract topics from message text (simple fallback) */
-function extractTopicsFallback(message: string): string[] {
-  const topics: string[] = []
-  const lower = message.toLowerCase()
-  if (lower.includes('order')) topics.push('order')
-  if (lower.includes('points') || lower.includes('reward')) topics.push('loyalty')
-  if (lower.includes('price') || lower.includes('cost') || lower.includes('charge')) topics.push('pricing')
-  if (lower.includes('product') || lower.includes('item')) topics.push('product')
-  if (lower.includes('service') || lower.includes('support')) topics.push('service')
-  return topics.length > 0 ? topics : ['general']
-}
-
-/** Fallback response when LLM is unavailable */
-function generateFallbackResponse(intent: string, firstName: string, brandName: string): string {
-  const intents: Record<string, string> = {
-    billing: `Hi ${firstName}, I understand you have a billing concern. Let me connect you with our billing team who can help resolve this for you.`,
-    shipping: `Hi ${firstName}, I see you have a shipping question. Let me look into this and get back to you shortly.`,
-    returns: `Hi ${firstName}, I'd be happy to help with your return. Let me connect you with our returns team.`,
-    account: `Hi ${firstName}, I can help with your account question. For security, let me connect you with our account support team.`,
-    complaint: `Hi ${firstName}, I'm sorry to hear about your experience. Your feedback is important to us, and I'm connecting you with a specialist who can help.`,
-    praise: `Hi ${firstName}, thank you so much for the kind words! We really appreciate your support of ${brandName}.`,
-  }
-  return intents[intent] ?? `Hi ${firstName}, thank you for reaching out to ${brandName}. A team member will be with you shortly to assist.`
+async function inlineSupportOrchestration(payload: SupportOrchestrationPayload): Promise<void> {
+  // Fabricate a minimal Job shape — the processor only reads .data
+  const fakeJob = { data: payload, id: `inline_${Date.now()}` } as Job<SupportOrchestrationPayload>
+  await processSupportOrchestration(fakeJob)
 }
 
 export async function enqueueSupportOrchestration(payload: SupportOrchestrationPayload): Promise<Job> {
