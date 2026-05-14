@@ -225,6 +225,12 @@ const STYLES = `
 }
 `
 
+interface CeqIdentity {
+  email?: string
+  name?: string
+  externalId?: string
+}
+
 class CeqSupportChat extends HTMLElement {
   static observedAttributes = ['brand-id', 'token', 'api-base']
 
@@ -239,10 +245,24 @@ class CeqSupportChat extends HTMLElement {
   private csatSubmitted = false
   private statusPollTimer: ReturnType<typeof setTimeout> | null = null
   private csatTimers: Map<number, ReturnType<typeof setTimeout>> = new Map()
+  private identity: CeqIdentity | null = null
+  private bootReady = false
+  private onReadyCallbacks: Array<() => void> = []
 
   private get brandId(): string { return this.getAttribute('brand-id') ?? '' }
   private get token(): string { return this.getAttribute('token') ?? '' }
   private get apiBase(): string { return this.getAttribute('api-base') ?? '' }
+
+  /**
+   * The email used as Bearer when authenticating against the API. The widget
+   * supports three identity sources, in precedence order:
+   *   1. `token` attribute on the element (legacy two-tag embed)
+   *   2. `identify({email})` called via window.CEQ.push(['identify', {...}])
+   *   3. None → anonymous flow (anonId cookie)
+   */
+  private getEffectiveToken(): string | null {
+    return this.token || this.identity?.email || null
+  }
 
   constructor() {
     super()
@@ -263,19 +283,39 @@ class CeqSupportChat extends HTMLElement {
   // ─── Boot config + theming ────────────────────────────────────────────────
 
   private async loadBootConfig(): Promise<void> {
-    if (!this.apiBase || !this.brandId) return
+    if (!this.apiBase || !this.brandId) {
+      this.markBootReady()
+      return
+    }
     try {
       const url = `${this.apiBase}/v1/public/support/widget-config?brandId=${encodeURIComponent(this.brandId)}`
       const res = await fetch(url)
       if (!res.ok) {
         this.bootConfig = null
-        return
+      } else {
+        this.bootConfig = await res.json() as BootConfig
+        this.applyTheme()
+        this.applyWidgetCopy()
       }
-      this.bootConfig = await res.json() as BootConfig
-      this.applyTheme()
-      this.applyWidgetCopy()
     } catch {
       this.bootConfig = null
+    } finally {
+      this.markBootReady()
+    }
+  }
+
+  /** Mark the widget as boot-ready and flush any queued onReady callbacks. */
+  private markBootReady(): void {
+    if (this.bootReady) return
+    this.bootReady = true
+    const callbacks = this.onReadyCallbacks.splice(0)
+    for (const cb of callbacks) {
+      try {
+        cb()
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[ceq-support-chat] onReady callback threw', err)
+      }
     }
   }
 
@@ -400,9 +440,10 @@ class CeqSupportChat extends HTMLElement {
     }).join('')
   }
 
-  // ─── Open / close ─────────────────────────────────────────────────────────
+  // ─── Public API (also used by window.CEQ queue commands) ──────────────────
 
-  private open() {
+  /** Open the chat panel. Same as the user clicking the launcher bubble. */
+  open() {
     this.state = 'open'
     this.render()
     this.dispatchEvent(new CustomEvent('ceq:chat-opened', { bubbles: true }))
@@ -412,10 +453,69 @@ class CeqSupportChat extends HTMLElement {
     }, 100)
   }
 
-  private close() {
+  /** Close the chat panel back to the launcher state. */
+  close() {
     this.state = 'closed'
     this.render()
     this.dispatchEvent(new CustomEvent('ceq:chat-closed', { bubbles: true }))
+  }
+
+  /**
+   * Identify the current visitor so the next conversation links to a Member.
+   * Email is used as a Bearer token at the API boundary (same model as the
+   * legacy `token` attribute — unsigned, host-page-trusted).
+   *
+   * Limitation: if a conversation is already in progress, the identity applies
+   * only to FUTURE conversations in this session. The current anon conversation
+   * stays anon. Call identify() BEFORE the visitor sends their first message.
+   */
+  identify(identity: CeqIdentity): void {
+    this.identity = { ...identity }
+    if (this.conversationId) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[ceq-support-chat] identify() called after a conversation was already started; identity will apply to the next conversation only.',
+      )
+    }
+  }
+
+  /**
+   * Clear the visitor identity AND the anonId cookie. Useful when the host
+   * page logs the user out. Ends the current SSE/poll loop so the next message
+   * starts a fresh conversation.
+   */
+  reset(): void {
+    this.identity = null
+    // Drop the anon cookie so a fresh anonId is generated on next conversation
+    document.cookie = 'ceq_anon_id=; path=/; max-age=0; SameSite=Lax'
+    // End current session
+    this.eventSource?.close()
+    this.eventSource = null
+    if (this.statusPollTimer) {
+      clearTimeout(this.statusPollTimer)
+      this.statusPollTimer = null
+    }
+    this.csatTimers.forEach((t) => clearTimeout(t))
+    this.csatTimers.clear()
+    this.conversationId = null
+    this.messages = []
+    this.escalatedBannerShown = false
+    this.csatSubmitted = false
+    this.isLoading = false
+    this.render()
+  }
+
+  /**
+   * Register a callback that fires once the widget has loaded its boot config
+   * (or failed gracefully). If the widget is already ready, the callback fires
+   * synchronously on the next microtask.
+   */
+  onReady(callback: () => void): void {
+    if (this.bootReady) {
+      queueMicrotask(callback)
+      return
+    }
+    this.onReadyCallbacks.push(callback)
   }
 
   // ─── Send / conversation ───────────────────────────────────────────────────
@@ -448,16 +548,18 @@ class CeqSupportChat extends HTMLElement {
   }
 
   private async startConversation(message: string) {
-    const useAnon = !this.token
+    const effectiveToken = this.getEffectiveToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const body: Record<string, string> = { initialMessage: message }
 
-    if (useAnon) {
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`
+      // body.email is captured on the conversation row even when Bearer is the
+      // source of truth; harmless duplication that helps cross-checking in logs.
+      body['email'] = effectiveToken
+    } else {
       headers['X-Brand-Id'] = this.brandId
       body['anonId'] = this.getOrCreateAnonId()
-    } else {
-      headers['Authorization'] = `Bearer ${this.token}`
-      body['memberEmail'] = this.token
     }
 
     const res = await fetch(`${this.apiBase}/v1/public/support/conversations`, {
@@ -482,9 +584,10 @@ class CeqSupportChat extends HTMLElement {
   }
 
   private connectSSE(streamUrl: string) {
+    const effectiveToken = this.getEffectiveToken()
     let url: string
-    if (this.token) {
-      url = `${this.apiBase}${streamUrl}?token=${encodeURIComponent(this.token)}`
+    if (effectiveToken) {
+      url = `${this.apiBase}${streamUrl}?token=${encodeURIComponent(effectiveToken)}`
     } else {
       // Anonymous: pass anonId as query param
       const anonId = this.getOrCreateAnonId()
@@ -540,8 +643,9 @@ class CeqSupportChat extends HTMLElement {
 
       try {
         const headers: Record<string, string> = {}
-        if (this.token) {
-          headers['Authorization'] = `Bearer ${this.token}`
+        const effectiveToken = this.getEffectiveToken()
+        if (effectiveToken) {
+          headers['Authorization'] = `Bearer ${effectiveToken}`
         }
         const res = await fetch(
           `${this.apiBase}/v1/public/support/conversations/${this.conversationId}/messages`,
@@ -576,11 +680,12 @@ class CeqSupportChat extends HTMLElement {
   }
 
   private async sendMessage(content: string) {
+    const effectiveToken = this.getEffectiveToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const body: Record<string, string> = { content }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`
     } else {
       headers['X-Brand-Id'] = this.brandId
       body['anonId'] = this.getOrCreateAnonId()
@@ -698,3 +803,100 @@ class CeqSupportChat extends HTMLElement {
 }
 
 customElements.define('ceq-support-chat', CeqSupportChat)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IIFE bootstrap — auto-init from `<script data-brand-id=... data-api-base=...>`
+// and drain any pre-existing `window.CEQ` command queue (Crisp-style).
+//
+// Backwards-compat: if the host page already placed a `<ceq-support-chat>`
+// element in the DOM (legacy two-tag embed), we bind the queue to THAT element
+// and do NOT create a second one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type CeqCommand =
+  | ['identify', CeqIdentity]
+  | ['reset']
+  | ['open']
+  | ['close']
+  | ['onReady', () => void]
+
+interface CeqQueue {
+  push: (cmd: CeqCommand) => void
+}
+
+declare global {
+  interface Window {
+    CEQ?: CeqCommand[] | CeqQueue
+  }
+}
+
+// Capture currentScript synchronously — this only works during script eval.
+const _ceqCurrentScript =
+  typeof document !== 'undefined'
+    ? (document.currentScript as HTMLScriptElement | null)
+    : null
+
+;(function bootstrapCeq() {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return
+
+  // 1. Locate the script tag whose data-* attrs configure the widget.
+  const scriptEl =
+    _ceqCurrentScript ??
+    document.querySelector<HTMLScriptElement>(
+      'script[data-brand-id][src*="ceq-support-chat"]',
+    )
+
+  // 2. Find an existing custom element (legacy two-tag embed). If one exists,
+  //    bind the queue to it. Otherwise, auto-create from data-attrs.
+  let el = document.querySelector<CeqSupportChat>('ceq-support-chat')
+  let createdNew = false
+
+  if (!el && scriptEl) {
+    const brandId = scriptEl.dataset.brandId
+    if (!brandId) return // not configured — nothing to do
+
+    el = document.createElement('ceq-support-chat') as CeqSupportChat
+    el.setAttribute('brand-id', brandId)
+    if (scriptEl.dataset.apiBase) el.setAttribute('api-base', scriptEl.dataset.apiBase)
+    if (scriptEl.dataset.token) el.setAttribute('token', scriptEl.dataset.token)
+    createdNew = true
+  }
+
+  if (!el) return // neither auto-init data-attrs nor an existing element — nothing to do
+
+  const target = el
+
+  const handleCommand = (cmd: CeqCommand) => {
+    try {
+      switch (cmd[0]) {
+        case 'identify': target.identify(cmd[1]); break
+        case 'reset': target.reset(); break
+        case 'open': target.open(); break
+        case 'close': target.close(); break
+        case 'onReady': target.onReady(cmd[1]); break
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[ceq-support-chat] queue command failed', cmd[0], err)
+    }
+  }
+
+  // 3. Snapshot any pre-existing queue from the host page.
+  const existing = window.CEQ
+  const queuedCmds: CeqCommand[] = Array.isArray(existing) ? existing.slice() : []
+
+  // 4. Replace window.CEQ with a real object so subsequent host pushes run eagerly.
+  window.CEQ = { push: handleCommand }
+
+  // 5. Mount the new element BEFORE draining identify-style commands so that
+  //    connectedCallback has run by the time the command hits the instance.
+  if (createdNew) {
+    // Append on next microtask if body isn't ready yet (script tag in <head>).
+    const append = () => document.body.appendChild(target)
+    if (document.body) append()
+    else document.addEventListener('DOMContentLoaded', append, { once: true })
+  }
+
+  // 6. Drain queued commands.
+  for (const cmd of queuedCmds) handleCommand(cmd)
+})()
