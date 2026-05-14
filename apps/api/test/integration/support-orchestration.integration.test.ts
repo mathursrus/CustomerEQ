@@ -291,7 +291,7 @@ describe('supportOrchestration — integration', () => {
 })
 
 describe('supportOrchestration — performance gate', () => {
-  it('p95 < 3s with 10k KBChunks indexed for the brand', async () => {
+  it('max < 3s with 10k KBChunks indexed for the brand', async () => {
     const prisma = getTestPrisma()
     const brand = await createBrand({ name: 'PerfBrand' })
     const member = await createMember({ brandId: brand.id })
@@ -330,7 +330,7 @@ describe('supportOrchestration — performance gate', () => {
       reply: '...', citedChunkIds: [], confidence: 0.9, shouldEscalate: false, reason: null,
     })
 
-    // Run 5 orchestrations, take p95
+    // Run 5 orchestrations, take max
     const durations: number[] = []
     for (let i = 0; i < 5; i++) {
       const conv = await createConversation({ brandId: brand.id, memberId: member.id })
@@ -343,9 +343,9 @@ describe('supportOrchestration — performance gate', () => {
       durations.push(Date.now() - t0)
     }
     durations.sort((a, b) => a - b)
-    const p95 = durations[Math.floor(durations.length * 0.95)]
+    const max = durations[durations.length - 1]
     // eslint-disable-next-line no-console
-    console.log(`Orchestrator p95: ${p95}ms (samples: ${durations.join(', ')})`)
-    expect(p95).toBeLessThan(3000)
+    console.log(`Orchestrator max: ${max}ms (samples: ${durations.join(', ')})`)
+    expect(max).toBeLessThan(3000)
   }, 180_000)
 })

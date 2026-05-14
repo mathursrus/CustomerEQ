@@ -104,6 +104,7 @@ async function runOrchestration(ctx: OrchestrationCtx): Promise<void> {
   const ruleResult = evaluateSupportRules(ruleInputs, {
     intent: intent.intent,
     tier: customer360?.currentTier ?? null,
+    // TODO(slice-2+): wire member.healthScore here once Customer360 is fully shaped
     healthScore: undefined,
     topics: [intent.topic],
   })
@@ -197,6 +198,10 @@ async function dispatchTier(
         },
       })
       return true
+    }
+    default: {
+      const _exhaustive: never = match.actionMode
+      throw new Error(`Unhandled actionMode: ${String(_exhaustive)}`)
     }
   }
 }

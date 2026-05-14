@@ -22,39 +22,6 @@ export const SendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
 })
 
-// --- SupportRule ---
-const CreateSupportRuleBaseSchema = z.object({
-  name: z.string().min(1).max(200),
-  description: z.string().max(1000).optional(),
-  priority: z.number().int().min(0).default(0),
-  intentFilters: z.array(z.string()).default([]),
-  tierFilters: z.array(z.string()).default([]),
-  healthScoreMin: z.number().min(0).max(100).optional(),
-  healthScoreMax: z.number().min(0).max(100).optional(),
-  topicFilters: z.array(z.string()).default([]),
-  conditions: z.object({
-    operator: z.enum(['AND', 'OR']).default('AND'),
-    conditions: z.array(z.object({
-      field: z.string(),
-      op: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains']),
-      value: z.union([z.string(), z.number()]),
-    })).default([]),
-  }).default({ operator: 'AND', conditions: [] }),
-  autoRespondArticleId: z.string().optional(),
-  escalateToAssignee: z.string().email().optional(),
-  awardPoints: z.number().int().min(0).optional(),
-  triggerSurveyId: z.string().optional(),
-})
-
-export const CreateSupportRuleSchema = CreateSupportRuleBaseSchema.refine(
-  (d) => d.healthScoreMin === undefined || d.healthScoreMax === undefined || d.healthScoreMin <= d.healthScoreMax,
-  { message: 'healthScoreMin must be <= healthScoreMax' },
-)
-
-export const UpdateSupportRuleSchema = CreateSupportRuleBaseSchema.partial().extend({
-  status: z.enum(['ACTIVE', 'PAUSED']).optional(),
-})
-
 // --- Support Orchestration & Action Modes ---
 export const SupportActionModeSchema = z.enum(['AUTO_REPLY', 'DRAFT_FOR_AGENT', 'ESCALATE'])
 export type SupportActionMode = z.infer<typeof SupportActionModeSchema>
@@ -73,6 +40,41 @@ export const SupportOrchestrationPayloadSchema = z.object({
   messageContent: z.string(),
 })
 export type SupportOrchestrationPayload = z.infer<typeof SupportOrchestrationPayloadSchema>
+
+// --- SupportRule ---
+const CreateSupportRuleBaseSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  priority: z.number().int().min(0).default(0),
+  intentFilters: z.array(z.string()).default([]),
+  tierFilters: z.array(z.string()).default([]),
+  healthScoreMin: z.number().min(0).max(100).optional(),
+  healthScoreMax: z.number().min(0).max(100).optional(),
+  topicFilters: z.array(z.string()).default([]),
+  conditions: z.object({
+    operator: z.enum(['AND', 'OR']).default('AND'),
+    conditions: z.array(z.object({
+      field: z.string(),
+      op: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains']),
+      value: z.union([z.string(), z.number()]),
+    })).default([]),
+  }).default({ operator: 'AND', conditions: [] }),
+  actionMode: SupportActionModeSchema.optional(),
+  confidenceThreshold: z.number().min(0).max(1).optional(),
+  autoRespondArticleId: z.string().optional(),
+  escalateToAssignee: z.string().email().optional(),
+  awardPoints: z.number().int().min(0).optional(),
+  triggerSurveyId: z.string().optional(),
+})
+
+export const CreateSupportRuleSchema = CreateSupportRuleBaseSchema.refine(
+  (d) => d.healthScoreMin === undefined || d.healthScoreMax === undefined || d.healthScoreMin <= d.healthScoreMax,
+  { message: 'healthScoreMin must be <= healthScoreMax' },
+)
+
+export const UpdateSupportRuleSchema = CreateSupportRuleBaseSchema.partial().extend({
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+})
 
 // Inferred types
 export type CreateConversation = z.infer<typeof CreateConversationSchema>
