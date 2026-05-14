@@ -652,7 +652,7 @@ describe('EVENT_TO_TRIGGER_KEYS', () => {
     expect(EVENT_TO_TRIGGER_KEYS['unknown.event']).toBeUndefined()
   })
 
-  it('covers all 8 event-based trigger keys', () => {
+  it('covers all 9 event-based trigger keys', () => {
     const allTriggerKeys = Object.values(EVENT_TO_TRIGGER_KEYS).flat()
     expect(allTriggerKeys).toContain('tier_upgrade')
     expect(allTriggerKeys).toContain('first_redemption')
@@ -662,6 +662,7 @@ describe('EVENT_TO_TRIGGER_KEYS', () => {
     expect(allTriggerKeys).toContain('inactive_30d')
     expect(allTriggerKeys).toContain('after_support')
     expect(allTriggerKeys).toContain('nps_drop')
-    expect(allTriggerKeys).toHaveLength(8)
+    expect(allTriggerKeys).toContain('cx.ticket_resolved')
+    expect(allTriggerKeys).toHaveLength(9)
   })
 })

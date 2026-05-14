@@ -22,7 +22,6 @@ beforeEach(() => {
 
 const NOW = Date.now()
 const THIRTY_HOURS_AGO = new Date(NOW - 30 * 60 * 60 * 1000)
-const ONE_HOUR_AGO = new Date(NOW - 1 * 60 * 60 * 1000)
 
 describe('supportTimeoutClassifier processor', () => {
   it('case 1: no candidates — no calls to classifier or resolver', async () => {
