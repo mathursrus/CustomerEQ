@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { WidgetForm } from './_components/widget-form'
 import { WidgetPreview } from './_components/widget-preview'
+import { EmbedCode } from './_components/embed-code'
 import type { WidgetConfig } from './_components/widget-preview'
 
 const DEFAULTS: WidgetConfig = {
@@ -23,6 +25,7 @@ const DEFAULTS: WidgetConfig = {
 export default function WidgetSettingsPage() {
   const { getToken } = useAuth()
   const [config, setConfig] = useState<WidgetConfig>(DEFAULTS)
+  const [brandId, setBrandId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,14 +44,15 @@ export default function WidgetSettingsPage() {
           return
         }
         const profile = (await profileRes.json()) as { brand?: { id?: string } }
-        const brandId = profile?.brand?.id
-        if (!brandId) {
+        const resolvedBrandId = profile?.brand?.id
+        if (!resolvedBrandId) {
           if (!cancelled) setError('Brand ID not found in profile response.')
           return
         }
+        if (!cancelled) setBrandId(resolvedBrandId)
 
         // Step 2: load the current widget config (public endpoint, no auth required).
-        const cfgRes = await fetch(`${API_URL}/v1/public/support/widget-config?brandId=${encodeURIComponent(brandId)}`)
+        const cfgRes = await fetch(`${API_URL}/v1/public/support/widget-config?brandId=${encodeURIComponent(resolvedBrandId)}`)
         if (!cfgRes.ok) {
           // 404 is fine — the brand simply hasn't saved a config yet; use defaults.
           if (cfgRes.status !== 404 && !cancelled) {
@@ -96,6 +100,29 @@ export default function WidgetSettingsPage() {
         </div>
       )}
 
+      {/* Embed code — first thing the brand sees so they know how to install */}
+      {brandId && (
+        <div className="mb-6">
+          <EmbedCode brandId={brandId} />
+        </div>
+      )}
+
+      {/* Theme & colors callout — colors live on BrandTheme, not duplicated here */}
+      <div className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4">
+        <div>
+          <h3 className="text-sm font-semibold text-indigo-900">Colors, logo, and fonts</h3>
+          <p className="mt-1 text-sm text-indigo-800">
+            The widget uses your brand theme. To change primary color, accent, fonts, or upload your logo, edit your brand theme.
+          </p>
+        </div>
+        <Link
+          href="/admin/settings/themes"
+          className="shrink-0 rounded-lg border border-indigo-600 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+        >
+          Manage theme →
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left: settings form */}
         <div>
@@ -107,7 +134,11 @@ export default function WidgetSettingsPage() {
           <h2 className="mb-3 text-sm font-medium text-gray-600">Live preview</h2>
           <WidgetPreview config={config} />
           <p className="mt-2 text-xs text-gray-400">
-            Preview updates as you edit. Colors reflect your brand theme.
+            Preview updates as you edit. Colors reflect your brand theme — change them under{' '}
+            <Link href="/admin/settings/themes" className="underline">
+              Themes
+            </Link>
+            .
           </p>
         </div>
       </div>
