@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
 import { API_URL } from '@/lib/config'
 import { Modal } from '@/components/ui/modal'
@@ -361,14 +362,22 @@ export default function KnowledgeBasePage() {
                 Manage articles that power AI-assisted support responses
               </p>
             </div>
-            <button
-              type="button"
-              onClick={openCreateEditor}
-              data-testid="create-article-btn"
-              className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
-            >
-              + Create Article
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/admin/kb/sources"
+                className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Manage Sources
+              </Link>
+              <button
+                type="button"
+                onClick={openCreateEditor}
+                data-testid="create-article-btn"
+                className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+              >
+                + Create Article
+              </button>
+            </div>
           </div>
 
           {/* Stats */}
