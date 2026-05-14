@@ -7,6 +7,7 @@ import {
   KB_STATUSES,
 } from '@customerEQ/shared'
 import { generateEmbedding } from '@customerEQ/ai'
+import { rebuildArticleChunks } from '@customerEQ/ai/src/kb/chunks.js'
 import { enqueueEmbeddingGeneration } from '../queues/bullmq.js'
 import pino from 'pino'
 
@@ -30,6 +31,10 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     const article = await fastify.prisma.kBArticle.create({
       data: { brandId, title, body, category, tags, status },
     })
+
+    // Rebuild chunk-level embeddings for RAG retrieval (additive — article-level
+    // embedding below stays intact for backward compatibility).
+    await rebuildArticleChunks(article.id, brandId, body)
 
     // Enqueue embedding generation
     await enqueueEmbeddingGeneration({
@@ -137,6 +142,12 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
       data: parse.data,
     })
 
+    // Rebuild chunk-level embeddings if body changed (additive — article-level
+    // embedding below stays intact for backward compatibility).
+    if (parse.data.body) {
+      await rebuildArticleChunks(article.id, brandId, article.body)
+    }
+
     // Re-generate embedding if title or body changed
     if (parse.data.title || parse.data.body) {
       await enqueueEmbeddingGeneration({
@@ -173,6 +184,9 @@ const kbRoutes: FastifyPluginAsync = async (fastify) => {
     if (!existing) {
       return reply.status(404).send({ error: 'Article not found' })
     }
+
+    // Remove chunks before soft-deleting (Cascade only fires on hard-delete).
+    await fastify.prisma.kBChunk.deleteMany({ where: { articleId: id } })
 
     await fastify.prisma.kBArticle.update({
       where: { id },

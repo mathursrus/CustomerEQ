@@ -5,8 +5,8 @@ import { Readability } from '@mozilla/readability'
 import * as cheerio from 'cheerio'
 import { createHash } from 'node:crypto'
 import { prisma } from '@customerEQ/database'
-import { type KBIngestionPayload, chunkArticleBody, type ArticleChunk } from '@customerEQ/shared'
-import { generateEmbedding } from '@customerEQ/ai/src/analysis/embeddings.js'
+import { type KBIngestionPayload, chunkArticleBody } from '@customerEQ/shared'
+import { rebuildArticleChunks } from '@customerEQ/ai/src/kb/chunks.js'
 
 const logger = pino({ name: 'kb-ingestion' })
 
@@ -106,18 +106,13 @@ async function ingestUrl(args: { url: string; source: { id: string; brandId: str
     return
   }
 
-  const chunks = chunkArticleBody(body, {
-    targetTokens: CHUNK_TARGET_TOKENS,
-    overlapTokens: CHUNK_OVERLAP_TOKENS,
-  })
-
   if (existing) {
     // Update existing article body + replace chunks.
     await prisma.kBArticle.update({
       where: { id: existing.id },
       data: { title, body, contentHash, publishedAt: new Date(), archivedAt: null },
     })
-    await writeChunksReplace(existing.id, source.brandId, chunks)
+    await rebuildArticleChunks(existing.id, source.brandId, body)
   } else {
     const article = await prisma.kBArticle.create({
       data: {
@@ -131,7 +126,7 @@ async function ingestUrl(args: { url: string; source: { id: string; brandId: str
         publishedAt: new Date(),
       },
     })
-    await writeChunksReplace(article.id, source.brandId, chunks)
+    await rebuildArticleChunks(article.id, source.brandId, body)
   }
 }
 
@@ -167,34 +162,4 @@ async function fetchSitemapUrls(sitemapUrl: string): Promise<string[]> {
     .map((_, el) => $(el).text().trim())
     .get()
     .filter(Boolean)
-}
-
-/**
- * Replace all KBChunk rows for an article inside a transaction.
- *
- * NOTE: This helper is intentionally inlined here. Task 9 will extract it to
- * `packages/ai/src/kb/chunks.ts` as `rebuildArticleChunks` and update this
- * processor to import from there.
- *
- * pgvector requires raw SQL for the embedding column (Prisma `Unsupported` type).
- */
-async function writeChunksReplace(
-  articleId: string,
-  brandId: string,
-  chunks: ArticleChunk[],
-): Promise<void> {
-  await prisma.$transaction(
-    async (tx) => {
-      await tx.kBChunk.deleteMany({ where: { articleId } })
-      for (const c of chunks) {
-        const embedding = await generateEmbedding(c.content)
-        const vec = `[${embedding.join(',')}]`
-        await tx.$executeRaw`
-          INSERT INTO "kb_chunks" ("id", "articleId", "brandId", "chunkIndex", "content", "tokenCount", "embedding", "embedStatus", "createdAt", "updatedAt")
-          VALUES (${`chunk_${articleId}_${c.chunkIndex}`}, ${articleId}, ${brandId}, ${c.chunkIndex}, ${c.content}, ${c.tokenCount}, ${vec}::public.vector, 'EMBEDDED'::"ChunkEmbedStatus", NOW(), NOW())
-        `
-      }
-    },
-    { timeout: 60_000 },
-  )
 }
