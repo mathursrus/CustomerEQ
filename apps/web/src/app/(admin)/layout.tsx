@@ -19,7 +19,9 @@ const navLinks: { href: string; label: string; section?: string }[] = [
   // ── Support ──
   { href: '/admin/support/conversations', label: 'Conversations', section: 'Support' },
   { href: '/admin/support/rules', label: 'Support Rules' },
+  { href: '/admin/support/widget', label: 'Widget Settings' },
   { href: '/admin/kb', label: 'Knowledge Base' },
+  { href: '/admin/kb/sources', label: 'KB Sources' },
   { href: '/admin/support/analytics', label: 'Analytics' },
   // ── Settings ──
   { href: '/admin/settings/organization', label: 'Organization', section: 'Settings' },
