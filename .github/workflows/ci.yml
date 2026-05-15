@@ -133,9 +133,13 @@ jobs:
           wait_for_url "http://127.0.0.1:3022/api/healthz" "demo storefront" /tmp/ceq-demo-storefront.log
         env:
           API_PORT: '4010'
+          DEMO_API_URL: http://127.0.0.1:4010
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
           CLERK_SECRET_KEY: sk_test_123
+          NEXT_PUBLIC_DEMO_BRAND_NAME: StarBrew Coffee
+          NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR: '#00704A'
+          NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR: '#CBA258'
 
       - name: Smoke Test Suite
         run: pnpm test:smoke
