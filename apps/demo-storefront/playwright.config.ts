@@ -5,6 +5,7 @@ const PORT = 3022
 const API_PORT = 4010
 const BASE_URL = `http://${HOST}:${PORT}`
 const API_URL = process.env.DEMO_API_URL ?? `http://${HOST}:${API_PORT}`
+const WEB_SERVER_TIMEOUT = process.env.CI ? 180_000 : 60_000
 
 process.env.DEMO_API_URL = API_URL
 process.env.API_PORT = process.env.API_PORT ?? String(API_PORT)
@@ -40,13 +41,13 @@ export default defineConfig({
       command: 'pnpm --filter @customerEQ/api dev:inline',
       url: `${API_URL}/healthz`,
       reuseExistingServer: true,
-      timeout: 60_000,
+      timeout: WEB_SERVER_TIMEOUT,
     },
     {
       command: `pnpm exec next dev -p ${PORT} --hostname ${HOST}`,
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      timeout: WEB_SERVER_TIMEOUT,
     },
   ],
 })
