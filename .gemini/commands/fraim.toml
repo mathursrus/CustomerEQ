@@ -1,3 +1,5 @@
+description = "Discover and execute FRAIM jobs and skills"
+prompt = """
 # FRAIM
 
 Follow this process:
@@ -19,3 +21,5 @@ Follow this process:
 4. **Execute**:
    - For jobs, follow the phased instructions and use `seekMentoring` when the job requires phase transitions.
    - For skills, apply the skill steps directly to the user's current context.
+
+"""
