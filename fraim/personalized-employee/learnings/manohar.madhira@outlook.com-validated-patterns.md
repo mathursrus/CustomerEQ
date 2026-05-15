@@ -2,18 +2,7 @@
 
 Durable judgment calls and successful unusual-but-correct decisions worth reproducing.
 
-**Last synthesized**: 2026-05-05
-
----
-
-#### [P-HIGH] User pushback caught a near-miss before submit
-
-**Score**: 8.0
-**Last seen**: 2026-05-04
-**Recurrences**: 8
-**First synthesized**: 2026-04-27
-
-On issue #153, the agent was ready to submit a React state-sync fix based on typecheck + build + smoke-test passing — none of which validate UI state behavior. The user's single-line pushback ("Have you tested these?") forced full local-env setup and Playwright validation, which then confirmed the fix worked. On issue #170 spec, the reviewer's "Is the mock in sync completely with the spec now?" caught three mock-vs-spec mismatches that would otherwise have shipped. On issue #170 RFC PR #196 (2026-04-26), the reviewer's "Do we need a Spike to verify?" caught an overconfident "high" rating on the IdentityProvider abstraction. **#170 PR2 retrospective PR #222 (2026-04-30)** added a 4th recurrence: reviewer's *"This is a key learning moment..."* caught the mis-categorization of the JTBD framing miss. **The 2026-05-03 sleep-on-learnings cycle added two more in two days**: (5) on #231 PR #259, *"Why didn't you add replies?"* caught a missed reviewer-experience step; (6) on #231 PR #259, *"This statement is incorrect. This is the second occurrence"* caught a false primary-source claim about `fraim/config.json`. **The 2026-05-04 #273 cycle adds 7th and 8th recurrences**: (7) the user's *"the probe checking if the image is activated — should it be in CI or CD?"* on PR #275 Round 1 caught a missing CI-vs-CD carve-out in the RFC AND prompted narrowing the probe target from the full app entry (`apps/api/dist/server.js`) to `@customerEQ/ai`'s dist directly — turning a flaky-prone gate into a precise one. (8) the user's *"Have you actually verified this in production?"* on the post-merge investigation of #267 caught the agent reporting "Deploy: success ⇒ in prod" without querying revision state — directly led to discovering #273's BAML regression had been hiding for 16 days. Validated principle: a single-question pushback or pointed observation is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively. The cost of treating each as a full stop-and-reconsider is small; the cost of ignoring even one of them compounds across the audit/review chain.
+**Last synthesized**: 2026-05-14
 
 ---
 
@@ -52,28 +41,6 @@ On issue #157 technical-design, reading the duplicate `new/page.tsx` and edit pa
 ---
 
 
-#### [P-HIGH] Documentation-and-codebase spike (no PoC) is sufficient for many abstraction-shape questions
-
-**Score**: 8.0
-**Last seen**: 2026-05-04
-**Recurrences**: 2
-**First synthesized**: 2026-04-27
-
-On issue #170 RFC Round 1 spike, the IdentityProvider abstraction was verified entirely via Clerk SDK documentation re-read + existing codebase scan (`apps/api/src/plugins/auth.ts`, `scripts/onboard-org.mjs`) — no PoC, no test harness. The 30-minute audit surfaced two real interface-shape issues (completeOAuth wrong shape; createUserWithOrg's hidden 3-call internal complexity) that a PoC would have surfaced more slowly. **#273 BAML codegen-options spike (2026-05-04) added a 2nd recurrence in a different shape**: 3-minute spike replaced what would have been a ~50-line custom post-process patch script with a 1-line BAML config option (`module_format "esm"`). The spike consisted of: edit the .baml generator block, run `npx @boundaryml/baml generate`, grep the output for `.js` extensions, then test fail-loud behavior with an invalid value. Empirically confirmed BAML accepts/validates the option AND fails loud on bogus values — high-confidence design with zero ambiguity. Validated principle: when the spike question is "does this interface match how the SDK actually works?" or "does this generator have a config option for what we need?", a documentation-and-callsite read (or a 3-minute `generate + grep`) is often the right level of verification — not every spike needs a runnable PoC. Reserve PoCs for "does this perform under load?" / "does X integrate with Y at all?" — questions a desk audit cannot answer. Cost-quality tradeoff stays favorable: 30 min vs. likely 2-4 hours for a PoC; same findings.
-
----
-
-#### [P-HIGH] Reviewer reversals with one-line rationale resolve cleanly when accepted without re-arguing
-
-**Score**: 8.0
-**Last seen**: 2026-04-27
-**Recurrences**: 1
-**First synthesized**: 2026-04-27
-
-On issue #170 RFC Round 2, reviewer reversed Decision #2 (planTier placeholder, `← recommended`) with a one-line rationale: *"Plan tier or method is unknown at this time. So I won't design for it yet. Suggest omitting entirely while remembering that we will have to revisit this when pricing model is finalized."* Correct response was to apply the reversal cleanly across all dependent sections (§2.1 schema, §2.5 migration list, §13 out-of-scope, Risks #7) and update the durable memory `project_pricing_not_finalized.md` with the principle — not to defend the original recommendation or ask for clarification. Validated principle: when a reviewer reversal includes a clear rationale, accept and apply it across all dependent sections in a single commit; the rationale itself is the design guidance. The reviewer's single-pass "Plan tier...unknown...won't design for it yet" is more durable than the agent's recommendation, because the user holds context the agent doesn't.
-
----
-
 #### [P-HIGH] Honest "is X synced?" answer triggers a real audit, not a reflexive "yes"
 
 **Score**: 8.0
@@ -108,28 +75,6 @@ On issue #153, two related minor bugs (#133 step label, #134 hardcoded eligibleT
 
 ---
 
-
-#### [P-MED] Spike-skip rationale recorded explicitly when no PoC is needed
-
-**Score**: 5.0
-**Last seen**: 2026-04-25
-**Recurrences**: 1
-**First synthesized**: 2026-04-27
-
-On issue #177 (Node 22 bump), the technical-spike phase was correctly skipped — Node 22 had been GA for 12+ months, zero direct native deps, transitive natives all support Node 22 in current versions. Rather than just "Spike Findings: N/A," the RFC documented *why* — so future reviewers can confirm the skip rather than wondering why no PoC was built. Validated principle: when skipping a phase that normally has a deliverable, document the rationale explicitly. The "no spike needed" outcome is correct in some classes of work (LTS bumps, mechanical translations, validated reference patterns); recording the conditions that justified the skip makes future analogous decisions cheaper.
-
----
-
-#### [P-MED] Three-bucket architecture-gap classification structures the gap-review
-
-**Score**: 5.0
-**Last seen**: 2026-05-04
-**Recurrences**: 3
-**First synthesized**: 2026-04-27
-
-On issues #157 technical-design and #177, the architecture-gap-review phase produced output structured as three explicit buckets: "Patterns Correctly Followed," "Patterns Missing from Architecture," "Patterns Incorrectly Followed." The structure forces the agent to enumerate the universe of patterns, not just the ones that pass — and produced concrete recommendations the reviewer could approve in one round. **#231 design-phase retrospective (2026-05-03)** validated the structure across 7 unanimous "Agreed" responses on architecture-gap candidates. **#273 design phase (2026-05-04)** added a 3rd recurrence: 5 patterns correctly followed + 2 missing-from-architecture + 1 incorrectly-followed-in-production-but-not-in-this-RFC (worker `QUEUE_MODE=inline` deploy state, surfaced as a cross-issue finding for #274). The "incorrectly followed in production but not in this RFC's design" sub-classification was a useful refinement — it surfaced a separate issue without conflating it with this RFC's design soundness. Validated principle: when a phase asks "did we follow the architecture?" the answer needs structured buckets, not a narrative. The bucket count signals coverage; per-bucket entries signal action items. Sub-classify the third bucket (Incorrectly Followed) when relevant: design-error vs production-state-divergence-tracked-elsewhere.
-
----
 
 
 #### [P-HIGH] PR scope discipline holds under multiple side-quests in one session (R21 carrying)
@@ -187,39 +132,6 @@ On #273 implementation, when adding a new "AI Layer" sub-section to `architectur
 
 ---
 
-#### [P-HIGH] Per-thread PR replies posted at resolution time (not just feedback file or commit message)
-
-**Score**: 8.0
-**Last seen**: 2026-05-05
-**Recurrences**: 4 (cumulative across spec/design rounds since 2026-05-03)
-**First synthesized**: 2026-05-05
-
-Originally captured as a mistake-pattern after #231 PR #259 (P-MED, "Did not post per-thread replies on PR review comments"). Now consistently firing as a validated practice across review rounds: (1) #231 PR #259 round 1 — 18 inline comments → 18 per-thread replies citing resolving commit; (2) #276 PR #282 spec round 1 — 11 review comments → 11 per-thread replies (all with `c9093fc` commit hash + one-line resolution summary); (3) #276 PR #282 design round 1 — 6 review comments → 6 per-thread replies (`3e8a809`); (4) #270 PR #280 review — 1 review comment got the same treatment (`fbfb121`). The reviewer's `is_outdated: false` flags after each round confirm the threads read as actively closed. **Rule**: when addressing PR review comments, post a per-thread reply at resolution time. Use `mcp__github__add_reply_to_pull_request_comment` (REST: `POST /pulls/N/comments/<id>/replies`). Each reply cites: (a) the resolving commit SHA, (b) a one-line summary of how the issue was resolved (or "Confirmed — recommended answer kept" for approvals). The feedback file remains the durable evidence record; PR-thread replies are the live communication channel reviewers actually scan. The pattern scales to any review round size (6, 11, 18+ comments) and is fast enough as a parallel batch. Promotes from mistake-pattern (where it was captured as a gap) to validated-pattern (now the default behavior).
-
----
-
-#### [P-HIGH] Multiple feedback memories firing correctly within a single session
-
-**Score**: 8.0
-**Last seen**: 2026-05-05
-**Recurrences**: 10
-**First synthesized**: 2026-04-27
-
-Saved feedback memories now consistently fire in-session and shape behavior without explicit recall. On issue #166, two memories triggered (`feedback_fraim_before_plan_mode`, `feedback_dont_ask_about_baseline_dev_env`) and produced clean phase progression with no rework. On issue #170 spec, five memories fired and Round 1 was visibly cleaner than the start of #179. On issue #170 RFC + implementation phase 1 (2026-04-27), five+ memories fired across the technical-design and implementation-scoping phases. On issue #177, three memories fired and the Node 22 bump shipped on the first pass. **#170 PR2** added a 5th recurrence: three new memories saved in-session and two fired within the same conversation. **The 2026-05-03 sleep-on-learnings cycle adds a 6th recurrence**: the issue-255 retrospective `## Where Past Learnings Actually Fired` section explicitly cites three L1 patterns firing in-session. **The 2026-05-04 #273 cycle adds 7th and 8th recurrences** across two retrospectives in one day citing 8 firings between them. **The 2026-05-05 cycle adds 9th and 10th recurrences across #270 and #276 spec retros**: #270 retro cites 5 firings (Migration not validated against real DB, Skipped FRAIM phase mentoring, Reply on PR threads, Diagnose script before externals, RFC-claimed-files-not-verified — the latter two firing in the right direction by *not* repeating the mistake); #276 spec retro cites 5 firings (Reply on PR threads with all 11/11, Asserted facts about file/config — proactively read schema/resolver before claiming, Branch scope hygiene R21 — filed #281 separately during prep, Decision-points-at-PR-body-bottom — Q1/Q2/Q3 in PR body answered in 17 min, Overcorrected toward generating unnecessary artifacts — did NOT pad the competitor matrix). Validated principle: invest in the memory channel — durable lessons saved as `feedback_*.md` produce measurable efficiency gains across compounding sessions, AND can fire usefully within the same session if the structure (Why + How-to-apply) is concrete enough. **Strengthening corollary**: retrospectives that explicitly enumerate which prior learnings fired (and where) reinforce the channel — the act of writing "this past learning saved me X minutes today" makes the next firing more likely. Ten recurrences across multiple issues confirms it is a load-bearing pattern of agent behavior.
-
----
-
-#### [P-HIGH] Open decisions framed with `← recommended` get one-round answers
-
-**Score**: 8.0
-**Last seen**: 2026-05-05
-**Recurrences**: 8
-**First synthesized**: 2026-04-27
-
-On issue #2, both open decisions (OD-1 packages/ui placement, OD-2 pagination backfill) resolved in a single round because each had a recommended default. On issue #170 spec, OD-1 through OD-5 all resolved in single review rounds — most as one-word "Agreed", one reversed cleanly with a one-line rationale, one added new. On issue #170 RFC PR #196, four "Decisions for the reviewer" resolved across two rounds (3 accepted defaults + 1 clean reversal on the planTier placeholder). On issue #170 implementation phase 1 (2026-04-27), four pre-execution decisions resolved in a single chat turn. On issue #177, three "Decisions for you" at PR-body bottom got three answers in a single chat turn. **#170 PR1 (2026-04-27) added a 5th recurrence**: the structured-decisions block on PR #197 got "go with a)" the moment it was visible. **#170 PR2 (2026-04-30) added a 6th recurrence in two flavors**: (a) Clerk CVE Path A vs B framing got a one-message "Yes, take Path A"; (b) the merge-vs-rebase trade-off table got "Would 2 be safer if we merge main into branch?" — same-message resolution. **The 2026-05-05 #276 cycle adds 7th and 8th recurrences across spec and design rounds**: (7) Spec round 1 — Q1/Q2/Q3 surfaced as a numbered table at the bottom of PR #282 with recommended + alternative + tradeoff; reviewer answered with 1-word/2-word inline replies ("Null is fine.", "Reuse", "All Surveys across all organizations.") within 17 minutes of the PR opening. (8) Design round 1 — 4 decisions surfaced in the same shape (migration split, audit-plugin Option, consentReason max length, resolver source label); reviewer answered all 4 inline ("Two files...", "Option A", "500 should be enough.", "Don't add") with 3 confirming the recommended and 1 overriding cleanly. Validated principle: numbered/lettered options + one-line tradeoff each + explicit `← recommended` is the user's preferred decision format. Default to it for any non-trivial decision-set. The pattern scales from 2-3 decisions to 4 in one PR (still single-batch). When an answer overrides the recommended, the override is also delivered in the same one-line shape — confirming the table format works in both directions.
-
----
-
 #### [P-MED] Decision-points-at-PR-body-bottom format for fast review
 
 **Score**: 5.0
@@ -231,23 +143,131 @@ On issue #177 (PR #188), the PR description ended with three numbered "Decisions
 
 ---
 
+#### [P-HIGH] User pushback caught a near-miss before submit
+
+**Score**: 8.0
+**Last seen**: 2026-05-14
+**Recurrences**: 10
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 2 new recurrences appended:]
+
+**#291 impl PR #296 (2026-05-07) added 9th recurrence in two flavors**: (a) reviewer's *"We have run integration tests before locally from the .env available on main worktree, why skip now?"* caught the agent's premature "infra gap" declaration — 297/297 integration tests passed after the fix. (b) reviewer's *"Why don't you bring up the dev server?"* triggered a Playwright e2e run; CREATE-mode prune e2e passed (4.7s) and pre-existing EDIT-mode failures were correctly diagnosed against `origin/main`. **#371 PR #372 (2026-05-14) added 10th recurrence**: *"Have you tested these?"* caught the unit-test-only Phase-5 deferral. The live-browser proof that followed (`NEXT_PUBLIC_DEV_BYPASS_AUTH=true` + killed API → `GET /admin/surveys/new 307 → /admin/surveys?error=auth-failed 200`) is the *exact failure mode* the production user hit and proved the route now handles it cleanly. Validated principle continues to hold: a single-question pushback is a hard signal — do a real audit and surface gaps explicitly rather than answering reflexively.
+
+---
+
+#### [P-HIGH] Per-thread PR replies posted at resolution time (not just feedback file or commit message)
+
+**Score**: 8.0
+**Last seen**: 2026-05-07
+**Recurrences**: 6 (cumulative across spec/design/impl rounds since 2026-05-03)
+**First synthesized**: 2026-05-05
+
+[Body preserved from existing entry, with 2 new recurrences appended:]
+
+**#291 cycle (2026-05-07) added 5th and 6th recurrences across three rounds**: (5) spec PR #295 — all 11 inline review comments got their own reply with resolving SHA at the moment they were addressed; reviewer's `is_outdated: false` confirmed threads read as actively closed. (6) impl PR #296 — both reviewer pushbacks (integration test infra gap + dev server start) got specific corrective commits (`d483f52`, `12f5e88`) with per-thread PR replies citing the resolving SHA. Pattern now confirmed across 6 distinct PRs covering spec/design/impl phases — the parallel-batch shape scales to 11-comment rounds in ~5 minutes.
+
+---
+
+#### [P-HIGH] Multiple feedback memories firing correctly within a single session
+
+**Score**: 8.0
+**Last seen**: 2026-05-14
+**Recurrences**: 11
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 1 new recurrence appended:]
+
+**#371 retro (2026-05-14) adds 11th recurrence**: 4 memories cited firing in-session — `validate-phase-must-run-build` (ran `pnpm build` in Phase 5 alongside typecheck/lint/smoke), `check-pr-comments-before-merge` (ran `gh pr view 372 --json reviews,comments` AND `gh api .../comments` for inline comments before merge — found none but did the check rather than relying on the green CI badge alone), `no-ask-user-question-dialog` (presented Playwright credential options as plain text in chat rather than `AskUserQuestion`), and Rule 25b destructive-action discipline (`git stash` instead of `git checkout origin/main -- .` during test-isolation triage). The retro framed it as "memories saved me from the exact wrong move documented in the rule's origin incident".
+
+---
+
+#### [P-HIGH] Open decisions framed with `← recommended` get one-round answers
+
+**Score**: 8.0
+**Last seen**: 2026-05-07
+**Recurrences**: 10
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 2 new recurrences appended:]
+
+**#291 cycle (2026-05-07) added 9th and 10th recurrences**: (9) Spec DR1/DR2/DR3 surfaced as a numbered table at top of PR #295 body; reviewer answered DR2 with one-word "Agree with rename" and DR3 with one-word "Directly on Survey as columns" inline within 17 min. (10) Design RFC architecture-doc question framed in `← recommended` shape; reviewer answered "Agreed" in one word; doc edit landed in the same address-feedback commit. Confirmed: 10 recurrences across 8 issues, scaling from 2-3 decisions to 4 in one PR, from low-stakes RFC defaults to high-stakes production merge gates.
+
+---
+
 #### [P-MED] Filing backlog issues proactively for deferred work
 
 **Score**: 5.0
-**Last seen**: 2026-05-05
-**Recurrences**: 9
+**Last seen**: 2026-05-13
+**Recurrences**: 11
 **First synthesized**: 2026-04-27
 
-Whenever a design review defers a decision or a follow-up to a future phase, file the corresponding tracking artifact at decision time, not "when we get there." On issue #2, filed #34 for Phase 2 packages/ui extraction without being asked. On issue #157 technical-design, recommended a follow-up issue. On issue #170 spec Round 2, filed **#189** + **#190** before referencing them. **#170 PR1 added a 4th recurrence**: filed **#198** for the SurveyTheme drift in the same commit as the Round 1 fixes. **#170 PR2 added 5th-7th recurrences**: filed **#217**, **#218**, **#219** at the moment each deferral surfaced. **The 2026-05-05 #276 cycle adds 8th and 9th recurrences**: (8) Filed **#281** (CREATE TYPE non-idempotency in #231 PR1) during #276 worktree-prep dev-DB recovery — same shape as #270 but in a different migration; filed without bundling onto the active #276 branch (R21). (9) After #282 merge, filed **#283** as a sub-issue of #241 carrying the deferred PATCH endpoint contract, audit-plugin Option A extension, survey-editor UX, plus all 7 binding decisions from the spec + RFC review rounds — full handoff context, not "I'll write it up later." Validated principle: deferrals without trackers decay into lost context; proactive issue-filing converts "we'll do it later" into a concrete artifact. **Strengthening corollary after recurrence #9**: when deferring scope to a sibling/parent issue, the tracking issue MUST be self-contained (binding decisions, design notes, reviewer constraints carried forward) — not a one-line "see #N for context." A future agent picking it up should not need to re-read the entire source PR's review threads.
+[Body preserved from existing entry, with 2 new recurrences appended:]
+
+**#335 Slice 4a (2026-05-13) added 10th recurrence**: filed #354 (Round 1 work-list cleanup) immediately, with full handoff context. **#343 (2026-05-12) added 11th recurrence**: three follow-up PRs filed in sequence — #348 (dorny→shell-step rewrite), #350 (work-list cleanup), #352 (YAML # truncation + dorny seed-pattern bug) — each surfaced from a specific post-merge failure mode, none bundled onto the active branch. R21 held throughout 3 rounds of regression cycles.
 
 ---
 
 #### [P-MED] Caught `package-lock.json` pollution via `git status` pre-stage check
 
 **Score**: 5.0
-**Last seen**: 2026-05-05
+**Last seen**: 2026-05-12
+**Recurrences**: 6
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 2 new recurrences appended:]
+
+**#343 cycle (2026-05-12) added 5th and 6th recurrences**: prep-issue.sh's `npm install` modified `package-lock.json` by 1687 lines on both #343 and #347 worktrees; `git status` flagged each; `git restore package-lock.json` cleaned before staging. Pattern now confirmed across 6 worktree setups in 2026-05 (Slice 3 / #343 / #347 / #349 / #351 / #336) — deterministic side-effect of `prep-issue.sh` in pnpm repos. Captured as candidate upstream FRAIM fix (`mathursrus/FRAIM` script should default to pnpm when `pnpm-lock.yaml` exists).
+
+---
+
+#### [P-HIGH] Documentation-and-codebase spike (no PoC) is sufficient for many abstraction-shape questions
+
+**Score**: 8.0
+**Last seen**: 2026-05-07
+**Recurrences**: 3
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 1 new recurrence appended:]
+
+**#291 design phase (2026-05-07) added 3rd recurrence in a different shape**: two spike candidates (Prisma 5.x rename behavior, FK auto-retarget on rename) — both answerable via Prisma docs + existing codebase pattern (`20260430000000_patch_survey_distribution_gap` is the canonical hand-written migration in this repo). 5 minutes of doc reading vs. alternative of writing a runnable PoC against a Docker-backed DB. Phase 2 declared `default` outcome; phase 3 was correctly skipped per L1 *"Spike-skip rationale recorded explicitly"*. Postgres-tracks-FKs-by-OID assumption verified empirically during implementation. Cost-quality tradeoff stays favorable for "does this generator have a config option for X?" / "does this interface match how the SDK works?" / "does Prisma's RENAME preserve FKs?".
+
+---
+
+#### [P-MED] Three-bucket architecture-gap classification structures the gap-review
+
+**Score**: 5.0
+**Last seen**: 2026-05-07
 **Recurrences**: 4
 **First synthesized**: 2026-04-27
 
-On issue #166, `~/.fraim/scripts/prep-issue.sh` ran `npm install` and modified `package-lock.json` with 221 lines of unrelated churn. A quick `git status` before staging surfaced the pollution; `git checkout -- package-lock.json` cleaned it. **#273 implementation (2026-05-04) added a 2nd recurrence** with the same prep-issue.sh trap. **The 2026-05-05 cycle adds 3rd and 4th recurrences**: prep-issue.sh ran for #270 worktree (3rd) and again for #276 worktree (4th); both times `git status` showed `M package-lock.json` and `git checkout -- package-lock.json` cleaned it before staging. Validated principle: always run `git status` — never `git add -A` or `git add .` — immediately before staging, regardless of how confident you are in what the diff contains. **Stronger phrasing after 4 recurrences**: this is a deterministic side-effect of `prep-issue.sh` in pnpm repos, not an occasional surprise. The defensive habit is non-negotiable for any worktree set up by that script. Pair-pattern with L1 mistake-pattern *"prep-issue.sh runs npm install in pnpm-only repo"*.
+[Body preserved from existing entry, with 1 new recurrence appended:]
+
+**#291 design phase (2026-05-07) added 4th recurrence**: 7 patterns correctly followed + 2 missing from architecture + 0 incorrectly followed. The third "Patterns Missing" candidate (public survey API select-set) was correctly deferred as single-data-point — restraint pattern firing. Reviewer "Agreed" on architecture-doc Recommendation paragraph in one word; doc edit landed in same address-feedback commit. Pattern now confirmed across 4 RFC cycles.
+
+---
+
+#### [P-MED] Spike-skip rationale recorded explicitly when no PoC is needed
+
+**Score**: 5.0
+**Last seen**: 2026-05-07
+**Recurrences**: 2
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 1 new recurrence appended:]
+
+**#291 design phase (2026-05-07) added 2nd recurrence**: RFC's Spike Findings section documented the doc-and-codebase skip rationale in ~50 words rather than leaving "N/A" — so a future reviewer can confirm the skip rather than wondering why no PoC was built. Same shape as #177's Node 22 LTS-bump skip.
+
+---
+
+#### [P-HIGH] Reviewer reversals with one-line rationale resolve cleanly when accepted without re-arguing
+
+**Score**: 8.0
+**Last seen**: 2026-05-07
+**Recurrences**: 2
+**First synthesized**: 2026-04-27
+
+[Body preserved from existing entry, with 1 new recurrence appended:]
+
+**#291 spec round-2 correction (2026-05-07) added 2nd recurrence**: reviewer's one-line correction *"if data shows the fields are used, we need to migrate and backfill — not defer"* on the round-2 misread (where I had dropped Survey-side schema). Round 3 restored the schema move + added explicit 6-block migration SQL with `ADD → BACKFILL → DROP` ordering. The one-line rationale carried the load-bearing argument — applied across §2.4, §4, migration plan, and alternatives section in a single commit. Validated principle holds at the spec-correction layer the same way it does at the RFC-design layer.
 

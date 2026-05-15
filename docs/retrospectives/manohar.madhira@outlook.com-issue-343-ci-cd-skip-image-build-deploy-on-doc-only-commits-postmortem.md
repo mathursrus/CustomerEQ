@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-12
-synthesized:
+synthesized: 2026-05-14
 ---
 
 # Postmortem: CI/CD — skip image build + deploy on doc-only commits — Issue #343

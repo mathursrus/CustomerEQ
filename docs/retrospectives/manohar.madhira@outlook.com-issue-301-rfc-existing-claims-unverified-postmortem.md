@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-07
-synthesized:
+synthesized: 2026-05-14
 ---
 
 # Postmortem: RFC #277 made aspirational "existing X" claims that did not match the codebase — Issue #301 (analyze-why-you-messed-up)

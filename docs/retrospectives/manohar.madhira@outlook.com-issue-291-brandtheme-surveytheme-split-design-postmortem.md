@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-07
-synthesized:
+synthesized: 2026-05-14
 ---
 
 # Postmortem: Split brand-level theme from per-survey overrides — Issue #291 (technical-design phase)
