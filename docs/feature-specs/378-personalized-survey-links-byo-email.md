@@ -2,10 +2,17 @@
 
 Issue: [#378](https://github.com/mathursrus/CustomerEQ/issues/378)
 Owner: manohar.madhira@outlook.com
-Status: **Draft (round 1) — for review.**
+Status: **Iterating (round 2 — UX simplification per chat feedback; for reviewer signoff).**
 Last touched: 2026-05-15
 
 ---
+
+## Iteration history
+
+| Round | Date | Trigger | Outcome |
+|---|---|---|---|
+| R1 | 2026-05-15 | FRAIM `feature-specification` job phases 1–5 → PR #385 opened with initial spec, mock, evidence | 4-step wizard + filter predicate + sampling-seed UI + Revoke remaining + Re-run-with-same-audience + 3 download cards + standalone Distribution batches section |
+| R2 | 2026-05-15 | Pre-document-review UX iteration via chat (feedback file: `docs/evidence/378-feature-specification-feedback.md`) | Collapsed to single short page; dropped filter predicate (V1.x); dropped seed UI (internal only); dropped Confirm step; replaced Revoke remaining with Edit Expiry (both directions); deferred Re-run-with-same-audience to V1 separate scoping; standalone batches section became filter row between Loop Monitor and Response (filter applies to Response only); 3 download cards became 1 dropdown + 1 button; respondent-form mock scene dropped (duplicated by #241 R28 Configuration Summary preview); error-state copy drops `Brand.supportEmail` reference, uses "contact the sender"; token-state vocabulary made operator-friendly (`Awaiting response` / `Responded` / `Expired`; no `Revoked` state). Captured in 20 inline feedback comments + 3 `← recommended` Qs answered. |
 
 ## Customer
 
@@ -23,7 +30,9 @@ The brand admin who configured the survey, the brand's `memberIdentifierKind`, a
 2. **No PII in any survey URL** — the link a customer clicks reveals nothing about who they are. Acceptance signal for the compliance reviewer: nginx access logs, browser history, `Referer` headers, and ESP click-trackers contain only opaque tokens.
 3. **A leaked or guessed URL cannot be used to submit a response as another member** — each token authorizes exactly one (member, batch, survey) submission and expires.
 4. **Repeated waves to the same audience** — quarterly NPS to the same 100 members, each wave open for 7 days, one response per member per wave, history retained for trending Q1 → Q2 → Q3.
-5. **Reusable audience-spec primitive** — the predicate the operator builds for "Tier=Gold, status=ACTIVE, healthScore<70, no response in last 90 days" is the same predicate shape the rest of the platform already uses (`SearchMembersQuerySchema`). Operators don't learn two filter languages.
+5. **Quick to navigate, not a multi-step elaborate flow** — operators come here to get one job done (generate per-recipient links and download a CSV). The surface should be a single short page, not a step-by-step wizard with confirmation screens duplicating preview information.
+
+> **V1.x desired outcome (deferred — separate scoping):** reusable audience-spec primitive — the predicate the operator builds for "Tier=Gold, status=ACTIVE, healthScore<70, no response in last 90 days" reuses the platform's `SearchMembersQuerySchema`. In V0 the audience is just "Existing Members" (random sample by count or percent) or "Custom List" (paste / CSV); end-to-end data wiring for the filter predicates (sentiment, health-score, NPS ranges, last-response cooldown) is not yet production-ready, and surfacing those filters in V0 would over-promise capability. See **Non-goals**.
 
 ## Customer Problem being solved
 
@@ -31,7 +40,7 @@ The issue body enumerates four interlocking problems. Each is restated here in t
 
 1. **No supported BYO-email flow.** Today brands wanting to NPS via Mailchimp have three bad options: (a) blast a single generic survey URL — loses per-recipient attribution; (b) wire up their own backend to call our APIs and per-recipient mail-merge tags — most mid-market CX operators are not engineers; (c) hand-roll URL params like `?email=jane@brand.com` — which the platform now treats as deprecated (#241 R16/D51) and which leaks PII to access logs anyway.
 2. **`?member_id=` in the URL is a security and privacy liability.** For brands whose `memberIdentifierKind = 'email'`, the URL parameter *is* the customer's email. It lands in: nginx/CDN access logs (retained ~30 days by Azure default); the respondent's browser history; the `Referer` header sent to every third-party asset on the brand's thank-you page (ad pixels, web fonts, analytics scripts); ESP click-tracker query strings (often retained indefinitely for engagement analytics). This is plainly a GDPR Article 5(1)(c) data-minimization failure and a CCPA §1798.100 disclosure-via-third-parties exposure — even before anyone exploits it. Exploitation is trivial: anyone who guesses a coworker's email (or an obvious public-figure email) can POST to `/v1/public/surveys/:id/respond` and corrupt that brand's NPS, sentiment, and any closed-loop alert rule that depends on the response.
-3. **No audience selector or sampling primitive.** "Send to a 10% random sample of my Gold members" / "send to 500 random members with healthScore < 70" / "send to this list of 83 emails I just copy-pasted, auto-enrolling the 4 unknown ones" — none of these exist as a first-class operation today. The closest thing is the member-list page with its filters; from there, the operator's options are export to CSV and reach for spreadsheet formulas. Sampling and explicit-list-with-auto-enroll are pure greenfield.
+3. **No audience selector or sampling primitive.** "Send to a 10% random sample of my members" / "send to exactly 500 random members" / "send to this list of 83 emails I just copy-pasted, auto-enrolling the 4 unknown ones" — none of these exist as a first-class operation today. The closest thing is the member-list page with its filters; from there, the operator's options are export to CSV and reach for spreadsheet formulas. Random-sample-by-count-or-percent and explicit-list-with-auto-enroll are pure greenfield. (Note: filter-by-attribute audience targeting — Gold tier, low health score, etc. — is a V1.x extension on top of the V0 primitives; see Non-goals.)
 4. **No "one response per wave."** `Survey.responsePolicy` (`ONCE | MULTIPLE | LATEST_OVERWRITES`) governs the lifetime of a survey, not a period inside it. The operator running quarterly NPS to the same 100 members wants the survey to be `MULTIPLE` (so Q2 doesn't reject members who answered in Q1) **and** wants exactly one response per member per quarter (so Q2 isn't gamed by a member opening the link twice). There is no value of `responsePolicy` that delivers both.
 
 The cumulative effect: the operator who wants "let me send NPS to my Gold members from Mailchimp each quarter and see the trend" finds the platform supports none of the four pieces — and accidentally trips a GDPR exposure in the process.
@@ -43,116 +52,153 @@ The mock at [`mocks/378-distribute-flow.html`](mocks/378-distribute-flow.html) i
 ### §1. Entry point
 
 - **Path**: `/admin/surveys/[id]/distribute` — a new sub-route of the existing survey detail page (`/admin/surveys/[id]`) per the Standard CRUD admin pattern in `docs/architecture/architecture.md` §3.1.
-- **How the operator gets there**: from the existing Distribution section on the survey detail page (#241 R26 / R27), a new **`Send via my email tool →`** primary action sits alongside the existing `Share link` and `Embed snippet` tiles. Clicking it routes to `/admin/surveys/[id]/distribute`. The Distribution section's existing copy explains: "Share link is for posting publicly. Embed is for your own site. Send via my email tool generates per-recipient links you can mail-merge from Mailchimp, HubSpot, Klaviyo, Gmail."
-- **DRAFT vs. ACTIVE**: the entry point is **disabled when `Survey.status === 'DRAFT'`** with a tooltip "Activate the survey before distributing". The new sub-route returns the same DRAFT-aware notice the rest of the detail page uses (#241 R33). Once the survey is ACTIVE, the entry point is live. PAUSED and STOPPED disable the entry point with the appropriate copy ("Resume the survey to distribute" / "This survey is stopped — Restart to distribute").
+- **How the operator gets there**: from the existing Distribution section on the survey detail page (#241 R26 / R27), a new **`Send via my email tool →`** primary action sits alongside the existing `Share link` and `Embed snippet` tiles. Tile copy: *"Generate per-recipient links for mail-merge applications like Mailchimp, or use the links to send individual mails."* Clicking it routes to `/admin/surveys/[id]/distribute`.
+- **DRAFT vs. ACTIVE**: the entry point is **disabled when `Survey.status === 'DRAFT'`** with a tooltip "Activate the survey before distributing". Once the survey is ACTIVE, the entry point is live. PAUSED disables with "Resume the survey to distribute"; STOPPED disables with "This survey is stopped — Restart to distribute".
 
-### §2. The Distribute flow — four steps
+### §2. The Distribute page — single short page
 
-The flow is a four-step wizard on a single page (sticky step-rail on the left, step body on the right), not four separate routes. Step navigation is via the step-rail or the bottom **Back / Continue** buttons. The wizard auto-saves the draft batch on every step transition — closing the browser mid-flow leaves an in-progress batch the operator can resume from a "Resume distribution" entry on the survey detail page.
+The Distribute surface is a **single page** at `/admin/surveys/[id]/distribute`. No tabs, no step-rail, no Back / Continue pagination, no separate Confirm screen. Operators come here to do one job — generate per-recipient links and download a CSV — and the page is shaped around that job, top to bottom.
 
-Step order: **Audience → Preview → Confirm → Download**.
+The page has **two visual states** on the same route:
+1. **Configure** — mode chooser + mode-specific inputs + common fields + live preview + `Generate links` button
+2. **Success** — generated-success banner + format dropdown + Download CSV button + `Done — back to survey` link
 
-#### §2.1 Step 1 — Audience
+Clicking `Generate links` transitions State 1 → State 2 in place (no route change, no loading screen interstitial). Closing the browser before clicking Generate discards the in-progress configuration (no resumable draft batches in V0 — there's nothing to resume to since there's no multi-step state).
 
-The operator chooses **mode** and (for the first two modes) **filter predicate**. Three modes, mutually exclusive within one batch but composable in obvious combinations within the predicate:
+#### §2.1 Configure state — Who gets this survey?
 
-- **Mode A — Percent**: "Send to X% of members matching this filter." Slider (1–100) + numeric input. Predicate panel below.
-- **Mode B — Count**: "Send to exactly N members matching this filter." Numeric input + predicate panel below.
-- **Mode C — Explicit list**: "Send to these specific identifiers." Two sub-modes: (i) **paste** — multi-line textarea accepting one identifier per line (emails, phone numbers, external IDs, or memberIds — kind inferred per-line from format); (ii) **upload CSV** — single-column CSV; first row treated as data unless header is named exactly `email` / `phone` / `external_id` / `member_id`. **Auto-enroll toggle**: "If I list an identifier that isn't a member yet, enroll them automatically" — checked by default; when checked, unknown identifiers route through `resolveOrEnrollMember()` with `enrolledVia = 'BULK_DISTRIBUTION'` (new enum value). When unchecked, unknown identifiers are surfaced in the Preview step as `unmatched` and excluded from the batch.
+The mode chooser is the first interactive element. Two mutually-exclusive modes presented as radio cards:
 
-**Filter predicate** (visible in Modes A and B, hidden in C):
-A horizontal chip-row mirroring the predicate the member-list page already uses. Reuses `SearchMembersQuerySchema` (`packages/shared/src/zod/member.schema.ts:90`). Operators can filter by: tier, status (ACTIVE / INACTIVE — ERASED is excluded by the audience builder as a project-rule R13 baked-in default; see Compliance §below), sentiment range, NPS range, points-balance range, health-score range, enrollment-date range, and a free-text search `q`. Each predicate filter chip shows a live count: "Tier: Gold (1,243)" updating as adjacent chips change. **Cooldown filter** — a chip "Hasn't responded in last X days" (X defaults to 30, configurable) — leverages the existing `SurveyDistribution(surveyId, memberId, sentAt)` index per #117.
+- **Existing Members · `N` total** — random sample from the brand's existing member roster. Choose **Percent** (1–100% of `N`) or **Count** (exact integer ≤ `N`). The card is **hidden entirely when `N = 0`** — for a brand that has never enrolled any members, Custom List is the only path and surfacing Existing Members as a disabled option is noise.
+- **Custom List** — operator supplies identifiers directly. Two sub-modes (toggleable within the card):
+  - **Paste** — multi-line textarea, one identifier per line. Accepts emails, phone numbers, external IDs, or memberIds; kind inferred per-line from format.
+  - **Upload CSV** — single-column CSV. First row treated as data unless header is exactly `email` / `phone` / `external_id` / `member_id`.
+  - **Auto-enroll checkbox** — *"Auto-enroll members not in this brand"* (default ON). When ON, unknown identifiers route through `resolveOrEnrollMember()` with `enrolledVia = 'BULK_DISTRIBUTION'` at generate time. When OFF, unknown identifiers are listed under `unmatched` in the preview and excluded from the wave.
 
-**Sampling seed**: under Modes A and B, the wizard auto-generates a seed (visible, copyable) and lets the operator override it. Same seed + same predicate + same data → same sample; this is what makes "re-run the same quarterly wave with the same 100 members" deterministic. Step 3 (Confirm) surfaces the seed so the operator can record it for the next wave.
+**V0 explicitly excludes filter predicates** (tier / status / sentiment / NPS / health-score / enrollment-date / response-cooldown chips). Those filter dimensions are not all production-ready end-to-end; surfacing them in V0 would mis-promise capability. The predicate primitive is recorded in Non-goals for V1.x.
 
-#### §2.2 Step 2 — Preview
+**Sampling seed is not surfaced in the UI.** Operators don't care about seeds — they care about outcomes ("did this wave go to the right members?"). The column `DistributionBatch.samplingSeed` is still written on every Existing Members batch as internal infrastructure (the V1 "Generate new tokens for same audience" affordance will use it to re-sample deterministically), but neither the configure page nor the batch detail page show it.
 
-A two-column layout: on the left, a **summary card** showing mode, filter chips, sample size (e.g. "100 members — 10% of 1,000 Gold members matching filter"); on the right, a **paginated preview table** of the first 50 selected members (name, identifier-of-record per `memberIdentifierKind`, tier, status, last-response date). At the bottom, an **`unmatched`** subsection (only visible under Mode C) listing identifiers the system could not resolve, with toggle behavior from §2.1 above (auto-enroll on → unmatched section shows zero entries because they all become new members; auto-enroll off → unmatched listed and the running count drops accordingly).
+#### §2.2 Configure state — Common fields
 
-**Wave label** (required) — a single text input: "Name this wave (will appear in analytics)." Default placeholder: `<Survey name> · <Date>` (e.g., "Q2 NPS · 2026-05-15"). Stored on `DistributionBatch.label`.
+Below the mode chooser, two fields apply to either mode:
 
-**Expiry window** (required) — a select with presets (24h / 7 days / 30 days / 90 days / custom). Default: 7 days. Stored on `DistributionBatch.expiresAt`. The wizard surfaces a passive warning if expiry < 24h ("Most ESPs deliver within 1–6 hours; a tight expiry can cause missed responses").
+- **Survey name in mail** — a single text input. Default value: the **respondent-facing** `Survey.title` (#241 R7 — the new nullable column for the respondent's form heading), **not** the admin-only `Survey.name`. The operator may edit before generating. Stored on `DistributionBatch.surveyNameInMail`; flows into the downloaded CSV's `surveyName` column so the brand's mail-merge template can reference it (e.g., `*|SURVEY_NAME|*` in Mailchimp).
+- **Links expire in** — a select with presets (24 hours / 7 days / 30 days / 90 days / Custom date). Default: 7 days. Stored on `DistributionBatch.expiresAt`. Editable later from the batch detail page (§3.1) while the survey is open.
 
-#### §2.3 Step 3 — Confirm
+A **wave label** is auto-derived as `<Survey.title> · <ISO date>` (e.g., "Q2 customer satisfaction · 2026-05-15") and stored on `DistributionBatch.label` for operator-facing analytics naming on the survey detail page filter and batch detail header. The label is **not** surfaced as an editable field on the configure page in V0 — the survey-name-in-mail field plus today's date is a sufficient operator mental anchor, and one fewer input keeps the page short. If the operator needs to rename a wave later, it can be edited from the batch detail page header.
 
-A single panel showing everything that will be written, plus the cost / impact summary:
-- Number of tokens to mint
-- Auto-enrollments that will run (Mode C only)
-- Survey name and current status (ACTIVE confirmed)
-- Operator identity (auto-filled)
-- Expiry window
-- Sampling seed (Modes A and B)
+#### §2.3 Configure state — Live preview
 
-A **`[Generate links]`** primary button at the bottom-right. Clicking it: (a) writes the `DistributionBatch` row, (b) resolves-or-enrolls the unknown identifiers per Mode C semantics, (c) mints one opaque token per `(batchId, memberId)`, (d) writes one `SurveyDistribution` row per token with `sentAt = now`, (e) returns the operator to Step 4.
+A compact preview block updates live as the operator changes inputs above:
 
-**Atomicity**: the batch-creation operation is wrapped in a single `prisma.$transaction()` so a partial failure leaves the database with neither a batch nor any tokens — never half a wave.
+- **One-line summary**: *"`N` members will receive this wave"* (Existing Members mode) or *"`N` members will receive this wave · `K` will be auto-enrolled"* (Custom List mode with auto-enroll ON and unknown identifiers detected) or *"`N` members will receive this wave · `K` identifiers are unrecognized and will be skipped"* (Custom List mode with auto-enroll OFF and unknown identifiers).
+- **First-50-rows table**: Name (if available) · identifier-of-record · Tier · Last response. Paginates if more than 50 — but the page is for verification, not browsing, so 50 is the cap. For Custom List, the table groups resolved-members on top and the `unmatched` subsection below.
+- **No "Tokens to mint" separate counter** — with predicate removed (Comment 3a), tokens-to-mint always equals the audience count shown in the summary line. One number, one mental anchor.
 
-#### §2.4 Step 4 — Download
+#### §2.4 Configure state — Generate
 
-A **success panel** confirming the batch was created. Three artifacts are downloadable from this step:
+A single `Generate `N` links` primary button at the bottom-right of the configure area. Disabled until: (a) mode is chosen and its required input is non-empty, (b) survey-name-in-mail is non-empty, (c) the resolved member count is ≥ 1.
 
-1. **CSV (full)** — columns: `memberId`, `identifier` (the value per `memberIdentifierKind`), `firstName`, `lastName`, `url`. One row per token. Filename: `<survey-slug>-<wave-label>-links.csv`.
-2. **CSV (ESP-shaped)** — same data but column names matched to the operator's ESP from a small dropdown: Mailchimp / HubSpot / Klaviyo / Generic. For Mailchimp it emits `Email Address, FNAME, LNAME, SURVEY_URL`; for HubSpot `email, firstname, lastname, survey_url`; for Klaviyo `Email, First Name, Last Name, Survey URL`; for Generic the same as #1.
-3. **ESP merge-tag snippet** — a copy-blob telling the operator what to paste into their template:
-   - Mailchimp: `<a href="*|SURVEY_URL|*">Take our survey</a>`
-   - HubSpot: `<a href="{{ contact.survey_url }}">Take our survey</a>`
-   - Klaviyo: `<a href="{{ event.SurveyUrl|default:'' }}">Take our survey</a>`
-   - Generic: the URL pattern itself, with the column-name placeholder syntax for the operator's tool.
+Clicking the button starts a transaction that: (a) writes the `DistributionBatch` row, (b) resolves-or-enrolls Custom List identifiers per the auto-enroll toggle, (c) mints one opaque token per `(batchId, memberId)`, (d) writes one `SurveyDistribution` row per token with `sentAt = now`, (e) transitions the page in place to the Success state.
 
-A **`[Done — back to survey]`** button returns the operator to the survey detail page, where a new Distribution Batches sub-section now lists this wave (see §3).
+The whole operation is wrapped in a single `prisma.$transaction()` — partial failures leave the database in its pre-batch state (no batch row, no tokens, no distribution rows). Mock Scene 2 shows this transition; the route does not change.
 
-### §3. Distribution Batches sub-section on the survey detail page
+#### §2.5 Success state — Download
 
-A new collapsible section on `/admin/surveys/[id]` titled **Distribution batches** (between Loop Monitor and Response per #241 R26 ordering; see Layout note below). Renders a table of all batches for this survey:
+The configure inputs are replaced in place by a success surface:
 
-| Column | Source |
-|---|---|
-| Label | `DistributionBatch.label` |
-| Sent at | `DistributionBatch.createdAt` |
-| Audience | one-line summary, e.g. "10% of Gold (seed `a7b3`)" or "Explicit · 100 identifiers" |
-| Tokens | minted count |
-| Consumed | count of tokens where `consumedAt IS NOT NULL` |
-| Response rate | `consumed / minted * 100%` |
-| Expires | absolute date, plus relative ("in 3 days" / "expired 12 days ago") |
-| Actions | `View details` · `Re-run with same audience` · `Revoke remaining` |
+- **Success banner**: *"✓ Generated `N` links — `<wave label>`. Tokens expire `<absolute date>`."*
+- **Format dropdown** — single select with `Generic` as the default top item, then `Mailchimp` / `HubSpot` / `Klaviyo` below. The choice tunes the CSV's column headers and the merge-tag syntax inside the `mergeTagUrl` column (see §2.6).
+- **Single `⬇ Download CSV` button** — generates and downloads the CSV in the chosen format. The CSV is generated on-the-fly each click (re-downloadable from the batch detail page later, RBAC-gated, identical contents).
+- **`Done — back to survey →`** link.
 
-**Section default**: expanded when `Survey.responsesCount > 0` and at least one batch exists; collapsed when no batches; absent (section header hidden) when no batches AND `responsesCount === 0` — the section is meaningless before any distribution.
+There is **no separate "merge-tag snippet" card** in V0 — the CSV's `mergeTagUrl` column contains the rendered tag inline, so the operator just maps that column in their mail tool.
 
-**Layout note**: section ordering on the detail page becomes:
+#### §2.6 CSV shape
+
+The downloaded CSV has six columns (column-naming varies by chosen format; semantics are identical):
+
+| Column (Generic) | Column (Mailchimp) | Column (HubSpot) | Column (Klaviyo) | Source |
+|---|---|---|---|---|
+| `memberId` | `memberId` | `member_id` | `Member ID` | `Member.id` — opaque, useful for downstream operator audit; never exposed to recipient |
+| `identifier` | `Email Address` (or `Phone Number` etc.) | `email` (or `phone` etc.) | `Email` (or `Phone` etc.) | Member's identifier-of-record per `Brand.memberIdentifierKind` |
+| `firstName` | `FNAME` | `firstname` | `First Name` | `Member.firstName` |
+| `lastName` | `LNAME` | `lastname` | `Last Name` | `Member.lastName` |
+| `surveyName` | `SURVEY_NAME` | `survey_name` | `Survey Name` | `DistributionBatch.surveyNameInMail` (same value on every row in the batch — see Open Question OQ-S1) |
+| `mergeTagUrl` | `SURVEY_URL` | `survey_url` | `Survey URL` | The token URL, rendered with merge-tag wrapping if the chosen format expects it. **Generic format**: bare URL (`https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/Xk8mP3qB...`). **Mailchimp / HubSpot / Klaviyo formats**: bare URL too — the *merge-tag* syntax (`*\|SURVEY_URL\|*` / `{{ contact.survey_url }}` / `{{ event.SurveyUrl }}`) is operator-side template syntax pointing at the column, not stored in the cell. |
+
+Filename: `<survey-slug>-<YYYY-MM-DD>-links.csv`.
+
+### §3. Distribution batches filter on the survey detail page
+
+The post-wave discovery surface is a **filter row** — not a standalone analytics section. It sits **between Loop Monitor and Response** (#241 R32b and R32) on the survey detail page and lets the operator narrow the Response section below to a specific batch's responses.
+
+**Layout note**: detail page ordering becomes:
 1. Distribution (#241 R26)
-2. **Distribution batches (NEW)**
-3. Loop Monitor (#241 R32b)
+2. Loop Monitor (#241 R32b)
+3. **Distribution batches filter (NEW)**
 4. Response (#241 R32)
 5. Configuration summary (#241 R28)
 
-The Distribution batches section sits between Distribution and Loop Monitor because the operator's natural flow on a live survey is: "see my share/embed surfaces → see my historical sends → see my pipeline → see my responses → see my config." Distribution batches are part of the operator's outbound activity, not the response analytics surface.
+The filter is positioned between Loop Monitor (lifetime pipeline / SLA — batch-independent per the issue #6 hero pipeline framing) and Response (the analytics surface that benefits from per-batch slicing). Selecting a batch narrows **Response only**; Loop Monitor stays lifetime-wide. This matches the operator's mental model: lifetime pipeline = "is the loop closing across all sends," per-batch response analytics = "how did *this* wave do?"
 
-#### §3.1 Batch detail drill-down
+**Filter row shape**:
+- Compact horizontal row with a `Wave:` label and a select control.
+- Select default: `All batches` (Response shows all responses — both `distributionBatchId IS NULL` legacy rows and all batch-attributed rows).
+- Select options (sorted `createdAt DESC`): `<wave label> · <sent date> · <N responded / N sent>` per batch. Each option carries a `Details →` link to the batch detail page.
+- Selecting a wave: Response section below re-queries with `distributionBatchId = :batchId`.
+- The filter row is **hidden entirely when no batches exist** for this survey — there's nothing to filter on. As soon as one batch is created, the row appears.
 
-Clicking a row's `View details` opens `/admin/surveys/[id]/distribute/batches/[batchId]`, a read-only page showing:
-- All Step-3 confirm-panel content
-- Tokenized URL distribution table (paginated) — columns: `memberId` (linked to Customer 360), `identifier`, `firstName`, `lastName`, `URL`, `Status` (Pending / Consumed / Expired / Revoked), `Consumed at`
-- **Consumption-over-time sparkline** showing token consumption density across the window (open rate proxy)
-- **Re-download** buttons: same three artifacts as Step 4 of the original flow, regenerated on demand (the underlying URLs are stable — re-download is safe and idempotent)
-- **Revoke remaining** — primary action with confirmation modal; bulk-flips `consumedAt = revokedAt` on every Pending token, preventing further responses. Confirms with: "Revoke 73 unused links. The 27 members who already submitted will keep their responses. Continue?"
+#### §3.1 Batch detail page
 
-#### §3.2 Re-run with same audience
+Clicking `Details →` opens `/admin/surveys/[id]/distribute/batches/[batchId]`, a focused page for one wave:
 
-Clicking `Re-run with same audience` on a batch row opens the wizard pre-populated with the original audience spec (mode + predicate + seed for A/B; identifier list for C) and a new label suggestion (`<previous label> · <next quarter>`). The operator can edit anything before generating; the seed is preserved by default so deterministic re-sampling is the default for quarterly cadences. This is what makes "quarterly NPS to the same 100 members" feel like one operation, not four.
+**Header**: wave label + status pill (Active / Expired) + summary counters (sent / awaiting response / responded / expired).
+
+**Audience Spec block** (read-only — what audience was chosen at send time):
+- Mode (e.g., `Existing Members · Count = 100` or `Custom List · 47 identifiers (4 auto-enrolled)`)
+- **Members in audience at send time: `N`** + **Members in audience now: `M`** — two side-by-side counters. `M ≤ N` accounts for members who left the brand, were erased, or otherwise dropped out since send. The delta is implicit (operator infers from the two numbers). This pre-explains why a future V1 "Generate new tokens for same audience" run will hit `M`, not `N` — without it operators may think the system made an error.
+- Created at + by whom
+
+**Expiry control** (separate from Audience Spec — it's mutable):
+- Label: *"Links expire on: `<absolute date>` · [Edit]"*
+- Clicking `[Edit]` opens an inline date/time picker. New value may be **earlier or later** than the current value (Comment 18 / Q-R1.A — both directions while the survey is open). Constraints: new `expiresAt ≥ now()`; survey must be `ACTIVE`. The change propagates to all tokens in the batch (single transaction).
+- Edit is **disabled** when the survey is not ACTIVE or when the batch has already fully expired.
+
+**Tokens table** (paginated):
+| Column | Notes |
+|---|---|
+| Member | Name (linked to Customer 360) |
+| Identifier | Email / phone / external_id per `Brand.memberIdentifierKind` |
+| Token prefix | First 8 chars of plaintext, display-only |
+| Status | One of `Awaiting response` / `Responded` / `Expired` |
+| Responded at | Timestamp when status transitioned to Responded, else `—` |
+
+**Consumption-over-time sparkline** — small inline visual showing response density across the wave window (open-rate proxy). Cosmetic; not a load-bearing analytics surface.
+
+**Re-download** — single dropdown (Generic / Mailchimp / HubSpot / Klaviyo) + `⬇ Download CSV` button, RBAC-gated by `survey.distribute`. The CSV regenerates from current state — URLs are stable, so re-download is safe and idempotent.
+
+**No Revoke action** — the V0 spec replaces "Revoke remaining" with Edit Expiry. The operator's natural goal when they want to "cut off" a wave is to set the expiry to a near-future moment. Per Comment 12, Revoke remaining was over-scoped for V0; Edit Expiry is the constructive control.
+
+**No Re-run action in V0** — the "Generate new tokens for the same audience on expired tokens" affordance (taking the operator back to the configure page pre-populated with the prior audience, deterministic via the internal seed) is a **V1 feature requiring its own scoping**. See **Non-goals (v1)**.
 
 ### §4. The respondent's experience
 
 For a respondent clicking a tokenized URL, the experience matches the existing Standalone survey form (#241 R15 / R17) with three changes:
 
 1. **URL shape**: `https://<host>/s/<surveyId>/r/<token>` instead of `https://<host>/survey/<surveyId>` or the existing `?email=` legacy. The plain `/s/<surveyId>` form remains supported (for share-link distribution) — the tokenized form is additive.
-2. **Member-identification field is suppressed**: when the URL carries a valid token, the form does not ask the respondent who they are (the token resolves the member). The form shows only the questions, consent block, and submit button.
-3. **Token-invalid states** (token expired, already consumed, revoked, malformed): the response form renders an error state with copy keyed to the failure mode:
-   - `expired` → "This survey link has expired. If you still want to share feedback, contact `<brand support email>`."
-   - `consumed` → "This survey has already been submitted. Thank you for your response!"
-   - `revoked` → "This survey link is no longer active."
-   - `malformed` → "This link is not valid. Please check it and try again."
+2. **Member-identification field is suppressed**: when the URL carries a valid token, the form does not ask the respondent who they are (the token resolves the member). The form shows only the questions, consent block, and submit button. The respondent-form preview that operators see lives in the existing **Configuration Summary** section of the survey detail page (#241 R28 — "Survey preview" header). #378 does not duplicate it.
+3. **Token-invalid states** — the response form renders an error state with copy keyed to the failure mode. No PII (no member identifier, no batch label, no email) is revealed in any state. Brand-side `Brand.supportEmail` is **not** referenced (we don't have a guaranteed support surface to point respondents at); copy says *"contact the sender"* — the brand that sent the mail-merged email is the recipient's natural contact:
 
-   No PII (no member identifier, no batch label) is revealed in any of these states. The brand support email is sourced from `Brand.supportEmail` (existing column).
+   | State | Server response | Respondent-facing copy |
+   |---|---|---|
+   | `expired` (token's `expiresAt < now`) | HTTP 410 | *"This survey link has expired. If you still want to share feedback, please contact the sender."* |
+   | `responded` (token's `consumedAt IS NOT NULL`) | HTTP 409 | *"This survey has already been submitted. Thank you for your response!"* |
+   | `survey-not-open` (survey status is DRAFT / PAUSED / STOPPED; supersedes the prior V1 "revoked" state since V0 has no revoke action) | HTTP 410 | *"This survey is no longer open. If you still want to share feedback, please contact the sender."* |
+   | `invalid` (token does not resolve — malformed, never minted, mistyped) | HTTP 410 | *"This link is not valid. Please check that you copied the full link from your email, or contact the sender."* |
+
+   The server's HTTP response shape is uniform across states (the response body's `state` field is the same enum-shape regardless of which failure occurred) to prevent token-existence-leaking timing attacks. The respondent-facing copy varies per state per the table above.
 
 ### §5. Existing surfaces that don't change
 
@@ -166,22 +212,20 @@ For a respondent clicking a tokenized URL, the experience matches the existing S
 
 ```prisma
 model DistributionBatch {
-  id             String           @id @default(cuid())
-  surveyId       String
-  survey         Survey           @relation(fields: [surveyId], references: [id])
-  brandId        String           // tenant-scoped per project rule R6
-  label          String           // operator-supplied wave name
-  audienceSpec   Json             // mode + predicate + seed (Mode C: the resolved identifier list — not the raw paste)
-  expiresAt      DateTime         // wave expiry — every token in this batch expires no later than this
-  samplingSeed   String?          // null for Mode C, set for A and B
-  createdBy      String           // clerk user id of the operator
-  createdAt      DateTime         @default(now())
-  revokedAt      DateTime?        // when set, all Pending tokens in the batch are treated as Revoked
-  revokedBy      String?          // clerk user id of the revoker (null until revokedAt is set)
-  revokeReason   String?          // free-text reason captured at revoke time (required by R26; null until revokedAt is set)
-  tokens         SurveyDistributionToken[]
-  distributions  SurveyDistribution[]
-  responses      SurveyResponse[]
+  id                 String           @id @default(cuid())
+  surveyId           String
+  survey             Survey           @relation(fields: [surveyId], references: [id])
+  brandId            String           // tenant-scoped per project rule R6
+  label              String           // operator-facing wave name, auto-derived as <Survey.title> · <ISO date>
+  surveyNameInMail   String           // respondent-facing survey name flowing into CSV's `surveyName` column; defaults to Survey.title at create-time
+  audienceSpec       Json             // mode + memberCount-at-send-time; Custom List: resolved identifier list. No filter predicate in V0.
+  expiresAt          DateTime         // wave expiry — every token in this batch expires no later than this; editable via PATCH .../expiry while survey is ACTIVE
+  samplingSeed       String?          // internal infrastructure for V1 "Generate new tokens for same audience" — null for Custom List, set for Existing Members. Never surfaced in V0 UI.
+  createdBy          String           // clerk user id of the operator
+  createdAt          DateTime         @default(now())
+  tokens             SurveyDistributionToken[]
+  distributions      SurveyDistribution[]
+  responses          SurveyResponse[]
 
   @@index([surveyId, createdAt])
   @@index([brandId, expiresAt])
@@ -199,11 +243,10 @@ model SurveyDistributionToken {
   memberId    String
   member      Member              @relation(fields: [memberId], references: [id])
   brandId     String              // tenant-scoped
-  tokenHash   String              @unique // SHA-256 of the plaintext; plaintext is shown once at creation, never stored
+  tokenHash   String              @unique // SHA-256 of the plaintext; plaintext is shown once at creation (download), never stored
   tokenPrefix String              // first 8 chars of plaintext, for operator-side display in batch-detail table
-  expiresAt   DateTime            // copied from DistributionBatch.expiresAt; denormalized for index-only lookups
+  expiresAt   DateTime            // copied from DistributionBatch.expiresAt; updated atomically when Edit Expiry runs on the parent batch
   consumedAt  DateTime?           // single-use marker; set when a response is accepted via this token
-  revokedAt   DateTime?           // set when a single token or its batch is revoked
 
   @@unique([batchId, memberId])  // one token per member per batch — the issue's stated invariant
   @@index([tokenHash])
@@ -254,7 +297,7 @@ model SurveyResponse {
 
 ### Modified: `MemberEnrolledVia` enum
 
-Add `BULK_DISTRIBUTION` to the enum (currently: `MANUAL_API | BULK_IMPORT | SURVEY_RESPONSE | EMBEDDED_FORM | CLERK_OAUTH`). Used by Mode C auto-enroll path in §2.1.
+Add `BULK_DISTRIBUTION` to the enum (currently: `MANUAL_API | BULK_IMPORT | SURVEY_RESPONSE | EMBEDDED_FORM | CLERK_OAUTH`). Used by the Custom List auto-enroll path in §2.1.
 
 ```prisma
 enum MemberEnrolledVia {
@@ -263,7 +306,7 @@ enum MemberEnrolledVia {
   SURVEY_RESPONSE
   EMBEDDED_FORM
   CLERK_OAUTH
-  BULK_DISTRIBUTION  // NEW — Mode C auto-enroll under #378
+  BULK_DISTRIBUTION  // NEW — Custom List auto-enroll under #378
 }
 ```
 
@@ -273,86 +316,92 @@ All endpoints under `/v1/surveys/:id/distribution-batches/*` are authenticated (
 
 | Verb | Path | Purpose |
 |---|---|---|
-| `POST` | `/v1/surveys/:id/distribution-batches/preview` | Step 2 — given an audience spec, return projected count, sample table (first 50), and unmatched list. **Idempotent — no rows written.** |
-| `POST` | `/v1/surveys/:id/distribution-batches` | Step 3 — create the batch, resolve-or-enroll Mode C identifiers, mint tokens, write distribution rows. Returns batch summary + plaintext tokens once (downloaded on the spot in Step 4). |
-| `GET` | `/v1/surveys/:id/distribution-batches` | List all batches for the survey. |
-| `GET` | `/v1/surveys/:id/distribution-batches/:batchId` | Batch detail — audience spec, token list (without plaintext — tokenPrefix only), consumption stats. |
-| `GET` | `/v1/surveys/:id/distribution-batches/:batchId/export` | Re-download CSV / ESP-shaped CSV. Returns plaintext URLs because the URL **is** the token-bearing artifact the operator already received once. RBAC-gated (`survey.distribute` permission, scope: TBD in RFC). |
-| `POST` | `/v1/surveys/:id/distribution-batches/:batchId/revoke` | Bulk-revoke all Pending tokens in a batch. Audit-logged. |
+| `POST` | `/v1/surveys/:id/distribution-batches/preview` | Live preview — given an audience spec (mode + count/percent or identifier list + auto-enroll flag), return projected count, first-50 sample table, and unmatched list. **Idempotent — no rows written.** Called repeatedly by the configure page as the operator changes inputs. |
+| `POST` | `/v1/surveys/:id/distribution-batches` | Generate links — create the batch, resolve-or-enroll Custom List identifiers, mint tokens, write distribution rows. Single transaction. Returns batch summary + plaintext token URLs **once** (returned in response body for the immediate download; never returned by any subsequent endpoint). |
+| `GET` | `/v1/surveys/:id/distribution-batches` | List all batches for the survey. Used by the detail-page filter row. Includes per-batch counters: `sentCount`, `respondedCount`, `awaitingCount`, `expiredCount`. |
+| `GET` | `/v1/surveys/:id/distribution-batches/:batchId` | Batch detail — audience spec, member-count-at-send-time + member-count-now, expiry, token list (`tokenPrefix` only — never plaintext), consumption stats. |
+| `GET` | `/v1/surveys/:id/distribution-batches/:batchId/export` | Re-download CSV. Returns plaintext URLs (the URL **is** the token-bearing artifact). RBAC-gated (`survey.distribute` permission). Query param `format=generic\|mailchimp\|hubspot\|klaviyo` controls column-naming + merge-tag syntax. |
+| `PATCH` | `/v1/surveys/:id/distribution-batches/:batchId/expiry` | Edit Expiry Date — accepts `{ "expiresAt": "<ISO datetime>" }`. New value may be earlier or later than the current value (Comment 18 / Q-R1.A). Constraints: `new expiresAt ≥ now()`; `Survey.status === 'ACTIVE'`. Updates `DistributionBatch.expiresAt` + all child `SurveyDistributionToken.expiresAt` in a single transaction. Audit-logged. |
 | `POST` | `/v1/public/surveys/:id/respond` | Existing endpoint. **Additive change:** accepts a new optional `token` field in body. When present, server validates token → resolves member → marks token consumed atomically with response write. When absent, behavior unchanged. |
-| `GET` | `/v1/public/surveys/:id/token-status` | Pre-form-render check used by the standalone form when loaded at `/s/:surveyId/r/:token` — returns one of `valid` / `expired` / `consumed` / `revoked` / `invalid` so the form can render the right state without revealing whether the token was ever valid (response is the same shape regardless of the failure reason from a server-API consumer perspective; the respondent-facing copy differs per state per §4). |
+| `GET` | `/v1/public/surveys/:id/token-status` | Pre-form-render check used by the standalone form when loaded at `/s/:surveyId/r/:token` — returns one of `valid` / `expired` / `responded` / `survey-not-open` / `invalid` so the form can render the right state per §4. Response body shape is uniform across failure states; the respondent-facing copy differs per state. |
 
-**RBAC**: a new permission `survey.distribute` gates batch creation, revocation, and re-download. The existing survey-edit role acquires this permission by default. The RFC owns the permission-matrix detail; this spec records the requirement.
+**RBAC**: a new permission `survey.distribute` gates batch creation, expiry edits, and re-download. The existing survey-edit role acquires this permission by default. The RFC owns the permission-matrix detail; OQ-S2 is recorded in the Open Questions section in case the reviewer wants to lock the matrix in this spec round.
+
+**Removed from V1 draft**: `POST /.../revoke` endpoint (Revoke remaining action — per Comment 12, dropped from V0; replaced by Edit Expiry Date below).
 
 ## Functional Requirements
 
-Tags `R1`–`R30` are referenced from implementation tasks, tests, and the RFC's traceability matrix. Each requirement has a `Given / When / Then` acceptance criterion.
+Tags `R1`–`R28` are referenced from implementation tasks, tests, and the RFC's traceability matrix. Each requirement has a `Given / When / Then` acceptance criterion.
 
 ### Entry point and routing
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R1** | The survey detail page's Distribution section SHALL render a primary `Send via my email tool →` action alongside the existing Share link and Embed snippet tiles, routing to `/admin/surveys/:id/distribute`. | Given an ACTIVE survey, when the operator opens `/admin/surveys/:id`, then the Distribution section renders the action; clicking it navigates to `/admin/surveys/:id/distribute`. |
-| **R2** | The `Send via my email tool →` action SHALL be disabled when `Survey.status !== 'ACTIVE'`, with a tooltip keyed to the state. | Given `status='DRAFT'`, when the section renders, then the action is disabled and the tooltip reads "Activate the survey before distributing". Given `'PAUSED'`, the tooltip reads "Resume the survey to distribute". Given `'STOPPED'`, "This survey is stopped — Restart to distribute". |
-| **R3** | The Distribute flow SHALL be a single-page four-step wizard (Audience → Preview → Confirm → Download), navigable via step-rail or bottom Back / Continue buttons; closing the browser mid-flow SHALL leave a resumable in-progress batch (`DistributionBatch.status = 'DRAFT'`). | Given the operator reaches Step 2 and closes the browser, when they return to `/admin/surveys/:id`, then a "Resume distribution" entry surfaces in the Distribution batches section linking back to the wizard pre-populated to Step 2. |
+| **R1** | The survey detail page's Distribution section SHALL render a primary `Send via my email tool →` action alongside the existing Share link and Embed snippet tiles, routing to `/admin/surveys/:id/distribute`. The tile description copy SHALL be: *"Generate per-recipient links for mail-merge applications like Mailchimp, or use the links to send individual mails."* | Given an ACTIVE survey, when the operator opens `/admin/surveys/:id`, then the Distribution section renders the action with the prescribed description; clicking it navigates to `/admin/surveys/:id/distribute`. |
+| **R2** | The `Send via my email tool →` action SHALL be disabled when `Survey.status !== 'ACTIVE'`, with a tooltip keyed to the state. | Given `status='DRAFT'`, when the section renders, then the action is disabled and the tooltip reads "Activate the survey before distributing". Given `'PAUSED'`, "Resume the survey to distribute". Given `'STOPPED'`, "This survey is stopped — Restart to distribute". |
+| **R3** | The Distribute surface SHALL be a single page (no tabs, no step-rail, no Back/Continue, no separate Confirm screen) with two visual states on the same route: **Configure** (mode chooser + inputs + live preview + Generate button) and **Success** (banner + format dropdown + Download CSV + Done link). Clicking `Generate links` transitions State 1 → State 2 in place; no route change. | Given the operator clicks `Generate links` while configured, when the transaction commits, then the URL stays at `/admin/surveys/:id/distribute` and the page renders the Success state inline. Given the operator closes the browser mid-configure, when they return, then no resumable draft batch exists (V0 has no resumable wizard state). |
 
-### Audience step
-
-| ID | Requirement | Acceptance Criterion |
-|----|-------------|-----------------------|
-| **R4** | The Audience step SHALL offer three mutually-exclusive modes: Percent (1–100% of filter), Count (exact N of filter), Explicit list (paste or CSV upload). | Given the operator switches mode, when they click a mode card, then the previous mode's inputs hide and the chosen mode's inputs render in their place; the predicate panel shows in Modes A and B, hides in Mode C. |
-| **R5** | The predicate panel SHALL reuse `SearchMembersQuerySchema` for filter fields (`tier`, `status`, `sentimentMin/Max`, `npsMin/Max`, `balanceMin/Max`, `healthScoreMin/Max`, `enrolledAfter/Before`, `q`) plus a new `noResponseInLastDays` chip. ERASED members SHALL be excluded from the predicate's status option (project rule R13). | Given the operator opens the predicate panel, when the status dropdown renders, then options are `ACTIVE` and `INACTIVE` only; `ERASED` is not selectable. Given they apply tier=Gold + healthScore<70 + noResponseInLastDays=30, when the preview projects, then the projected count matches the query the server actually runs (same predicate shape as `/v1/members?...`). |
-| **R6** | Mode C SHALL accept identifiers via paste (multi-line textarea, one per line) or CSV upload (single-column; header row optional). Identifier kind SHALL be inferred per-line (email format → email; digits → phone; otherwise → external_id or memberId). | Given the operator pastes `jane@brand.com\n+15551234\nusr_abc`, when they click Continue, then the preview shows three resolved identifiers tagged with their inferred kinds. |
-| **R7** | Mode C SHALL provide an **auto-enroll** toggle (default ON). When ON, unknown identifiers route through `resolveOrEnrollMember(BULK_DISTRIBUTION)` at batch-create time. When OFF, unknown identifiers are listed under `unmatched` in Preview and excluded from the batch. | Given auto-enroll is ON and the paste includes 3 unknown emails, when Step 3 confirms, then `SELECT count(*) FROM Member WHERE enrolledVia='BULK_DISTRIBUTION'` advances by 3 and 3 new tokens are minted. Given auto-enroll is OFF, the same paste results in 0 new Member rows and 0 tokens for those 3 identifiers; Preview shows them under `unmatched`. |
-| **R8** | The audience builder SHALL generate a default sampling seed visible and copyable on Step 1; the operator MAY override it. The seed SHALL be stored on `DistributionBatch.samplingSeed`. The same `(seed, predicate, member-set state)` SHALL produce identical samples across batches. | Given an operator creates Batch1 with seed `a7b3c1` and predicate tier=Gold; when they later use `Re-run with same audience` and Batch2 is created with the same seed, then the resolved member-set is identical except for members enrolled or status-changed between the two runs (which is observable in the batch detail — surfaced as a diff annotation). |
-| **R9** | The Preview step SHALL show, for the projected audience, mode and predicate summary, paginated sample table (first 50 rows), and an `unmatched` subsection (Mode C only). | Given a Percent mode with 10% of 1,000 Gold members, when the operator clicks Continue from Step 1, then Step 2 renders "100 of 1,000 Gold members" plus a 50-row preview table with name, identifier, tier, status, last response. |
-| **R10** | The Preview step SHALL require **Wave label** (≤80 chars, default `<survey-name> · <ISO date>`) and **Expiry window** (24h / 7d / 30d / 90d / custom) before Continue is enabled. | Given the operator clears the label, when they click Continue, then the button is disabled and the label field shows an inline error "Required". |
-
-### Confirm and generate
+### Configure state — Audience
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R11** | The Confirm step SHALL summarize everything that will be written (token count, auto-enroll count for Mode C, label, expiry, operator identity, seed) before the operator can click `Generate links`. | Given the operator reaches Step 3, when the panel renders, then every field above is visible; the Generate button is enabled. |
-| **R12** | The batch-creation operation SHALL be transactional. A failure at any step (member resolution, token minting, distribution-row write) SHALL leave the database in its pre-batch state (no DistributionBatch row, no tokens, no SurveyDistribution rows). | Given Mode C with one identifier that triggers a unique-constraint violation deep in resolveOrEnrollMember, when the transaction rolls back, then `SELECT count(*) FROM "DistributionBatch" WHERE id=:b` returns 0 and `SELECT count(*) FROM "SurveyDistributionToken" WHERE batchId=:b` returns 0. |
-| **R13** | Token plaintext SHALL be shown to the operator exactly once — in Step 4 download artifacts. The server SHALL NEVER store plaintext; only `tokenHash` (SHA-256 of plaintext) and `tokenPrefix` (first 8 plaintext chars, display-only). | Given a batch is created and the operator dismisses the Download step, when they later open the batch detail page, then the token list shows tokenPrefix values only; no API path returns plaintext. |
-| **R14** | Tokens SHALL be cryptographically strong: ≥192 bits of entropy, generated via `crypto.randomBytes(24)` and base64url-encoded, with no order-dependence on memberId or timestamp. | Verified via code review; sample tokens pass a chi-squared randomness check (RFC's implementation contract). |
-| **R15** | The Download step SHALL provide three downloadable artifacts: (a) **CSV (full)** with columns `memberId, identifier, firstName, lastName, url`; (b) **CSV (ESP-shaped)** with one of Mailchimp / HubSpot / Klaviyo / Generic column conventions per operator selection; (c) **ESP merge-tag snippet** as a copy-blob. | Given the operator selects Mailchimp from the ESP dropdown, when they click `Download CSV`, then the CSV header reads `Email Address,FNAME,LNAME,SURVEY_URL`. |
+| **R4** | The mode chooser SHALL present exactly two radio-card options: **Existing Members · `N` total** and **Custom List**. The Existing Members card SHALL be **hidden entirely** when the brand has zero non-ERASED members (`N === 0`). | Given a brand with 1,243 members, when the page renders, then both cards are visible; the Existing Members card shows "1,243 total". Given a brand with 0 members, then only the Custom List card renders. |
+| **R5** | The Existing Members card SHALL offer a Percent / Count toggle with a single numeric input. Percent accepts 1–100; Count accepts 1–`N`. The resolved audience count SHALL update live in the preview as the toggle or input changes. | Given the operator selects Percent at 10 against `N=1,243`, when the preview updates, then the summary line reads "124 members will receive this wave". Given they switch to Count and enter 100, then the summary line reads "100 members will receive this wave". |
+| **R6** | The Custom List card SHALL accept identifiers via paste (multi-line textarea, one per line) or CSV upload (single-column; first row treated as data unless header is `email` / `phone` / `external_id` / `member_id`). Identifier kind SHALL be inferred per-line from format (email pattern → email; digit pattern → phone; otherwise → external_id or memberId). | Given the operator pastes `jane@brand.com`, `+15551234`, `usr_abc`, when the preview updates, then three resolved identifiers are listed with their inferred kinds visible. |
+| **R7** | The Custom List card SHALL include an auto-enroll checkbox (default ON), copy: *"Auto-enroll members not in this brand"*. When ON, unknown identifiers route through `resolveOrEnrollMember()` with `enrolledVia='BULK_DISTRIBUTION'` at generate time. When OFF, unknown identifiers appear in the preview under `unmatched` and are excluded from the wave. | Given auto-enroll ON and the paste includes 3 unknown emails, when Generate succeeds, then `SELECT count(*) FROM Member WHERE enrolledVia='BULK_DISTRIBUTION'` advances by 3 and 3 tokens are minted for them. Given auto-enroll OFF, the same paste mints 0 tokens for those identifiers and the preview shows them under `unmatched`. |
+| **R8** | The configure page SHALL **not** surface a sampling-seed input, control, or display. `DistributionBatch.samplingSeed` continues to be written on every Existing Members batch (random base64url string) as internal infrastructure for the V1 "Generate new tokens for same audience" affordance; it is never visible in the V0 UI or returned in API responses to non-admin consumers. | Given the operator views any configure-state surface or batch detail page in V0, when they inspect the rendered DOM and the JSON of any API call, then no `samplingSeed` field appears. Given the database after Generate, then `DistributionBatch.samplingSeed IS NOT NULL` for Existing Members batches and `IS NULL` for Custom List batches. |
+| **R9** | The configure page SHALL **not** offer audience predicate filters (tier / status / sentiment / NPS / health-score / enrollment-date / response-cooldown) in V0. The V0 audience is mode-only (Existing Members random sample, or Custom List). ERASED members SHALL be automatically excluded from the Existing Members pool (project rule R13). | Given the page renders, when the operator inspects the configure surface, then no predicate chips, filter inputs, or "Add filter" affordances are visible. Given an Existing Members batch is generated against a brand with ERASED members in the roster, then no ERASED member receives a token. |
+
+### Configure state — Common fields, preview, generate
+
+| ID | Requirement | Acceptance Criterion |
+|----|-------------|-----------------------|
+| **R10** | Below the mode chooser SHALL be a **Survey name in mail** field (required, ≤80 chars), defaulting to the respondent-facing `Survey.title` (#241 R7 — *not* the admin-only `Survey.name`). The value flows into the downloaded CSV's `surveyName` column. | Given a survey with `title='Q2 Customer Satisfaction'` and `name='Q2-NPS-internal-2026'`, when the page renders, then the Survey-name-in-mail field is pre-filled with `Q2 Customer Satisfaction`. Given the operator clears the field, then `Generate links` is disabled and an inline error reads "Required". |
+| **R11** | Below Survey-name-in-mail SHALL be a **Links expire in** select with presets `24 hours / 7 days / 30 days / 90 days / Custom date`. Default: 7 days. Stored on `DistributionBatch.expiresAt`. The expiry is editable later from the batch detail page (R20). | Given the operator selects 30 days at 14:00 on 2026-05-15, when Generate succeeds, then `DistributionBatch.expiresAt` is `2026-06-14T14:00:00Z`. Given the operator picks Custom and selects 2026-05-22 09:00 UTC, then `expiresAt` matches. |
+| **R12** | The live preview block SHALL show, updating as inputs change: (a) one summary line — *"`N` members will receive this wave"* or *"`N` members will receive this wave · `K` will be auto-enrolled"* (Custom List + auto-enroll ON + unknowns detected) or *"`N` members will receive this wave · `K` identifiers are unrecognized and will be skipped"* (Custom List + auto-enroll OFF + unknowns); (b) a first-50-rows table with Name / identifier-of-record / Tier / Last response; (c) for Custom List, an `unmatched` subsection listing skipped identifiers. There SHALL NOT be a separate "Tokens to mint" counter — with predicates removed (R9), tokens-to-mint always equals the audience count. | Given Existing Members at Count=100, when the preview renders, then the summary reads "100 members will receive this wave" with no "Tokens to mint" card. Given Custom List with paste of 50 lines (47 resolved, 3 unknown) and auto-enroll ON, then the summary reads "50 members will receive this wave · 3 will be auto-enrolled". |
+| **R13** | The page SHALL have one primary `Generate `N` links` button at the bottom-right of the configure area. Disabled state SHALL gate on: (a) a mode is chosen, (b) the mode's required input is non-empty, (c) Survey-name-in-mail is non-empty, (d) resolved member count ≥ 1. Clicking transitions the page to the Success state in place (no route change). | Given all gates pass with a 47-member preview, when the button label renders, then it reads "Generate 47 links" and is enabled. Given Survey-name-in-mail is empty, then the button is disabled with a tooltip pointing at the empty field. |
+| **R14** | The Generate operation SHALL be transactional. A failure at any step (member resolution, token minting, distribution-row write) SHALL leave the database in its pre-batch state. | Given Custom List with one identifier that triggers a unique-constraint violation deep in `resolveOrEnrollMember`, when the transaction rolls back, then `SELECT count(*) FROM "DistributionBatch" WHERE id=:b` returns 0 and `SELECT count(*) FROM "SurveyDistributionToken" WHERE batchId=:b` returns 0. |
+| **R15** | Token plaintext SHALL be transmitted to the operator exactly once — in the response body of `POST /v1/surveys/:id/distribution-batches`, consumed by the Success-state download. The server SHALL store only `tokenHash` (SHA-256 of plaintext) and `tokenPrefix` (first 8 plaintext chars, display-only). Tokens SHALL be ≥192 bits of entropy via `crypto.randomBytes(24)`, base64url-encoded. | Given a batch is created, when the POST response is examined, then the response body contains a `tokens[].plaintext` field. Given any subsequent GET to the batch detail endpoint, then no plaintext field appears in the response; only `tokenPrefix` + state. Sample tokens pass a chi-squared randomness check. |
+
+### Success state — Download
+
+| ID | Requirement | Acceptance Criterion |
+|----|-------------|-----------------------|
+| **R16** | The Success state SHALL render a success banner, a single **format dropdown** (options in order: `Generic` (default) / `Mailchimp` / `HubSpot` / `Klaviyo`), and a single **`⬇ Download CSV`** button. There SHALL be no separate "merge-tag snippet" card — the merge-tag column-naming is baked into the CSV columns per format. | Given the page is in Success state, when it renders, then exactly one dropdown and one download button appear, plus a `Done — back to survey` link. |
+| **R17** | The downloaded CSV SHALL have six columns (semantics fixed; column-naming varies by format): `memberId`, `identifier`, `firstName`, `lastName`, `surveyName`, `mergeTagUrl`. The `mergeTagUrl` column SHALL contain the bare token URL (`https://<host>/s/:surveyId/r/:token`) — operators wrap with merge-tag syntax in their email template referring to the column. | Given the operator selects Mailchimp and clicks Download, when the CSV is parsed, then the header reads `memberId,Email Address,FNAME,LNAME,SURVEY_NAME,SURVEY_URL` and the `SURVEY_URL` column holds bare URLs. |
+| **R18** | The Success-state Download SHALL be re-runnable from the batch detail page (R23) via the same format dropdown. Re-download is idempotent — same batch, same tokens, same URLs; CSV regenerates on demand. Gated by `survey.distribute` permission. | Given the operator returns to the batch detail page later and clicks Download, when the CSV is parsed, then the URLs match the URLs received at Generate time. |
 
 ### Token-authorized response
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R16** | URL shape SHALL be `/s/:surveyId/r/:token`. The standalone form SHALL call `GET /v1/public/surveys/:id/token-status?token=...` on mount and render: (a) the form (token=valid); (b) one of four error states (expired / consumed / revoked / malformed) — no PII in any state. | Given a valid token URL, when the form loads, then the questions render and no member-ID input field is shown (because the token resolves the member). Given an expired token URL, then "This survey link has expired. Contact `<brand support email>` to share feedback." renders; no member identifier appears on the page or in the network traffic. |
-| **R17** | When a response is submitted via a tokenized URL, the API SHALL: (a) resolve the member via the token, ignoring any `memberId` / `email` field in body for identification purposes; (b) atomically write the `SurveyResponse` row with `distributionBatchId` and `distributionTokenId` populated, and mark `SurveyDistributionToken.consumedAt = now`; (c) reject second submissions with the same token via HTTP 409. The body-supplied `memberId` / `email` MAY be supplied for audit but a mismatch with the token-resolved member SHALL return HTTP 422. | Given a valid token and a response POST, when the API processes it, then `SurveyResponse.distributionBatchId` is set and `SurveyDistributionToken.consumedAt` is set within the same transaction. Given a second POST with the same token, then HTTP 409 returns and no second `SurveyResponse` row is written. Given a body identifier that does not match the token's member, then HTTP 422 returns and no row is written. |
-| **R18** | An expired token SHALL be rejected at response-submit even if the form was loaded before expiry. | Given a token expires at 12:00 and the form was loaded at 11:59, when the operator submits at 12:01, then HTTP 410 returns and the form re-renders with the expired-state copy. |
-| **R19** | A revoked token (single or via batch-revoke) SHALL be rejected at response-submit identically to consumed. | Given the operator revokes the batch, when a respondent submits with one of the revoked tokens, then HTTP 410 returns; the response is not written. |
+| **R19** | URL shape SHALL be `/s/:surveyId/r/:token`. The standalone form SHALL call `GET /v1/public/surveys/:id/token-status?token=...` on mount and render one of: (a) the form (state=`valid`); (b) the expired / responded / survey-not-open / invalid error states per §4. No PII appears in any state. | Given a valid token URL, when the form loads, then the questions render and no member-ID input field is shown. Given an expired token URL, then *"This survey link has expired. If you still want to share feedback, please contact the sender."* renders; no member identifier appears on the page or in the network traffic. |
+| **R20** | When a response is submitted via a tokenized URL, the API SHALL: (a) resolve the member via the token, ignoring any `memberId` / `email` field in body for identification; (b) atomically write the `SurveyResponse` row with `distributionBatchId` and `distributionTokenId` populated, and mark `SurveyDistributionToken.consumedAt = now`; (c) reject second submissions with the same token via HTTP 409; (d) reject submissions when the parent survey is not ACTIVE via HTTP 410 with state=`survey-not-open`. The body-supplied identifier MAY be present for audit but a mismatch with the token-resolved member SHALL return HTTP 422. | Given a valid token and a response POST, when the API processes it, then both writes complete in one transaction. Given a second POST with the same token, then HTTP 409 returns and no second `SurveyResponse` row is written. Given the survey is in STOPPED state and a respondent submits a token that was minted while it was ACTIVE, then HTTP 410 returns with state=`survey-not-open` and no row is written. |
+| **R21** | An expired token SHALL be rejected at response-submit even if the form was loaded before expiry (server-side check on `token.expiresAt > now()` is authoritative). | Given a token expires at 12:00 and the form was loaded at 11:59, when the operator submits at 12:01, then HTTP 410 returns with state=`expired` and the form re-renders with the expired-state copy. |
 
 ### Recurring waves and one-per-wave
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R20** | A survey with `responsePolicy = 'MULTIPLE'` SHALL accept multiple lifetime responses from the same member across batches; each batch SHALL accept exactly one response per member (enforced by the token's single-use). | Given a survey with `responsePolicy='MULTIPLE'` and the same member is included in Batch Q1 and Batch Q2, when the member submits responses in both, then two `SurveyResponse` rows exist, one with `distributionBatchId = Q1` and one with `Q2`; both tokens are `consumed`. |
-| **R21** | A survey with `responsePolicy = 'ONCE'` SHALL still allow tokenized distribution, but the second submit by the same member (regardless of batch) SHALL return HTTP 409 per existing #241 R8 semantics. | Given a survey with `responsePolicy='ONCE'` and the same member receives Batch Q1 and Batch Q2 tokens, when they submit in Q1 (accepted) and then submit in Q2, then Q2's submit returns HTTP 409 and the Q2 token is **not** marked consumed (the response-policy rejection happens before token consumption). The Q2 token expires naturally and is recorded as `expired` in batch analytics. |
-| **R21b** | A survey with `responsePolicy = 'LATEST_OVERWRITES'` SHALL accept the new response and update the prior `SurveyResponse` row in place (per existing semantics), AND the token for the new batch SHALL still be marked consumed. The prior row's `distributionBatchId` / `distributionTokenId` SHALL be **overwritten** to the new batch and token — the wave attribution follows the latest response, consistent with the "latest overwrites" name. The prior batch's analytics still reflect that the prior token was previously consumed (consumption is a per-token event, not derived from the SurveyResponse row). | Given a survey with `responsePolicy='LATEST_OVERWRITES'`, the same member in Batch Q1 and Batch Q2, Q1 response submitted then Q2 response submitted, when both submissions complete, then `SELECT count(*) FROM SurveyResponse WHERE memberId=:m AND surveyId=:s` is 1; that row's `distributionBatchId = Q2` and `distributionTokenId = Q2_token`; the Q1 token's `consumedAt` is **not** rolled back (token consumption is monotonic). Batch Q1 analytics show "1 consumed, 0 attributed responses"; batch Q2 analytics show "1 consumed, 1 attributed response". |
-| **R22** | The `Re-run with same audience` action SHALL pre-populate the wizard with the source batch's audience spec — mode, predicate, seed for Modes A/B; identifier list for Mode C — and a new label suggestion of the form `<source label> · <next-period suffix>`. | Given the operator clicks `Re-run with same audience` on a batch labeled `Q1 NPS · 2026-02-15`, when the wizard opens, then mode/predicate/seed are pre-filled and the label field reads `Q1 NPS · 2026-02-15 · 2026-05-15` (date is `today`). |
+| **R22** | A survey with `responsePolicy = 'MULTIPLE'` SHALL accept multiple lifetime responses from the same member across batches; each batch SHALL accept exactly one response per member (enforced by the token's single-use). | Given a survey with `responsePolicy='MULTIPLE'` and the same member is included in Batch Q1 and Batch Q2 (both via separate Custom List uploads since V0 has no Re-run), when the member submits responses in both, then two `SurveyResponse` rows exist, one with `distributionBatchId = Q1` and one with `Q2`; both tokens are `responded`. |
+| **R22b** | A survey with `responsePolicy = 'ONCE'` SHALL still allow tokenized distribution, but the second submit by the same member (regardless of batch) SHALL return HTTP 409 per existing #241 R8 semantics. | Given a survey with `responsePolicy='ONCE'` and the same member receives Q1 and Q2 tokens, when they submit in Q1 (accepted) and then in Q2, then Q2's submit returns HTTP 409; Q2's token is **not** marked responded (response-policy rejection happens before token consumption); Q2's token expires naturally. |
+| **R22c** | A survey with `responsePolicy = 'LATEST_OVERWRITES'` SHALL accept the new response, update the prior `SurveyResponse` row in place, and overwrite `distributionBatchId` / `distributionTokenId` to the new batch and token. Prior token's `consumedAt` is **not** rolled back (consumption is monotonic). | Given `responsePolicy='LATEST_OVERWRITES'` and the same member in Q1 then Q2, when both submissions complete, then `SELECT count(*) FROM SurveyResponse WHERE memberId=:m AND surveyId=:s` is 1; row's `distributionBatchId = Q2`; Q1 token is still recorded as `responded`. |
 
-### Batch management
+### Batch discovery and detail
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R23** | The Distribution batches section on the survey detail page SHALL list all batches with: label, sentAt, audience summary, minted count, consumed count, response rate, expires, and per-row actions (View / Re-run / Revoke). | Given a survey with three batches, when the section renders, then three rows appear in `createdAt DESC` order. |
-| **R24** | The Distribution batches section SHALL be expanded by default when at least one batch exists; hidden entirely when no batches AND no responses; collapsed when batches exist but `responsesCount === 0`. | Given a survey with zero batches and zero responses, when the detail page loads, then the section header does not render. Given one batch is created (zero responses), then the section header renders collapsed. Given responses exist, then the section is expanded by default. |
-| **R25** | The Batch detail page SHALL display per-token status (Pending / Consumed / Expired / Revoked), consumption sparkline, and re-download buttons returning the same artifacts as the original Download step. | Given the operator opens a batch detail page, when the page renders, then a paginated table shows tokenPrefix + status + consumedAt for each token. |
-| **R26** | `Revoke remaining` SHALL bulk-flip `revokedAt = now()` on every `consumedAt IS NULL` token in the batch (via a single UPDATE); it SHALL NOT affect tokens that are already consumed (those responses remain valid and counted). The action SHALL require a **reason** (free-text ≤500 chars, persisted to `DistributionBatch.revokeReason`) and SHALL be audit-logged with `{ actorUserId, batchId, tokensRevokedCount, reason }`. **Rationale**: parallels the per-survey consent-override attestation pattern (#241 R10) — the regulator-style question for any "deviation from the default" action is *why did this happen*; WHO and WHEN are how to find the human, WHY is what's being audited. | Given a batch with 100 tokens of which 27 are consumed, when the operator confirms `Revoke remaining` with reason "Wrong audience — meant Gold not all tiers", then `SELECT count(*) WHERE batchId=:b AND revokedAt IS NOT NULL AND consumedAt IS NULL` returns 73; the 27 consumed tokens are untouched; `DistributionBatch.revokeReason` is set; one audit log row is written with `action='distribution_batch.revoke'`, `metadata.reason='Wrong audience — meant Gold not all tiers'`, `metadata.tokensRevokedCount=73`. Given the operator submits the revoke without a reason, then HTTP 422 returns with `code='REVOKE_REASON_REQUIRED'` and no rows are mutated. |
+| **R23** | The survey detail page SHALL render a **Distribution batches filter row** between Loop Monitor (#241 R32b) and Response (#241 R32). The filter selector defaults to `All batches`; selecting a batch narrows the Response section below to `distributionBatchId = :batchId`. Each option carries a `Details →` link to the batch detail page. The filter row SHALL be **hidden entirely when zero batches exist** for the survey. Loop Monitor SHALL render unchanged regardless of filter state. | Given a survey with three batches Q1/Q2/Q3, when the detail page renders, then a filter row appears with default "All batches" and a dropdown listing Q3 / Q2 / Q1 (createdAt DESC). Given the operator selects Q2, then Response below re-queries with `distributionBatchId='Q2'` and re-renders; Loop Monitor's numbers do not change. Given a survey with zero batches, then no filter row renders. |
+| **R24** | The batch detail page at `/admin/surveys/:id/distribute/batches/:batchId` SHALL display: header (wave label + status pill + counters), Audience Spec block (read-only — mode + **two member counts**: at-send-time and now), Expiry control (separately editable per R26), Tokens table (paginated; Name / Identifier / Token prefix / Status / Responded at), Consumption sparkline, and Re-download dropdown + button. | Given the operator opens the batch detail page for a batch with `at-send-time=100` and `now=96`, when the page renders, then the Audience Spec block reads "Members in audience at send time: 100 · Members in audience now: 96" with no further explanation needed. |
+| **R25** | The Tokens table on the batch detail page SHALL use operator-friendly state vocabulary: `Awaiting response` / `Responded` / `Expired`. Internal column names (`consumedAt`, `tokenHash`) remain unchanged in the schema; only the UI surface uses the friendly terms. There SHALL be no `Revoked` state in V0 (no revoke action). | Given a token with `consumedAt IS NULL AND expiresAt > now()`, when the row renders, then status reads "Awaiting response". Given `consumedAt IS NOT NULL`, then "Responded". Given `consumedAt IS NULL AND expiresAt < now()`, then "Expired". |
+| **R26** | The batch detail page SHALL render the batch's expiry as an editable control labeled *"Links expire on: `<absolute date>` · [Edit]"*. Clicking `[Edit]` opens an inline date/time picker. The operator MAY set the new expiry **earlier or later** than the current value (Q-R1.A). API constraints: new `expiresAt ≥ now()`; `Survey.status === 'ACTIVE'`. The change propagates to all tokens in the batch in a single transaction. The control SHALL be **disabled** when the survey is not ACTIVE or the batch has already fully expired. | Given a batch with current expiry 2026-05-22 and survey ACTIVE, when the operator edits expiry to 2026-05-18 (shortening), then `PATCH` returns 200 and `DistributionBatch.expiresAt` + every child `SurveyDistributionToken.expiresAt` is set to 2026-05-18. Given the operator attempts to set expiry to 2026-05-14 (in the past), then HTTP 422 returns with `code='EXPIRES_AT_MUST_BE_FUTURE'`. Given the survey is STOPPED, then the `[Edit]` button is disabled with tooltip "Restart the survey to edit expiry". |
+| **R27** | The batch detail page SHALL NOT include a `Revoke remaining` action. The constructive control is Edit Expiry per R26. The batch detail page SHALL NOT include a `Re-run with same audience` action in V0 — this is V1 scope. | Given the operator opens a batch detail page in V0, when the page renders, then no Revoke button and no Re-run button appear. |
 
 ### Audit and observability
 
 | ID | Requirement | Acceptance Criterion |
 |----|-------------|-----------------------|
-| **R27** | Batch creation, batch revocation, and per-token consumption SHALL each write an audit-log entry via the existing audit plugin (`apps/api/src/plugins/audit.ts`), with `{ actorUserId, brandId, surveyId, batchId, action, metadata }`. | Given an operator creates a batch of 100 tokens, when the transaction commits, then one audit row exists with `action='distribution_batch.create'` and `metadata.tokenCount=100`. Given a respondent submits a tokenized response, then one audit row exists with `action='distribution_batch.token_consumed'` and `metadata.memberId` set. |
-| **R28** | The per-token consumption audit row SHALL include `requestIp` (Fastify `request.ip`, respecting trust-proxy chain). If proxy chain is misconfigured and IP is unavailable, the audit row is still written with `requestIp = null` and a structured-log warning is emitted (consistent with #241 NFR-S5). | Verified via integration test. |
-| **R29** | The batch creation API response SHALL include the token plaintext array exactly once (Step 4 download). The API SHALL never return plaintext in subsequent GET calls. Re-download endpoints SHALL return plaintext via the URL column (because the URL contains the token), gated by `survey.distribute` permission. | Given a batch is created, when the POST response is examined, then the response body contains a `tokens[].plaintext` field. Given any subsequent GET to the batch detail endpoint, then no plaintext field appears in the response; only `tokenPrefix`, `tokenHash IS NOT NULL` indicator, and status. |
-| **R30** | A new "Distribution batches" tile SHALL appear on the operator's Loop Monitor view (#241 R32b) reflecting batches sent in the last 30 days, total tokens minted, total responses received, and a click-through to the survey's Distribution batches section. | Given a brand has sent two batches in the last 30 days for survey X, when the operator opens `/admin/surveys/:id/`, then Loop Monitor shows `2 batches · 250 sent · 87 responses`. |
+| **R28** | Batch creation, expiry edits, and per-token response-submit SHALL each write an audit-log entry via the existing audit plugin (`apps/api/src/plugins/audit.ts`), with `{ actorUserId, brandId, surveyId, batchId, action, metadata }`. Audit row for response-submit SHALL include `requestIp` (Fastify `request.ip`, trust-proxy-aware; null with structured-log warning if unavailable, consistent with #241 NFR-S5). | Given an operator creates a batch of 100 tokens, when the transaction commits, then one audit row exists with `action='distribution_batch.create'` and `metadata.tokenCount=100`. Given a respondent submits a tokenized response, then one audit row exists with `action='distribution_batch.token_responded'`, `metadata.memberId` set, `metadata.requestIp` populated when available. Given an operator edits a batch's expiry from 2026-05-22 to 2026-05-18, then one audit row exists with `action='distribution_batch.expiry_edit'`, `metadata.fromExpiresAt`, `metadata.toExpiresAt`. |
 
 ## Non-Functional Requirements
 
@@ -362,7 +411,7 @@ Tags `R1`–`R30` are referenced from implementation tasks, tests, and the RFC's
 |----|-------------|--------|
 | **NFR-P1** | Batch creation API for a 1,000-token batch | p95 < 5s end-to-end (including member resolution, token minting, distribution rows) |
 | **NFR-P2** | Batch creation API for a 10,000-token batch | p95 < 30s; minted in chunks of 1,000 within the same transaction |
-| **NFR-P3** | Audience preview API for predicates over 100,000 members | p95 < 2s — uses the same indexed query plan as `/v1/members?...` |
+| **NFR-P3** | Audience preview API for a brand with 100,000 members (Existing Members mode random sample) | p95 < 2s — uses the same indexed query plan as `/v1/members?status<>'ERASED'` followed by deterministic sample-by-seed |
 | **NFR-P4** | Token-status check + response submit on tokenized URL | p95 < 300ms end-to-end (well within the existing public-survey submit p95 of #241 NFR-P2) |
 | **NFR-P5** | CSV download for a 10,000-row batch | p95 < 5s; streamed response, not buffered |
 
@@ -374,8 +423,8 @@ Tags `R1`–`R30` are referenced from implementation tasks, tests, and the RFC's
 | **NFR-S2** | Tokens SHALL be stored hashed at rest (SHA-256), plaintext shown once at creation | Parallels existing `ApiKey.keyHash` pattern (`apps/api/src/plugins/auth.ts:69`) |
 | **NFR-S3** | Tokens SHALL be single-use; `consumedAt` write atomic with `SurveyResponse` write | Single `prisma.$transaction()` per response submit |
 | **NFR-S4** | Token URLs SHALL contain no PII | Token is 32-byte base64url string; no member id, email, brand id, or batch label in URL |
-| **NFR-S5** | Token-validation timing SHALL be constant-time (resistant to timing-attack token-guessing) | `crypto.timingSafeEqual()` for hash comparison; uniform error responses for `invalid` / `expired` / `consumed` / `revoked` states at the server-API level (respondent-facing copy differs but the server's error-response structure is uniform) |
-| **NFR-S6** | Revoked batches SHALL reject new responses within the same request that completes the revoke (no race window) | Token-status check and consumption write share the same transactional read-snapshot |
+| **NFR-S5** | Token-validation timing SHALL be constant-time (resistant to timing-attack token-guessing) | `crypto.timingSafeEqual()` for hash comparison; uniform error-response body shape across `invalid` / `expired` / `responded` / `survey-not-open` states at the server-API level (respondent-facing copy differs per state but the server's body structure does not) |
+| **NFR-S6** | Edit Expiry to a shorter window SHALL be applied atomically — once the `PATCH .../expiry` transaction commits, no token whose new `expiresAt` is in the past will accept a response, even if a concurrent response submit was in flight when the edit ran | The expiry-edit transaction updates `DistributionBatch.expiresAt` + all child `SurveyDistributionToken.expiresAt` in one statement; the response-submit transaction's `expiresAt > now()` check uses the row's current value, which the edit's commit has already updated. No second-level race window. |
 | **NFR-S7** | Per-token consumption audit (R27 / R28) SHALL include source IP and user-agent | Same Fastify `request.ip` / `request.headers['user-agent']` capture as existing audit plugin |
 | **NFR-S8** | Token plaintext SHALL only be transmitted over TLS | Enforced by the existing Azure Container Apps / Vercel HTTPS-only ingress; no plaintext fallback path |
 
@@ -385,8 +434,8 @@ Tags `R1`–`R30` are referenced from implementation tasks, tests, and the RFC's
 |----|-------------|---------|
 | **NFR-R1** | Batch creation SHALL be atomic — partial batches MUST NOT exist | `prisma.$transaction()` per batch; failure rolls back all writes (audit row is written outside the transaction only on success) |
 | **NFR-R2** | Response submission via token SHALL be idempotent | Existing #241 NFR-R2 + token single-use: a second submit with the same token returns HTTP 409 from the unique constraint on `(batchId, memberId)` and the `consumedAt IS NULL` check |
-| **NFR-R3** | Batch creation under Mode C with auto-enroll SHALL handle a partial member-resolution failure gracefully — if 1 of 100 identifiers fails to resolve (malformed, hits a per-brand rate limit, etc.), the batch creation SHALL fail with a structured error listing the failing identifier(s) and no DistributionBatch row is written | Tested with a deliberate malformed identifier in a 100-row paste |
-| **NFR-R4** | The Mode C resolution path SHALL re-use the existing `resolveOrEnrollMember` consent-stamping behavior — `consentGivenAt` auto-stamped to `now()` for newly-enrolled BULK_DISTRIBUTION members; existing members' consent timestamps untouched | Verified against `apps/api/src/services/memberResolution.ts:158` and `:205-212` |
+| **NFR-R3** | Batch creation under Custom List with auto-enroll SHALL handle a partial member-resolution failure gracefully — if 1 of 100 identifiers fails to resolve (malformed, hits a per-brand rate limit, etc.), the batch creation SHALL fail with a structured error listing the failing identifier(s) and no DistributionBatch row is written | Tested with a deliberate malformed identifier in a 100-row paste |
+| **NFR-R4** | The Custom List resolution path SHALL re-use the existing `resolveOrEnrollMember` consent-stamping behavior — `consentGivenAt` auto-stamped to `now()` for newly-enrolled BULK_DISTRIBUTION members; existing members' consent timestamps untouched | Verified against `apps/api/src/services/memberResolution.ts:158` and `:205-212` |
 
 ### Scalability
 
@@ -400,17 +449,17 @@ Tags `R1`–`R30` are referenced from implementation tasks, tests, and the RFC's
 
 | ID | Requirement | Control |
 |----|-------------|---------|
-| **NFR-A1** | The Distribute wizard SHALL be fully keyboard-navigable | Tab order: step-rail → step body fields → Back/Continue. Arrow keys to switch tabs in the step-rail. |
-| **NFR-A2** | The Audience step's mode selector cards SHALL be radio-button semantic with `aria-checked` | `<div role="radiogroup">` over three `role="radio"` cards |
-| **NFR-A3** | Color SHALL NOT be the only indicator of batch status | Status pill includes text label (`Pending` / `Consumed` / `Expired` / `Revoked`) alongside color |
-| **NFR-A4** | Error states on the respondent-facing tokenized URL SHALL meet contrast and label requirements | Same standalone form chrome as #241 R15 / NFR-A4; error-state copy uses the same theme tokens as the form body |
+| **NFR-A1** | The Distribute configure page SHALL be fully keyboard-navigable | Tab order: mode cards → mode-specific input → Survey-name-in-mail → Links-expire-in → Generate button. Arrow keys switch between mode cards when focus is on either card. |
+| **NFR-A2** | The mode selector cards SHALL be radio-button semantic with `aria-checked` | `<div role="radiogroup">` over two `role="radio"` cards (or one card when Existing Members is hidden per R4). |
+| **NFR-A3** | Color SHALL NOT be the only indicator of token / batch status | Status pill includes text label (`Awaiting response` / `Responded` / `Expired`) alongside color. |
+| **NFR-A4** | Error states on the respondent-facing tokenized URL SHALL meet contrast and label requirements | Same standalone form chrome as #241 R15 / NFR-A4; error-state copy uses the same theme tokens as the form body. |
 
 ### Observability
 
 | ID | Requirement | Mechanism |
 |----|-------------|-----------|
-| **NFR-O1** | Batch creation, revocation, and token consumption SHALL emit structured logs with `surveyId`, `batchId`, `tokenId`, `actorUserId`, `requestIp` | Pino structured logger (existing pattern) |
-| **NFR-O2** | Cumulative batch-level metrics (minted, consumed, expired, revoked) SHALL be queryable for the Loop Monitor tile (R30) | Materialized via simple SELECT — no separate counter table needed in V0 |
+| **NFR-O1** | Batch creation, expiry edits, and token response-submit SHALL emit structured logs with `surveyId`, `batchId`, `tokenId`, `actorUserId`, `requestIp` | Pino structured logger (existing pattern) |
+| **NFR-O2** | Cumulative batch-level counters (`sentCount`, `respondedCount`, `awaitingCount`, `expiredCount`) SHALL be queryable for the filter row's per-option display | Materialized via simple SELECT — no separate counter table needed in V0 |
 | **NFR-O3** | The audit log SHALL be the substrate for any future "distribution activity" view | Out of scope for #378; data substrate in place |
 
 ## Compliance Requirements
@@ -423,15 +472,15 @@ CustomerEQ's `fraim/config.json` declares **GDPR (in-scope)**, **CCPA (in-scope)
 |---|---|
 | **Art. 5(1)(c) — Data minimization** | Token URLs SHALL contain no PII (NFR-S4). The URL pattern `/s/:surveyId/r/:token` ensures access logs, browser history, `Referer` headers, and ESP click-trackers see only opaque token strings. Pre-#378 URL patterns (`?email=`) are deprecated and removed (per #241 D51 — #378 inherits this). |
 | **Art. 17 — Right to erasure** | The existing erasure job in `apps/worker` SHALL be extended to (a) null-out `firstName`, `lastName`, identifier fields on PII columns of the Member record (existing behavior), (b) leave `SurveyResponse.distributionBatchId` and `SurveyResponse.distributionTokenId` intact (those are not PII — they are batch lineage), (c) leave `DistributionBatch.audienceSpec` JSON intact except for Mode C resolved identifier lists, which SHALL be replaced with `[redacted]` markers. Token plaintext is not in the DB; only hashes — these are already non-reversible. |
-| **Art. 25 — Privacy by design** | Tokens are opaque by construction (`crypto.randomBytes(24)`). The audience-builder excludes ERASED members from selectable status options (R5). Auto-enroll in Mode C stamps `consentGivenAt = now()` for newly-resolved members (NFR-R4), consistent with the `BULK_IMPORT` precedent in project rule R23. |
-| **Art. 30 — Records of processing** | Audit log captures every batch creation, revocation, and token consumption (R27, R28) with actor, IP, and timestamp. |
-| **Art. 32 — Security of processing** | Tokens stored hashed at rest (NFR-S2); single-use (NFR-S3); expirable (R18); revocable (R19); constant-time validation (NFR-S5); TLS-only transport (NFR-S8). |
+| **Art. 25 — Privacy by design** | Tokens are opaque by construction (`crypto.randomBytes(24)`). ERASED members are automatically excluded from the Existing Members audience pool (R9). Auto-enroll in Custom List stamps `consentGivenAt = now()` for newly-resolved members (NFR-R4), consistent with the `BULK_IMPORT` precedent in project rule R23. |
+| **Art. 30 — Records of processing** | Audit log captures every batch creation, expiry edit, and token response-submit (R28) with actor, IP, and timestamp. |
+| **Art. 32 — Security of processing** | Tokens stored hashed at rest (NFR-S2); single-use (NFR-S3); expirable, with operator-controlled shorten / extend via Edit Expiry (R26 + NFR-S6); constant-time validation (NFR-S5); TLS-only transport (NFR-S8). Revoke-remaining is intentionally **not** offered in V0 — Edit Expiry covers the operator's "cut off responses" need by allowing shortening to a near-future time. |
 
 ### CCPA
 
 | CCPA clause | Control / mapping |
 |---|---|
-| **§1798.100 — Right to know / disclosure** | Per-batch audit log discloses every recipient member at batch-creation time; per-token consumption audit discloses response provenance. A CCPA disclosure request can be answered from the audit log + `DistributionBatch.audienceSpec` + `SurveyResponse.distributionBatchId` join. |
+| **§1798.100 — Right to know / disclosure** | Per-batch audit log discloses every recipient member at batch-creation time; per-token response-submit audit discloses response provenance. A CCPA disclosure request can be answered from the audit log + `DistributionBatch.audienceSpec` + `SurveyResponse.distributionBatchId` join. |
 | **§1798.105 — Right to deletion** | Same erasure-job extension as GDPR Art. 17 above. |
 | **§1798.110 — Third-party disclosure** | Distribution to a brand's ESP (Mailchimp, HubSpot, Klaviyo) is conducted by the brand itself — CustomerEQ provides the CSV; the brand uploads it. CustomerEQ is not a "service provider" with respect to the ESP for this flow. The brand admin is the data controller for the recipient relationship. The spec documents this for clarity but does not encode a contract; the RFC owns any specific notice surfaced to the brand admin at download time ("By downloading, you confirm you have a lawful basis to email these recipients" — TBD). |
 
@@ -439,7 +488,7 @@ CustomerEQ's `fraim/config.json` declares **GDPR (in-scope)**, **CCPA (in-scope)
 
 | SOC2 TSP | Control / mapping |
 |---|---|
-| **CC6.1 — Logical access** | Survey distribution requires authenticated session + `survey.distribute` permission (R29 RBAC). The respondent-facing token flow is unauthenticated by design (the token authorizes the action). |
+| **CC6.1 — Logical access** | Survey distribution requires authenticated session + `survey.distribute` permission. The respondent-facing token flow is unauthenticated by design (the token authorizes the action). |
 | **CC7.2 — System monitoring** | Audit log + structured logs (NFR-O1) feed the existing observability pipeline. Token consumption is monitored at the per-token granularity. |
 | **CC8.1 — Change management** | Database migrations are forward-only per architecture §3.4; the schema changes here ship as a single migration with the four model additions/modifications in one ordered diff. |
 
@@ -450,7 +499,7 @@ CustomerEQ's `fraim/config.json` declares **GDPR (in-scope)**, **CCPA (in-scope)
 | R2 (Issue #6 hero — <15-min CX-to-loyalty SLA) | A tokenized survey response feeds the same `cx.<surveytype>_response` event path as standalone / embedded responses (#241 §4) — no detour through a separate pipeline. The token-validation overhead is bounded (NFR-P4 budgets 300ms p95 for token-status + submit) so the response remains well inside the SLA. |
 | R5 (Event-driven first — no direct loyalty writes from API) | Unchanged. The response handler emits the cx event; the worker writes `LoyaltyEvent` atomically with `pointsBalance` (existing #241 R22 / NFR-R1). |
 | R6 (Multi-tenant `brandId` everywhere) | All three new models (`DistributionBatch`, `SurveyDistributionToken`, `SurveyDistribution.batchId`) carry `brandId` and are added to `TENANT_SCOPED_MODELS` (NFR-S1). |
-| R10 / R21 (One issue per branch) | This spec ships in the `feature/378-personalized-survey-links` branch; no off-scope work bundled (the Mode C `BULK_DISTRIBUTION` enum addition is in-scope per R7). |
+| R10 / R21 (One issue per branch) | This spec ships in the `feature/378-personalized-survey-links` branch; no off-scope work bundled (the Custom List `BULK_DISTRIBUTION` enum addition is in-scope per R7). |
 | R13 (GDPR baked in) | Erasure-job extension above; ERASED member exclusion at audience-build time. |
 | R22 (Prisma migration hygiene) | The migration is hand-edited (per architecture §3.4): the `SurveyDistribution` unique-constraint move requires `DROP CONSTRAINT` + `ADD CONSTRAINT` after the column add — Prisma's auto-generation does not emit a clean shape for unique-constraint relocation. Timestamp coordination per R22c. |
 | R24 (FRAIM is mandated) | This spec is the deliverable of the FRAIM `feature-specification` job; RFC will be the deliverable of `technical-design`. |
@@ -461,11 +510,10 @@ CustomerEQ's `fraim/config.json` declares **GDPR (in-scope)**, **CCPA (in-scope)
 
 The mocks at `docs/feature-specs/mocks/378-distribute-flow.html` follow CustomerEQ's existing admin-pattern conventions per `docs/architecture/architecture.md`:
 
-- **Standard CRUD admin pattern** (architecture §3.1) — `/admin/surveys/:id/distribute` is a sub-route of the survey detail page; the wizard pattern matches the trigger-survey wizard (#79) and the historical-import flow (#262).
+- **Standard CRUD admin pattern** (architecture §3.1) — `/admin/surveys/:id/distribute` is a sub-route of the survey detail page. **The page is single-state-on-one-route**, not a multi-step wizard like the trigger-survey wizard (#79) or the historical-import flow (#262) — those flows have distinct phases each touching different data; this flow has one job (generate links + download CSV) and the page is shaped to complete it without navigation.
 - **shadcn/ui + Tailwind v4** primitives — buttons, cards, inputs, dialogs match the existing admin chrome.
-- **Auto-save indicator** in the wizard header matches the survey editor (#241 R4).
-- **State-aware buttons** match the survey detail page's More-menu pattern (#241 R26).
-- **Collapsible sections with `▼` chevron** match the survey detail page (#241 R26).
+- **State-aware tile + button copy** matches the survey detail page's More-menu pattern (#241 R26).
+- **Single-page in-place transition** (Configure → Success) — same route, no loading interstitial, no second URL. Matches the inline-edit pattern used on Programs (#157 — view/edit on `[id]`).
 - **Tokenized URL error-state copy** uses the same theme tokens as the standalone survey form (#241 R15 / NFR-A4).
 
 The mock files demonstrate these conventions in interactive HTML — no Markdown mocks per the FRAIM job principle "No Markdown Mocks".
@@ -474,32 +522,40 @@ The mock files demonstrate these conventions in interactive HTML — no Markdown
 
 ### Functional validation
 
-- **Audience preview accuracy** — pick a brand with known member data; build a predicate; compare the preview's projected count against a direct SQL query with the same predicate; counts must match.
-- **Mode A determinism** — create a batch with a fixed seed and predicate; re-run with the same seed and predicate; the resolved member sets must match modulo new-since-last-run members.
-- **Mode C auto-enroll** — paste a list of 10 identifiers, 7 known and 3 unknown; verify 3 new Members are created with `enrolledVia='BULK_DISTRIBUTION'` and `consentGivenAt` stamped to `now()`.
-- **Token lifecycle** — create a batch, verify token is `Pending`; consume via response submit, verify `Consumed`; attempt second consume, verify HTTP 409; let a different token expire, verify `Expired`; revoke remaining, verify `Revoked`.
-- **Quarterly NPS scenario (end-to-end)** — create a `responsePolicy='MULTIPLE'` survey, create Batch Q1 to 10 members, have all 10 respond, create Batch Q2 to the same 10 members (via `Re-run with same audience`), have all 10 respond. Verify: 20 `SurveyResponse` rows exist; 10 link to Q1, 10 link to Q2; each member's `LoyaltyEvent` count advanced by 2.
+- **Audience preview accuracy (Existing Members)** — pick a brand with `N` non-ERASED members; configure Existing Members at Count=`K`; verify the preview's `K` members in the table are a deterministic subset of the brand's member roster (seeded internally via `samplingSeed`).
+- **Existing Members hidden at zero** — create a brand with zero members; load the configure page; verify the Existing Members mode card does not render and only Custom List is offered.
+- **Custom List auto-enroll** — paste a list of 10 identifiers, 7 known and 3 unknown; with auto-enroll ON, verify 3 new Members are created with `enrolledVia='BULK_DISTRIBUTION'` and `consentGivenAt` stamped to `now()`; with auto-enroll OFF, verify 0 new Members and the unknown identifiers appear under `unmatched`.
+- **Survey-name-in-mail default** — load the configure page for a survey with `title='Q2 Customer Satisfaction'` and `name='Q2-NPS-internal-2026'`; verify the field is pre-filled with the respondent-facing `title`, not `name`.
+- **Token lifecycle** — create a batch, verify token state is `Awaiting response`; respond via token, verify `Responded`; attempt second response via same token, verify HTTP 409; let a separate token expire, verify `Expired`.
+- **Edit Expiry — both directions** — create a batch with 7-day expiry; shorten to 1 day, verify `DistributionBatch.expiresAt` and all child tokens updated atomically; extend back to 30 days, verify same. Attempt to set expiry in the past, verify HTTP 422 `code='EXPIRES_AT_MUST_BE_FUTURE'`. Attempt Edit Expiry while survey is STOPPED, verify the UI control is disabled and `PATCH` returns HTTP 409.
+- **Filter row appearance** — survey with 0 batches: filter row not rendered. Create 1 batch: filter row appears with `All batches` default and 1 option. Select batch, verify Response section re-queries with `distributionBatchId=:b`. Verify Loop Monitor numbers unchanged regardless of filter state.
+- **Member-count at-send-time vs now** — create an Existing Members batch with Count=100. Manually erase 4 members. Open batch detail. Verify Audience Spec block reads "Members in audience at send time: 100 · Members in audience now: 96".
+- **Quarterly NPS scenario (V0 manual continuity)** — create a `responsePolicy='MULTIPLE'` survey. Wave 1: Custom List of 10 identifiers, have all 10 respond. Wave 2 (3 months later): Custom List of the **same 10 identifiers**, have all 10 respond. Verify: 20 `SurveyResponse` rows, 10 link to wave 1 batch, 10 link to wave 2 batch; each member's `LoyaltyEvent` count advanced by 2. (V0 has no Re-run primitive; operator maintains the identifier list externally.)
 
 ### Security validation
 
-- **No PII in URL** — capture a tokenized URL, decode the token, attempt to recover any member identifier from the token bytes; must fail.
+- **No PII in URL** — capture a tokenized URL, decode the base64url token, attempt to recover any member identifier from the bytes; must fail.
+- **No PII in error states** — load each of the four token-failure states (expired / responded / survey-not-open / invalid); inspect rendered DOM, page-title, network responses; verify no `memberId`, identifier, batch label, or survey title leaks.
 - **Token unguessability** — generate 1M tokens; verify ≥192-bit entropy via chi-squared randomness check.
-- **Constant-time validation** — measure token-validation timing for `valid` / `invalid` / `expired` / `consumed` / `revoked` cases; standard deviation must be < 1ms (constant within measurement noise).
-- **Cross-brand access** — Operator from Brand A attempts to read a batch ID belonging to Brand B via direct API call; must return HTTP 404 (not 403 — the existence is not disclosed). 
-- **Revoke race window** — start a revoke transaction; in parallel, submit a response via one of the revoking tokens; verify the response is rejected with HTTP 410 and the audit log shows the revoke completed first.
+- **Constant-time validation** — measure server-side token-validation timing for `valid` / `invalid` / `expired` / `responded` / `survey-not-open` cases; standard deviation must be < 1ms (constant within measurement noise).
+- **Cross-brand access** — Operator from Brand A attempts to read a batch ID belonging to Brand B via direct API call; must return HTTP 404 (not 403 — existence is not disclosed).
+- **Edit Expiry race** — `PATCH .../expiry` shortening a batch's expiry to `now() + 1 second` while a respondent's `POST /respond` is in flight against one of that batch's tokens; verify the response is rejected with HTTP 410 if it arrives after the edit commits, or accepted if before — never partially.
 
 ### Compliance validation
 
-- **GDPR Art. 17 erasure** — enroll a member via Mode C auto-enroll, create their response via the token, run the existing erasure job for that member, verify: `Member.firstName / lastName / email` are nulled; `SurveyResponse` row retained but `memberId` already-nulled; `SurveyDistributionToken` retained (token plaintext not in DB anyway, hash retained for audit lineage); `DistributionBatch.audienceSpec` Mode-C identifier list has the affected identifier replaced with `[redacted]`.
-- **CCPA §1798.100 disclosure** — issue a hypothetical CCPA disclosure request for a member; verify the audit log + batch records yield: list of batches the member was included in, list of responses they submitted via tokens, full lineage Q1 → Q2 → Q3.
-- **Audit log completeness** — for a single end-to-end flow (create batch, generate links, consume one token, revoke remaining), verify the audit log contains exactly the expected rows with the expected metadata.
+- **GDPR Art. 17 erasure** — enroll a member via Custom List auto-enroll, create their response via the token, run the existing erasure job for that member, verify: `Member.firstName / lastName / email` are nulled; `SurveyResponse` row retained but `memberId` nulled; `SurveyDistributionToken` retained (plaintext not in DB anyway; hash retained for audit lineage); `DistributionBatch.audienceSpec` Custom List identifier list has the affected identifier replaced with `[redacted]`.
+- **CCPA §1798.100 disclosure** — issue a hypothetical CCPA disclosure request for a member; verify the audit log + batch records yield: list of batches the member was included in, list of responses they submitted via tokens, full lineage across waves.
+- **Audit log completeness** — for a single end-to-end flow (create batch, generate links, one member responds, operator edits expiry), verify the audit log contains exactly the expected rows: `distribution_batch.create`, `distribution_batch.token_responded`, `distribution_batch.expiry_edit`.
 
 ### Browser validation
 
-- Walk the four-step wizard from `/admin/surveys/:id/distribute` for each mode (Percent / Count / Explicit list); verify Back/Continue navigation does not POST a duplicate batch.
-- Verify a tokenized URL loaded in three browsers (Chrome, Firefox, Safari) renders the form correctly and submits the response with the token.
-- Verify the four token-error states each render distinct copy and visual treatment.
-- Verify the Distribution batches section reflows correctly when 0, 1, and 10+ batches exist.
+- Load `/admin/surveys/:id/distribute` for a survey; verify the configure page renders in a single short viewport (no scroll on a 13-inch laptop when the preview shows ≤3 rows); switch modes; verify the Existing Members mode card hides when the brand has zero members.
+- Click `Generate links`; verify the same URL renders the Success state inline with banner + dropdown + Download button.
+- Click Download for each format (Generic / Mailchimp / HubSpot / Klaviyo); verify each CSV has the correct column-naming.
+- Load a tokenized URL in Chrome, Firefox, Safari; verify the form renders without a member-ID input and submits successfully.
+- Force each of the four token-error states (Expired, Responded, Survey-not-open, Invalid); verify each renders distinct copy and visual treatment + no PII anywhere.
+- On a survey detail page with 3 batches, verify the filter row appears between Loop Monitor and Response; select a wave; verify Response re-queries and Loop Monitor does not change. Verify each filter option has a working `Details →` link to its batch detail page.
+- On a batch detail page, exercise Edit Expiry in both directions while the survey is ACTIVE; verify the disabled state when survey transitions to STOPPED.
 
 ## Alternatives
 
@@ -514,13 +570,27 @@ The mock files demonstrate these conventions in interactive HTML — no Markdown
 
 ## Open Questions (RFC / implementation phase)
 
-These items are unresolved at draft-time; reviewer answers will be captured here as feedback comes in.
+### Resolved in Round 2 (chat feedback 2026-05-15)
 
-- **OQ1** — Mode C identifier disambiguation: when a pasted line is ambiguous (e.g., `12345` could be a phone number stripped of `+` or an external_id), what is the disambiguation rule? Proposed default: prefer `Brand.memberIdentifierKind` as the tie-breaker — if the brand is `email`, an ambiguous numeric line is treated as external_id; if the brand is `phone`, treated as phone. The wizard surfaces the inferred kind per-line so the operator can correct before generating. RFC owns the exact disambiguation.
-- **OQ2** — RBAC permission scope: should `survey.distribute` be a separate permission from `survey.edit`, or fold into `survey.edit` by default? Proposed: separate, because the personas can differ (a marketing manager may have edit but not distribute; a CX operator may have distribute on a survey they don't own). RFC owns the RBAC matrix.
-- **OQ3** — Throttle posture for the auto-enroll path in Mode C: should the BULK_DISTRIBUTION enrollment path share the existing BULK_IMPORT throttle bucket, or a separate one? Proposed: separate, because Mode C is interactive (operator waiting on Step 3 progress); BULK_IMPORT is batch. RFC owns the rate-limit shape.
-- **OQ4** — CSV upload size limit for Mode C: hard cap at 100,000 rows per upload (per NFR-SC2) or larger? Proposed: 100,000. Beyond that, the operator's natural choice is to use Percent / Count modes against a predicate.
-- **OQ5** — Cross-survey one-per-period: explicitly NOT in v1 scope (per the issue's Non-goals). But the data model permits it as a follow-on — should the spec mention the natural shape? Proposed: a future `BrandFatiguePolicy` entity sets "max one survey-batch include per member per N days" enforced at audience-build time. Not RFCed here; recorded as v1.x roadmap.
+- **OQ-R1.Q1 (was Q1 in round 1)** — Survey-name-in-mail surface: **resolved 1a** — CSV gets two columns: `surveyName` + `mergeTagUrl`. Default value for `surveyNameInMail` is the respondent-facing `Survey.title`, not the admin-only `Survey.name`. Captured in R10, R17 + Data Model. Feedback Comments 1, 5, 6.
+- **OQ-R1.Q2 (was Q2 in round 1)** — Re-run defaults: **resolved 2c, but deferred to V1** — re-running to the same audience is a V1 feature requiring its own scoping. V0 ships without any Re-run primitive. The internal `samplingSeed` column is retained so V1 can implement deterministic re-sampling without schema churn. Feedback Comments 7, 15, 20.
+- **OQ-R1.Q3 (was Q3 in round 1)** — Existing Members mode when zero members: **resolved 3a** — mode card hidden entirely; only Custom List renders when `brand.memberCount = 0`. R4. Feedback Comment 8.
+- **OQ-R1.A** — Edit Expiry direction: **resolved A1** — both extend and shorten while the survey is open. R26 + NFR-S6.
+- **OQ-R1.B** — Distribution batches filter scope: **resolved B1** — filter applies to Response section only; Loop Monitor remains lifetime-wide. R23.
+
+### Round-1 OQs — re-evaluated against V0 scope
+
+- **OQ1 (Round 1) — Custom List identifier disambiguation**: when a pasted line is ambiguous (e.g., `12345` could be a phone stripped of `+` or an external_id), what is the disambiguation rule? **Carries forward to RFC**. Proposed: prefer `Brand.memberIdentifierKind` as the tie-breaker — if the brand is `email`, an ambiguous numeric line is treated as external_id; if the brand is `phone`, treated as phone. The configure page surfaces the inferred kind per-line so the operator can correct before generating.
+- **OQ2 (Round 1) — RBAC permission scope**: should `survey.distribute` be a separate permission from `survey.edit`, or fold into `survey.edit` by default? **Carries forward to RFC**. Proposed: separate, because the personas can differ (marketing manager may edit but not distribute; CX operator may distribute on a survey they don't own).
+- **OQ3 (Round 1) — BULK_DISTRIBUTION throttle posture**: share the existing BULK_IMPORT rate-limit bucket, or a separate one? **Carries forward to RFC**. Proposed: separate, because Custom List auto-enroll is interactive (operator waiting on the configure page); BULK_IMPORT is batch.
+- **OQ4 (Round 1) — CSV upload size limit**: hard cap at 100,000 rows or larger? **Carries forward to RFC**. Proposed: 100,000 (per NFR-SC2). Beyond that, V1's filter-predicate audience is the natural path.
+- **OQ5 (Round 1) — Cross-survey one-per-period**: explicitly NOT in V1 scope (per the issue's Non-goals). **Closed** — future `BrandFatiguePolicy` entity is the natural shape; not in this spec.
+
+### New OQs surfaced in Round 2
+
+- **OQ-S1 — CSV `surveyName` column shape**: should `surveyName` be a separate CSV column (every row has the same value, redundant but trivial for the operator's merge template), or baked into a per-row "display string" that combines name + URL into one column (more compact)? Proposed: **separate column** — operators are used to mapping discrete columns to template tags (Mailchimp's `*\|SURVEY_NAME\|*`); a combined string fights that mental model. The same-value-on-every-row redundancy is N×~30 bytes, negligible at any batch size.
+- **OQ-S2 — RBAC for Edit Expiry**: same permission as `survey.distribute` (creates batches) or a finer-grained `survey.distribute.edit-expiry`? Proposed: **same permission** — the operator who can create a batch can manage its expiry; finer-grained gating is over-engineering for V0.
+- **OQ-S3 — Visibility of stalled / very-low-response-rate batches**: should the filter row's per-option display flag batches with `respondedCount / sentCount < threshold` (e.g., a small "⚠ low response" indicator)? Not in spec; flagged for RFC if the reviewer wants visibility on under-performing waves at the filter surface.
 
 ## Competitive Analysis
 
@@ -562,7 +632,7 @@ Live evidence from three vendor docs converges on `/r/<opaque-token>` as the dom
 - **Key Advantage 1 — True BYO-ESP + tokens + sampling, in one entry-tier flow.** No competitor in the researched set ships all three: (a) CSV export of per-recipient tokenized URLs for any ESP, (b) random-%/random-N/explicit-list sampling as a first-class operator primitive, and (c) at a mid-market price point. Qualtrics has (a) but not (b) and is enterprise-priced. Delighted has (a) but PII-in-URL, no (b), and weakens to anonymous if PII isn't appended. SurveyMonkey has neither (a) at the per-recipient grain nor (b) natively.
 - **Key Advantage 2 — Recurring-wave-with-one-response-per-wave as a data-model invariant, not a process.** AskNicely has recurring NPS but only on their own send infra. Qualtrics has scheduled-send but no documented one-per-wave attribution layer. CustomerEQ's `DistributionBatch` + token single-use makes "Q1 → Q2 → Q3 same 100 members, one response per quarter" an emergent property of the data model — and natively supports trending queries against `SurveyResponse.distributionBatchId`.
 - **Key Advantage 3 — No PII in URL is the only shape, not an opt-in.** GetFeedback offers an *optional* encryption flag, exposed PII by default. Delighted documents PII-appending as the attribution method. Typeform's docs explicitly warn customers about their own URL-parameter pattern. CustomerEQ ships GDPR-Article-5-clean URLs out of the box, with no operator toggle to get it wrong.
-- **Key Advantage 4 — One coherent surface from "I have a survey" to "I have a CSV of links."** The Distribute wizard, the Distribution batches section, batch detail, and ESP-shaped CSV all live behind one Distribution action on the survey detail page. Operators don't context-switch between a Distribution module and a Contacts module (Qualtrics) or assemble it from Workflows (HubSpot).
+- **Key Advantage 4 — One coherent surface from "I have a survey" to "I have a CSV of links."** The single-page Distribute surface, the Distribution batches filter on the survey detail page, the batch detail page, and the ESP-shaped CSV all live behind one Distribution action on the survey detail page. Operators don't context-switch between a Distribution module and a Contacts module (Qualtrics) or assemble it from Workflows (HubSpot).
 - **Key Advantage 5 — Loop integration.** Tokenized responses feed the existing `cx.<surveytype>_response` event into the same Loop Monitor / Response-to-Action / EarningRule pipeline as anonymous and embedded surveys (#241 §4 / R22). Competitors who treat the per-recipient survey as a separate product (Qualtrics Personal Links vs. their Loop closure module) leave a seam the operator has to bridge.
 
 #### Competitive Response Strategy
@@ -570,7 +640,7 @@ Live evidence from three vendor docs converges on `/r/<opaque-token>` as the dom
 - **If Qualtrics positions Personal Links as a discriminator** → our counter is "same primitive, available at mid-market pricing, in the same surface as the loop-closure pipeline." Their seam between Personal Links (distribution) and ticketing-loop closure is our integration.
 - **If Delighted's mid-market footprint encroaches on BYO-ESP** → our counter is the PII-in-URL anti-pattern citation. We can demo two URLs side-by-side and show that the Delighted Embed pattern (with PII appended) reveals the customer's identifier in browser history; CustomerEQ's tokenized URL does not. The GDPR exposure is a sales asset, not a feature footnote.
 - **If SurveyMonkey ships a "Personal Links Email Collector for external ESPs"** (plausible roadmap response) → our counter is recurring-wave-with-one-per-wave. The token single-use + batch boundary primitive is non-trivial to retrofit onto a tool whose response model assumes one-link-one-survey.
-- **If HubSpot adds tokenized survey links to Service Hub** (plausible bundled play) → our counter is the explicit-list-with-auto-enroll Mode C. HubSpot Workflows can mail-merge to a HubSpot list; they can't auto-enroll an external CSV of identifiers into a CX program. CustomerEQ is positioned as the ingestion point for cohorts that originate outside the brand's CRM (operations team's escalation list, NPS pulse for a recent product launch, etc.).
+- **If HubSpot adds tokenized survey links to Service Hub** (plausible bundled play) → our counter is the explicit-list-with-auto-enroll Custom List mode. HubSpot Workflows can mail-merge to a HubSpot list; they can't auto-enroll an external CSV of identifiers into a CX program. CustomerEQ is positioned as the ingestion point for cohorts that originate outside the brand's CRM (operations team's escalation list, NPS pulse for a recent product launch, etc.).
 
 #### Market Positioning
 
@@ -623,9 +693,15 @@ This addition is recorded as a recommendation in the spec; the actual `fraim/con
 
 ## Non-goals (v1)
 
-Restated from the issue body for explicit traceability:
+Restated from the issue body and amplified with Round-2 deferments. Each deferred capability has a clear "what V0 ships instead" so operators have a path today, and a written placeholder so V1 has a starting point.
 
-- **Wave scheduling / auto-recurrence** ("send every quarter automatically"). The primitives shipped here (audience spec stored on the batch, `Re-run with same audience` action) make this a natural v1.x extension; out of scope for v1.
-- **ESP-native integrations** (Mailchimp/HubSpot/Klaviyo apps that auto-inject per-recipient tokens at send time). Roadmap, not v1.
-- **Cross-survey fatigue policy** (orthogonal — see OQ5).
+| Non-goal | What V0 ships instead | V1 placeholder |
+|---|---|---|
+| **Wave scheduling / auto-recurrence** (*"send every quarter automatically"*) | Operator manually creates a new batch each cycle. | Future enhancement on top of the existing batch primitive; no V0 schema change blocks this. |
+| **ESP-native integrations** (Mailchimp / HubSpot / Klaviyo apps that auto-inject per-recipient tokens at send time) | CSV export + operator-side mail-merge (V0's primary flow). | Roadmap; out of scope for V1 spec. |
+| **Cross-survey fatigue policy** (*"max one survey-batch include per member per N days across all surveys"*) | None. Per-survey cooldown is implicit via the operator choosing not to re-include a recently-surveyed member. | Future `BrandFatiguePolicy` entity (OQ5 round-1, closed). |
+| **Anonymous / unauthenticated public-link distribution** (the existing `/s/<surveyId>` share-link path) | **Unaffected.** Tokens are additive — share links work exactly as today. | n/a (existing surface, not deferred). |
+| **Audience predicate filters** (tier / status / sentiment / NPS / health-score / enrollment-date / response-cooldown) — Round 2 Comment 2c | V0 audience is mode-only: Existing Members (random sample by Count or Percent) or Custom List (paste / CSV). | **V1.x — separate scoping.** The predicate primitive reuses `SearchMembersQuerySchema` (see Customer's Desired Outcome bullet 5). Will require end-to-end data wiring for the filter dimensions (sentiment, health score, NPS, cooldown index) that is not production-ready in V0. **File a new issue when V1.x is scoped.** |
+| **Re-run with same audience** — Round 2 Comments 7, 15, 20 | V0 has no Re-run primitive. Operators who want quarterly continuity to the same N members maintain their own identifier list externally and paste it into Custom List each wave. | **V1 — separate scoping.** Feature shape: "Generate new tokens for the same audience on an expired batch" — opens the configure page pre-populated with the prior audience, deterministic via the internal `DistributionBatch.samplingSeed` (preserved in V0 schema specifically to enable this). At Re-run time, present "Same audience or fresh sample?" as a one-question prompt (Q-R1.Q2 / 2c). **File a new issue when V1 is scoped.** |
+| **Revoke remaining tokens** — Round 2 Comment 12 | V0 has no Revoke primitive. Operators who want to cut off a wave use Edit Expiry to shorten the expiry to a near-future time (R26). | Not a V1 commitment. Edit Expiry covers the practical need; reconsider only if operator feedback surfaces a use case that shortening can't address. |
 - **Anonymous / unauthenticated public-link distribution.** The existing anonymous `/s/<surveyId>` share-link path is unaffected by this spec; tokens are additive.
