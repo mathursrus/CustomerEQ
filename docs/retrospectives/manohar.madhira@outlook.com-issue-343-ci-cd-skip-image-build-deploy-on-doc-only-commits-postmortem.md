@@ -234,3 +234,28 @@ None new in this session. Existing memories that govern this work and fired corr
 - **Real-world `build=true` path** — confirmed live by `1b3ba02` (PR #348 merge) and `eb64cf63` (PR #352 merge) deploy runs. Both touched workflow / script files (not in skip set), full ACR build + Container Apps update + healthcheck passed.
 - **Real-world `build=false` skip-path validation** — NOT yet exercised in production. PR #350 (this retrospective + work-list cleanup) is doc-only and will be the first such test when merged. Expected: `docker-build` short-circuits at `Skip if doc-only` (no image build); `deploy.yml` workflow_run guard step says "all changes match the doc-only skip set; skipping deploy" → no ACR build, no Container Apps update. If anything misbehaves, a Round 4 fix-PR will be needed.
 - **Slice 4a re-PR (#353)** — PR #340 was auto-closed by GitHub when `gh pr merge 334 --delete-branch` deleted its base branch. Replaced by PR #353 (same head, base=main); PR #340 stays closed for reference. The `gh pr merge --delete-branch` pre-check (§Enforcement Updates #3) prevents recurrence.
+
+---
+
+## Correction (2026-05-15, per Rule 26)
+
+§"What I Almost Did Wrong But Caught" item #1 (line 193 of this file at time of correction) reads:
+
+> *"Almost committed Phase 13 retrospective directly to main. The previous Slice 3 retrospective (`7def500`) was committed directly to `main`, which violated Rule 10. This time, I filed a chore issue (#349) + branch + PR for the retrospective + work-list deletion. Caught because the user explicitly cited Rule 10 last session and a memory + coaching moment now enforce it."*
+
+**This framing was wrong.** It encoded the fabrication that produced PR #350 as a "win," and would re-teach the wrong lesson to any future agent reading this retrospective.
+
+The actual binary I treated as exhaustive was: *(a) commit retro to `main` (Rule 10 violation)* vs. *(b) file a new chore-issue + worktree + branch + PR for the retro*. I picked (b) and called it the fix.
+
+The correct option I missed: **(c) push the retro commit to the parent issue's existing feature branch (`feature/343-ci-cd-skip-image-build-deploy-on-doc-only-commits`), open one PR off that branch, ride with the implementation PR's lifecycle.** This is the FRAIM default codified in **Rule 26 (One PR Per Phase Artifact)** added 2026-05-15 in PR #379. By that rule:
+- Phase 13 retro + work-list cleanup is part of issue #343's lifecycle, not a new issue.
+- Filing #349 + spawning a new worktree (`Issue 349`) for it was a Rule 26 violation, not a Rule 10 fix.
+- The same applies to issues #347 and #351 — each was filed as a separate issue with its own worktree for what was post-merge follow-up on the same CI/CD workstream. PR #350's FRAIM section (line ~ at time of writing: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally"*) was the on-record admission that one logical workstream became four worktrees.
+
+**Future agents reading this retro:** §"What I Almost Did Wrong But Caught" item #1 is preserved for historical record but is **superseded** by this correction. The chore-issue split is the pattern Rule 26 was authored to extinguish. Do not replicate it.
+
+Cross-references:
+- Rule 26 in `fraim/personalized-employee/rules/project_rules.md`.
+- Mistake-pattern entry "Fabricated 'chore-issue' framing to split phase artifacts across PRs" in `manohar.madhira@outlook.com-mistake-patterns.md`.
+- Rejected-proposal entry "Phase 13 retro / coaching-moment capture / post-merge follow-up should be filed as its own 'chore-issue'" in `manohar.madhira@outlook.com-rejected-proposals.md`.
+- Auto-memory `[[one-pr-per-phase-artifact]]`.
