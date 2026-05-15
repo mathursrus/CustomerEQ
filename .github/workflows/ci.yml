@@ -89,7 +89,7 @@ jobs:
         run: pnpm audit --audit-level=high
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @customerEQ/web exec playwright install --with-deps chromium
 
       - name: Validate smoke test secrets
         run: |
