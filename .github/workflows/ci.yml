@@ -132,6 +132,7 @@ jobs:
           pnpm --filter @customerEQ/demo-storefront exec next dev -p 3022 --hostname 127.0.0.1 >/tmp/ceq-demo-storefront.log 2>&1 &
           wait_for_url "http://127.0.0.1:3022/api/healthz" "demo storefront" /tmp/ceq-demo-storefront.log
         env:
+          API_PORT: '4010'
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
           CLERK_SECRET_KEY: sk_test_123
@@ -139,6 +140,7 @@ jobs:
       - name: Smoke Test Suite
         run: pnpm test:smoke
         env:
+          API_PORT: '4010'
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
           CLERK_SECRET_KEY: sk_test_123
