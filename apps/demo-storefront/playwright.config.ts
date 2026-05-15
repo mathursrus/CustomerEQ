@@ -5,7 +5,9 @@ const PORT = 3022
 const API_PORT = 4010
 const BASE_URL = `http://${HOST}:${PORT}`
 const API_URL = process.env.DEMO_API_URL ?? `http://${HOST}:${API_PORT}`
+const STOREFRONT_READY_URL = `${BASE_URL}/api/healthz`
 const WEB_SERVER_TIMEOUT = process.env.CI ? 180_000 : 60_000
+const STOREFRONT_SERVER_COMMAND = `pnpm exec next dev -p ${PORT} --hostname ${HOST}`
 
 process.env.DEMO_API_URL = API_URL
 process.env.API_PORT = process.env.API_PORT ?? String(API_PORT)
@@ -44,10 +46,15 @@ export default defineConfig({
       timeout: WEB_SERVER_TIMEOUT,
     },
     {
-      command: `pnpm exec next dev -p ${PORT} --hostname ${HOST}`,
-      url: BASE_URL,
+      command: STOREFRONT_SERVER_COMMAND,
+      url: STOREFRONT_READY_URL,
       reuseExistingServer: !process.env.CI,
       timeout: WEB_SERVER_TIMEOUT,
+      env: {
+        ...process.env,
+        HOSTNAME: HOST,
+        PORT: String(PORT),
+      },
     },
   ],
 })
