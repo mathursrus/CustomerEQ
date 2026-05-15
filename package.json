@@ -8,6 +8,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "postinstall": "pnpm db:generate",
     "generate": "pnpm generate:baml",
     "generate:baml": "pnpm --filter @customerEQ/ai generate",
     "dev": "turbo run dev --parallel",
