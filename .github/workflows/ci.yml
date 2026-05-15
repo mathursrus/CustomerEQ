@@ -134,12 +134,14 @@ jobs:
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
+          CLERK_SECRET_KEY: sk_test_123
 
       - name: Smoke Test Suite
         run: pnpm test:smoke
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
+          CLERK_SECRET_KEY: sk_test_123
           PLAYWRIGHT_REUSE_DEMO_STOREFRONT_SERVER: 'true'
           # CI smoke relies on the suite runner's Azure base URL fallback.
           # Only the Azure/OpenAI API key must be present.
