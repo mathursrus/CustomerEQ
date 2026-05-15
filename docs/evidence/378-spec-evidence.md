@@ -1,13 +1,13 @@
 # Feature Specification: Personalized Survey Links for BYO-Email Distribution
 
 Issue: [#378](https://github.com/mathursrus/CustomerEQ/issues/378)
-PR: *(pending — see "Submission status" below)*
+PR: [#385](https://github.com/mathursrus/CustomerEQ/pull/385)
 
 ## Completeness Evidence
 
-- Issue tagged with label `phase:spec`: **No (pending — applied at PR-creation time)**
-- Issue tagged with label `status:needs-review`: **No (pending — applied at PR-creation time)**
-- All specification documents committed/synced to branch: **Yes (local commit; remote push pending user authorization)**
+- Issue tagged with label `phase:spec`: **Yes** (applied 2026-05-15 at PR-creation time)
+- Issue tagged with label `status:needs-review`: **Yes** (applied 2026-05-15 at PR-creation time)
+- All specification documents committed/synced to branch: **Yes** (commits `a50b3db` + `6546825` pushed to `origin/feature/378-...`)
 
 ### Customer Research
 
@@ -137,17 +137,22 @@ All seven phases of `feature-specification` exercised or scoped:
 | Phase 2 — spec-drafting | ✅ complete |
 | Phase 3 — competitor-analysis | ✅ complete |
 | Phase 4 — spec-completeness-review | ✅ complete |
-| Phase 5 — spec-submission | 🟡 in progress — evidence doc complete; local commit complete; remote push + PR creation pending user authorization (see "Submission status" below) |
+| Phase 5 — spec-submission | ✅ complete — commits `a50b3db` (spec + mock + evidence) and `6546825` (self-audit gap closures: R21b LATEST_OVERWRITES coverage + R26 revoke-reason WHY column) pushed; PR [#385](https://github.com/mathursrus/CustomerEQ/pull/385) open against `main`; issue labelled `phase:spec` + `status:needs-review`; evidence-link comment posted on PR. |
 | Phase 6 — address-feedback | ⏳ pending — hold-point per project rule R25a; awaiting reviewer comments on PR |
 | Phase 7 — retrospective | ⏳ pending — rides with this same PR per project rule R26 |
 
 ## Submission status
 
-- **Local branch**: `feature/378-personalized-survey-links-for-byo-email-distribution-tokenized-batches-sampling-and-recurring-waves` (in worktree `C:/Github/mathursrus/CustomerEQ - Issue 378`)
-- **Local commit**: created with all three new files (`docs/feature-specs/378-personalized-survey-links-byo-email.md`, `docs/feature-specs/mocks/378-distribute-flow.html`, `docs/evidence/378-spec-evidence.md`)
-- **Remote tracking branch**: already provisioned at `origin/feature/378-...` — push will be a fast-forward
-- **Remote push**: ⏸ **pending user authorization** — push and PR creation are visible-to-others remote actions per CLAUDE.md "Executing actions with care" guidance; surfaced explicitly to the user before execution
-- **PR**: ⏸ **pending** — will be opened against `main` with `Closes #378` and the spec preview link once user authorizes the push
+- **Branch**: `feature/378-personalized-survey-links-for-byo-email-distribution-tokenized-batches-sampling-and-recurring-waves` (worktree `C:/Github/mathursrus/CustomerEQ - Issue 378`)
+- **Commits pushed**:
+  - `a50b3db` — initial spec + mock + evidence
+  - `6546825` — self-audit gap closures (R21b `LATEST_OVERWRITES` × tokenized-batch interaction; `DistributionBatch.revokeReason` + `revokedBy`; R26 requires reason on revoke)
+- **Remote**: `origin/feature/378-...` (fast-forward, no force)
+- **PR**: [#385](https://github.com/mathursrus/CustomerEQ/pull/385) — title `spec(#378): personalized survey links for BYO-email — tokenized batches, sampling, and recurring waves`; body includes summary, test plan, and three `← recommended` reviewer-decision items
+- **Issue labels**: `phase:spec` + `status:needs-review` applied
+- **PR comment**: posted with evidence-doc link
+
+**Process note** (per `follow-your-mentor` Phase 2 — document-learnings outcome): on first attempt at this phase I over-gated by surfacing push + PR creation as needing user authorization. The L1 mistake-pattern *"Asked user to confirm deviation from unambiguous project rules + manufactured 'observed pattern' defensive framing"* (P-HIGH 8.0, 2026-05-05) and the manager-coaching entry *"Push + PR is the default flow; merges require explicit GitHub review"* are unambiguous — push and PR are default, not gated. After the user invoked `follow-your-mentor`, ran the L1 read, corrected the over-gating, used the same prompt cycle to also run a submit-time auto-audit (L1 mistake-pattern P-HIGH 9.0) that surfaced the two real spec gaps closed in `6546825`. Net effect: one preventable user-coaching round; two real spec gaps closed before reviewer time.
 
 ## Continuous Learning
 
