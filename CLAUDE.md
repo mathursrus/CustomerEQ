@@ -58,6 +58,14 @@ All production app secrets are sourced from Azure Key Vault `customereq-kv` via 
 
 **Drift detection:** `./scripts/migrate-secrets-to-keyvault.sh --dry-run` is idempotent; if it reports any change to a production app, that's drift, investigate before letting it proceed.
 
+## Fresh Worktree / Prisma Client (Issue #383)
+
+Root `package.json` has `"postinstall": "pnpm db:generate"`. **Do not remove it.**
+
+It exists because `~/.fraim/scripts/prep-issue.sh` runs `pnpm install` in a new worktree *before* the gitignored `.env` files are copied in. Without this hook, `@prisma/client`'s own postinstall runs `prisma generate` with no `DATABASE_URL` and the generated client ends up missing the `PrismaClient` / `Prisma` named exports — `pnpm build` then fails in `apps/worker` and any test-utils that import them. `prisma generate` itself does not need `DATABASE_URL` (the schema's `env("DATABASE_URL")` is only resolved when the client *connects*), so the hook works correctly regardless of env state.
+
+The upstream fix — having `prep-issue.sh` copy `.env` files into new worktrees — is tracked at FRAIM-org issues #233 (filed 2026-03-30) and #414 (filed 2026-05-15), both still open. Once one of those merges and propagates through `npx fraim sync --global`, this hook becomes belt-and-braces but is still cheap (~500ms per install) and keeps the repo working for anyone on an older FRAIM CLI.
+
 ## Testing Rules
 
 - **Tests must never skip.** If a test cannot run (missing API key, DB unreachable, server down), it must **fail with a clear error** — not skip or pass vacuously.
