@@ -8,6 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "dev": "dotenv -e .env -- tsx watch src/server.ts",
+    "dev:inline": "dotenv -e .env -- tsx watch src/server-inline.ts",
     "start": "node dist/server.js",
     "lint": "eslint src/",
     "test": "vitest run --reporter=verbose",

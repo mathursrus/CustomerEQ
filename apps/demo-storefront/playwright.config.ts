@@ -1,5 +1,19 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const HOST = '127.0.0.1'
+const PORT = 3022
+const API_PORT = 4010
+const BASE_URL = `http://${HOST}:${PORT}`
+const API_URL = process.env.DEMO_API_URL ?? `http://${HOST}:${API_PORT}`
+
+process.env.DEMO_API_URL = API_URL
+process.env.API_PORT = process.env.API_PORT ?? String(API_PORT)
+process.env.NEXT_PUBLIC_DEMO_BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'StarBrew Coffee'
+process.env.NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR =
+  process.env.NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR ?? '#00704A'
+process.env.NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR =
+  process.env.NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR ?? '#CBA258'
+
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: false,
@@ -7,9 +21,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
   reporter: process.env.CI ? 'github' : 'list',
+  globalSetup: './test/e2e/global-setup.cjs',
 
   use: {
-    baseURL: process.env.DEMO_STOREFRONT_URL ?? 'http://localhost:3002',
+    baseURL: process.env.DEMO_STOREFRONT_URL ?? BASE_URL,
     trace: 'on-first-retry',
   },
 
@@ -20,12 +35,18 @@ export default defineConfig({
     },
   ],
 
-  webServer: process.env.CI
-    ? {
-        command: 'pnpm start',
-        url: 'http://localhost:3002',
-        reuseExistingServer: false,
-        timeout: 60_000,
-      }
-    : undefined,
+  webServer: [
+    {
+      command: 'pnpm --filter @customerEQ/api dev:inline',
+      url: `${API_URL}/healthz`,
+      reuseExistingServer: true,
+      timeout: 60_000,
+    },
+    {
+      command: `pnpm exec next dev -p ${PORT} --hostname ${HOST}`,
+      url: BASE_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 })

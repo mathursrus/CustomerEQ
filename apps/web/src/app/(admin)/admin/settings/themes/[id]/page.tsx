@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 import { ThemeForm, type ThemeFormInitialData } from '@/components/themes/ThemeForm'
 import { ViewOnlyBanner } from '@/components/ui/view-only-banner'
 
@@ -20,7 +20,7 @@ export default function ViewThemePage() {
   useEffect(() => {
     async function load() {
       try {
-        const token = await getToken()
+        const token = await getAuthToken(getToken)
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
         const res = await fetch(`${API_URL}/v1/themes/${themeId}`, { cache: 'no-store', headers })
         if (!res.ok) throw new Error('Theme not found')

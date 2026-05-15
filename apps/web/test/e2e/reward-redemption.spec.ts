@@ -110,8 +110,7 @@ test.describe('Redemption confirmation dialog', () => {
     await page.getByTestId(`reward-redeem-btn-${REWARD_COFFEE.id}`).click()
 
     await expect(page.getByText('Confirm Redemption')).toBeVisible()
-    await expect(page.getByText('Free Coffee')).toBeVisible()
-    await expect(page.getByText('500 points')).toBeVisible()
+    await expect(page.getByText(/Redeem Free Coffee for 500 points\?/i)).toBeVisible()
     await expect(page.getByTestId('confirm-redeem-btn')).toBeVisible()
     await expect(page.getByTestId('cancel-redeem-btn')).toBeVisible()
   })
@@ -146,7 +145,7 @@ test.describe('Successful redemption', () => {
     await page.getByTestId('confirm-redeem-btn').click()
 
     await expect(page.getByText('Reward Redeemed!')).toBeVisible()
-    await expect(page.getByText('Free Coffee')).toBeVisible()
+    await expect(page.getByText(/Digital delivery/i)).toBeVisible()
     await expect(page.getByText('500 points deducted')).toBeVisible()
   })
 
@@ -162,7 +161,7 @@ test.describe('Successful redemption', () => {
 
     // After redemption UI updates balance: 1250 - 500 = 750
     await expect(page.getByText('Reward Redeemed!')).toBeVisible()
-    await expect(page.getByText('750 pts')).toBeVisible()
+    await expect(page.getByText(/500 points deducted .* New balance: 750 pts/i)).toBeVisible()
   })
 })
 

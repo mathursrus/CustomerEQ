@@ -120,7 +120,7 @@ async function applyMigrationFile(
   if (!fs.existsSync(sqlPath)) {
     throw new Error(`Migration SQL not found at ${sqlPath}`)
   }
-  const rawSql = fs.readFileSync(sqlPath, 'utf8')
+  const rawSql = sanitizeVectorSql(fs.readFileSync(sqlPath, 'utf8'))
 
   // Prisma's $executeRawUnsafe uses the extended query protocol with prepared
   // statements, which only allow ONE statement per call ("cannot insert
@@ -148,6 +148,12 @@ async function applyMigrationFile(
     },
     { timeout: 60_000, maxWait: 60_000 },
   )
+}
+
+function sanitizeVectorSql(sql: string): string {
+  return sql
+    .replace(/^\s*CREATE EXTENSION IF NOT EXISTS vector;\s*$/gim, '')
+    .replace(/^\s*"embedding"\s+vector\(1536\),\s*$/gim, '')
 }
 
 /**

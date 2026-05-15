@@ -443,11 +443,11 @@ test.describe('Workflow 2: Program Creation Wizard', () => {
     await page.locator('input[type="date"]').first().fill('2026-06-01')
     await page.getByRole('button', { name: /Next: Earning Rules/ }).click()
 
-    // ── Step 3: Skip earning rules (POINTS → "Next: Rewards →") ───────────
-    await page.getByRole('button', { name: /Next: Rewards/ }).click()
+    // ── Step 3: Earning Rules → Tiers ───────────────────────────────────────
+    await page.getByRole('button', { name: /Next: Tiers/ }).click()
 
-    // ── Step 4: Tiers not applicable for POINTS type ───────────────────────
-    await expect(page.getByText('does not use tiers')).toBeVisible()
+    // ── Step 4: Tiers not applicable for POINTS type → Rewards ─────────────
+    await expect(page.getByText(/does not use tiers/i)).toBeVisible()
     await page.getByRole('button', { name: /Next: Rewards/ }).click()
 
     // ── Step 5: Add a reward (required) then proceed ────────────────────────
@@ -501,8 +501,8 @@ test.describe('Workflow 3: Admin Sidebar Navigation', () => {
     // campaigns-table renders even with empty data (server component with fallback)
     await expect(page.getByTestId('campaigns-table')).toBeVisible()
 
-    // ── Click Analytics in sidebar ─────────────────────────────────────────
-    await page.getByRole('link', { name: 'Analytics' }).click()
+    // ── Click Loyalty Analytics in sidebar ─────────────────────────────────
+    await page.getByRole('link', { name: 'Loyalty Analytics', exact: true }).click()
     await page.waitForURL('/admin/analytics')
     await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible()
     await expect(page.getByTestId('analytics-date-range')).toBeVisible()
@@ -689,6 +689,7 @@ test.describe('Workflow 7: External Signal Sources', () => {
   test('creates a source and previews sample payloads', async ({ page }) => {
     await page.goto('/admin/integrations')
 
+    await page.getByRole('button', { name: /Show advanced \(generic webhook\/API\)/ }).click()
     await page.getByTestId('external-source-name').fill('Reddit Mentions')
     await page.getByTestId('external-source-type').selectOption('REDDIT')
     await page.getByTestId('save-external-source').click()

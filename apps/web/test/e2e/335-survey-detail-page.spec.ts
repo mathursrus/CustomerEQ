@@ -133,6 +133,9 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     // Status badge
     await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible()
 
+    // All four section headings in spec order. Loop Monitor is a first-class
+    // section between Distribution and Response, keeping pipeline visibility
+    // above the default-collapsed Response section.
     // All four section headings in spec order. Loop Monitor was promoted to its
     // own first-class section between Distribution and Response in Slice 4a
     // Round-2 (R32b) per LoopMonitorSection.tsx:5-8 — keeps hero pipeline (#80)

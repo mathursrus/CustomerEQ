@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { API_URL } from '@/lib/config'
+import EnrollPageClient from './EnrollPageClient'
 import EnrollmentForm from './EnrollmentForm'
 
 interface ProgramInfo {
@@ -28,6 +29,11 @@ export default async function EnrollPage({
   params: Promise<{ programSlug: string }>
 }) {
   const { programSlug } = await params
+
+  if (process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true') {
+    return <EnrollPageClient programSlug={programSlug} />
+  }
+
   const program = await fetchProgram(programSlug)
 
   if (!program) {

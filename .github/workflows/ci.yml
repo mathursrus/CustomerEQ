@@ -88,12 +88,34 @@ jobs:
       - name: Security audit
         run: pnpm audit --audit-level=high
 
-      - name: Unit & Integration Tests
-        run: pnpm test
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Validate smoke test secrets
+        run: |
+          test -n "$AZURE_OPENAI_API_KEY" || test -n "$OPENAI_API_KEY" || (echo "Missing AZURE_OPENAI_API_KEY / OPENAI_API_KEY" && exit 1)
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Prepare smoke test env
+        run: |
+          if [ -n "$AZURE_OPENAI_API_KEY" ]; then
+            echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY" >> "$GITHUB_ENV"
+          else
+            echo "AZURE_OPENAI_API_KEY=$OPENAI_API_KEY" >> "$GITHUB_ENV"
+          fi
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Smoke Test Suite
+        run: pnpm test:smoke
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          # CI smoke relies on the suite runner's Azure base URL fallback.
+          # Only the Azure/OpenAI API key must be present.
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { API_URL } from '@/lib/config'
+import { API_URL, getAuthToken } from '@/lib/config'
 
 // Issue #291 — BrandTheme is brand-level visual identity only.
 // Per-survey thank-you fields (thankYouMessage, thankYouRedirectUrl,
@@ -208,6 +208,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
   const { getToken } = useAuth()
   const router = useRouter()
   const isViewOnly = mode === 'view'
+  const themeNameInputId = 'theme-name'
 
   const [theme, setTheme] = useState<ThemeFormState>(() => fromInitialData(initialData))
   // Issue #291 — isDefault is server-derived (Brand.defaultThemeId === theme.id),
@@ -238,7 +239,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
     setSaving(true)
     setError(null)
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       // Issue #291 — body shape matches CreateBrandThemeSchema / UpdateBrandThemeSchema:
       // colors + typography + layout + name only. No logoUrl / brandName / thank-you /
       // isDefault keys; those are handled by other surfaces.
@@ -271,7 +272,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
     setDeleting(true)
     setError(null)
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       const res = await fetch(`${API_URL}/v1/themes/${themeId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -292,7 +293,7 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
     if (isViewOnly || mode !== 'edit' || !themeId) return
     setError(null)
     try {
-      const token = await getToken()
+      const token = await getAuthToken(getToken)
       // Issue #291 — POST /v1/themes/:id/default now writes Brand.defaultThemeId
       // in a single statement. The previous updateMany-clear-then-update-set
       // pair on SurveyTheme.isDefault is gone.
@@ -338,8 +339,11 @@ export function ThemeForm({ mode, themeId, initialData }: ThemeFormProps) {
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Brand</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Theme Name</label>
+                  <label htmlFor={themeNameInputId} className="block text-sm font-medium text-gray-700 mb-1">
+                    Theme Name
+                  </label>
                   <input
+                    id={themeNameInputId}
                     type="text"
                     value={theme.name}
                     onChange={(e) => update('name', e.target.value)}

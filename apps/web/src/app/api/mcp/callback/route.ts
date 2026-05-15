@@ -24,7 +24,16 @@ export async function GET(req: NextRequest) {
   const testUserId = isPlaywright ? req.headers.get('x-playwright-test-user-id')?.trim() || null : null
   const testBrandId = isPlaywright ? req.headers.get('x-playwright-test-brand-id')?.trim() || null : null
 
-  const session = testUserId ? null : await auth()
+  if (isPlaywright && !testUserId) {
+    const publicBaseUrl = await getPublicBaseUrl(req)
+    const signInUrl = new URL('/sign-in', publicBaseUrl)
+    const callbackUrl = new URL(req.nextUrl.pathname, publicBaseUrl)
+    callbackUrl.search = req.nextUrl.search
+    signInUrl.searchParams.set('redirect_url', callbackUrl.toString())
+    return NextResponse.redirect(signInUrl)
+  }
+
+  const session = isPlaywright || testUserId ? null : await auth()
   const userId = testUserId ?? session?.userId ?? null
   if (!userId) {
     const publicBaseUrl = await getPublicBaseUrl(req)
