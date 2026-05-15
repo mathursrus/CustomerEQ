@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CustomerEQ — Personalized Survey Links for BYO-Email (Issue #378) — interactive mock</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --info: #0891b2; --info-soft: #cffafe;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; scroll-behavior: smooth; }
+
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 8px; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* Admin shell */
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .org-switcher { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .admin-top .org-switcher .org-pill { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 14px; color: var(--text); font-weight: 500; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 600px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; cursor: pointer; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav a:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 32px 40px; background: var(--bg); }
+
+  /* Page header */
+  .page-header { margin-bottom: 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .page-header p { font-size: 14px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+
+  /* Pills, badges */
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .pill.solid-active { background: var(--success-soft); color: var(--success); }
+  .pill.solid-draft { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.outline-type { background: white; border: 1px solid var(--border); color: var(--text); }
+  .pill.warn { background: var(--warning-soft); color: var(--warning-strong); }
+  .pill.danger { background: var(--danger-soft); color: var(--danger); }
+  .pill.info { background: var(--info-soft); color: var(--info); }
+
+  /* Collapsible sections */
+  .section { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; cursor: pointer; user-select: none; }
+  .section-head h2 { margin: 0; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .chevron { width: 14px; height: 14px; display: inline-block; transition: transform 0.15s; color: var(--text-muted); }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+  .section-body { padding: 0 20px 20px; border-top: 1px solid var(--border); }
+  .section.collapsed .section-body { display: none; }
+  .section.new-section { border: 2px dashed var(--primary); }
+  .section.new-section .section-head h2::after { content: "NEW (#378)"; font-size: 10px; color: var(--primary); background: var(--primary-soft); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600; letter-spacing: 0.3px; }
+
+  /* Distribution tiles */
+  .dist-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+  .dist-tile { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: white; }
+  .dist-tile h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+  .dist-tile p { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; min-height: 36px; }
+  .dist-tile .tile-value { font-family: var(--mono); font-size: 11px; background: var(--surface-muted); padding: 6px 8px; border-radius: 4px; word-break: break-all; color: var(--text); }
+  .dist-tile .tile-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .dist-tile.cta { border: 1.5px solid var(--primary); background: var(--primary-soft); }
+  .dist-tile.cta h3 { color: var(--primary); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; user-select: none; text-decoration: none; }
+  .btn.primary { background: var(--primary); color: white; }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn.secondary { background: white; border-color: var(--border-strong); color: var(--text); }
+  .btn.secondary:hover { background: var(--surface-muted); }
+  .btn.ghost { background: transparent; color: var(--text-muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--surface-muted); }
+  .btn.danger { background: white; border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger-soft); }
+  .btn.tiny { padding: 4px 10px; font-size: 12px; }
+  .btn[disabled], .btn.disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+
+  /* Wizard layout */
+  .wizard { display: grid; grid-template-columns: 220px 1fr; gap: 32px; }
+  .wizard-rail { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 0; position: sticky; top: 80px; height: fit-content; }
+  .wizard-rail .step { display: flex; align-items: center; gap: 10px; padding: 10px 18px; color: var(--text-muted); font-size: 13px; cursor: pointer; }
+  .wizard-rail .step .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-muted); color: var(--text-muted); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .wizard-rail .step.active { color: var(--primary); font-weight: 500; background: var(--primary-soft); }
+  .wizard-rail .step.active .step-num { background: var(--primary); color: white; }
+  .wizard-rail .step.complete { color: var(--success); }
+  .wizard-rail .step.complete .step-num { background: var(--success); color: white; }
+  .wizard-rail .step.complete .step-num::before { content: "✓"; }
+  .wizard-rail .step.complete .step-num-num { display: none; }
+
+  .wizard-body { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 32px; }
+  .wizard-body h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .wizard-body .step-help { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+  .wizard-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .wizard-foot .saved-state { font-size: 12px; color: var(--text-subtle); display: inline-flex; align-items: center; gap: 6px; }
+  .wizard-foot .saved-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  /* Mode cards */
+  .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  .mode-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 16px; cursor: pointer; background: white; transition: all 0.15s; }
+  .mode-card:hover { border-color: var(--border-strong); }
+  .mode-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+  .mode-card .mode-letter { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-muted); color: var(--text-muted); font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+  .mode-card.selected .mode-letter { background: var(--primary); color: white; }
+  .mode-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+  .mode-card p { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+  /* Form fields */
+  .field { margin-bottom: 18px; }
+  .field label { font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px; }
+  .field .field-help { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .field input[type="text"], .field input[type="number"], .field select, .field textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: white; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+  .field textarea { min-height: 110px; font-family: var(--mono); font-size: 12px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* Slider */
+  .slider-row { display: flex; align-items: center; gap: 14px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-row .slider-value { font-family: var(--mono); font-size: 13px; min-width: 60px; text-align: right; }
+
+  /* Predicate chip-row */
+  .predicate-panel { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 18px; }
+  .predicate-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .predicate-panel-head h4 { margin: 0; font-size: 13px; font-weight: 600; }
+  .predicate-panel-head .total-count { font-size: 13px; color: var(--text-muted); }
+  .predicate-panel-head .total-count strong { color: var(--text); font-weight: 600; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pred-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: white; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
+  .pred-chip .chip-remove { color: var(--text-subtle); cursor: pointer; font-weight: 700; }
+  .pred-chip:hover .chip-remove { color: var(--danger); }
+  .pred-chip.add { color: var(--primary); border-style: dashed; cursor: pointer; }
+  .pred-chip.add:hover { background: var(--primary-soft); }
+  .pred-chip .chip-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  /* Seed input */
+  .seed-row { display: flex; gap: 8px; align-items: center; }
+  .seed-row input { font-family: var(--mono); width: 160px; }
+  .seed-row .btn { white-space: nowrap; }
+
+  /* Preview table */
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .preview-table thead { background: var(--surface-muted); }
+  .preview-table th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; }
+  .preview-table td { padding: 9px 12px; border-top: 1px solid var(--border); }
+  .preview-table .identifier { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+  .preview-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .summary-card { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 12px; }
+  .summary-card .summary-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-card .summary-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .summary-card .summary-meta { font-size: 11px; color: var(--text-subtle); }
+
+  /* Confirm panel */
+  .confirm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+  .confirm-list { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 18px; }
+  .confirm-list dl { margin: 0; display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; }
+  .confirm-list dt { color: var(--text-muted); font-size: 13px; }
+  .confirm-list dd { margin: 0; font-size: 13px; }
+  .confirm-list dd strong { font-weight: 600; }
+  .confirm-list dd code { font-family: var(--mono); font-size: 12px; background: white; padding: 1px 6px; border-radius: 4px; }
+
+  /* Download artifacts */
+  .download-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 18px; }
+  .download-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; background: white; }
+  .download-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+  .download-card p { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; min-height: 32px; }
+  .csv-shape-select { font-size: 12px; padding: 4px 8px; margin: 0 0 10px; border-radius: 4px; border: 1px solid var(--border-strong); width: 100%; }
+
+  /* Batches table */
+  .batches-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .batches-table thead { background: var(--surface-muted); }
+  .batches-table th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; }
+  .batches-table td { padding: 12px; border-top: 1px solid var(--border); }
+  .batches-table .label-cell strong { display: block; font-weight: 600; }
+  .batches-table .label-cell .meta { color: var(--text-muted); font-size: 11px; }
+  .batches-table .audience-cell { font-size: 12px; color: var(--text); }
+  .batches-table .audience-cell code { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+  .batches-table .actions-cell { white-space: nowrap; }
+  .batches-table .rate-bar { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .batches-table .rate-bar .bar-track { width: 60px; height: 5px; background: var(--surface-muted); border-radius: 3px; overflow: hidden; }
+  .batches-table .rate-bar .bar-fill { height: 100%; background: var(--success); }
+
+  /* Banner */
+  .banner { padding: 12px 16px; border-radius: var(--radius-sm); display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; font-size: 13px; }
+  .banner.warn { background: var(--warning-soft); color: var(--warning-strong); }
+  .banner.info { background: var(--info-soft); color: var(--info); }
+  .banner.success { background: var(--success-soft); color: var(--success); }
+  .banner .banner-icon { font-weight: 700; }
+
+  /* Tokenized URL respondent form */
+  .form-page { background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%); min-height: 540px; padding: 40px 20px; display: flex; align-items: center; justify-content: center; }
+  .form-card { background: white; max-width: 560px; width: 100%; padding: 40px; border-radius: 12px; box-shadow: var(--shadow-lg); }
+  .form-card .form-logo { width: 50px; height: 50px; background: #6d28d9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; margin-bottom: 12px; }
+  .form-card h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+  .form-card .form-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+  .form-card .form-question { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+  .nps-scale { display: flex; gap: 4px; margin-bottom: 16px; }
+  .nps-scale .nps-num { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-strong); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .nps-scale .nps-num.selected { background: #6d28d9; color: white; border-color: #6d28d9; }
+  .form-card textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; margin-bottom: 16px; }
+  .form-card .consent-line { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+  .form-card .submit-btn { width: 100%; background: #6d28d9; color: white; padding: 12px; border-radius: 6px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; }
+  .form-card .url-bar { font-family: var(--mono); font-size: 11px; color: var(--text-subtle); background: var(--surface-muted); padding: 6px 10px; border-radius: 4px; margin-bottom: 16px; word-break: break-all; }
+
+  .error-states-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 1100px; margin: 0 auto; }
+  .error-card { background: white; padding: 28px; border-radius: var(--radius); border: 1px solid var(--border); }
+  .error-card .error-icon { font-size: 32px; margin-bottom: 8px; }
+  .error-card h3 { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+  .error-card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+  .error-card .url-bar { font-family: var(--mono); font-size: 11px; color: var(--text-subtle); background: var(--surface-muted); padding: 6px 10px; border-radius: 4px; margin-top: 14px; word-break: break-all; }
+
+  /* Status pills in batch table */
+  .status-pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .status-pill.pending { background: var(--surface-muted); color: var(--text-muted); }
+  .status-pill.consumed { background: var(--success-soft); color: var(--success); }
+  .status-pill.expired { background: var(--warning-soft); color: var(--warning-strong); }
+  .status-pill.revoked { background: var(--danger-soft); color: var(--danger); }
+
+  .ann-list { margin: 12px 0 0; padding: 0 0 0 18px; }
+  .ann-list li { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .ann-list li code { font-family: var(--mono); font-size: 11px; background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; }
+
+  .legend { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; max-width: 1280px; margin: 0 auto 32px; }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .legend ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); }
+  .legend ul li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>CustomerEQ — Personalized Survey Links for BYO-Email Distribution (Issue #378)</h1>
+  <div class="nav">
+    <a href="#scene-1">1. Entry</a>
+    <a href="#scene-2">2. Audience</a>
+    <a href="#scene-3">3. Preview</a>
+    <a href="#scene-4">4. Confirm</a>
+    <a href="#scene-5">5. Download</a>
+    <a href="#scene-6">6. Batches</a>
+    <a href="#scene-7">7. Batch detail</a>
+    <a href="#scene-8">8. Respondent</a>
+    <a href="#scene-9">9. Error states</a>
+  </div>
+</div>
+
+<div style="padding: 24px;">
+  <div class="legend">
+    <h3>About this mock</h3>
+    <ul>
+      <li>The dashed-purple section borders highlight what's <strong>new in #378</strong>; everything else is the existing #241 detail page.</li>
+      <li>Scenes 2–5 show the four-step Distribute wizard at <code>/admin/surveys/[id]/distribute</code>.</li>
+      <li>Scene 6 shows the new Distribution batches section back on the survey detail page after a wave has been sent.</li>
+      <li>Scene 8 shows the respondent's tokenized URL — note the form does <em>not</em> ask "who are you?" because the token authorizes the member.</li>
+      <li>Scene 9 enumerates the four token-error states the respondent can see.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- SCENE 1: Entry — survey detail page Distribution section with new tile -->
+<div class="scene" id="scene-1">
+  <div class="scene-label"><strong>Scene 1</strong> · Survey detail page · <code>/admin/surveys/srv_q2nps_a1b2</code> · Distribution section gains a <em>Send via my email tool</em> primary tile.</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Programs</div>
+          <a>Members</a>
+          <a>Rewards</a>
+          <a>Campaigns</a>
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+          <a>Loop Monitor</a>
+          <a>Insights</a>
+          <div class="admin-nav-group">Settings</div>
+          <a>Organization</a>
+          <a>Integrations</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; Q2 NPS — Loyalty members</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 NPS — Loyalty members <span class="pill outline-type">NPS</span> <span class="pill solid-active">Active</span></h1>
+              <p>Quarterly NPS to Gold tier members · Acme Loyalty program</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn secondary">⋯ More</button>
+              <button class="btn primary">✎ Edit</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Distribution</h2>
+              <span style="font-size:12px;color:var(--text-muted);">Live · 3 channels available</span>
+            </div>
+            <div class="section-body">
+              <p style="font-size:13px;color:var(--text-muted);margin-top:14px;">Share link is for posting publicly. Embed is for your own site. <strong>Send via my email tool</strong> generates per-recipient links you can mail-merge from Mailchimp, HubSpot, Klaviyo, or Gmail.</p>
+              <div class="dist-tiles">
+                <div class="dist-tile">
+                  <h3>🔗 Share link</h3>
+                  <p>Post the URL on social, blog, signage, anywhere.</p>
+                  <div class="tile-value">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2</div>
+                  <div class="tile-actions">
+                    <button class="btn tiny secondary">📋 Copy</button>
+                    <button class="btn tiny ghost">QR code</button>
+                  </div>
+                </div>
+                <div class="dist-tile">
+                  <h3>🧩 Embed snippet</h3>
+                  <p>Paste this script onto your own page; CustomerEQ renders inline.</p>
+                  <div class="tile-value">&lt;script src=".../widget.js" data-survey="srv_q2nps_a1b2" data-prefill-email="{{MEMBER_EMAIL}}"&gt;&lt;/script&gt;</div>
+                  <div class="tile-actions">
+                    <button class="btn tiny secondary">📋 Copy</button>
+                    <button class="btn tiny ghost">Preview</button>
+                  </div>
+                </div>
+                <div class="dist-tile cta">
+                  <h3>📧 Send via my email tool</h3>
+                  <p>Generate per-recipient links for Mailchimp, HubSpot, Klaviyo, or Gmail mail-merge.</p>
+                  <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:10px;">Tokenized · single-use · no PII in URLs</div>
+                  <div class="tile-actions">
+                    <a href="#scene-2" class="btn primary tiny">Send via my email tool →</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Loop Monitor</h2>
+              <span style="font-size:12px;color:var(--text-muted);">Live pipeline · 1,247 sent · 412 responses · 33%</span>
+            </div>
+            <div class="section-body"></div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Response</h2>
+              <span style="font-size:12px;color:var(--text-muted);">412 responses · NPS 38</span>
+            </div>
+            <div class="section-body"></div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Configuration summary</h2>
+            </div>
+            <div class="section-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 2: Wizard Step 1 — Audience -->
+<div class="scene" id="scene-2">
+  <div class="scene-label"><strong>Scene 2</strong> · Distribute wizard · Step 1 — Audience · <code>/admin/surveys/srv_q2nps_a1b2/distribute</code></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 NPS — Loyalty members</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header">
+            <div>
+              <h1>Distribute · Send via my email tool</h1>
+              <p>Generate per-recipient survey URLs. The tokens are single-use, expirable, and contain no PII.</p>
+            </div>
+            <div style="font-size:12px;color:var(--text-subtle);">In progress · draft saved 2s ago</div>
+          </div>
+
+          <div class="wizard">
+            <div class="wizard-rail">
+              <div class="step active"><span class="step-num"><span class="step-num-num">1</span></span> Audience</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">2</span></span> Preview</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">3</span></span> Confirm</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">4</span></span> Download</div>
+            </div>
+            <div class="wizard-body">
+              <h2>Pick who gets the survey</h2>
+              <div class="step-help">Three modes. Percent and Count compose with a filter predicate; Explicit list takes identifiers you paste or upload.</div>
+
+              <div class="mode-grid">
+                <div class="mode-card">
+                  <div class="mode-letter">A</div>
+                  <h3>Percent</h3>
+                  <p>X% of members matching a filter.</p>
+                </div>
+                <div class="mode-card selected">
+                  <div class="mode-letter">B</div>
+                  <h3>Count</h3>
+                  <p>Exactly N members matching a filter.</p>
+                </div>
+                <div class="mode-card">
+                  <div class="mode-letter">C</div>
+                  <h3>Explicit list</h3>
+                  <p>Paste identifiers or upload a CSV.</p>
+                </div>
+              </div>
+
+              <!-- Mode B selected -->
+              <div class="field">
+                <label for="count-input">How many members?</label>
+                <input id="count-input" type="number" value="100" min="1" max="10000" style="max-width:160px;" />
+                <div class="field-help">Randomly sampled from the filter predicate below. Sample is deterministic given the seed.</div>
+              </div>
+
+              <div class="predicate-panel">
+                <div class="predicate-panel-head">
+                  <h4>Filter predicate · who is eligible?</h4>
+                  <div class="total-count"><strong>1,243</strong> members match</div>
+                </div>
+                <div class="chip-row">
+                  <div class="pred-chip">Tier: Gold <span class="chip-count">(1,243)</span> <span class="chip-remove">×</span></div>
+                  <div class="pred-chip">Status: Active <span class="chip-count">(1,243)</span> <span class="chip-remove">×</span></div>
+                  <div class="pred-chip">Health score &lt; 70 <span class="chip-count">(204)</span> <span class="chip-remove">×</span></div>
+                  <div class="pred-chip">No response in last 30 days <span class="chip-count">(186)</span> <span class="chip-remove">×</span></div>
+                  <div class="pred-chip add">+ Add filter</div>
+                </div>
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:10px;">ERASED members are excluded automatically (project rule R13).</div>
+              </div>
+
+              <div class="field">
+                <label>Sampling seed</label>
+                <div class="seed-row">
+                  <input type="text" value="a7b3c1f4" />
+                  <button class="btn tiny secondary">🔄 New seed</button>
+                  <button class="btn tiny ghost">📋 Copy</button>
+                </div>
+                <div class="field-help">Same seed + same predicate + same data ⇒ same sample. Record this if you want quarterly waves to hit the same members.</div>
+              </div>
+
+              <div class="wizard-foot">
+                <div class="saved-state">Saved · 2s ago</div>
+                <div>
+                  <button class="btn secondary disabled">← Back</button>
+                  <a href="#scene-3" class="btn primary">Continue →</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 3: Wizard Step 2 — Preview -->
+<div class="scene" id="scene-3">
+  <div class="scene-label"><strong>Scene 3</strong> · Distribute wizard · Step 2 — Preview</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 NPS — Loyalty members</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header"><div><h1>Distribute · Preview</h1></div></div>
+
+          <div class="wizard">
+            <div class="wizard-rail">
+              <div class="step complete"><span class="step-num"><span class="step-num-num">1</span></span> Audience</div>
+              <div class="step active"><span class="step-num"><span class="step-num-num">2</span></span> Preview</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">3</span></span> Confirm</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">4</span></span> Download</div>
+            </div>
+            <div class="wizard-body">
+              <h2>Review the sample before generating links</h2>
+              <div class="step-help">100 members sampled (deterministic; seed <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 6px;border-radius:3px;">a7b3c1f4</code>). First 50 shown below — paginate to see all.</div>
+
+              <div class="preview-summary">
+                <div class="summary-card">
+                  <div class="summary-label">Mode</div>
+                  <div class="summary-value" style="font-size:14px;">Count · 100</div>
+                  <div class="summary-meta">of 1,243 matching</div>
+                </div>
+                <div class="summary-card">
+                  <div class="summary-label">Tokens to mint</div>
+                  <div class="summary-value">100</div>
+                  <div class="summary-meta">one per member</div>
+                </div>
+                <div class="summary-card">
+                  <div class="summary-label">Auto-enrollments</div>
+                  <div class="summary-value">0</div>
+                  <div class="summary-meta">all members exist</div>
+                </div>
+                <div class="summary-card">
+                  <div class="summary-label">Unmatched</div>
+                  <div class="summary-value">0</div>
+                  <div class="summary-meta">N/A (Mode B)</div>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label>Wave label *</label>
+                  <input type="text" value="Q2 NPS · 2026-05-15" />
+                  <div class="field-help">Shown in analytics and on every batch row. Maximum 80 characters.</div>
+                </div>
+                <div class="field">
+                  <label>Expiry window *</label>
+                  <select>
+                    <option>24 hours</option>
+                    <option selected>7 days</option>
+                    <option>30 days</option>
+                    <option>90 days</option>
+                    <option>Custom…</option>
+                  </select>
+                  <div class="field-help">Every token in this batch expires at the same time.</div>
+                </div>
+              </div>
+
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Email</th>
+                    <th>Tier</th>
+                    <th>Last response</th>
+                    <th>Health</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Jane Mitchell</td><td class="identifier">j.mitchell@example.com</td><td>Gold</td><td>2026-02-15</td><td>62</td></tr>
+                  <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td>Gold</td><td>2026-01-04</td><td>58</td></tr>
+                  <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td>Gold</td><td>—</td><td>55</td></tr>
+                  <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td>Gold</td><td>2025-12-18</td><td>67</td></tr>
+                  <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td>Gold</td><td>—</td><td>61</td></tr>
+                  <tr><td colspan="5" style="text-align:center;color:var(--text-subtle);font-style:italic;">… 95 more rows</td></tr>
+                </tbody>
+              </table>
+
+              <div class="wizard-foot">
+                <div class="saved-state">Saved · just now</div>
+                <div>
+                  <a href="#scene-2" class="btn secondary">← Back</a>
+                  <a href="#scene-4" class="btn primary">Continue →</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 4: Wizard Step 3 — Confirm -->
+<div class="scene" id="scene-4">
+  <div class="scene-label"><strong>Scene 4</strong> · Distribute wizard · Step 3 — Confirm</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 NPS — Loyalty members</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header"><div><h1>Distribute · Confirm</h1></div></div>
+
+          <div class="wizard">
+            <div class="wizard-rail">
+              <div class="step complete"><span class="step-num"><span class="step-num-num">1</span></span> Audience</div>
+              <div class="step complete"><span class="step-num"><span class="step-num-num">2</span></span> Preview</div>
+              <div class="step active"><span class="step-num"><span class="step-num-num">3</span></span> Confirm</div>
+              <div class="step"><span class="step-num"><span class="step-num-num">4</span></span> Download</div>
+            </div>
+            <div class="wizard-body">
+              <h2>Confirm and generate links</h2>
+              <div class="step-help">Clicking <strong>Generate links</strong> writes one batch row and 100 single-use tokens. This is atomic — partial failures roll back fully.</div>
+
+              <div class="confirm-grid">
+                <div class="confirm-list">
+                  <dl>
+                    <dt>Survey</dt><dd><strong>Q2 NPS — Loyalty members</strong> · Active</dd>
+                    <dt>Wave label</dt><dd>Q2 NPS · 2026-05-15</dd>
+                    <dt>Tokens to mint</dt><dd><strong>100</strong></dd>
+                    <dt>Audience</dt><dd>Count · 100 of 1,243 Gold + active + health&lt;70 + no-response-30d</dd>
+                    <dt>Sampling seed</dt><dd><code>a7b3c1f4</code></dd>
+                    <dt>Expiry</dt><dd>7 days · expires 2026-05-22 17:24 UTC</dd>
+                    <dt>Operator</dt><dd>manohar.madhira@outlook.com</dd>
+                    <dt>Auto-enroll</dt><dd>N/A (Mode B)</dd>
+                  </dl>
+                </div>
+                <div>
+                  <div class="banner info">
+                    <span class="banner-icon">ℹ</span>
+                    <div>Tokens are <strong>opaque</strong> (no PII in URLs), <strong>single-use</strong>, <strong>expirable</strong>, and <strong>revocable</strong>. A leaked link allows exactly one response from one member.</div>
+                  </div>
+                  <div class="banner warn">
+                    <span class="banner-icon">⚠</span>
+                    <div>Once you generate, the plaintext tokens are shown <strong>once</strong> for download. The server stores hashes only — re-downloading rebuilds URLs from the hash + original token, which the server can't do, so capture the CSV now.</div>
+                  </div>
+                  <p style="font-size:12px;color:var(--text-muted);margin:0;">A re-download on the batch detail page is available later because the URL <em>is</em> the token-bearing artifact you already received; the server never stores plaintext separately.</p>
+                </div>
+              </div>
+
+              <div class="wizard-foot">
+                <div></div>
+                <div>
+                  <a href="#scene-3" class="btn secondary">← Back</a>
+                  <a href="#scene-5" class="btn primary">⚡ Generate 100 links</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 5: Wizard Step 4 — Download -->
+<div class="scene" id="scene-5">
+  <div class="scene-label"><strong>Scene 5</strong> · Distribute wizard · Step 4 — Download</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 NPS — Loyalty members</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header"><div><h1>Distribute · Download</h1></div></div>
+
+          <div class="wizard">
+            <div class="wizard-rail">
+              <div class="step complete"><span class="step-num"><span class="step-num-num">1</span></span> Audience</div>
+              <div class="step complete"><span class="step-num"><span class="step-num-num">2</span></span> Preview</div>
+              <div class="step complete"><span class="step-num"><span class="step-num-num">3</span></span> Confirm</div>
+              <div class="step active"><span class="step-num"><span class="step-num-num">4</span></span> Download</div>
+            </div>
+            <div class="wizard-body">
+              <div class="banner success">
+                <span class="banner-icon">✓</span>
+                <div><strong>Generated 100 links.</strong> Wave saved as <em>Q2 NPS · 2026-05-15</em>. Tokens expire 2026-05-22 at 17:24 UTC.</div>
+              </div>
+
+              <h2>Download your links</h2>
+              <div class="step-help">Take these into your email tool. The plaintext URLs are shown here once — download the CSV before leaving this page.</div>
+
+              <div class="download-grid">
+                <div class="download-card">
+                  <h3>📄 CSV (full)</h3>
+                  <p>Generic columns: <code>memberId, identifier, firstName, lastName, url</code></p>
+                  <button class="btn primary tiny" style="width:100%;justify-content:center;">⬇ Download CSV</button>
+                </div>
+                <div class="download-card">
+                  <h3>📄 CSV (ESP-shaped)</h3>
+                  <p>Column names match your ESP's expected import format.</p>
+                  <select class="csv-shape-select">
+                    <option>Mailchimp · Email Address, FNAME, LNAME, SURVEY_URL</option>
+                    <option>HubSpot · email, firstname, lastname, survey_url</option>
+                    <option>Klaviyo · Email, First Name, Last Name, Survey URL</option>
+                    <option>Generic · same as full CSV</option>
+                  </select>
+                  <button class="btn primary tiny" style="width:100%;justify-content:center;">⬇ Download CSV</button>
+                </div>
+                <div class="download-card">
+                  <h3>🏷 Merge-tag snippet</h3>
+                  <p>Paste into your email template's link block.</p>
+                  <div style="background:var(--surface-muted);padding:8px;border-radius:4px;font-family:var(--mono);font-size:11px;margin-bottom:10px;">&lt;a href="*|SURVEY_URL|*"&gt;Take our survey&lt;/a&gt;</div>
+                  <button class="btn secondary tiny" style="width:100%;justify-content:center;">📋 Copy snippet</button>
+                </div>
+              </div>
+
+              <div class="wizard-foot">
+                <div style="font-size:12px;color:var(--text-muted);">A re-download is available on the batch detail page later (RBAC-gated).</div>
+                <div>
+                  <a href="#scene-6" class="btn primary">Done — back to survey →</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 6: Survey detail with Distribution batches section -->
+<div class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6</strong> · Survey detail page · new <em>Distribution batches</em> section between Distribution and Loop Monitor</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; Q2 NPS — Loyalty members</div>
+          <div class="page-header"><div><h1>Q2 NPS — Loyalty members <span class="pill outline-type">NPS</span> <span class="pill solid-active">Active</span></h1><p>Quarterly NPS to Gold tier members · Acme Loyalty program</p></div><div style="display:flex;gap:8px;"><button class="btn secondary">⋯ More</button><button class="btn primary">✎ Edit</button></div></div>
+
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Distribution</h2><span style="font-size:12px;color:var(--text-muted);">3 channels available</span></div>
+            <div class="section-body"></div>
+          </div>
+
+          <div class="section new-section">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Distribution batches</h2>
+              <a href="#scene-2" class="btn tiny primary">+ New batch</a>
+            </div>
+            <div class="section-body">
+              <table class="batches-table">
+                <thead>
+                  <tr><th>Label</th><th>Audience</th><th>Tokens</th><th>Consumed</th><th>Response rate</th><th>Expires</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="label-cell"><strong>Q2 NPS · 2026-05-15</strong><span class="meta">Sent today · by manohar.madhira</span></td>
+                    <td class="audience-cell">Count · 100 of 1,243 Gold + active + health&lt;70 <span style="color:var(--text-subtle);">· seed <code>a7b3c1f4</code></span></td>
+                    <td>100</td>
+                    <td>3</td>
+                    <td class="rate-bar">3% <div class="bar-track"><div class="bar-fill" style="width:3%;"></div></div></td>
+                    <td>in 7 days</td>
+                    <td class="actions-cell">
+                      <a href="#scene-7" class="btn tiny ghost">View</a>
+                      <button class="btn tiny ghost">Re-run</button>
+                      <button class="btn tiny ghost" style="color:var(--danger);">Revoke remaining</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell"><strong>Q1 NPS · 2026-02-15</strong><span class="meta">Sent 90 days ago · by manohar.madhira</span></td>
+                    <td class="audience-cell">Count · 100 of 1,164 Gold + active + health&lt;70 <span style="color:var(--text-subtle);">· seed <code>a7b3c1f4</code></span></td>
+                    <td>100</td>
+                    <td>34</td>
+                    <td class="rate-bar">34% <div class="bar-track"><div class="bar-fill" style="width:34%;"></div></div></td>
+                    <td>expired 83d ago</td>
+                    <td class="actions-cell">
+                      <a href="#scene-7" class="btn tiny ghost">View</a>
+                      <button class="btn tiny ghost">Re-run</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell"><strong>Onboarding cohort pulse</strong><span class="meta">Sent 14 days ago · by cx.lead@acme</span></td>
+                    <td class="audience-cell">Explicit · 47 identifiers (12 auto-enrolled)</td>
+                    <td>47</td>
+                    <td>22</td>
+                    <td class="rate-bar">47% <div class="bar-track"><div class="bar-fill" style="width:47%;"></div></div></td>
+                    <td>expired 7d ago</td>
+                    <td class="actions-cell">
+                      <a href="#scene-7" class="btn tiny ghost">View</a>
+                      <button class="btn tiny ghost">Re-run</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Loop Monitor</h2></div>
+            <div class="section-body"></div>
+          </div>
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Response</h2></div>
+            <div class="section-body"></div>
+          </div>
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Configuration summary</h2></div>
+            <div class="section-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 7: Batch detail drill-down -->
+<div class="scene" id="scene-7">
+  <div class="scene-label"><strong>Scene 7</strong> · Batch detail · <code>/admin/surveys/srv_q2nps_a1b2/distribute/batches/btc_q2nps_20260515</code></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 NPS — Loyalty members</a> &nbsp;›&nbsp; <a href="#scene-6">Distribution batches</a> &nbsp;›&nbsp; Q2 NPS · 2026-05-15</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 NPS · 2026-05-15 <span class="pill solid-active">Active</span></h1>
+              <p>100 tokens · 3 consumed · expires in 7 days</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn secondary">⬇ Re-download CSV</button>
+              <button class="btn danger">Revoke remaining (97)</button>
+            </div>
+          </div>
+
+          <div class="preview-summary" style="margin-bottom:24px;">
+            <div class="summary-card"><div class="summary-label">Minted</div><div class="summary-value">100</div></div>
+            <div class="summary-card"><div class="summary-label">Consumed</div><div class="summary-value" style="color:var(--success);">3</div><div class="summary-meta">3% response rate</div></div>
+            <div class="summary-card"><div class="summary-label">Pending</div><div class="summary-value">97</div></div>
+            <div class="summary-card"><div class="summary-label">Revoked</div><div class="summary-value">0</div></div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Audience spec</h2></div>
+            <div class="section-body">
+              <div class="confirm-list" style="margin-top:12px;">
+                <dl>
+                  <dt>Mode</dt><dd>Count · 100 of 1,243 matching members</dd>
+                  <dt>Predicate</dt><dd>Tier = Gold AND Status = Active AND healthScore &lt; 70 AND noResponseInLastDays = 30</dd>
+                  <dt>Sampling seed</dt><dd><code>a7b3c1f4</code> · re-runnable for deterministic same-audience waves</dd>
+                  <dt>Expiry</dt><dd>7 days · expires 2026-05-22 17:24 UTC</dd>
+                  <dt>Created</dt><dd>2026-05-15 17:24 UTC by manohar.madhira@outlook.com</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Tokens · 100</h2><span style="font-size:12px;color:var(--text-muted);">Plaintext shown once at creation — only prefixes here</span></div>
+            <div class="section-body">
+              <table class="preview-table" style="margin-top:14px;">
+                <thead><tr><th>Member</th><th>Identifier</th><th>Token prefix</th><th>Status</th><th>Consumed at</th></tr></thead>
+                <tbody>
+                  <tr><td>Jane Mitchell</td><td class="identifier">j.mitchell@example.com</td><td class="identifier">8K3xPm…</td><td><span class="status-pill consumed">Consumed</span></td><td>2026-05-15 18:02 UTC</td></tr>
+                  <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td class="identifier">2hN9bQ…</td><td><span class="status-pill consumed">Consumed</span></td><td>2026-05-15 19:11 UTC</td></tr>
+                  <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td class="identifier">L4mRtZ…</td><td><span class="status-pill consumed">Consumed</span></td><td>2026-05-15 22:34 UTC</td></tr>
+                  <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td class="identifier">VnA7Wj…</td><td><span class="status-pill pending">Pending</span></td><td>—</td></tr>
+                  <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td class="identifier">f3Hk9C…</td><td><span class="status-pill pending">Pending</span></td><td>—</td></tr>
+                  <tr><td colspan="5" style="text-align:center;color:var(--text-subtle);font-style:italic;">… 95 more rows</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 8: Respondent — tokenized URL valid -->
+<div class="scene" id="scene-8" style="padding:0;">
+  <div class="scene-label" style="margin-top:32px;"><strong>Scene 8</strong> · Respondent's view at <code>/s/srv_q2nps_a1b2/r/Xk8...VnA7Wj-9</code> — no member-ID field, no PII in URL</div>
+  <div class="form-page">
+    <div class="form-card">
+      <div class="url-bar">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/Xk8mP3qB9hN2yL4mRtZf3Hk9CVnA7Wj</div>
+      <div class="form-logo">A</div>
+      <h1>How are we doing?</h1>
+      <div class="form-sub">Quick question from Acme Coffee — your feedback shapes what we ship next.</div>
+      <div class="form-question">On a scale of 0–10, how likely are you to recommend Acme Coffee to a friend?</div>
+      <div class="nps-scale">
+        <div class="nps-num">0</div><div class="nps-num">1</div><div class="nps-num">2</div><div class="nps-num">3</div>
+        <div class="nps-num">4</div><div class="nps-num">5</div><div class="nps-num">6</div><div class="nps-num">7</div>
+        <div class="nps-num">8</div><div class="nps-num selected">9</div><div class="nps-num">10</div>
+      </div>
+      <div class="form-question">Tell us why (optional)</div>
+      <textarea placeholder="Anything you want us to know…"></textarea>
+      <div class="consent-line">By submitting, you agree to our <a href="#" style="color:#6d28d9;">Privacy Policy</a>.</div>
+      <button class="submit-btn">Submit feedback · earn 50 ★</button>
+      <ul class="ann-list">
+        <li>No member-ID input — the token resolves who you are.</li>
+        <li>One-time use: this URL becomes <code>Consumed</code> on submit.</li>
+        <li>The URL contains an opaque 32-byte token. No email, no member id, no batch label.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 9: Error states -->
+<div class="scene" id="scene-9">
+  <div class="scene-label"><strong>Scene 9</strong> · Four token-error states · no PII revealed in any error</div>
+  <div class="error-states-grid">
+    <div class="error-card">
+      <div class="error-icon">⏰</div>
+      <h3>This survey link has expired</h3>
+      <p>If you still want to share feedback, contact <a href="mailto:support@acmecoffee.com" style="color:var(--primary);">support@acmecoffee.com</a>.</p>
+      <div class="url-bar">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/Xk8…VnA7Wj-9</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:8px;">Token state: <code>expired</code> · HTTP 410 on submit · brand support email sourced from <code>Brand.supportEmail</code></div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">✓</div>
+      <h3>This survey has already been submitted</h3>
+      <p>Thank you for your response — we have it on file.</p>
+      <div class="url-bar">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/8K3…xPm-1</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:8px;">Token state: <code>consumed</code> · HTTP 409 on re-submit · no member id revealed</div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">🚫</div>
+      <h3>This survey link is no longer active</h3>
+      <p>The link was deactivated by the survey owner.</p>
+      <div class="url-bar">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/L4m…RtZ-3</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:8px;">Token state: <code>revoked</code> · HTTP 410 on submit · no batch label revealed</div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">❓</div>
+      <h3>This link is not valid</h3>
+      <p>Please check that you copied the full link from your email. If you still have trouble, contact <a href="mailto:support@acmecoffee.com" style="color:var(--primary);">support@acmecoffee.com</a>.</p>
+      <div class="url-bar">https://acmecoffee.customereq.io/s/srv_q2nps_a1b2/r/THIS_IS_NOT_VALID</div>
+      <div style="font-size:11px;color:var(--text-subtle);margin-top:8px;">Token state: <code>malformed</code> or unknown · HTTP 410 · constant-time validation per NFR-S5</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Toggle section collapse
+  document.querySelectorAll('.section-head').forEach(head => {
+    head.addEventListener('click', () => {
+      head.parentElement.classList.toggle('collapsed');
+    });
+  });
+  // Toggle mode card selection in Scene 2
+  document.querySelectorAll('#scene-2 .mode-card').forEach(card => {
+    card.addEventListener('click', () => {
+      card.parentElement.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+  // NPS scale toggle in Scene 8
+  document.querySelectorAll('#scene-8 .nps-num').forEach(num => {
+    num.addEventListener('click', () => {
+      num.parentElement.querySelectorAll('.nps-num').forEach(n => n.classList.remove('selected'));
+      num.classList.add('selected');
+    });
+  });
+</script>
+
+</body>
+</html>
