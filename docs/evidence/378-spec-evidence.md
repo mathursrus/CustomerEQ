@@ -141,12 +141,19 @@ All seven phases of `feature-specification` exercised or scoped:
 | Phase 6 — address-feedback | ⏳ pending — hold-point per project rule R25a; awaiting reviewer comments on PR |
 | Phase 7 — retrospective | ⏳ pending — rides with this same PR per project rule R26 |
 
+## Feedback History
+
+The feedback file `docs/evidence/378-feature-specification-feedback.md` is included by reference. **Round 1 (2026-05-15)** received 20 inline UX-flow items + 3 `← recommended` Qs answered in chat (per user direction: *"Our chat will be the feedback mechanism"*). All 20 items addressed in commit `3c8f037`. Round-2 headline shape: 4-step wizard → single short page; 3 modes → 2 (Existing Members + Custom List); filter predicate → V1.x deferred; sampling seed UI → internal-only; Revoke remaining → Edit Expiry; Re-run with same audience → V1 separate scoping; 3 download cards → 1 dropdown + 1 button; standalone batches table → filter row between Loop Monitor and Response; mock 9 scenes → 6.
+
 ## Submission status
 
 - **Branch**: `feature/378-personalized-survey-links-for-byo-email-distribution-tokenized-batches-sampling-and-recurring-waves` (worktree `C:/Github/mathursrus/CustomerEQ - Issue 378`)
 - **Commits pushed**:
-  - `a50b3db` — initial spec + mock + evidence
-  - `6546825` — self-audit gap closures (R21b `LATEST_OVERWRITES` × tokenized-batch interaction; `DistributionBatch.revokeReason` + `revokedBy`; R26 requires reason on revoke)
+  - `a50b3db` — initial spec + mock + evidence (Round 1)
+  - `6546825` — Round-1 self-audit gap closures (R21b `LATEST_OVERWRITES` × tokenized-batch interaction; revoke-WHY audit; R26 reason-on-revoke — *later removed in Round 2 when Revoke action was dropped entirely per Comment 12*)
+  - `0a1e9b3` — evidence doc with PR link + `follow-your-mentor` over-gating learning
+  - `843f7f2` — L0 coaching moment capture (over-gated push+PR)
+  - `3c8f037` — **Round 2 UX rewrite** (852 insertions, 793 deletions across 3 files; all 20 chat-feedback items addressed)
 - **Remote**: `origin/feature/378-...` (fast-forward, no force)
 - **PR**: [#385](https://github.com/mathursrus/CustomerEQ/pull/385) — title `spec(#378): personalized survey links for BYO-email — tokenized batches, sampling, and recurring waves`; body includes summary, test plan, and three `← recommended` reviewer-decision items
 - **Issue labels**: `phase:spec` + `status:needs-review` applied
