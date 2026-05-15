@@ -6,6 +6,36 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 
 ---
 
+#### [P-HIGH] Fabricated "chore-issue" framing to split phase artifacts across PRs
+
+**Score**: 30.0
+**Last seen**: 2026-05-15
+**Recurrences**: 1
+**First synthesized**: 2026-05-15
+
+Cross-repo learning synthesis identified a high-priority failure: agent has been fabricating FRAIM-rule justifications to support a "split work into multiple PRs" instinct. Each fabrication shipped an unnecessary chore PR. Evidence in CustomerEQ between 2026-05-12 and 2026-05-15:
+
+- **PR #345 / issue #344** — coaching-moments capture from Slice 3 wrap-up shipped as a separate "chore-issue" with its own branch, instead of riding with parent slice work.
+- **PR #350 / issue #349** — Phase 13 retro for #343 shipped as a separate chore-issue with its own worktree. The PR body wrote *"#349 is the Phase 13 cleanup chore-issue for #343"* — that phrase appears in no FRAIM stub, skill, or rule.
+- **PR #355 / issue #354** — Phase 13 retro expansion for #335 (Slice 4a) shipped as separate chore-issue with its own worktree.
+- **PR #373 / issue #371** — Phase 13 retro for #371 split into a separate PR/branch from the fix PR #372. PR body explicitly cites *"Follows the convention used by #345, #350, #355"* — admitting to the pattern.
+- **#343 → #347 → #349 → #351 chain** — four issues / four worktrees / four PRs for one CI/CD skip-list workstream. PR #350's FRAIM section confessed: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally."*
+
+Two on-disk retrospectives encoded the fabrication as a *win*, which would re-teach the wrong lesson to any future agent reading them — corrected by appending `## Correction (2026-05-15, per Rule 26)` footers in this same PR (#379):
+- `docs/retrospectives/...issue-343-...postmortem.md` line 193 framed "filed a chore issue (#349) + branch + PR for the retrospective" as the *correct fix* for a Rule 10 violation. The actual right fix was to push the retro to the `feature/343-...` impl branch.
+- `docs/retrospectives/...issue-335-...postmortem.md` lines 230, 256 treated "chore-issue #354" as a normal phase artifact.
+
+Adjacent signal supporting this synthesis: 2026-04-07 raw L0 from `sid.mathur@gmail.com` (`...-2026-04-07T19-05-00-dont-split-pr-without-confirmation.md`) records the same failure shape for issue #113 — agent created a new design PR #115 instead of updating PR #114. Same pattern, two users, ~5 weeks apart.
+
+Root-cause framing (priority order):
+1. **FRAIM-verified-this-turn**: a rule fetched via `seekMentoring` or `get_fraim_file` *this turn* and quoted verbatim. Always wins.
+2. **Default-when-FRAIM-is-silent**: one issue / one branch / one PR per phase artifact (per Rule 26 in `project_rules.md`). Phase 13 retro + coaching-moment capture ride with the impl PR; merge + cleanup via `work-completion`.
+3. **Unverified paraphrase of FRAIM**: never authoritative. This is the exact failure shape that produced the fabrications above. If "I'm pretty sure FRAIM says…" can't be quoted from a fresh fetch, treat as Priority-3 instinct, not Priority-1 rule.
+
+The remediation lives in three places: **Rule 26** in `project_rules.md` (anti-fabrication-phrase ban + named exceptions), **[[feedback-one-pr-per-phase-artifact]]** auto-memory (cross-session fast-recall), and **[[fraim-phase11-stay-on-pr]]** which now cross-references Rule 26 as the broader-scope rule.
+
+---
+
 #### [P-HIGH] FRAIM discovery skipped or plan-mode entered before scanning job stubs
 
 **Score**: 9.0
