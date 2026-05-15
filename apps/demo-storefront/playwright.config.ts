@@ -8,6 +8,7 @@ const API_URL = process.env.DEMO_API_URL ?? `http://${HOST}:${API_PORT}`
 const STOREFRONT_READY_URL = `${BASE_URL}/api/healthz`
 const WEB_SERVER_TIMEOUT = process.env.CI ? 180_000 : 60_000
 const STOREFRONT_SERVER_COMMAND = `pnpm exec next dev -p ${PORT} --hostname ${HOST}`
+const REUSE_STOREFRONT_SERVER = process.env.PLAYWRIGHT_REUSE_DEMO_STOREFRONT_SERVER === 'true'
 
 process.env.DEMO_API_URL = API_URL
 process.env.API_PORT = process.env.API_PORT ?? String(API_PORT)
@@ -48,7 +49,7 @@ export default defineConfig({
     {
       command: STOREFRONT_SERVER_COMMAND,
       url: STOREFRONT_READY_URL,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: REUSE_STOREFRONT_SERVER || !process.env.CI,
       timeout: WEB_SERVER_TIMEOUT,
       env: {
         ...process.env,
