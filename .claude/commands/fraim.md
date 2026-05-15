@@ -4,6 +4,10 @@ Use the FRAIM skill when Claude exposes skills directly. This compatibility comm
 
 Follow this process:
 
+0. **Preload deferred FRAIM tools when needed**:
+   - If FRAIM MCP tools are unavailable because this host lazily loads deferred tool schemas, call `ToolSearch` once to load `fraim_connect`, `list_fraim_jobs`, `get_fraim_job`, `get_fraim_file`, `seekMentoring`.
+   - Do the preload as one batched discovery step, not one search per tool.
+
 1. **If the user did not specify a FRAIM job or topic**:
    Call `list_fraim_jobs()` to discover available jobs. Present the results grouped by the categories returned by the server. For each group, list 3-5 of the most relevant jobs with a one-line description.
 
