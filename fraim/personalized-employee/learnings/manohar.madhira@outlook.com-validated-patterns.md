@@ -86,6 +86,8 @@ On issue #153, two related minor bugs (#133 step label, #134 hardcoded eligibleT
 
 On #170 PR2 (PR #201, 2026-04-30), Phase 12 (address-feedback) hit three unrelated obstacles in sequence: a freshly-published Clerk CVE blocking the audit gate, an over-aggressive `pnpm.overrides` hotfix that broke apps/web's build, and a JTBD spec re-segmentation discussion that surfaced a "weak POV" call against the existing picker. Each could have been bundled into PR #201 ("I can fix this on the same branch in 5 minutes"). All three were instead spun out: #218 (rate-limiting), #219 (Clerk CVE — closed via PRs #220 + #221), and #217 (JTBD re-segmentation). PR #201's final diff stayed exactly its original scope — 15 files, +2345/-13. The cost paid off concretely when PR #220's first attempt at the Clerk fix needed its own hotfix #221 — those iterations didn't muddy PR #201's history. R21 is the load-bearing rule and it carried under three simultaneous interruptions. Validated principle: when an unrelated fix surfaces during an in-flight PR's address-feedback phase, default to a separate-branch + new-issue path, even when the temptation to bundle is strong. **The frame to use**: "this issue blocks all PRs against main, not just this PR — that's a fair argument for treating it as repo infrastructure not feature-PR work." That framing converts the bundling temptation into a separation argument.
 
+<!-- resolved 2026-05-16: Scope note — R21 governs off-scope fixes discovered during an in-flight PR's address-feedback phase (e.g., a CVE, a build break, a JTBD re-segmentation that blocks all PRs). It does NOT govern Phase 13 retros, coaching-moment captures, or post-merge work-list cleanups — those must ride on the parent feature branch per Rule 26. The "frame to use" paragraph above is correct for off-scope infrastructure work; it is NOT a valid justification for spinning a chore-issue for Phase 13 artifacts. See project_rules.md Rule 26: "One PR Per Phase Artifact — No Chore-Issue Splits." -->
+
 ---
 
 #### [P-MED] Logger injection over console / module-level singletons for testability + structural correctness
@@ -206,6 +208,8 @@ On issue #177 (PR #188), the PR description ended with three numbered "Decisions
 
 **#335 Slice 4a (2026-05-13) added 10th recurrence**: filed #354 (Round 1 work-list cleanup) immediately, with full handoff context. **#343 (2026-05-12) added 11th recurrence**: three follow-up PRs filed in sequence — #348 (dorny→shell-step rewrite), #350 (work-list cleanup), #352 (YAML # truncation + dorny seed-pattern bug) — each surfaced from a specific post-merge failure mode, none bundled onto the active branch. R21 held throughout 3 rounds of regression cycles.
 
+<!-- resolved 2026-05-16: Rule 26 correction — PRs #350 and #354 are Rule 26 violations (Phase 13 chore-issue splits), not validated filing patterns. The principle of filing backlog issues proactively remains valid for genuine deferred work — PRs #348 (dorny→shell-step rewrite) and #352 (YAML truncation + dorny seed-pattern bug) are legitimate examples because they address real post-merge failure modes that are not Phase 13 retro/coaching artifacts. Remove PRs #350 and #354 from the canonical examples set; they must not be cited to endorse chore-issue splits for Phase 13 artifacts. See project_rules.md Rule 26: "One PR Per Phase Artifact — No Chore-Issue Splits." -->
+
 ---
 
 #### [P-MED] Caught `package-lock.json` pollution via `git status` pre-stage check
@@ -270,4 +274,3 @@ On issue #177 (PR #188), the PR description ended with three numbered "Decisions
 [Body preserved from existing entry, with 1 new recurrence appended:]
 
 **#291 spec round-2 correction (2026-05-07) added 2nd recurrence**: reviewer's one-line correction *"if data shows the fields are used, we need to migrate and backfill — not defer"* on the round-2 misread (where I had dropped Survey-side schema). Round 3 restored the schema move + added explicit 6-block migration SQL with `ADD → BACKFILL → DROP` ordering. The one-line rationale carried the load-bearing argument — applied across §2.4, §4, migration plan, and alternatives section in a single commit. Validated principle holds at the spec-correction layer the same way it does at the RFC-design layer.
-
