@@ -1,7 +1,7 @@
 # StarBrew Coffee — Demo Script
 
-**Duration:** 20–25 minutes  
-**Last Updated:** 2026-05-10  
+**Duration:** 22–27 minutes  
+**Last Updated:** 2026-05-15  
 **Format:** Two browser tabs side by side. **StarBrew storefront** (left), **CustomerEQ admin** (right). Every customer action on the storefront is immediately followed by switching to admin to show the data land in real time.
 
 > **The frame:** StarBrew Coffee is a fictional coffee-shop chain. They integrated CustomerEQ in a day — one API key, a few HTTP calls, and the survey embed. Everything you're about to see is live against a real database.
@@ -17,7 +17,7 @@
 
 - [ ] Sign in to the admin (Clerk — use the **StarBrew** org)
 - [ ] Open the storefront in a second tab
-- [ ] Select **Alex Chen** from the Demo persona dropdown to pre-load Act 2
+- [ ] Select **Alex Chen** from the Demo persona dropdown to pre-load Act 3
 - [ ] Run a reset if needed (see [Reset](#reset-between-runs))
 
 ---
@@ -48,7 +48,36 @@ Point at the page top to bottom:
 
 ---
 
-## Act 2 — Loyal regular earns points (3 min)
+## Act 2 — Self-serve survey creation (2 min)
+
+**Admin tab.**
+
+1. Navigate: **Surveys** → click **New Survey**.
+2. The path selection screen appears. Click **"Set up a triggered survey"**.
+
+> "StarBrew wants a CSAT that fires after any support interaction. No engineer needed — they built it here."
+
+3. **Step 1 — Trigger.** Click the **CX Risk** category card. Three sub-triggers appear: After Support 🎧, NPS Drop 📉, Inactive 30d 💤. Click **After Support 🎧** → click **Continue**.
+
+4. **Step 2 — Survey Details.** Name the survey **"Post-Support CSAT"**. Select program **StarBrew Rewards**. Survey type auto-selects as **CSAT** (locked to the trigger). Click **"Continue: Set Up Rules →"**.
+
+5. **Step 3 — What Happens Next?** The rule builder shows a pre-filled default rule: scores 1–3 award recovery points. Point at the **reach estimate badge** (estimated members who'll see this survey monthly).
+
+> "The rule builder shows who gets this survey and what happens when they score low. StarBrew chose a trigger — CustomerEQ filled in the logic."
+
+6. Click **Continue**.
+
+7. **Step 4 — Review & Launch.** The summary card shows trigger, survey type, name, program, and rule. Click **Launch Survey**.
+
+The page redirects to the new survey's detail page. Point at:
+- **Distribution** section — the embed snippet already has `data-survey`, `data-prefill-email`, `data-prefill-first-name`, `data-prefill-last-name` attributes. > "Drop this one tag on any post-support page. CustomerEQ pre-fills the member's details automatically."
+- **Loop Monitor** section — live response stats. Zero responses until the first support interaction fires.
+
+> "Survey live in under 2 minutes. Surveys created during the demo are cleaned up automatically by `pnpm seed:demo -- --reset`."
+
+---
+
+## Act 3 — Loyal regular earns points (3 min)
 
 **Storefront tab.** Select **Alex Chen** from the Demo persona dropdown (Gold, 5 visits).
 
@@ -71,7 +100,7 @@ The header shows Alex's points balance and Gold badge immediately.
 
 ---
 
-## Act 3 — New customer joins live (2 min)
+## Act 4 — New customer joins live (2 min)
 
 **Storefront tab.** In the Demo persona dropdown, scroll to the bottom and select **New customer…**
 
@@ -96,7 +125,7 @@ An inline sign-up form appears in the header area.
 
 ---
 
-## Act 4 — At-risk high-value customer (2 min)
+## Act 5 — At-risk high-value customer (2 min)
 
 **Storefront tab.** Switch to **James Park** (Platinum, 12 visits).
 
@@ -119,7 +148,7 @@ The header shows a high points balance and Platinum badge.
 
 ---
 
-## Act 5 — NPS detractor + closed-loop recovery (5 min)
+## Act 6 — NPS detractor + closed-loop recovery (5 min)
 
 This is the hero scene.
 
@@ -156,7 +185,7 @@ This is the hero scene.
 
 ---
 
-## Act 6 — AI support chat + live triage (2 min)
+## Act 7 — AI support chat + live triage (2 min)
 
 **Storefront tab.** Sara Kim is still selected as the active persona.
 
@@ -180,7 +209,7 @@ Point at the green chat bubble in the bottom-right corner of the storefront.
 
 ---
 
-## Act 7 — CX Intelligence (2 min)
+## Act 8 — CX Intelligence (2 min)
 
 **Admin tab.** Navigate: **CX Insights**.
 
@@ -197,7 +226,7 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 
 ---
 
-## Act 8 — AI-Agent Native (1 min)
+## Act 9 — AI-Agent Native (1 min)
 
 > "One more thing. Every endpoint we just showed is also exposed as a native MCP tool. So if StarBrew's CX team uses Claude or any AI assistant, they can ask:
 >
@@ -214,12 +243,13 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 > "What you just saw, end to end:
 >
 > 1. **Integration in a day** — API key, one embed tag, one webhook endpoint
-> 2. **Loyal member earns points** — one `purchase` event, NPS captured inline, Customer 360 updated automatically
-> 3. **New member enrolled live** — one HTTP call, GDPR consent tracked, loyalty account active immediately
-> 4. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
-> 5. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
-> 6. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
-> 7. **Cross-channel CX intelligence** — survey responses + Google reviews in one AI-scored view
+> 2. **Survey live in 2 minutes** — triggered CSAT, rule builder, embed snippet — no engineer required
+> 3. **Loyal member earns points** — one `purchase` event, NPS captured inline, Customer 360 updated automatically
+> 4. **New member enrolled live** — one HTTP call, GDPR consent tracked, loyalty account active immediately
+> 5. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
+> 6. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
+> 7. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
+> 8. **Cross-channel CX intelligence** — survey responses + Google reviews in one AI-scored view
 >
 > Compare that to Qualtrics + Salesforce Loyalty + Zendesk + a custom alert layer + a BI pipeline. That's 6 months and $500k. StarBrew had this running in a day. **One platform. One API.**"
 
@@ -253,10 +283,10 @@ pnpm seed:demo -- --reset
 
 | Persona | Tier | Story | Scene |
 |---|---|---|---|
-| Alex Chen | Gold | Happy regular, 5 visits | Act 2 |
-| Jordan Lee (live) | Bronze | Enrolled fresh during the demo | Act 3 |
-| James Park | Platinum | High-value, at-risk | Act 4 |
-| Sara Kim | Bronze | NPS detractor, recovery target | Act 5 |
+| Alex Chen | Gold | Happy regular, 5 visits | Act 3 |
+| Jordan Lee (live) | Bronze | Enrolled fresh during the demo | Act 4 |
+| James Park | Platinum | High-value, at-risk | Act 5 |
+| Sara Kim | Bronze | NPS detractor, recovery target | Acts 6–7 |
 | Maria Lopez | Bronze | New member, 1 visit | Optional |
 | David Wu | Gold | Active redeemer, 4 visits | Optional |
 
@@ -265,6 +295,7 @@ pnpm seed:demo -- --reset
 | What to show | Path |
 |---|---|
 | Integration setup | Settings → Developer |
+| Survey creation (Act 2) | Surveys → New Survey → triggered → CX Risk → After Support |
 | Member profile + Recent Activity | Customers → search (partial name) → View → profile |
 | Alert cases | Alerts (sidebar) |
 | Alert rules | Alerts → "Manage Rules" button (top right) |
