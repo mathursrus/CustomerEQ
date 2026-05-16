@@ -15,7 +15,7 @@
 | StarBrew storefront | https://customereq-demo.salmonsea-4eb14bdc.eastus.azurecontainerapps.io |
 | CustomerEQ admin | https://customereq.wellnessatwork.me/admin |
 
-- [ ] Sign in to the admin (Clerk — use the **CustomerEQ Demo** org)
+- [ ] Sign in to the admin (Clerk — use the **StarBrew** org)
 - [ ] Open the storefront in a second tab
 - [ ] Select **Alex Chen** from the Demo persona dropdown to pre-load Act 2
 - [ ] Run a reset if needed (see [Reset](#reset-between-runs))
@@ -34,7 +34,7 @@
 
 **Admin tab.** Navigate: **Settings → Developer**.
 
-> Note: the org name shown is **CustomerEQ Demo** — that's this dev account. In a production account it would show the brand name.
+> Note: the org name shown is **StarBrew** — this is the dedicated demo org. Brand name and org name can be edited independently under Settings → Organization.
 
 Point at the page top to bottom:
 
@@ -230,16 +230,20 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 **Partial reset** (quick — just switch personas, cart clears automatically):
 - Use the Demo persona dropdown. No other action needed.
 
-**Full reset** (wipes all demo data and restores original balances):
+**Standard reset** (closes open cases, pauses campaigns, recreates alert rules and surveys):
 
 ```powershell
 # Run from repo root
 $env:DEMO_API_URL = "https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io"
-$env:DEMO_API_KEY = $(az keyvault secret show --vault-name customereq-kv --name mcp-api-key --query value -o tsv)
-pnpm seed:demo
+$env:DEMO_API_KEY = $(az keyvault secret show --vault-name customereq-kv --name demo-starbrew-api-key --query value -o tsv)
+pnpm seed:demo -- --reset
 ```
 
-> **Note:** `seed:demo` is additive — it skips existing members and deduplicates purchases. For a completely clean slate (clear extra purchases, survey responses, and alert cases), delete the five demo personas from **Admin → Customers** first, then re-run the seed. Any "New customer" persona added during the demo (e.g. Jordan Lee) should also be deleted. Sara Kim may accumulate open cases across demo runs — delete them from **Alerts** or do a full reset before each run.
+**Full reset** (completely clean slate — use when member state has drifted):
+1. In **Admin → Customers** (StarBrew org), delete all members — every row in this org is demo data, so bulk-delete is safe.
+2. Re-run the standard reset command above (without `--reset` flag since there's nothing to close).
+
+> **Note:** The StarBrew org is isolated — it contains only demo data. You can delete any or all of its members, cases, and surveys without risk of touching other orgs.
 
 ---
 
