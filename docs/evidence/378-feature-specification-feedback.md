@@ -12,13 +12,13 @@
 - **Status**: UNADDRESSED — mock update needed
 - **Implication**: confirm + expose the Percent / Count toggle inside the Existing Members card so the reviewer can see it in the static mock. Current scene shows the Custom List card selected, which collapses the Existing Members body. Action: render both card bodies expanded in the mock for review clarity (add small note clarifying production single-card behavior); R4 + R5 in spec already cover the semantics — no spec change needed beyond the mock.
 
-### Comment R2-2 — UNADDRESSED (weak-POV question to agent)
+### Comment R2-2 — RESOLVED (Decision A)
 - **Author**: manohar.madhira@outlook.com
 - **Type**: chat (mock-review iteration — question to agent)
 - **Surface**: Scene 2 · mode chooser
 - **Comment**: "Weak POV — Only 1 of Existing members or Custom List can be used at one time — what do you suggest? Should we allow both and we merge and dedup or only one. So the UX would have to change accordingly."
-- **Status**: UNADDRESSED — agent recommendation pending user confirmation; mock unchanged until user signals direction
-- **Agent recommendation**: see chat reply (`← recommended` block).
+- **Resolution**: **Decision A — mutually exclusive (current)**. User reply: "A". Operators pick one mode per batch. Sharper V0 semantics: one batch = one source. The "both" use case (e.g., "10% Gold + 5 specific escalations") is achieved by running two batches against the same survey — each shows in its own filter-row entry. Combinable / hybrid modes re-evaluated in V1.x alongside filter predicates and same-audience re-run.
+- **Status**: ADDRESSED — spec R4 already captures mutually-exclusive semantics; no spec change beyond a Decision Log entry naming the choice + rationale.
 
 ### Comment R2-3 — UNADDRESSED (strong POV)
 - **Author**: manohar.madhira@outlook.com
