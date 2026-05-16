@@ -52,28 +52,24 @@ Point at the page top to bottom:
 
 **Admin tab.**
 
-1. Navigate: **Surveys** → click **New Survey**.
-2. The path selection screen appears. Click **"Set up a triggered survey"**.
+1. Navigate: **Surveys** → click **+ New survey**.
 
-> "StarBrew wants a CSAT that fires after any support interaction. No engineer needed — they built it here."
+A blank "Untitled survey" draft is immediately created and the 4-tab editor opens.
 
-3. **Step 1 — Trigger.** Click the **CX Risk** category card. Three sub-triggers appear: After Support 🎧, NPS Drop 📉, Inactive 30d 💤. Click **After Support 🎧** → click **Continue**.
+2. **Basics tab** — fill in three fields:
+   - **Internal name**: type **"Post-Support CSAT"**
+   - **Survey type**: click the **CSAT** card
+   - **Program**: already set to **StarBrew Rewards**
 
-4. **Step 2 — Survey Details.** Name the survey **"Post-Support CSAT"**. Select program **StarBrew Rewards**. Survey type auto-selects as **CSAT** (locked to the trigger). Click **"Continue: Set Up Rules →"**.
+> "Four survey types — NPS, CSAT, CES, Custom. Picking one auto-populates the standard question set. StarBrew wants a satisfaction check after every support interaction."
 
-5. **Step 3 — What Happens Next?** The rule builder shows a pre-filled default rule: scores 1–3 award recovery points. Point at the **reach estimate badge** (estimated members who'll see this survey monthly).
+3. Click **Activate →** (top right).
 
-> "The rule builder shows who gets this survey and what happens when they score low. StarBrew chose a trigger — CustomerEQ filled in the logic."
+The survey goes live. The page switches to the detail view. Point at:
+- **Distribution** — click **Show** to expand. The embed snippet already has `data-survey`, `data-prefill-email`, `data-prefill-first-name`, `data-prefill-last-name` attributes. > "Drop this one `<script>` tag on any post-support confirmation page. CustomerEQ pre-fills the member's details automatically."
+- **Loop Monitor** — expanded by default. Shows live counts: Surveys Sent, Responses Received, Rules Matched, Campaigns Triggered, Loyalty Outcomes. All zeros until the first interaction fires.
 
-6. Click **Continue**.
-
-7. **Step 4 — Review & Launch.** The summary card shows trigger, survey type, name, program, and rule. Click **Launch Survey**.
-
-The page redirects to the new survey's detail page. Point at:
-- **Distribution** section — the embed snippet already has `data-survey`, `data-prefill-email`, `data-prefill-first-name`, `data-prefill-last-name` attributes. > "Drop this one tag on any post-support page. CustomerEQ pre-fills the member's details automatically."
-- **Loop Monitor** section — live response stats. Zero responses until the first support interaction fires.
-
-> "Survey live in under 2 minutes. Surveys created during the demo are cleaned up automatically by `pnpm seed:demo -- --reset`."
+> "Survey live in under 2 minutes. One tag on a page, and the feedback loop — response → sentiment score → campaign trigger — runs automatically. Surveys created during the demo are cleaned up by `pnpm seed:demo -- --reset`."
 
 ---
 
