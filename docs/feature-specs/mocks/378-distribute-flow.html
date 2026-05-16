@@ -109,6 +109,10 @@
   .mode-card p { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
   .mode-card-body { display: none; }
   .mode-card.selected .mode-card-body { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  /* For mock-review purposes, show both card bodies expanded so reviewer can see controls for each mode side-by-side. Production behavior is one-mode-selected-at-a-time per R4 / NFR-A2. */
+  body.review-show-both .mode-card-body { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  body.review-show-both .mode-card:not(.selected) { background: var(--surface-muted); }
+  body.review-show-both .mode-card.selected { background: var(--primary-soft); }
 
   .toggle-row { display: inline-flex; background: white; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .toggle-row button { padding: 6px 14px; background: white; border: none; cursor: pointer; font-size: 13px; color: var(--text-muted); }
@@ -205,7 +209,7 @@
   .ann-list li code { font-family: var(--mono); font-size: 10px; background: var(--surface-muted); padding: 1px 4px; border-radius: 3px; }
 </style>
 </head>
-<body>
+<body class="review-show-both">
 
 <div class="mock-header">
   <h1>CustomerEQ — Personalized Survey Links for BYO-Email (Issue #378, Round 2 — single short page)</h1>
@@ -239,7 +243,6 @@
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -326,7 +329,6 @@
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -345,10 +347,11 @@
           <div class="config-card">
             <div class="config-section">
               <h2>Who gets this survey?</h2>
+              <div style="font-size:11px;color:var(--text-subtle);font-style:italic;margin: -6px 0 10px;">Mock note: both cards' bodies are shown expanded for review clarity. In production, only the selected card's body renders (R4 / NFR-A2).</div>
               <div class="mode-grid">
                 <div class="mode-card">
                   <h3>Existing Members <span class="mode-count">· 1,243 total</span></h3>
-                  <p>Random sample from your member roster.</p>
+                  <p>Random sample from your member roster. Hidden entirely when zero members are enrolled.</p>
                   <div class="mode-card-body">
                     <div class="toggle-row" style="margin-bottom:10px;">
                       <button>Percent</button>
@@ -356,26 +359,25 @@
                     </div>
                     <div class="field field-narrow" style="margin-bottom:0;">
                       <input type="number" value="100" min="1" max="1243" />
-                      <div class="field-help">Max 1,243 (all eligible members)</div>
+                      <div class="field-help">Max 1,243 (all eligible non-ERASED members)</div>
                     </div>
                   </div>
                 </div>
                 <div class="mode-card selected">
                   <h3>Custom List</h3>
-                  <p>Paste identifiers or upload a CSV.</p>
+                  <p>Paste identifiers (with optional names) or upload a CSV.</p>
                   <div class="mode-card-body">
                     <div class="toggle-row" style="margin-bottom:10px;">
                       <button class="active">Paste</button>
                       <button>⤓ Upload CSV</button>
                     </div>
-                    <div class="field" style="margin-bottom:8px;">
-                      <textarea placeholder="One identifier per line — email, phone, external ID, or memberId">jane.mitchell@acmecoffee.com
-crivera@example.com
-priya.p@example.com
-marcus@example.com
+                    <div class="field" style="margin-bottom:4px;">
+                      <textarea placeholder="One identifier per line — email, phone, external ID, or memberId. Optionally Name <email> format. Separators: newline, comma, or semicolon.">Jane Mitchell <jane.mitchell@acmecoffee.com>
+Carlos Rivera <crivera@example.com>, Priya Patel <priya.p@example.com>; marcus@example.com
 sofia.g@example.com
-new.customer@unknown.com</textarea>
+Alex Chen <new.customer@unknown.com></textarea>
                     </div>
+                    <div style="font-size:10px;color:var(--text-subtle);margin-bottom:8px;">Accepts <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">email</code>, <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">+15551234</code>, <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">usr_abc</code>, or <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">Name &lt;email&gt;</code>. Separate with newline, comma, or semicolon.</div>
                     <div class="check-row">
                       <input type="checkbox" id="auto-enroll" checked />
                       <label for="auto-enroll" style="font-weight:400;font-size:13px;margin:0;">Auto-enroll members not in this brand</label>
@@ -412,16 +414,16 @@ new.customer@unknown.com</textarea>
               <div class="preview-meta">First 5 rows shown · paginate to see all</div>
               <table>
                 <thead>
-                  <tr><th>Name</th><th>Identifier</th><th>Tier</th><th>Last response</th></tr>
+                  <tr><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Last response · all surveys</th></tr>
                 </thead>
                 <tbody>
-                  <tr><td>Jane Mitchell</td><td class="identifier">jane.mitchell@acmecoffee.com</td><td>Gold</td><td>2026-02-15</td></tr>
-                  <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td>Gold</td><td>2026-01-04</td></tr>
-                  <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td>Silver</td><td>—</td></tr>
-                  <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td>Gold</td><td>2025-12-18</td></tr>
-                  <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td>Bronze</td><td>—</td></tr>
-                  <tr><td colspan="4" style="background:var(--warning-soft);color:var(--warning-strong);font-size:11px;padding:6px 10px;">↓ Will be auto-enrolled (Custom List + checkbox on)</td></tr>
-                  <tr><td><em>(new member)</em></td><td class="identifier">new.customer@unknown.com</td><td>—</td><td>—</td></tr>
+                  <tr><td>Jane Mitchell</td><td class="identifier">jane.mitchell@acmecoffee.com</td><td>2026-02-15</td><td>2026-04-22</td></tr>
+                  <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td>2026-01-04</td><td>2026-01-04</td></tr>
+                  <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td>—</td><td>2025-11-30</td></tr>
+                  <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td>2025-12-18</td><td>2026-03-08</td></tr>
+                  <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td>—</td><td>—</td></tr>
+                  <tr><td colspan="4" style="background:var(--warning-soft);color:var(--warning-strong);font-size:11px;padding:6px 10px;">↓ Will be auto-enrolled (Custom List + checkbox on) · name extracted from <code style="font-family:var(--mono);">Name &lt;email&gt;</code> paste format</td></tr>
+                  <tr><td>Alex Chen <em style="color:var(--text-subtle);">(new)</em></td><td class="identifier">new.customer@unknown.com</td><td>—</td><td>—</td></tr>
                 </tbody>
               </table>
             </div>
@@ -444,7 +446,6 @@ new.customer@unknown.com</textarea>
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -463,6 +464,9 @@ new.customer@unknown.com</textarea>
             <div class="success-banner">
               <span class="check">✓</span>
               <div><strong>Generated 5 links</strong> · "Q2 customer satisfaction · 2026-05-15" · Tokens expire 2026-05-22 17:24 UTC</div>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin: -10px 0 20px;padding: 10px 14px;background:var(--surface-muted);border-radius:var(--radius-sm);border-left:3px solid var(--info);">
+              ℹ Users will be able to respond <strong>only once</strong> in this wave. A leaked or re-clicked link gets the "already submitted" state.
             </div>
 
             <h2 style="font-size:16px;font-weight:600;margin:0 0 4px;">Download your links</h2>
@@ -504,7 +508,6 @@ new.customer@unknown.com</textarea>
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -575,7 +578,6 @@ new.customer@unknown.com</textarea>
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div class="org-switcher">Org <span class="org-pill">Acme Coffee</span></div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
