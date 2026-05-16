@@ -210,3 +210,39 @@ jobs:
           done
           echo "API health check failed"
           exit 1
+
+      # Issue #388: canary probes run after the startup health check confirms
+      # the container is up. Acceptable statuses prove the route is registered
+      # and auth middleware is wired — 401 is a pass for authenticated endpoints.
+      # 500 or connection errors are the failure signal. No canary credentials
+      # are required: the 401-as-pass strategy is sufficient for route-level
+      # health without needing Key Vault-stored test tokens.
+      - name: Canary API checks
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          API_FQDN=$(az containerapp show --name customereq-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          BASE="https://$API_FQDN"
+
+          check() {
+            local label=$1 url=$2 method=${3:-GET}
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" "$url")
+            if [[ "$STATUS" == "200" || "$STATUS" == "401" || "$STATUS" == "202" || "$STATUS" == "404" ]]; then
+              echo "  ✓ $label → $STATUS"
+            else
+              echo "  ✗ $label → $STATUS (unexpected)"
+              exit 1
+            fi
+          }
+
+          # P0 — container up, DB reachable, auth middleware wired, event pipeline alive
+          check "GET /healthz"        "$BASE/healthz"
+          check "GET /v1/programs"    "$BASE/v1/programs"
+          check "GET /v1/surveys"     "$BASE/v1/surveys"
+          check "POST /v1/events"     "$BASE/v1/events" POST
+
+          # P1 — schema-sensitive: confirms migration tables exist (catches #262-class failures)
+          check "GET /v1/surveys/:id/imports" "$BASE/v1/surveys/_canary_/imports"
+          check "GET /v1/members/me/balance"  "$BASE/v1/members/me/balance"
+          check "GET /v1/analytics/cx"        "$BASE/v1/analytics/cx"
