@@ -1,5 +1,57 @@
 # Feedback for Issue #378 — feature-specification workflow
 
+## Round 2 Feedback
+*Received: 2026-05-15 via chat with manohar.madhira@outlook.com*
+*Surface: post-Round-2-rewrite mock review (spec rewrite paused until alignment)*
+
+### Comment R2-1 — UNADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration)
+- **Surface**: Scene 2 · Existing Members mode card
+- **Comment**: "Existing members should still have options for sampling: % or Count, if members are enrolled. If no members are enrolled, section should be hidden."
+- **Status**: UNADDRESSED — mock update needed
+- **Implication**: confirm + expose the Percent / Count toggle inside the Existing Members card so the reviewer can see it in the static mock. Current scene shows the Custom List card selected, which collapses the Existing Members body. Action: render both card bodies expanded in the mock for review clarity (add small note clarifying production single-card behavior); R4 + R5 in spec already cover the semantics — no spec change needed beyond the mock.
+
+### Comment R2-2 — UNADDRESSED (weak-POV question to agent)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration — question to agent)
+- **Surface**: Scene 2 · mode chooser
+- **Comment**: "Weak POV — Only 1 of Existing members or Custom List can be used at one time — what do you suggest? Should we allow both and we merge and dedup or only one. So the UX would have to change accordingly."
+- **Status**: UNADDRESSED — agent recommendation pending user confirmation; mock unchanged until user signals direction
+- **Agent recommendation**: see chat reply (`← recommended` block).
+
+### Comment R2-3 — UNADDRESSED (strong POV)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration — strong-POV directive)
+- **Surface**: Scene 2 · Custom List paste textarea
+- **Comment**: "Strong POV — Email list should allow Name <email> format also and can be , ; or EOL separated."
+- **Status**: UNADDRESSED — mock + spec R6 update needed
+- **Implication**: Custom List parser accepts (a) plain identifier per line (existing), (b) RFC-822-style `Display Name <email@example.com>`, (c) separators are comma `,`, semicolon `;`, or EOL — operator can paste a single long line of comma-separated entries or one-per-line or mix. Names extracted from the angle-bracket form populate `firstName` / `lastName` on auto-enrolled members (last whitespace-separated token → lastName; everything before → firstName). Mock: update textarea placeholder + sample data to demonstrate the format; spec R6 amendment in next round.
+
+### Comment R2-4 — UNADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration)
+- **Surface**: Scene 2 · preview table columns
+- **Comment**: "Remove Tier for now. in the preview. For Last response - it should show two columns - this survey and all surveys."
+- **Status**: UNADDRESSED — mock update + spec R12 update needed
+- **Implication**: preview table column set changes: Name · Identifier · **Last response on this survey** · **Last response across all surveys**. Tier column dropped (consistent with V0 removal of tier-based filter predicates per Round-1 Comment 2c). Spec R12 acceptance criterion amends accordingly.
+
+### Comment R2-5 — UNADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration)
+- **Surface**: Scene 3 · Success state
+- **Comment**: "Include text Users will be able to respond only once in this wave."
+- **Status**: UNADDRESSED — mock + spec update needed
+- **Implication**: Success state surfaces explanatory line *"Users will be able to respond only once in this wave."* under or near the success banner — sets respondent-side expectation for the operator before they distribute. Spec §2.5 / R16 amends to require this copy.
+
+### Comment R2-6 — UNADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: chat (mock-review iteration — global)
+- **Surface**: all 6 mock scenes · top-right org-switcher chip
+- **Comment**: "All scenes, Org name need not be shown on top right. That layout should be consistent with current experience."
+- **Status**: UNADDRESSED — mock update needed across all 6 scenes
+- **Implication**: drop the `.org-switcher` block from `.admin-top` in all scenes. Logo stays left; right side empty (matches the actual admin shell chrome which uses the left-side nav for org context). Spec is unaffected — this is a mock-fidelity correction.
+
 ## Round 1 Feedback
 *Received: 2026-05-15 via chat with manohar.madhira@outlook.com*
 *Surface: pre-document-review iteration on User Experience flow before reviewer reads spec*
