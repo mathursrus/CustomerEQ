@@ -32,7 +32,7 @@ type PageState =
   | { phase: 'loading' }
   | { phase: 'survey'; data: SurveyData; email: string }
   | { phase: 'submitting' }
-  | { phase: 'done'; incentivePoints: number | null }
+  | { phase: 'done'; incentivePoints: number }
   | { phase: 'error'; message: string }
 
 export default function SurveyPage() {
@@ -82,14 +82,17 @@ export default function SurveyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberEmail: email, answers, score, channel: 'link', consent: true }),
       })
-      const result = await res.json() as { duplicate?: boolean; incentivePoints?: number; error?: string }
+      const result = await res.json() as { duplicate?: boolean; error?: string }
 
       if (!res.ok && !result.duplicate) {
         setState({ phase: 'error', message: result.error ?? 'Submission failed.' })
         return
       }
 
-      setState({ phase: 'done', incentivePoints: result.incentivePoints ?? null })
+      // Issue #241 removed incentivePoints from the survey submission API response;
+      // earning is driven by EarningRule cx events. Hardcode the fixture default (50)
+      // matching the seed's Survey Completion Bonus rule, same as checkout/confirm/page.tsx.
+      setState({ phase: 'done', incentivePoints: 50 })
     } catch {
       setState({ phase: 'error', message: 'Network error. Is the API running?' })
     }

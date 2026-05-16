@@ -103,8 +103,8 @@ This is the hero scene. Take your time.
 1. Click **Surveys** in the storefront nav.
 2. Click **Take survey** next to **Post-Visit NPS** (Sara's email is pre-filled).
 3. Click **3** on the NPS scale — a clear detractor.
-4. Skip the radio-button follow-up question (any selection or skip is fine).
-5. In the open-text field (**"Tell us more"** or similar label), type: **"Coffee was cold and the staff was rude."**
+4. In the text field (**"What stood out most about your visit?"**), type: **"Coffee was cold and the staff was rude."**
+5. Skip the radio-button follow-up question (**"Which area could we improve?"**) — any selection or skip is fine.
 6. Click **Submit Feedback**.
 7. Confirm: "+50 StarPoints earned!"
 
