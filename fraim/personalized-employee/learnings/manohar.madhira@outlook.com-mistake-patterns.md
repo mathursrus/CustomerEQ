@@ -29,7 +29,7 @@ Adjacent signal supporting this synthesis: 2026-04-07 raw L0 from `sid.mathur@gm
 
 Root-cause framing (priority order):
 1. **FRAIM-verified-this-turn**: a rule fetched via `seekMentoring` or `get_fraim_file` *this turn* and quoted verbatim. Always wins.
-2. **Default-when-FRAIM-is-silent**: one issue / one branch / one PR per phase artifact (per Rule 26 in `project_rules.md`). Phase 13 retro + coaching-moment capture ride with the impl PR; merge + cleanup via `work-completion`.
+2. **Default-when-FRAIM-is-silent**: one issue / one branch / one PR for all phase artifacts (per Rule 26 in `project_rules.md`), with multiple phase-aligned commits as needed. Phase 13 retro + coaching-moment capture ride with the impl PR as additional commits on the same branch; merge + cleanup via `work-completion`.
 3. **Unverified paraphrase of FRAIM**: never authoritative. This is the exact failure shape that produced the fabrications above. If "I'm pretty sure FRAIM says…" can't be quoted from a fresh fetch, treat as Priority-3 instinct, not Priority-1 rule.
 
 The remediation lives in three places: **Rule 26** in `project_rules.md` (anti-fabrication-phrase ban + named exceptions), **[[feedback-one-pr-per-phase-artifact]]** auto-memory (cross-session fast-recall), and **[[fraim-phase11-stay-on-pr]]** which now cross-references Rule 26 as the broader-scope rule.
