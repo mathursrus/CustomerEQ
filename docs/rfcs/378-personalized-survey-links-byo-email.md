@@ -2,14 +2,14 @@
 
 Issue: [#378](https://github.com/mathursrus/CustomerEQ/issues/378)
 Owner: Claude (claude-opus-4-7) / manohar.madhira@outlook.com
-Status: draft (phase:design-authoring — round 0, awaiting reviewer)
+Status: Iterating (Round 1 addressed — 15 inline RFC review comments + Phase 3 spike executed; awaiting reviewer signoff)
 Spec: [`docs/feature-specs/378-personalized-survey-links-byo-email.md`](../feature-specs/378-personalized-survey-links-byo-email.md) (R3.1)
 Evidence: [`docs/evidence/378-technical-design-evidence.md`](../evidence/378-technical-design-evidence.md)
 
 > **Closes:** #378.
 > **Coordinates with:** [#264](https://github.com/mathursrus/CustomerEQ/issues/264) (worker erasure job — required for GDPR Art. 17 / CCPA §1798.105 cascade on the new models; out of scope here), [#403](https://github.com/mathursrus/CustomerEQ/issues/403) (`Brand.supportEmail` for respondent-side error copy).
 > **Builds on:** [#117](https://github.com/mathursrus/CustomerEQ/issues/117) (existing `SurveyDistribution` model), [#231](https://github.com/mathursrus/CustomerEQ/issues/231) (respond-endpoint policy semantics), [#241](https://github.com/mathursrus/CustomerEQ/issues/241) (survey detail page, share-link URL shape), [#262](https://github.com/mathursrus/CustomerEQ/issues/262) (`text/csv` raw-body upload pattern), [#277](https://github.com/mathursrus/CustomerEQ/issues/277) (`Brand.timezone`).
-> **Resolved decisions** (from spec R3): re-download = regenerate (Q1.1c); paste 10k / CSV 100k entries; trigger endpoint deleted (4a); separate `surveyName` CSV column (OQ-S1); Edit Expiry RBAC = `survey.distribute` (OQ-S2); CSV name-precedence "explicit columns win except when empty" (OQ-S4); Decision A mutually-exclusive audience modes.
+> **Resolved decisions** (D1–D19): 14 spec-locked + 5 design-locked Round 1 (2026-05-17). Spec: re-download = regenerate (Q1.1c); paste 10k / CSV 100k entries; trigger endpoint deleted (4a); separate `surveyName` CSV column (OQ-S1); Edit Expiry RBAC = `survey.distribute` (OQ-S2); CSV name-precedence "explicit columns win except when empty" (OQ-S4); Decision A mutually-exclusive audience modes. Design Round 1: D15 (CSV transport = `text/csv` raw body, R1-6); D16 (brand-TZ library = `date-fns-tz`, post-spike R1-3); D17 (rate-limit in-handler, R1-8); D18 (erasure scoped to #264, R1-10); D19 (migration hand-written, R1-11). Full table at §Resolved decisions.
 
 ---
 
@@ -379,36 +379,89 @@ Pattern mirrors `apps/api/src/plugins/auth.ts:69` ApiKey precedent — hash-at-r
 
 ### Brand-timezone formatting
 
-Spec requires brand-TZ display for: Edit Expiry preset snap (EOD in brand TZ), Success banner expiry string, batch detail Created-at + Members-now + Expiry, filter-row sent dates, preview Last-response columns.
+Spec requires brand-TZ display for: Edit Expiry preset snap (EOD in brand TZ), Success banner expiry string, batch detail Created-at + Members-now + Expiry, filter-row sent dates, preview Last-response columns. Locale flows through `Brand.locale` (verified at `schema.prisma:213`, default `"en-US"`, added by #277) — formatted output respects each brand's locale, not a hardcoded `'en-US'`.
 
-No existing code formats against `Brand.timezone`. No `date-fns-tz` in either app's `package.json` (Phase 1 #15).
+**Library**: `date-fns-tz` (~25 KB add). Phase 3 spike confirms three candidate approaches (reviewer's "current time + add days + 23:59:59.999" native-Intl, RFC R0's clever-clog split-on-dash, and `date-fns-tz`'s `zonedTimeToUtc`) produce byte-identical outputs across all 15 DST + half-hour-TZ + boundary-day test cases. Library wins on merit: industry standard, used in millions of projects, one-line API per primitive, and future surfaces (digest emails, scheduled batches in V1.x, audit-log display, alert-rule cooldowns, expiring webhook secrets) reuse the same package. See `docs/evidence/378-tz-spike/{spike.mjs, findings.md}` for the spike script + 15-case test fixture + the merit-over-ease analysis.
 
-**Recommendation**: introduce a small utility at `apps/web/src/lib/datetime.ts` using native `Intl.DateTimeFormat`:
+The shared utility lives at `packages/shared/src/datetime.ts` (consumed by `apps/web`, `apps/api`, and `apps/worker` — Edge-runtime safe per `date-fns-tz`'s ESM build):
 
 ```ts
-export function formatInBrandTz(date: Date | string, timeZone: string, opts: Intl.DateTimeFormatOptions = {}): string {
+import { formatInTimeZone, zonedTimeToUtc } from 'date-fns-tz';
+
+/**
+ * Format an instant for display in a brand's TZ + locale.
+ * `Brand.timezone` (IANA) and `Brand.locale` (BCP 47) both come from the brand row.
+ * Default `dateFormat` matches the Success banner / batch detail convention; callers
+ * may override per surface (e.g., date-only for the filter row).
+ */
+export function formatInBrandTz(
+  date: Date | string,
+  brandTimezone: string,
+  brandLocale: string,
+  dateFormat: string = "MMM d, yyyy h:mm:ss a zzz",
+): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-    ...opts,
-  }).format(d);
+  return formatInTimeZone(d, brandTimezone, dateFormat, { locale: resolveLocale(brandLocale) });
 }
 
-// "EOD in <tz>" arithmetic — 11:59:59 PM in the given TZ for the given local-date
-export function endOfDayInBrandTz(localDate: Date, timeZone: string): Date {
-  // Compose the EOD ISO string in the brand TZ, then parse back to UTC.
-  // Intl gives us the parts; we reconstruct.
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
-  const [y, m, d] = fmt.format(localDate).split('-');
-  // Build "YYYY-MM-DDT23:59:59" in the brand TZ and convert to UTC by querying the TZ offset at that wall time.
-  // (Implementation uses a 6-line trick with Intl resolvedOptions — see test cases.)
-  // …
+/**
+ * EOD-in-brand-TZ arithmetic. Given a calendar date in the brand's TZ, return
+ * the UTC instant that displays as 23:59:59.999 wall-clock in that TZ.
+ * Used by R11 preset snap ("7 days" → EOD on the calendar day 7 days from now).
+ */
+export function endOfDayInBrandTz(localDate: Date, brandTimezone: string): Date {
+  // Project localDate into the brand TZ → take its YYYY-MM-DD → assemble
+  // "YYYY-MM-DDT23:59:59.999" as wall-clock in the brand TZ → convert to UTC.
+  const ymd = formatInTimeZone(localDate, brandTimezone, "yyyy-MM-dd");
+  return zonedTimeToUtc(`${ymd}T23:59:59.999`, brandTimezone);
 }
 ```
 
-Native `Intl.DateTimeFormat` plus a ~30-line `endOfDayInBrandTz` is sufficient (Node 22's ICU includes the IANA TZ DB). API-side reuses the same helper from `packages/shared/src/datetime.ts` (Edge-runtime safe). See Open Decision OD-2 for the `date-fns-tz` alternative.
+Brand-locale lookup uses `date-fns/locale` (peer of `date-fns-tz`): a tiny `resolveLocale(bcp47)` switch maps `Brand.locale` strings (`"en-US"`, `"en-GB"`, `"fr-FR"`, `"de-DE"`, `"ja-JP"`, etc.) to the corresponding locale object, falling back to `enUS` for unknown values. The set is small (the Brand.locale field's allowed values are constrained by the Organization Settings UI from #277); extending it later is a one-line addition per locale.
+
+`packages/api`-side and `packages/worker`-side consumers `import` from `@customerEQ/shared/datetime`. The `apps/web` admin pages do the same — `date-fns-tz`'s tree-shakable build keeps the bundle delta minimal (the `formatInTimeZone` + `zonedTimeToUtc` pair pulls only the necessary modules).
+
+### In-handler rate-limit with `QUEUE_MODE` parity (NFR-SC1 / D17)
+
+NFR-SC1 (≤10 batches/min/survey) is enforced inside the `POST /v1/surveys/:id/distribution-batches` handler — no plugin. The existing `apps/api/src/queues/bullmq.ts` queue-mode parity contract (verified Phase 1 #10: `QUEUE_MODE=redis` builds Queue objects at lines 52-69; `QUEUE_MODE=inline` short-circuits at line 53) is the precedent. The rate-limit follows the same shape: full enforcement when Redis is available, structured-log degradation when it isn't.
+
+```ts
+// apps/api/src/routes/distributionBatches.ts — inside POST /v1/surveys/:id/distribution-batches handler,
+// before the prisma.$transaction() that mints tokens.
+
+const RATE_LIMIT_KEY = (surveyId: string) => `ratelimit:distribute:${surveyId}`;
+const RATE_LIMIT_MAX = 10;            // requests
+const RATE_LIMIT_WINDOW_SECONDS = 60; // 1 minute
+
+async function enforceBatchRateLimit(fastify: FastifyInstance, surveyId: string): Promise<void> {
+  // QUEUE_MODE=inline path — Redis is null per apps/api/src/plugins/redis.ts.
+  // Graceful degradation: skip the check, structured-log a WARN so ops can see.
+  if (!fastify.redis) {
+    fastify.log.warn(
+      { event: 'distribute.ratelimit.skipped', reason: 'redis_unavailable', surveyId },
+      'NFR-SC1 rate-limit skipped (QUEUE_MODE=inline or Redis down)',
+    );
+    return;
+  }
+
+  const key = RATE_LIMIT_KEY(surveyId);
+  // INCR + EXPIRE on first hit. Pipeline both to avoid a round-trip on the warm path.
+  const [count] = await fastify.redis
+    .multi()
+    .incr(key)
+    .expire(key, RATE_LIMIT_WINDOW_SECONDS, 'NX')  // NX = only set TTL if not already set
+    .exec()
+    .then((results) => results.map(([, v]) => v as number));
+
+  if (count > RATE_LIMIT_MAX) {
+    throw fastify.httpErrors.tooManyRequests(
+      `Batch creation rate-limit exceeded: ${RATE_LIMIT_MAX} per ${RATE_LIMIT_WINDOW_SECONDS}s per survey. Try again in a minute.`,
+    );
+  }
+}
+```
+
+Adoption-trigger for the eventual `@fastify/rate-limit` migration (per [#218](https://github.com/mathursrus/CustomerEQ/issues/218)'s #378 comment): when a 3rd endpoint family in the repo needs throttling, OR when this in-handler approach can no longer express the limit shape (e.g., per-brand-per-minute rather than per-survey, or progressive backoff). Until then this implementation is the durable answer — it's ~15 lines, fully observable via the existing Pino logs, and inherits the queue-mode parity contract from `bullmq.ts`.
 
 ### File-level change list
 
@@ -422,8 +475,9 @@ Every path verified against the repo at Phase 1.
 **Shared package**
 - `packages/shared/src/zod/distributionBatch.schema.ts` — new (Zod schemas above).
 - `packages/shared/src/distributionTokens.ts` — new (mint + hash helpers).
-- `packages/shared/src/datetime.ts` — new (`formatInBrandTz`, `endOfDayInBrandTz`).
-- `packages/shared/src/zod/responseSubmit.schema.ts` — extend with optional `token` field. (Verified existing at `apps/api/src/routes/public.ts:30-46`.)
+- `packages/shared/src/datetime.ts` — new (`formatInBrandTz`, `endOfDayInBrandTz` — both wrap `date-fns-tz` per D16; `Brand.locale` plumbed through `formatInBrandTz`).
+- `packages/shared/package.json` — add `date-fns-tz` (and its peer `date-fns`) as runtime dependencies.
+- `packages/shared/src/zod/responseSubmit.schema.ts` — extend the existing `PublicSurveyResponseSchema` (at `apps/api/src/routes/public.ts:30-46`) with optional `token` field. New name `PublicSurveyResponseSchemaV2 = PublicSurveyResponseSchema.extend({ token: z.string().optional() })`.
 
 **API**
 - `apps/api/src/routes/distributionBatches.ts` — new. 5 admin routes + handler logic; reuses existing `audit` + `multiTenant` plugins via per-route config.
@@ -501,10 +555,16 @@ Verified shape matches `apps/api/src/plugins/audit.ts:115-121` (per-route `confi
 
 ## Confidence Level
 
-**80 / 100**. High confidence on schema, migration ordering, token mint/validate, transaction shape, and audit wiring — all mirror well-trodden patterns in this repo (#231 dedup, #262 import, ApiKey hashing). The 20-point reservation lives in:
-- **Brand-TZ math** — `endOfDayInBrandTz` is a 30-line helper but needs vetting against DST-boundary edge cases (e.g., a brand in `America/Los_Angeles` setting a 7-day expiry across the November DST transition). Test coverage is named; the helper itself is straightforward but worth a careful review.
-- **Regenerate-tokens response shape** — returning plaintext URLs in the POST response body once (per NFR-S2) requires the handler to build the array in-memory before any other code path could query the row. The transaction shape isolates this cleanly, but it's the only place in the design where plaintext crosses the API boundary post-creation; a review eye specifically on that handler is welcome.
-- **The two known gaps** (#264 erasure job, no rate-limit plugin) are scoped out and documented; if either has to land inside #378 instead, the design absorbs them but the impl scope grows ~30%.
+**90 / 100** (post-spike + R1 corrections). High confidence on schema, migration ordering, token mint/validate, transaction shape, and audit wiring — all mirror well-trodden patterns in this repo (#231 dedup, #262 import, ApiKey hashing, `date-fns-tz` is industry standard with spike-confirmed correctness). The remaining 10-point reservation lives in:
+
+- **Regenerate-tokens response-body plaintext containment** — the only place in the design where plaintext crosses the API boundary post-creation. Three concrete self-validation steps in impl:
+  1. **Response-body schema-assert test** (integration): `POST /v1/surveys/:id/distribution-batches/:batchId/regenerate-tokens` response must satisfy `RegenerateTokensResponse.parse(body)`; the schema declares `tokens[].plaintext: z.string()`. Any subsequent `GET .../batches/:batchId` response is parsed against `BatchDetailResponse`, which has NO `plaintext` field — Zod `.strict()` rejects a leaked one. Assertion: `expect(getBody).not.toHaveProperty('tokens.0.plaintext')` and `expect(() => BatchDetailResponse.strict().parse(getBody)).not.toThrow()`.
+  2. **Static-analysis prohibition on plaintext leak** (CI): ESLint custom rule `no-plaintext-in-batch-get` — any `prisma.surveyDistributionToken.findUnique`/`findMany`/`findFirst` call site outside `distributionBatches.ts:mintTokens` / `:regenerateTokens` must not include `plaintext` in `select`. Fails CI on a new code path that violates the contract.
+  3. **End-to-end old-URL-410 verification** (Playwright): after regenerate, a request to one of the *previous* tokenized URLs returns HTTP 410 with `state='invalid'` body shape; no plaintext field appears in the response. Run against a real test DB so the absence of the previous `tokenHash` row is the actual gate, not a mock.
+
+- **#264 erasure job dependency**: scoped out of #378 (locked OD-4a, see Resolved decisions). #264's AC has been augmented (via PR #385 comment 2026-05-17) with the `audienceSpec.identifiersResolved[].identifier → '[redacted]'` redaction contract so the next implementor doesn't miss #378's schema. Schema is shape-compatible. The known-gap is a real compliance gap until #264 lands but not a #378 design defect.
+
+- **Rate-limit infrastructure**: NFR-SC1 lands as in-handler Redis `INCR + EXPIRE` (locked OD-3a). #218's `@fastify/rate-limit` adoption tracker has been augmented (via PR #385 comment 2026-05-17) with the explicit trigger for when to migrate (≥3 endpoint families need throttling, or the in-handler approach can no longer express the limit shape).
 
 ## Validation Plan
 
@@ -545,20 +605,43 @@ Per project rule R9 (#378 is a P1 feature ~ NFR-S2-load-bearing → upgraded de-
 | R-C | Regenerate atomicity — plaintext must be returned once without storing it | Medium | Single `prisma.$transaction()`; build plaintext array in memory pre-write; write only hashes; return plaintext array as the immediate POST response body. No GET endpoint ever sees plaintext. |
 | R-D | Edit Expiry shorten race with in-flight response submit (NFR-S6) | Medium | Postgres MVCC under read-committed: the response-submit's `expiresAt > now()` check reads the row's *committed* `expiresAt`. The expiry-edit either commits before the submit's SELECT (submit sees new value, may reject) or after (submit sees old value, accepts) — never partial. Test case covers both orderings. |
 | R-E | CSV `text/csv` raw-body can't carry the operator-uploaded filename natively | Low | Filename rides as a `?filename=...` query param (the Distribute page already knows it). Matches the #262 import endpoint precedent. |
-| R-F | **#264 (worker erasure job) NOT IMPLEMENTED** | Medium → Scoped out | RFC explicitly scopes erasure to #264; #378 schema is shape-compatible (audienceSpec `[redacted]` rule + `SurveyResponse.distributionBatchId` non-PII). Compliance section reframes from "extended" to "dependency on #264". Documented as a known gap consistent with #241 R6's handling of the same gap. |
-| R-G | **No rate-limit plugin exists** in `apps/api/src/plugins/` | Low → Scoped out | NFR-SC1 (10 batches/min/survey) is enforced in-handler via a 4-line Redis `INCR` + TTL when `QUEUE_MODE=redis`; skipped with a structured-log warning when `QUEUE_MODE=inline` (matches the existing idempotency parity in `apps/api/src/queues/bullmq.ts`). Alternative: file a follow-up issue to introduce `@fastify/rate-limit` repo-wide. See OD-3. |
-| R-H | Brand-TZ formatting is greenfield | Low | Native `Intl.DateTimeFormat` covers display; `endOfDayInBrandTz` is a ~30-line helper. Test cases cover DST boundaries. See OD-2 for the `date-fns-tz` alternative. |
+| R-F | **#264 (worker erasure job) NOT IMPLEMENTED** | Medium → Scoped out (D18) | Erasure is scoped to #264; #378 schema is shape-compatible (`audienceSpec.identifiersResolved[].identifier` redaction rule + `SurveyResponse.distributionBatchId` non-PII). #264's AC has been augmented (PR #385 comment 2026-05-17) with the redaction contract so the next implementor doesn't miss #378. Compliance section reframes from "extended" to "dependency on #264". |
+| R-G | **No rate-limit plugin exists** in `apps/api/src/plugins/` | Low → Implemented in-handler (D17) | NFR-SC1 (10 batches/min/survey) implemented in the `POST /v1/surveys/:id/distribution-batches` handler via Redis `INCR + EXPIRE` with `QUEUE_MODE=inline` graceful-degradation (skip + structured-log warn at WARN level). #218's `@fastify/rate-limit` adoption tracker has been augmented (PR #385 comment 2026-05-17) with explicit migration trigger (≥3 endpoint families need throttling, or the in-handler approach can no longer express the limit shape). |
+| R-H | Brand-TZ formatting is greenfield | Low → Library-backed (D16) | `date-fns-tz`'s `formatInTimeZone` + `zonedTimeToUtc` provide both surfaces; spike confirms correctness across 15 DST + half-hour-TZ edge cases. Library is industry-standard; future surfaces (digest emails, scheduled batches, audit-log display, alert-rule cooldowns) reuse the same package. `Brand.locale` plumbed through so formatting respects each brand's locale. |
 | R-I | Token URL length (`/survey/<surveyId>/r/<token>` ≈ 24+8+24 base64 chars ≈ 90 chars) on platforms with URL-length truncation | Low | Total length ≤ 100 chars after host prefix — well within ESP merge-tag column limits (Mailchimp 1000+, HubSpot 1000+). No mitigation needed. |
 | R-J | Bulk auto-enroll path triggers many `resolveOrEnrollMember` calls; each is a write transaction | Medium | Custom List Generate processes identifiers in chunks of 200 inside the outer `prisma.$transaction()`. NFR-P1/P2 budgets account for this; a 10k-batch auto-enrolling 100% new members worst-cases at ~30s wall-clock — covered by the conservative loading-state estimate (50ms/member). |
 | R-K | `?email=` removal on `apps/web/src/app/survey/[id]/page.tsx:109` may break in-flight links operators have already mailed pre-merge | Low | Receiver-side reading of `?email=` has already been retired since #241 Slice 5 (`apps/api/src/routes/public.ts:248` comment). The remaining read on the page is cosmetic (pre-fills the member-id input). Removing it just means the respondent re-types their email — same behavior as a share-link click today. No regression. |
 
 ## Spike Findings
 
-**SKIPPED — documentation-and-codebase spike was sufficient.**
+**EXECUTED** — Phase 3 spike on brand-TZ EOD arithmetic, run 2026-05-17 in response to RFC review comment [R1-3](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3254599820). Full findings doc: [`docs/evidence/378-tz-spike/findings.md`](../evidence/378-tz-spike/findings.md). Spike script: [`docs/evidence/378-tz-spike/spike.mjs`](../evidence/378-tz-spike/spike.mjs).
 
-Per L1 validated pattern *"Documentation-and-codebase spike (no PoC) is sufficient for many abstraction-shape questions"* (3 recurrences), all five Open Decisions surfaced below are answerable from the existing codebase patterns the RFC names (#262 import, #231 audit, `bullmq.ts` queue-mode parity, ApiKey hash, native `Intl`). No PoC was built; the Phase 1 code audit (`docs/evidence/378-technical-design-evidence.md` §"Code-citation verification") served the same purpose at lower cost.
+### What was spiked
 
-If reviewer judgment is that a spike is warranted on any axis — most likely candidates are (a) DST-boundary correctness of `endOfDayInBrandTz`, (b) generate-CSV streaming at 100k rows — say so and the spike will run before Phase 4 (architecture-gap-review) closes.
+Three approaches to "given `Brand.timezone` + N-day preset, return the UTC instant representing 23:59:59.999 in that TZ on (today + N)":
+- **Approach A** — reviewer's proposed "current time + add days + 23:59:59.999," native `Intl`.
+- **Approach B** — RFC R0's clever-clog `'en-CA'` locale split-on-dash, native `Intl`.
+- **Approach C** — `date-fns-tz`'s `zonedTimeToUtc('YYYY-MM-DDT23:59:59.999', brandTz)`.
+
+### Result
+
+**15/15 pass across all three approaches** — byte-identical UTC `Date` outputs for: PT/ET DST spring-forward + fall-back windows, exact boundary days, NZ Southern-hemisphere DST, half-hour IST (`+05:30`), N=0 same-day EOD, and a 90-day window crossing fall-back.
+
+| Edge case | Sample output |
+|---|---|
+| PT spring-forward window | `utc: 2026-03-13T06:59:59.999Z · tz: Mar 12, 2026, 11:59:59 PM PDT` |
+| PT fall-back window | `utc: 2026-11-06T07:59:59.999Z · tz: Nov 05, 2026, 11:59:59 PM PST` |
+| IST half-hour offset | `utc: 2026-05-22T18:29:59.999Z · tz: May 22, 2026, 11:59:59 PM GMT+5:30` |
+| 90-day window crossing fall-back | `utc: 2026-11-14T07:59:59.999Z · tz: Nov 13, 2026, 11:59:59 PM PST` |
+
+### Decision impact
+
+Correctness is not the deciding axis — all three converge. The decision becomes ergonomics + maintenance cost:
+- `date-fns-tz` `zonedTimeToUtc(...)` is one line per primitive.
+- Native approaches require ~30 lines including a `wallClockToUtc` helper that future contributors maintain.
+- Future surfaces (digest emails, scheduled batches, audit-log display, alert-rule cooldowns, expiring webhook secrets) will reuse the same primitive — library wins by amortization.
+
+**OD-2 reversed from 2a (native Intl) to 2b (`date-fns-tz`) on merit.** Pre-spike RFC's 2a recommendation cited "zero new dependency" — that is the merit-over-ease anti-pattern L1 `feedback_merit_over_ease.md` (P-HIGH 8.0) was authored to prevent. Coaching moment for the misfire: [`fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-17T17-00-00-merit-over-ease-misfired-on-od-2.md`](../../fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-17T17-00-00-merit-over-ease-misfired-on-od-2.md).
 
 ## Observability (logs, metrics, alerts)
 
@@ -573,33 +656,21 @@ Per NFR-O1–O3:
 
 ## Open Decisions for the reviewer
 
-Per validated pattern *"Open decisions framed with `← recommended` get one-round answers"* (10 recurrences): five binary / ternary choices, each with the trade-off in one line.
+**All Round-1 ODs resolved as of 2026-05-17** — see Resolved decisions table below. This block is preserved as a record of what was deliberated and what the reviewer locked, so the implementation has the trail.
 
-**OD-1 — CSV upload transport**
-- (a) `text/csv` raw body, filename via `?filename=...` query param, parser mirrors #262 import precedent `← recommended` — zero new dependency, matches existing pattern, simpler.
-- (b) `multipart/form-data` via `@fastify/multipart` — closer to typical web-form expectation, supports multi-file in future, but adds a dependency and diverges from #262.
-
-**OD-2 — Brand-timezone library**
-- (a) Native `Intl.DateTimeFormat({ timeZone })` + ~30-line `endOfDayInBrandTz` helper `← recommended` — zero new dependency, Node 22's ICU includes IANA TZ data, sufficient for the 5 display sites + 1 EOD-arithmetic site #378 needs.
-- (b) `date-fns-tz` (~25 KB bundle add) — more ergonomic API surface for future date math, but no other repo consumer today and the API surface needed is small.
-
-**OD-3 — NFR-SC1 rate-limit posture (10 batches/min/survey)**
-- (a) In-handler Redis `INCR + EXPIRE` with parity in `inline` mode (skip with structured-log warning) `← recommended` — single-line addition, matches existing queue-mode parity contract, no new package.
-- (b) Adopt `@fastify/rate-limit` repo-wide in a follow-up issue — better long-term ergonomics if more endpoints need throttling, but #378 is the only current consumer; YAGNI argues for (a).
-
-**OD-4 — Erasure-job extension**
-- (a) Scope out; document #264 as the gating dependency; #378 schema is shape-compatible `← recommended` — honest gap, matches how #241 R6 handled the same situation, doesn't ship partial-erasure surface.
-- (b) Implement minimal erasure-row extension inside #378 (zero out `audienceSpec` resolved-identifier list when `Member.erased = true`) — partial coverage of GDPR Art. 17 today, but creates a half-built erasure surface that #264 then has to merge with.
-
-**OD-5 — Migration shape for `SurveyDistribution` unique-constraint move**
-- (a) Hand-written migration as drafted above — single ordered DDL, follows architecture §3.4 + the #20260430000000 precedent `← recommended`.
-- (b) Auto-generate then hand-edit — Prisma's autogen for unique-constraint moves often emits DROP-and-CREATE on the parent table; not safe here. Reject.
-
-(OD-5 is functionally settled; included for completeness so the reviewer can sanity-check the migration before it ships.)
+| OD | Subject | Pre-spike `← recommended` | **Locked outcome** |
+|---|---|---|---|
+| OD-1 | CSV upload transport | 1a (`text/csv` raw body) | **NOT AN OD — locked in spec.** Reviewer R1-6: *"Already confirmed in the spec - follow the format of Import Survey Results."* Moved to Resolved decisions; spurious as an "open" question. |
+| OD-2 | Brand-timezone library | 2a (native `Intl` + 30-line helper) | **2b (`date-fns-tz`)** — reversed post-spike on merit (`feedback_merit_over_ease.md`). Reviewer R1-3 directed Phase 3 spike; spike confirms all 3 approaches converge correctness-wise; library wins on long-term ergonomics. See Spike Findings. |
+| OD-3 | NFR-SC1 rate-limit posture | 3a (in-handler Redis) | **3a (in-handler Redis with `QUEUE_MODE=inline` graceful-degradation)**, plus comment on #218 with adoption trigger for the `@fastify/rate-limit` migration. Reviewer R1-8 "Implement". |
+| OD-4 | Erasure-job extension | 4a (scope out, document #264) | **4a** — reviewer R1-10 "Agreed". #264 AC augmented via PR #385 comment with the redaction contract. |
+| OD-5 | Migration shape | 5a (hand-written per architecture §3.4) | **5a** — reviewer R1-11 "Agreed". Auto-generate-then-hand-edit explicitly rejected. |
 
 ---
 
-## Resolved decisions (carry-forward from spec)
+## Resolved decisions
+
+14 carried forward from spec + 5 locked in design Round 1 (post-spike + reviewer signoff 2026-05-17).
 
 | # | Decision | Source | Locked outcome |
 |---|---|---|---|
@@ -612,11 +683,16 @@ Per validated pattern *"Open decisions framed with `← recommended` get one-rou
 | D7 | CSV `surveyName` column | spec §2.6 / OQ-S1 | Separate column (per format-specific naming table) |
 | D8 | CSV multi-column name precedence | spec R6 / OQ-S4 | Explicit columns win except when empty (bracketed `Name <email>` fallback) |
 | D9 | Identifier kind tie-breaker | spec R6 / R3-18 | `Brand.memberIdentifierKind` |
-| D10 | Brand-TZ everywhere | spec R3-A / R11 / R16 / R26 | All displayed timestamps in `Brand.timezone`; expiry stored as UTC |
+| D10 | Brand-TZ everywhere | spec R3-A / R11 / R16 / R26 | All displayed timestamps in `Brand.timezone`; expiry stored as UTC. Locale per `Brand.locale` (R1-1/R1-2). |
 | D11 | `<No batch>` filter option | spec R23 / R3-12 | Shown as "Direct responses (share link / embed)" when ≥1 such response exists |
 | D12 | `samplingSeed` UI | spec R8 | Internal-only; never surfaced |
 | D13 | No Revoke / No Re-run in V0 | spec R27 | Edit Expiry covers cut-off; Re-run = V1 |
-| D14 | `fraim/config.json.competitors` | spec R3-30 | 8-vendor block landed in this same PR per Rule 26 |
+| D14 | `fraim/config.json.competitors` | spec R3-30 | 8-vendor block landed in spec PR per Rule 26 |
+| **D15** | **CSV upload transport (formerly OD-1)** | design R1-6 | **`text/csv` raw body, filename via `?filename=...` query param, parser mirrors #262 import endpoint at `apps/api/src/routes/surveys.ts:915` (11 MB bodyLimit, in-memory `parseCsvRaw` + `runAdapter`).** Not multipart. |
+| **D16** | **Brand-timezone library (formerly OD-2)** | design R1-3 / R1-7 / spike | **`date-fns-tz`** — wrappers at `packages/shared/src/datetime.ts`. Reversed from native Intl post-spike on merit (`feedback_merit_over_ease.md`). |
+| **D17** | **NFR-SC1 rate-limit posture (formerly OD-3)** | design R1-8 | **In-handler Redis `INCR + EXPIRE`** in the `POST /v1/surveys/:id/distribution-batches` handler, with `QUEUE_MODE=inline` graceful-degradation (skip + structured-log warn). Adoption trigger for `@fastify/rate-limit` recorded on #218. |
+| **D18** | **Erasure-job extension scope (formerly OD-4)** | design R1-10 / R1-5 | **Scoped out of #378.** #264 AC augmented via PR #385 comment with the `audienceSpec.identifiersResolved[].identifier → '[redacted]'` redaction contract. Schema shape-compatible. |
+| **D19** | **Migration shape (formerly OD-5)** | design R1-11 | **Hand-written per architecture §3.4** + `20260430000000_patch_survey_distribution_gap` precedent. Single ordered DDL: ADD column → DROP old constraint → ADD new constraint. |
 
 ---
 
@@ -655,13 +731,13 @@ These design elements map to documented architecture.md rows; no doc change need
 
 These shapes are introduced by #378 but not yet documented. Following Phase 4's rule *"No architecture updates yet"*, the doc rows below are **proposed**; the architecture.md edit lands in the address-feedback phase only after the reviewer confirms each addition is load-bearing enough to document.
 
-| # | Proposed pattern | Why it's worth documenting | Suggested architecture.md location |
+| # | Proposed pattern | Status (Round 1 reviewer) | Suggested architecture.md location |
 |---|---|---|---|
-| M-1 | **Hash-at-rest tokenized public endpoint** — any unauthenticated public route that needs to identify a specific actor uses SHA-256(plaintext) hash-at-rest, DB-unique-index lookup, uniform error-response body across `valid`/`expired`/`responded`/`survey-not-open`/`invalid` to prevent token-existence-leak timing attacks, plaintext returned exactly once at provisioning time. | The ApiKey pattern (§6) is *implicit*; the architecture doc never names "tokenized public endpoint" as a reusable pattern. #378 is the first general consumer beyond ApiKey, and the design choices (path-segment not query-param; uniform error body; expirable + single-use) are likely reusable for future surfaces (magic-link auth, embedded-widget per-recipient tokens, SMS verification). | New §6 bullet *Hash-at-rest tokenized public endpoint* with cross-reference to ApiKey precedent + #378 implementation |
-| M-2 | **Brand-timezone display utility** — `formatInBrandTz(date, timeZone, opts)` for display + `endOfDayInBrandTz(date, timeZone)` for EOD arithmetic, using native `Intl.DateTimeFormat`; no `date-fns-tz` dependency. | First repo-wide consumer of `Brand.timezone` for UI display (schema field exists since #277 but no code formats against it). Future surfaces — digest emails, scheduled batches in V1.x, audit-log display, alert-rule cooldowns — will need the same helper. Documenting the location prevents three parallel implementations. | New §3.5 row under *Shared Layer* listing `packages/shared/src/datetime.ts` |
-| M-3 | **In-handler rate-limit with queue-mode parity** — small Redis `INCR + EXPIRE` block in the request handler; fallback to structured-log warning when `QUEUE_MODE=inline` and Redis isn't available. | Architecture §3.3 + §6 document queue-mode parity for *queue-processor* surfaces; nothing documents how non-queue throttles degrade. #378's NFR-SC1 (10 batches/min/survey) introduces the first instance. Reusable for any operator-action that needs soft throttling without a full plugin. | New §6 bullet *In-handler throttling with QUEUE_MODE parity* if OD-3a is accepted; or scope to follow-up issue if OD-3b is chosen |
-| M-4 | **Re-download = regenerate semantics** — for one-time-secret transmissions that need operator-error recovery, the second-attempt action regenerates and invalidates the prior, rather than re-fetching. Strong-warning + confirmation-modal `confirmAcknowledge` body gate. | Sister of M-1. The "I lost the CSV before pasting" recovery path is generalizable to any future per-recipient secret medium. Worth one sentence so future RFCs don't relitigate. | New §6 bullet *One-time secret regeneration as the only re-fetch path*, paired with M-1 |
-| M-5 | **Detail-page filter-row UX pattern** — between two existing sections (Loop Monitor and Response in this case), narrows the analytics section below while leaving the upstream section unchanged. Includes "Direct responses" / `IS NULL` option when the legacy unfiltered path coexists. | New UX shape introduced by R23. Reusable for any detail page where multiple distribution sources coexist (Campaigns, alert rules, future receipt-ingestion surfaces). Worth a row under §3.1 if reviewers think it's load-bearing. | New §3.1 sub-bullet *Filter-row controller between detail-page sections* with cross-ref to the Survey detail page implementation |
+| M-1 | **Hash-at-rest tokenized public endpoint** — any unauthenticated public route that needs to identify a specific actor uses SHA-256(plaintext) hash-at-rest, DB-unique-index lookup, uniform error-response body across `valid`/`expired`/`responded`/`survey-not-open`/`invalid` to prevent token-existence-leak timing attacks, plaintext returned exactly once at provisioning time. | **✅ Agreed (R1-12)** — add during impl. | New §6 bullet *Hash-at-rest tokenized public endpoint* with cross-reference to ApiKey precedent (`apps/api/src/plugins/auth.ts:69`) + #378 implementation |
+| M-2 | **Brand-timezone + locale display utility** — `formatInBrandTz(date, brandTimezone, brandLocale, formatString)` + `endOfDayInBrandTz(localDate, brandTimezone)` at `packages/shared/src/datetime.ts`. Implemented via `date-fns-tz` (locked D16). | **✅ Agreed (R1-13)** — add during impl. Implementation shape revised post-spike from native-Intl to `date-fns-tz`. | New §3.5 row under *Shared Layer* listing `packages/shared/src/datetime.ts` (using `date-fns-tz`) |
+| M-3 | **In-handler rate-limit with queue-mode parity** — small Redis `INCR + EXPIRE` block in the request handler; fallback to structured-log warning when `QUEUE_MODE=inline` and Redis isn't available. | **✅ Implicitly agreed via OD-3a acceptance (R1-8)** — add during impl. | New §6 bullet *In-handler throttling with `QUEUE_MODE` parity* with cross-ref to #218 (plugin-based migration tracker) and the adoption-trigger criteria in #218's #378 comment |
+| M-4 | **Re-download = regenerate semantics** — for one-time-secret transmissions that need operator-error recovery, the second-attempt action regenerates and invalidates the prior, rather than re-fetching. Strong-warning + confirmation-modal `confirmAcknowledge` body gate. | **✅ Agreed (R1-14)** — add during impl. Pairs with M-1. | New §6 bullet *One-time secret regeneration as the only re-fetch path*, paired with M-1 |
+| M-5 | **Detail-page filter-row UX pattern** — between two existing sections (Loop Monitor and Response in this case), narrows the analytics section below while leaving the upstream section unchanged. | **⏸ DEFERRED (R1-15)** — *"Not yet. We will decide when second occurrence comes up."* The pattern ships as part of #378 R23; the architecture.md doc-row waits for a second feature that needs the same shape. | (no doc-row landing in this PR) |
 
 ### Patterns Incorrectly Followed
 
@@ -678,10 +754,10 @@ These shapes are introduced by #378 but not yet documented. Following Phase 4's 
 | Phase | Status |
 |---|---|
 | 1 — requirements-analysis | ✅ complete (`docs/evidence/378-technical-design-evidence.md`) |
-| 2 — design-authoring | ⏳ in progress (this RFC) |
-| 3 — technical-spike | ⏭ skip-with-rationale (above) |
-| 4 — architecture-gap-review | ⏳ pending |
-| 5 — design-completeness-review | ⏳ pending |
-| 6 — design-submission | ⏳ pending |
-| 7 — address-feedback | ⏳ hold-point (Rule 25a — only on explicit reviewer signal) |
+| 2 — design-authoring | ✅ complete (RFC R0 → R1) |
+| 3 — technical-spike | ✅ executed Round 1 — brand-TZ EOD spike (`docs/evidence/378-tz-spike/findings.md`); 15/15 pass; OD-2 reversed to 2b on merit |
+| 4 — architecture-gap-review | ✅ complete (RFC §Architecture Analysis — M-1..M-4 confirmed, M-5 deferred) |
+| 5 — design-completeness-review | ✅ complete (evidence doc §Traceability Matrix — 0 Unmet) |
+| 6 — design-submission | ✅ commits on PR #385 (rebased onto main 2026-05-17 per Rule 26 — RFC + evidence + feedback file all on feature branch) |
+| 7 — address-feedback | 🔄 Round 1 addressed (this commit); awaiting reviewer signoff on R1 resolutions + R2 if any |
 | 8 — retrospective | ⏳ pending |
