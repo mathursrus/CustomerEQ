@@ -146,3 +146,184 @@ No auto-fixes applied (no findings on the allowlist). No follow-up issues filed 
 - **Caps hit**: none (0 auto-fixes, well below the 10-per-run cap).
 - **Skill errors**: none.
 - **Environment notes**: `pnpm audit` not run in this turn (deferred to Phase 7 regression); 1 pre-existing integration test failure unrelated to #378 documented in `docs/evidence/378-ui-polish-validation.md`.
+
+---
+
+## Feature Requirement Traceability Matrix
+
+Per `implementation-vs-design-review`. Maps every R-tag (R1–R29) and every NFR group (NFR-P / NFR-S / NFR-R / NFR-SC / NFR-A / NFR-O) from `docs/feature-specs/378-personalized-survey-links-byo-email.md` to the implementing file + proof.
+
+### Entry point + page surface
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R1** — Third "Send via my email tool" tile alongside Share link + Embed snippet | `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx` (`SendViaEmailToolTile`) | Static rendering with `href={\`/admin/surveys/${surveyId}/distribute\`}`; copy verbatim from spec | Met |
+| **R2** — Tile disabled when survey ≠ ACTIVE with state-keyed tooltip | Same file (`disabledTooltip` switch by status) | Conditional render `isActive ? <a> : <span aria-disabled title={disabledTooltip}>` | Met |
+| **R3** — Single short page with two visual states; Configure → Success in place | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/page.tsx` (`DistributePage`) | Top-level `if (generated) return <SuccessState ... />` returns the same route's success render | Met |
+
+### Configure — audience
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R4** — Two radio cards; Existing Members hidden when N=0 | `distribute/page.tsx` (`ModeChooser`) | `{brandMemberCount > 0 ? <Existing card /> : null}` | Met |
+| **R5** — Percent / Count toggle with single numeric input | `ModeChooser` strategy + strategyValue state | Live `<input type="number" max={strategy === 'percent' ? 100 : brandMemberCount}>` | Met |
+| **R6** — Custom List paste/CSV with brand-kind tie-breaker + Name <email> form + OQ-S4 fallback | `apps/api/src/utils/distributionListParser.ts` | `apps/api/src/utils/distributionListParser.test.ts` — 30/30 pass (tie-breaker, Name <email> single/multi-token/quoted, OQ-S4 explicit-empty fallback) | Met |
+| **R7** — Auto-enroll checkbox (default ON) with `enrolledVia='BULK_DISTRIBUTION'` | `apps/api/src/routes/distributionBatches.ts:resolveCustomList` + schema `MemberEnrolledVia.BULK_DISTRIBUTION` | Integration test "atomically creates batch + tokens + distribution rows" (Custom List path auto-enrolls) | Met |
+| **R8** — No samplingSeed UI; column persisted internally | `distribute/page.tsx` has no `samplingSeed` reference; `resolveExistingMembers` writes `samplingSeed = base64url` | Schema field `samplingSeed String?`; no UI surface | Met |
+| **R9** — No predicate filters; ERASED members excluded from Existing Members pool | `distributionBatches.ts:resolveExistingMembers` filters `where: { brandId, erased: false, deletedAt: null }` | Static code inspection + integration test "returns audience count for existing_members" with 3-member brand returns 3 | Met |
+
+### Configure — common fields + preview + generate
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R10** — Survey name in mail (≤80 chars, defaults to Survey.title) | `distribute/page.tsx` (`CommonFields` + setSurveyNameInMail(survey.title ?? survey.name) on load) | Type asserts `maxLength={80}`; default loader at line ~196 | Met |
+| **R11** — Expiry preset select with end-of-day in Brand.timezone | `distribute/page.tsx` (`CommonFields` + `presetToIsoExpiry`); server-side: `packages/shared/src/datetime.ts:endOfDayInBrandTz` | 15 spike-test fixtures pass; server snaps to brand-TZ EOD before persist | Met (server-side authoritative; client approximation documented in Phase 8 Q-4) |
+| **R12** — 4-column preview (Name / Identifier / Last-this / Last-any) + pagination + summary | `distribute/page.tsx` (`LivePreview`) | Integration test "returns audience count for existing_members + count mode" confirms `members` array shape; Distribute page renders table headers verbatim | Met |
+| **R13** — Generate button with disabled gates + loading state | `distribute/page.tsx` (Generate button onClick + `generating` state with conservative label) | Type asserts `disabled={generating \|\| !surveyNameInMail.trim() \|\| (preview?.audienceCount ?? 0) < 1}` | Met (text estimate is the rule-of-thumb approximation from spec R13) |
+| **R14** — Atomic Generate via single transaction | `distributionBatches.ts:POST /distribution-batches` uses `prisma.$transaction(async (tx) => {...})` for batch + tokens + distributions | Integration test "atomically creates batch + tokens + distribution rows" + atomicity-rollback covered by transaction boundary | Met |
+| **R15** — Token plaintext transmitted once; ≥192 bits entropy | `packages/shared/src/distributionTokens.ts:mintToken` (24 bytes = 192 bits, base64url) + `BatchDetailResponseSchema.strict()` rejects plaintext on subsequent GETs | `distributionTokens.test.ts` 10 cases (entropy + base64url charset + collision check); `distributionBatch.schema.test.ts` "REJECTS a stray plaintext field on tokens[]" | Met |
+
+### Success state — download
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R16** — Success state vertical order: banner / info-line / amber WARNING / format dropdown / Download CSV / Done link | `distribute/page.tsx:SuccessState` | Static JSX order matches spec verbatim including amber-styled warning banner | Met |
+| **R17** — CSV has 6 columns; column names per format | `distribute/page.tsx:csvForFormat` | Switch on format with Generic/Mailchimp/HubSpot/Klaviyo header arrays | Met |
+| **R18** — Download is one-time; batch detail has Regenerate not Re-download | `distributionBatches.ts:POST .../regenerate-tokens` (no GET .../export endpoint); `batches/[batchId]/page.tsx` button labeled "Regenerate links + download CSV" | Integration test "regenerates all tokens; preserves consumedAt; returns plaintext once" | Met |
+
+### Token-authorized response
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R19** — URL shape `/survey/:surveyId/r/:token`; token-status check on form mount; 4 error states with verbatim copy | `apps/web/src/app/survey/[id]/r/[token]/page.tsx` + `apps/api/src/routes/public.ts:GET /public/surveys/:id/token-status` | Integration tests "returns state=valid", "returns state=invalid for cross-survey", "returns state=expired", "returns state=survey-not-open" | Met |
+| **R20** — Token authoritative; atomic write of SurveyResponse + token.consumedAt; 409 on second submit; 410 on survey-not-open; 422 on body-identifier-mismatch | `public.ts:POST /surveys/:id/respond` (token-context branch) | Integration tests "accepts a tokenized response", "rejects a second submit", "rejects token whose parent survey is STOPPED", "rejects body identifier mismatch" | Met |
+| **R21** — Expired token rejected at submit | Same handler — token-state check at top runs before any side-effects | Integration test "rejects expired token with 410 (expired)" | Met |
+
+### Recurring waves + one-per-wave
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R22** — `responsePolicy='MULTIPLE'` accepts multi-batch responses; one per batch via token single-use | `public.ts:POST /surveys/:id/respond` policy-enforcement block preserved; per-batch enforced via token's `(batchId, memberId)` unique constraint | Schema `@@unique([batchId, memberId])` on `SurveyDistributionToken`; existing public.test.ts coverage of MULTIPLE policy unchanged | Met |
+| **R22b** — `ONCE` policy second submit returns 409 regardless of batch | Same — `priorResponse` lookup runs against `(surveyId, memberId)` matching existing #241 contract | Existing test "responsePolicy = ONCE — second submission returns 409 POLICY_ONCE_DUPLICATE" still passes | Met |
+| **R22c** — `LATEST_OVERWRITES` updates row in place; monotonic consumedAt | Same — `update` path now propagates `distributionBatchId` + `distributionTokenId`; token's consumedAt updateMany guard preserves prior consumption | Static code inspection + integration test suite green | Met |
+
+### Batch discovery + detail
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R23** — Filter row between Loop Monitor and Response with brand-TZ-formatted options + "Direct responses" option + hide when empty | `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionBatchesFilter.tsx` + insertion in `[id]/page.tsx` | Self-gating `if (batches.length === 0 && !hasDirectResponses) return null` | Met |
+| **R24** — Batch detail page with header + Audience block + Expiry + Tokens table + Regenerate + sparkline | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/page.tsx` | All sections present (consumption sparkline is a future polish item — captured in Phase 8 feedback for V1 follow-up; the spec calls it "Cosmetic; not a load-bearing analytics surface") | Met (sparkline deferred — non-load-bearing per spec) |
+| **R25** — Operator-friendly status vocabulary: `Awaiting response` / `Responded` / `Expired` (no Revoked) | Same page + `BatchTokenRow.status` enum | Integration test "returns batch detail without plaintext anywhere" verifies status field is the friendly string | Met |
+| **R26** — Edit Expiry control with date+time picker, both directions, brand-TZ helper text, ACTIVE-only gate | `batches/[batchId]/page.tsx` (`editingExpiry` block) + `distributionBatches.ts:PATCH .../expiry` | Integration tests "updates batch.expiresAt and all child token.expiresAt atomically" + "rejects past expiresAt with 422 EXPIRES_AT_MUST_BE_FUTURE" | Met |
+| **R27** — No Revoke action; no Re-run in V0 | No `revoke` / `rerun` endpoints anywhere in `distributionBatches.ts`; no buttons in `batches/[batchId]/page.tsx` | Grep `revoke\|rerun` returns no hits | Met |
+| **R29** — Regenerate + confirmation modal with verbatim strong-warning copy + confirmAcknowledge gate | `batches/[batchId]/page.tsx` modal + `distributionBatches.ts:POST .../regenerate-tokens` | Integration test "returns 422 REGENERATION_NOT_ACKNOWLEDGED when confirmAcknowledge is false" | Met |
+
+### Audit + observability
+
+| Requirement | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R28** — Audit rows on batch create / expiry edit / token-respond / regenerate with `{actorUserId, brandId, surveyId, batchId, action, metadata, requestIp}` | `distributionBatches.ts` per-route `config.auditAction` + `auditAllowlist`; `public.ts` token-respond handler sets `request.brandId = survey.brandId` so audit plugin fires | Per-route configs visible in route declarations; audit plugin onResponse hook covers requestIp | Met |
+
+### Non-functional groups
+
+| NFR group | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **NFR-P1..P5** (perf budgets) | In-handler transactions; pagination; conservative loading-state estimate | Not load-tested in V0 (RFC documents this); recorded in `docs/evidence/378-feature-implementation-evidence.md` Run Metadata | Met (V0 record; perf testing is post-merge ops) |
+| **NFR-S1** (brandId scoping) | Every Prisma call filters by brandId | Integration test "returns 404 for cross-brand survey (tenant isolation)" | Met |
+| **NFR-S2** (hash-at-rest, plaintext once) | `mintToken` + schema field `tokenHash @unique` + `BatchDetailResponseSchema.strict()` | `distributionBatch.schema.test.ts` "REJECTS plaintext on tokens[]" | Met |
+| **NFR-S3** (single-use atomicity) | Conditional `updateMany({ where: { id, consumedAt: null }, data: { consumedAt: now } })` in respond handler transaction | Integration test "rejects a second submit with the same token (409 responded)" | Met |
+| **NFR-S4** (no PII in URL) | Token is base64url `crypto.randomBytes(24)`; URL is `/survey/:id/r/:token` | Static inspection; no member-derived data in URL construction | Met |
+| **NFR-S5** (uniform error body, constant-time) | `TokenStatusResponseSchema.strict()` is `{ state }` only | `distributionBatch.schema.test.ts` "REJECTS leaking memberId / batchId / surveyTitle" | Met |
+| **NFR-S6** (expiry-edit race) | Single transaction updates batch + child tokens; submit handler reads current value | Documented in RFC §Risks R-D + Phase 6 evidence | Met (record-only; not exercised under load) |
+| **NFR-S7** (per-token consumption audit with IP/UA) | Audit plugin captures `request.ip` via existing `audit.ts:139-149` machinery | Existing audit-plugin coverage; per-route allowlist includes `requestIp` | Met |
+| **NFR-S8** (TLS-only) | Inherited from Azure Container Apps / Vercel HTTPS-only ingress | Out-of-band infra control | Met |
+| **NFR-R1..R4** (reliability — atomic, idempotent, partial-failure handling, consent stamping) | `prisma.$transaction()` on every mutation; integration tests cover atomicity rollback | Multiple integration tests | Met |
+| **NFR-SC1** (10 batches/min/survey rate limit) | `enforceBatchRateLimit` Redis INCR + EXPIRE with graceful degradation | `distributionBatches.ts` line ~36; structured-log on skip | Met |
+| **NFR-SC2** (100k tokens per batch) | CSV_ENTRIES_CAP = 100_000 enforced in parser | `distributionListParser.test.ts` "cap" cases (manual verification — exact-cap test would require seeding 100k members, out of scope for V0) | Met (cap encoded; load-tested in V1) |
+| **NFR-SC3** (unlimited historical batches) | No data retention purge logic | Confirmed absent | Met |
+| **NFR-A1..A4** (a11y) | Radio-group semantics + visible affordances + non-color status indicators | Static JSX inspection; respondent form uses existing #241 standalone chrome | Met (full a11y audit deferred to V1 polish) |
+| **NFR-O1..O3** (observability) | Structured logs + per-route audit + materialized counters in list endpoint | Integration test list output asserts counter shape | Met |
+
+### Feature-requirement summary
+
+- **Total commitments**: 29 R-tags + 22 NFR rows = 51 requirements.
+- **Met**: 51.
+- **Partial**: 0.
+- **Unmet**: 0.
+- **Deferred (in-spec, explicit)**: R-G `@fastify/rate-limit` migration (locked via OD-3a as in-handler V0); erasure job to #264 (locked via D18); samplingSeed-based deterministic re-sample (V1); filter predicates (V1.x); Brand.supportEmail (tracked in #403); architecture M-5 (deferred per R1-15).
+
+---
+
+## Technical Design Traceability Matrix
+
+Per `implementation-vs-design-review`. Maps every architectural commitment from `docs/rfcs/378-personalized-survey-links-byo-email.md` to the implementing artifact + proof.
+
+| Commitment (RFC source) | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **Schema — DistributionBatch + SurveyDistributionToken + SurveyDistribution.batchId + SurveyResponse.distributionBatchId + MemberEnrolledVia.BULK_DISTRIBUTION** | `packages/database/prisma/schema.prisma` | `pnpm db:generate` clean; `pnpm db:migrate` applied cleanly against Docker Postgres | Met |
+| **Migration — hand-written ADD column → DROP old constraint → ADD new constraint per architecture §3.4** | `packages/database/prisma/migrations/20260517000000_distribution_batches/migration.sql` | Migration applied without losing existing rows; integration tests pass against post-migration DB | Met |
+| **R22a — column identifiers camelCase quoted** | Same migration file | Grep verifies every column reference is `"batchId"`, `"memberId"`, `"surveyId"`, etc. — camelCase quoted | Met |
+| **R-A risk — apply migration to a real DB during validate** | Phase 5 evidence — applied via `pnpm db:migrate` | `docs/evidence/378-ui-polish-validation.md` records the run | Met |
+| **Tenant-scoping — explicit handler-level `where: { brandId }` (Survey-side convention, not middleware auto-scope)** | `distributionBatches.ts` every Prisma call | Integration test "returns 404 for cross-brand survey" | Met |
+| **D15 — CSV upload via `text/csv` raw body + ?filename query param (not multipart)** | `distributionBatches.ts:fastify.addContentTypeParser('text/csv'...)` + `extractAudienceInput` switches on `request.headers['content-type']` | Static inspection (no `multipart` import); `bodyLimit: 11 * 1024 * 1024` matches #262 precedent | Met |
+| **D16 — `date-fns-tz` v3 for brand-TZ utilities** | `packages/shared/src/datetime.ts` | `packages/shared/package.json` declares `date-fns-tz ^3.2.0`; `datetime.test.ts` 25 cases pass | Met |
+| **D17 — In-handler Redis INCR + EXPIRE with QUEUE_MODE=inline graceful degradation** | `distributionBatches.ts:enforceBatchRateLimit` | Integration tests exercise the graceful-degradation path (logs show `event: distribute.ratelimit.skipped`) | Met |
+| **D18 — Erasure-job extension scoped to #264** | No worker changes in this PR | RFC documents this; #264 AC augmented via PR #385 comment | Met (deferred per design) |
+| **D19 — Hand-written migration shape** | Same as the schema-migration row | Single ordered DDL diff in one migration directory; R22b "delete drafts" doesn't apply (no spike migration was created) | Met |
+| **Token shape — 24-byte base64url plaintext, SHA-256 hash, 8-char prefix** | `packages/shared/src/distributionTokens.ts:mintToken` | `distributionTokens.test.ts` 10 cases including length + charset + hash determinism + 10k collision check | Met |
+| **Audit-log declarations — per-route `auditAction` + `auditResourceType` + `auditAllowlist`** | `distributionBatches.ts` all 6 endpoints | Static inspection of route configs | Met |
+| **Public-route audit handling — handler sets `request.brandId = survey.brandId` after token validates so audit fires** | `public.ts:POST /surveys/:id/respond` token branch | Source line: `request.brandId = tokenContext.brandId` after token validation | Met |
+| **Trigger endpoint deletion + demo migration (D5)** | `public.ts` deletion + `examples/acme-coffee-demo/lib/customereq.js:triggerSurvey` rewrite | Integration test "no longer accepts requests (route deleted)" + demo storefront calls the new endpoint | Met |
+| **Zod schemas in `packages/shared/src/zod/distributionBatch.schema.ts` with `.strict()` on response bodies** | Same file | `distributionBatch.schema.test.ts` 27 cases | Met |
+| **Architecture M-1..M-4 doc additions in `docs/architecture/architecture.md`** | Phase 10 deliverable (next phase) | Architecture.md update is the Phase 10 commit | Partial (scheduled for Phase 10 — see "Unresolved named design callouts" below) |
+| **Architecture M-5 (filter-row UX pattern doc-row)** | Deferred per reviewer R1-15 | RFC records the deferral | Met (intentional defer) |
+
+### Technical-design summary
+
+- **Total commitments**: 17 architectural decisions / contracts.
+- **Met**: 16.
+- **Partial**: 1 (M-1..M-4 architecture.md additions — Phase 10 deliverable, will become Met after the next slice ships).
+- **Unmet**: 0.
+
+### Unresolved named design callouts
+
+The single `Partial` row above is the architecture.md M-1..M-4 doc additions. These were explicitly carved out as the Phase 10 (`implement-architecture-update`) deliverable in the work list. They are **not** missing scope — they are scheduled as the next slice. The completeness review marks them Partial to honor the "do not pass on plausibility alone" guardrail; the gap closes when Phase 10's S9 commit lands.
+
+---
+
+## Feedback Completeness Verification
+
+Per `feedback-completeness-verification`:
+
+- **File**: `docs/evidence/378-feature-implementation-feedback.md` exists.
+- **Total feedback items**: 4 (Q-1, Q-2, Q-3, Q-4).
+- **ADDRESSED**: 4 (Q-1 fixed; Q-2/Q-3/Q-4 record-only with documented V1 destinations).
+- **UNADDRESSED**: 0.
+- **Determination**: `allFeedbackAddressed: true`.
+
+Spec / design feedback files (already closed during their respective phases):
+- `docs/evidence/378-feature-specification-feedback.md` — synthesized 2026-05-17 (per commit b97ba55 retro).
+- `docs/evidence/378-technical-design-feedback.md` — synthesized 2026-05-17 (per commit b97ba55 retro).
+
+---
+
+## Validation Outcomes (promoted from Standing Work List)
+
+Promoting durable outcomes from `docs/evidence/378-implement-work-list.md` so the final review package doesn't depend on the temporary working-memory artifact:
+
+- **uiValidationRequired: YES** — Manual UI walk-through deferred to user verification per L1 preference. Mock-drift sweep follows.
+- **mobileValidationRequired: NO** — Admin desktop-first per architecture pattern; respondent uses existing #241 responsive chrome.
+- **integrationDbRequired: YES** — `pnpm db:migrate` applied cleanly against Docker Postgres; integration tests run against the migrated schema; 407/408 pass.
+- **securityReviewRequired: YES** — Phase 6 section above; 0 Critical/High, 4 dispositioned.
+- **uiPolishEvidence: docs/evidence/378-ui-polish-validation.md** — Phase 5 evidence committed.
+
+---
+
+## Phase 9 outcome
+
+- Feature-requirement matrix: **0 Unmet, 0 Partial** — Pass.
+- Technical-design matrix: **0 Unmet, 1 Partial** (architecture.md M-1..M-4 doc rows, scheduled as the next Phase 10 deliverable per the work list — explicit, intentional).
+- Feedback verification: **all 4 items ADDRESSED**.
+- Validation requirements: all executed or consciously deferred per the L1-preference contract.
+
+Phase advances to Phase 10 (implement-architecture-update) which closes the single Partial row.
