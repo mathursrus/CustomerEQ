@@ -195,6 +195,34 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
 
+      # Issue #387: assert that each container app is running the expected
+      # image tag before treating the deploy as successful. Catches the
+      # failure class where az containerapp update returns 200 but the
+      # revision did not swap (ACR push failure, silent rollback, wrong-app
+      # update in a concurrent deploy race).
+      - name: Verify deployed image SHAs
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+          APPS="customereq-api customereq-worker customereq-web customereq-demo"
+          FAILED=0
+          for APP in $APPS; do
+            DEPLOYED=$(az containerapp show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name "$APP" \
+              --query "properties.template.containers[0].image" -o tsv)
+            if [[ "$DEPLOYED" == *":${IMAGE_TAG}" ]]; then
+              echo "  ✓ $APP — image tag matches: $IMAGE_TAG"
+            else
+              echo "  ✗ $APP — expected :${IMAGE_TAG} but got: $DEPLOYED"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            echo "One or more container apps are running the wrong image. Failing deploy."
+            exit 1
+          fi
+
       - name: Verify API health
         if: steps.changes.outputs.build == 'true'
         run: |
