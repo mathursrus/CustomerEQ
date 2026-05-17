@@ -14,7 +14,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
 import { RendererErrorLine, SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
@@ -99,14 +99,15 @@ function memberIdInputType(kind: BrandLite['memberIdentifierKind']): string {
 
 export default function SurveyResponsePage() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const surveyId = params.id as string
 
   const [survey, setSurvey] = useState<PublicSurveyPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [answers, setAnswers] = useState<AnswersState>({})
-  const [memberId, setMemberId] = useState(searchParams.get('email') ?? '')
+  // Issue #378 — the legacy ?email= query prefill is removed. The page no
+  // longer reads identifier from the URL; respondents type it on the form.
+  const [memberId, setMemberId] = useState('')
   const [consentChecked, setConsentChecked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
