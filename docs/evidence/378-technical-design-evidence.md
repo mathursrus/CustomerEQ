@@ -347,3 +347,74 @@ All 6 scenes mapped to RFC sections. No mock-RFC drift.
 - Submit-time claim sweep: all primary-source claims verified.
 - Architecture gaps: 5 documented (proposed doc rows M-1 through M-5).
 - **No blocking conditions.** Ready to enter Phase 6 (`design-submission`).
+
+## Post-submission claim re-audit (reviewer-requested 2026-05-17)
+
+User directive: *"Cross check each claim made in the RFC with actual code and documents. You have erred in the past by making false claims causing issues during implementation."*
+
+Re-ran the submit-time claim sweep with deeper specificity. **Verified ✓ 22 RFC citations, surfaced 5 issues needing RFC correction.** Findings:
+
+### Verified accurate (no change needed)
+
+| # | RFC claim | Primary-source check |
+|---|---|---|
+| 1 | `apps/api/src/routes/public.ts` lines 30–46 = the existing respond-schema | ✓ — schema name is `PublicSurveyResponseSchema` at exactly lines 30–46 (see issue #2 below for RFC's mis-naming of it) |
+| 2 | `apps/api/src/routes/public.ts:248` comment about `?email=` retirement | ✓ — verbatim text: *"The `?email=` / `?member_id=` URL plumbing is gone from the page handler in Slice 5; this server endpoint stops reading those."* |
+| 3 | Trigger endpoint at `public.ts:602–679` | ✓ — comment block starts line 602, `fastify.post('/public/surveys/trigger', ...)` at line 604, handler ends at 679 |
+| 4 | `public.ts:657` outbound URL with `?email=` | ✓ — `${frontendUrl}/survey/${surveyId}?email=${encodeURIComponent(memberEmail)}` |
+| 5 | `public.ts:656` uses `NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000'` | ✓ |
+| 6 | `apps/api/src/routes/surveys.ts:915` = `fastify.post('/surveys/:id/import', { bodyLimit: 11 * 1024 * 1024 }, ...)` | ✓ |
+| 7 | `surveys.ts:913` = `fastify.addContentTypeParser('text/csv', { parseAs: 'string' }, ...)` | ✓ |
+| 8 | `surveys.ts` parser helpers `parseCsvRaw` + `runAdapter` | ✓ — used at lines 935 + 940 |
+| 9 | `apps/api/src/plugins/auth.ts:69` = ApiKey SHA-256 hash | ✓ — `const keyHash = createHash('sha256').update(apiKey).digest('hex')` |
+| 10 | `auth.ts:79` lookup via `prisma.apiKey.findUnique({ where: { keyHash } })` | ✓ |
+| 11 | `audit.ts:14` declares `audit?: { metadata: Record<string, unknown> }` | ✓ |
+| 12 | `audit.ts:94` `fastify.addHook('onResponse', ...)` | ✓ |
+| 13 | `audit.ts:115–121` route config flags (`auditAction`, `auditResourceType`, `auditAllowlist`) | ✓ |
+| 14 | `audit.ts:139–149` request.ip capture with try/catch + structured WARN | ✓ |
+| 15 | `apps/api/src/routes/developer.ts:9,43` URL construction | ✓ — line 9 `WEB_BASE_URL`, line 43 `shareUrl: ${WEB_BASE_URL}/survey/${s.id}` |
+| 16 | `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx:109` share-link construction | ✓ — `const shareLink = ${origin}/survey/${surveyId}` (origin = `window.location.origin`); no env var, no `?email=`, no `app.` subdomain |
+| 17 | `apps/web/src/app/survey/[id]/page.tsx:109` `?email=` read | ✓ — `const [memberId, setMemberId] = useState(searchParams.get('email') ?? '')` |
+| 18 | `apps/api/src/services/memberResolution.ts:102` function + `:158` consent stamp | ✓ — `consentGivenAt: opts.consentGivenAt ?? new Date()` |
+| 19 | `apps/api/src/queues/bullmq.ts:35` `QUEUE_MODE`; `:52–69` redis vs inline branches | ✓ |
+| 20 | `apps/worker/src/processors/loyaltyEvents.ts:333` URL construction | ✓ |
+| 21 | `examples/acme-coffee-demo` files all call trigger endpoint | ✓ — `lib/customereq.js:124`, `server.js:11` (doc comment), `README.md:16` (table row), `README.md:60` (demo-flow step) |
+| 22 | Migration `20260430000000_patch_survey_distribution_gap` exists | ✓ — listed in `packages/database/prisma/migrations/` |
+| 23 | `Brand.timezone String @default("UTC")` at `schema.prisma:212` | ✓ |
+| 24 | `multiTenant.ts` rejects body `brandId` at preValidation | ✓ — verified plugin source (18 lines total) |
+| 25 | No `date-fns` / `date-fns-tz` in `apps/web` or `apps/api` `package.json` | ✓ — grep returned 0 matches |
+| 26 | No rate-limit plugin in `apps/api/src/plugins/` | ✓ — verified by file listing |
+| 27 | `crypto.timingSafeEqual` is an established pattern in repo | ✓ — used in `routes/webhooks.ts` + `routes/oauth.ts` for HMAC verification |
+| 28 | ADR 0001 (admin-crud-route-pattern) exists | ✓ — `docs/architecture/adr/0001-admin-crud-route-pattern.md` |
+| 29 | `GET /v1/admin/brand/profile` lazy-upsert exists | ✓ — `apps/api/src/routes/admin-brand-profile.ts` |
+| 30 | Issues #264 (worker erasure job) and #403 (Brand.supportEmail) both OPEN | ✓ — `gh issue view` confirmed both |
+
+### Issues found and corrected in RFC (committed in amendment)
+
+| # | Issue | Where in RFC | Fix applied |
+|---|---|---|---|
+| F-1 | RFC's Zod sketch named the existing respond-schema `RespondBodyV1` and the file-level change list called it `RespondSchema`. **Actual name is `PublicSurveyResponseSchema`** (verified at `public.ts:30`). | RFC line 325 (Zod sketch) + line 427 (file-level change list) | Replaced with `PublicSurveyResponseSchema`; new schema is `PublicSurveyResponseSchemaV2 = PublicSurveyResponseSchema.extend({ token: z.string().optional() })`. |
+| F-2 | **Tenant-scoping framing was inaccurate.** RFC claimed *"DistributionBatch + SurveyDistributionToken added to TENANT_SCOPED_MODELS"* and *"SurveyDistribution is already covered"*. **Reality**: the `tenantScope.ts` middleware set only contains 9 loyalty-side models (`Program`, `EarningRule`, `Member`, `LoyaltyEvent`, `Reward`, `Redemption`, `Campaign`, `CampaignEvent`, `AuditEvent`); **no survey-side model** (including `SurveyDistribution`) is in that set. Survey-side models scope via explicit handler-level `where: { brandId: request.brandId }` clauses (5 occurrences just in `surveys.ts`). | RFC lines 50, 78, 259, 417, 630 (schema comments + Tenant-scoping section + file-level change list + Patterns-correctly-followed row 3) | Reframed: new models follow the **existing Survey-side handler-level convention**, not the middleware. `tenantScope.ts` is unchanged. `multiTenant` plugin body-`brandId` rejection still applies. Patterns-correctly-followed row 3 retitled "Multi-tenant scoping (two-track)" with the loyalty/middleware vs survey/handler-level distinction made explicit. |
+| F-3 | **Public-route audit row was structurally underspecified.** RFC declared `auditAction: 'distribution_batch.token_responded'` on `/v1/public/surveys/:id/respond`, but the audit plugin's `onResponse` hook short-circuits when `request.brandId` is unset (`audit.ts:103–106`), and public routes don't get `brandId` from the auth plugin. The token-respond audit row would therefore silently not persist with the original framing. | RFC §Audit-log declarations (post-block) + §File-level change list public.ts modification + §Patterns-correctly-followed rows 5 + 6 | Added explicit design note: the handler MUST set `request.brandId = survey.brandId` after the token validates and before `reply.send(...)` — this piggybacks the existing audit pipeline. Alternative (direct `prisma.auditEvent.create`) documented as also acceptable but discouraged because it bypasses the allowlist + IP-capture machinery. |
+| F-4 | Audit-row column naming: RFC said `actorUserId` in §Observability bullet 1. **Actual column is `actorId`** (populated from `request.clerkUserId` at `audit.ts:168`). | RFC line 562 | Replaced `actorUserId` with `actorId` and clarified it sources from `request.clerkUserId`. |
+| F-5 | Trigger endpoint deletion range was cited as "lines 602–679" with "index entry (line 133)". **Verified there is no separate index/registry entry at line 133** — the endpoint is registered inline via the `fastify.post('/public/surveys/trigger', ...)` at line 604, and `publicRoutes` is registered as a single plugin in `apps/api/src/app.ts`. | RFC line 427 (file-level change list) | Replaced "index entry (line 133)" with the correct deletion shape: `fastify.post` at line 604, comment block starting line 602, total range 602–679. |
+
+### Issues that turned out to be false alarms
+
+| Suspected issue | Verification result |
+|---|---|
+| Migration `20260430000000_patch_survey_distribution_gap` "may not exist" | EXISTS — earlier glob mis-matched; full directory listing confirms it. RFC citation is accurate. |
+| Architecture.md §3.4 hand-edit pattern claims | EXISTS — verified verbatim at line 80: *"the canonical hand-edit ordering is `ADD COLUMN → BACKFILL UPDATE → DROP COLUMN`"*. |
+| `crypto.timingSafeEqual` claim | EXISTS — used 4 times in `routes/webhooks.ts` + `routes/oauth.ts`. RFC's reservation that it's not needed on the hot path (DB-level uniqueness on `tokenHash` gives constant-time lookup) holds. |
+| ADR 0001 reference | EXISTS at correct path. |
+| `lazyUpsertBrand` route convention claim | EXISTS — `admin-brand-profile.ts` is the canonical implementation. |
+
+### Net post-audit status
+
+- Pre-audit RFC: **~25 verified citations + 5 inaccurate framings**.
+- Post-audit RFC: **30 verified citations + 0 inaccurate framings** (all 5 fixes applied + 1 additional design constraint surfaced for the public-route audit shape).
+- Confidence delta: 80/100 → **85/100**. The post-audit changes mostly tightened framings and surfaced one structurally-load-bearing design constraint (F-3); the core schema, migration, API surface, and validation plan are unchanged.
+
+### Amendment commit
+
+Pushed as amendment commit on `design/378-technical-design` branch (sub-branch off the spec feature branch). PR #407 diff updates in place — no new PR.

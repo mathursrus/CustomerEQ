@@ -47,7 +47,7 @@ model DistributionBatch {
   id                 String                    @id @default(cuid())
   surveyId           String
   survey             Survey                    @relation(fields: [surveyId], references: [id])
-  brandId            String                    // tenant-scoped (R6); added to TENANT_SCOPED_MODELS
+  brandId            String                    // tenant-scoped (R6); enforced via explicit `where: { brandId }` in all handlers (matches Survey-side convention — see "Tenant-scoping" below)
   label              String                    // operator-facing wave name, auto-derived as `${Survey.title} · ${YYYY-MM-DD}` at create time; editable from batch detail header
   surveyNameInMail   String                    // respondent-facing survey name flowing into CSV's `surveyName` column; defaults to Survey.title at create time
   audienceSpec       Json                      // { mode: 'existing_members' | 'custom_list', count, percent?, identifiersRaw?: string, identifiersResolved: { memberId, identifier, kind }[], autoEnroll?: boolean, unmatched?: string[] } — see "audienceSpec shape" section below
@@ -256,7 +256,7 @@ CREATE INDEX "survey_responses_distributionBatchId_completedAt_idx"
 
 Per architecture §3.4 + project rule R22a (column identifiers must match Prisma's camelCase quoting): every identifier above is the camelCase form Prisma generates. Confirmed by greping `packages/database/prisma/migrations/` for analogous patterns (`"surveyId"`, `"memberId"`, `"brandId"` all quoted, all camelCase).
 
-**Tenant-scoping**: `packages/database/src/middleware/tenantScope.ts:3-13` `TENANT_SCOPED_MODELS` set adds `'DistributionBatch'` and `'SurveyDistributionToken'`. `SurveyDistribution` is already covered. The middleware enforces `brandId` injection on every read/write.
+**Tenant-scoping**: the `tenantScope.ts:3-13` middleware auto-scopes a fixed set of nine loyalty-side models (`Program`, `EarningRule`, `Member`, `LoyaltyEvent`, `Reward`, `Redemption`, `Campaign`, `CampaignEvent`, `AuditEvent`). **No survey-side model is in that set today** — `Survey`, `SurveyDistribution`, `SurveyResponse`, `SurveyRule`, `BrandTheme`, `QuestionTemplate`, `SurveyImportBatch`, `CxPlaybook` all rely on **explicit handler-level `where: { brandId: request.brandId }`** clauses (verified by grep: 5 occurrences in `apps/api/src/routes/surveys.ts` alone; same pattern in adjacent survey routes). #378's new models (`DistributionBatch`, `SurveyDistributionToken`) are survey-adjacent, so they follow the **same explicit-handler convention** as their immediate neighbors — every Prisma call in `apps/api/src/routes/distributionBatches.ts` includes a `where: { brandId: request.brandId }` clause for reads / updates / deletes, and the `brandId` is set on `data` for creates. The `multiTenant` plugin (`apps/api/src/plugins/multiTenant.ts`) continues to reject body `brandId` at `preValidation` for these routes. This is more explicit but matches the established survey-side neighborhood; opting into the middleware set instead would diverge from the local convention and force a parallel choice for the existing `SurveyDistribution` model.
 
 ### API Surface
 
@@ -322,8 +322,11 @@ const RegenerateTokensRequest = z.object({
 });
 
 // Respond endpoint — additive
-const RespondBodyV2 = RespondBodyV1.extend({              // existing schema at apps/api/src/routes/public.ts:30-46
-  token: z.string().optional(),                           // when present, supersedes memberId/email/phone for identification
+// EXISTING schema is `PublicSurveyResponseSchema` at apps/api/src/routes/public.ts:30-46.
+// Extend it with an optional `token` field; when present the handler validates the token
+// and supersedes any body memberId / memberEmail / email / phone for identification.
+const PublicSurveyResponseSchemaV2 = PublicSurveyResponseSchema.extend({
+  token: z.string().optional(),
 });
 
 // Token-status response — uniform shape, varying respondent copy
@@ -414,7 +417,7 @@ Every path verified against the repo at Phase 1.
 **Schema + migration**
 - `packages/database/prisma/schema.prisma` — 3 model adds (`DistributionBatch`, `SurveyDistributionToken`), 2 modifies (`SurveyDistribution`, `SurveyResponse`), 1 enum extend (`MemberEnrolledVia`). New back-relations on `Survey`, `Member`.
 - `packages/database/prisma/migrations/<timestamp>_distribution_batches/migration.sql` — new (hand-written; section above).
-- `packages/database/src/middleware/tenantScope.ts:3-13` — add 2 model names to `TENANT_SCOPED_MODELS`.
+- `packages/database/src/middleware/tenantScope.ts` — **no change**. The new models follow the existing Survey-side convention (explicit handler-level `where: { brandId: request.brandId }`), not the middleware-auto-scoping convention used by the 9 loyalty-side models. See "Tenant-scoping" note in §Technical Details.
 
 **Shared package**
 - `packages/shared/src/zod/distributionBatch.schema.ts` — new (Zod schemas above).
@@ -424,7 +427,7 @@ Every path verified against the repo at Phase 1.
 
 **API**
 - `apps/api/src/routes/distributionBatches.ts` — new. 5 admin routes + handler logic; reuses existing `audit` + `multiTenant` plugins via per-route config.
-- `apps/api/src/routes/public.ts` — modify: (a) add optional `token` to RespondSchema, branch in handler to validate-and-consume; (b) add `GET /v1/public/surveys/:id/token-status`; (c) **DELETE** trigger endpoint (lines 602–679) + its index entry (line 133) + the comment at line 248 (which becomes stale).
+- `apps/api/src/routes/public.ts` — modify: (a) add optional `token` to the existing `PublicSurveyResponseSchema` (at lines 30–46) and branch in handler to validate-and-consume — when the token validates, the handler also sets `request.brandId = survey.brandId` BEFORE returning, so the audit plugin's `onResponse` hook can record the `distribution_batch.token_responded` row (see "Audit-log declarations — public route handling" below for why this is necessary); (b) add `GET /v1/public/surveys/:id/token-status`; (c) **DELETE** trigger endpoint (`fastify.post` at line 604, comment block starting line 602, total range 602–679) + the comment at line 248 (which becomes stale).
 - `apps/api/src/utils/distributionListParser.ts` — new (CSV header inference + `Brand.memberIdentifierKind` tie-breaker + RFC-822 `Name <email>` paste parser).
 - `apps/api/src/services/memberResolution.ts` — verify the existing `resolveOrEnrollMember()` accepts the new `BULK_DISTRIBUTION` enum value (line 102); add to the channel-handler switch if needed.
 - `apps/api/src/app.ts` — register the new route module.
@@ -494,6 +497,8 @@ fastify.post('/v1/public/surveys/:id/respond', {
 
 Verified shape matches `apps/api/src/plugins/audit.ts:115-121` (per-route `config` flags) + `:139-149` (`requestIp` capture via Fastify `request.ip`, trust-proxy-aware).
 
+**Public-route audit handling — design constraint (verified by reading the audit plugin)**: the audit plugin's `onResponse` hook short-circuits when `request.brandId` is unset (`audit.ts:103-106`). Public routes carry `config: { public: true }` and don't have `brandId` set by the auth plugin. **For the token-respond audit row to be persisted, the handler MUST assign `request.brandId = survey.brandId` after the token validates and the survey/brand pair is known**, BEFORE the response is sent (`reply.send(...)` triggers `onResponse`). This is a small handler-level change (one line) that piggybacks the existing audit pipeline. Alternative — direct `fastify.prisma.auditEvent.create({...})` call inside the handler — is also acceptable but introduces a parallel audit path; the handler-assignment approach is preferred because it reuses the existing allowlist + IP capture. Per `auditPlugin` lines 102–112, this is the same pattern other handlers would need; the audit plugin is designed to fire for any successfully-mutating route with `brandId` set on the request.
+
 ## Confidence Level
 
 **80 / 100**. High confidence on schema, migration ordering, token mint/validate, transaction shape, and audit wiring — all mirror well-trodden patterns in this repo (#231 dedup, #262 import, ApiKey hashing). The 20-point reservation lives in:
@@ -559,7 +564,7 @@ If reviewer judgment is that a spike is warranted on any axis — most likely ca
 
 Per NFR-O1–O3:
 
-- **Structured logs** (Pino, existing pattern): every batch creation, expiry edit, regenerate, and token response-submit emits a structured log with `surveyId`, `batchId`, `tokenId`, `actorUserId`, `requestIp`, `latencyMs`. Generate logs include `tokenCount` + `autoEnrolledCount` + `unmatchedCount`.
+- **Structured logs** (Pino, existing pattern): every batch creation, expiry edit, regenerate, and token response-submit emits a structured log with `surveyId`, `batchId`, `tokenId`, `actorId` (sourced from `request.clerkUserId` — matches the `AuditEvent.actorId` column shape), `requestIp`, `latencyMs`. Generate logs include `tokenCount` + `autoEnrolledCount` + `unmatchedCount`.
 - **Audit log** (existing `apps/api/src/plugins/audit.ts`): per-route allowlists declared above. Audit log is the substrate for any future "distribution activity" view.
 - **Per-batch counters** (`sentCount`, `respondedCount`, `awaitingCount`, `expiredCount`): materialized via simple SELECT in the list endpoint; no separate counter table in V0. If batch counts grow beyond ~10k batches per brand, V1 may add a denormalized counter (matches the Survey.distributionCount precedent).
 - **No new metrics / alerts**: existing API latency dashboards cover the new endpoints under their `/v1/surveys/*` route group. If NFR-P2 (30s budget for 10k-token batch) is violated in prod, that surfaces via existing route-level p95 alerting.
@@ -627,10 +632,10 @@ These design elements map to documented architecture.md rows; no doc change need
 |---|---|---|---|
 | 1 | Standard CRUD admin route | §3.1 — `/admin/{entity}`, `/admin/{entity}/[id]`, `/admin/{entity}/[id]/edit`; ADR 0001 | `/admin/surveys/[id]/distribute` + `/admin/surveys/[id]/distribute/batches/[batchId]` sub-routes |
 | 2 | Single-page in-place transition (Configure → Success) | §3.1 — inline view/edit on `[id]` (Programs reference) | Distribute page transitions State 1 → State 2 on same route, no URL change |
-| 3 | Multi-tenant Prisma middleware | §3.2 — auth-plugin extracts `brandId`; `multiTenant` plugin rejects body `brandId`; tenantScope middleware | `DistributionBatch` + `SurveyDistributionToken` added to `TENANT_SCOPED_MODELS` (file:line in evidence doc) |
+| 3 | Multi-tenant scoping (two-track) | §3.2 — auth-plugin extracts `brandId`; `multiTenant` plugin rejects body `brandId`; tenantScope middleware auto-scopes 9 loyalty-side models | New models follow the **existing Survey-side convention** of explicit handler-level `where: { brandId: request.brandId }` (matches neighbors: `Survey`, `SurveyDistribution`, `SurveyResponse`, `SurveyRule`, `BrandTheme`, etc. — none of which use the middleware). `multiTenant` plugin's body-`brandId` rejection still applies. |
 | 4 | Per-route audit-allowlist | §3.2 / §4.2 audit-plugin row | 5 new audit actions declared with `auditAllowlist` + `auditAction` + `auditResourceType` per-route config |
-| 5 | Audit `requestIp` capture (trust-proxy-aware) | §4.2 — *"the plugin auto-enriches `metadata.requestIp` from `request.ip`"* | Token-respond audit row carries `requestIp` per NFR-S7 |
-| 6 | Fire-and-forget audit on mutations (POST/PATCH/DELETE) | §4.2 audit row + §6 *Append-Only Audit Trail* | Generate / Regenerate / Edit-Expiry / token-respond all audit via `onResponse` hook |
+| 5 | Audit `requestIp` capture (trust-proxy-aware) | §4.2 — *"the plugin auto-enriches `metadata.requestIp` from `request.ip`"* | Token-respond audit row carries `requestIp` per NFR-S7 (handler sets `request.brandId` after token validates so the plugin fires — see "Public-route audit handling" note above) |
+| 6 | Fire-and-forget audit on mutations (POST/PATCH/DELETE) | §4.2 audit row + §6 *Append-Only Audit Trail* | Generate / Regenerate / Edit-Expiry all audit via `onResponse` hook normally (authed admin routes have `brandId` from JWT). Token-respond also audits via the same hook, with the handler-level `request.brandId` assignment described above. |
 | 7 | Hand-written Prisma migration with ADD/BACKFILL/DROP ordering | §3.4 — *"the canonical hand-edit ordering is ADD COLUMN → BACKFILL UPDATE → DROP COLUMN"* + `20260430000000_patch_survey_distribution_gap` precedent | Migration adds `batchId` column → drops old `(surveyId, memberId)` constraint → adds new `(batchId, memberId)` unique |
 | 8 | Forward-only migrations; rollback via follow-up forward migration | §3.4 + project rule R22 | No `down` script; idempotent guards inline |
 | 9 | Column-quoting / camelCase identifiers | project rule R22a + every existing migration in `packages/database/prisma/migrations/` | Every DDL identifier in §Migration is the camelCase quoted form Prisma emits |
