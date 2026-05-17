@@ -45,6 +45,13 @@ const PublicSurveyResponseSchema = z.object({
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
 })
 
+// Schema for webhook-triggered survey distribution
+const SurveyTriggerSchema = z.object({
+  memberEmail: z.string().email('Valid email is required'),
+  surveyId: z.string().min(1),
+  source: z.string().optional(), // e.g. "zendesk", "intercom"
+})
+
 const publicRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /v1/public/programs/by-slug/:slug — resolve program info for enrollment page
   fastify.get<{ Params: { slug: string } }>(
@@ -123,10 +130,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(200).send({
       salesforce: `${API_BASE_URL}/v1/integrations/webhooks/salesforce`,
       hubspot: `${API_BASE_URL}/v1/integrations/webhooks/hubspot`,
-      // Issue #378: POST /v1/public/surveys/trigger retired in V0. The legacy
-      // webhook flow built `?email=` URLs that violated the no-PII-in-URL
-      // invariant; the tokenized batches API at POST /v1/surveys/:id/distribution-batches
-      // is the V0 replacement (authenticated, brand-scoped, opaque-token URLs).
+      surveyTrigger: `${API_BASE_URL}/v1/public/surveys/trigger`,
     })
   })
 
@@ -595,18 +599,84 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // Issue #378: POST /v1/public/surveys/trigger — RETIRED in V0.
-  //
-  // This webhook endpoint built outbound `?email=<encoded>` URLs that violate
-  // the no-PII-in-URL invariant introduced by #378. The receive side stopped
-  // reading `?email=` in #241 Slice 5 (see comment above on the respond handler);
-  // this commit completes the retirement by deleting the send side.
-  //
-  // Replacement flow: authenticated brand-side callers use
-  //   POST /v1/surveys/:id/distribution-batches
-  // with a Custom List of one identifier per triggered survey, get a tokenized
-  // URL in the response body, and send that URL via their own email infrastructure.
-  // External callers that were hitting /v1/public/surveys/trigger will now get HTTP 404.
+  // POST /v1/public/surveys/trigger — webhook to trigger survey distribution
+  // External systems (Zendesk, Intercom) call this to send a survey to a member
+  fastify.post(
+    '/public/surveys/trigger',
+    { config: { public: true } },
+    async (request, reply) => {
+      const parse = SurveyTriggerSchema.safeParse(request.body)
+      if (!parse.success) {
+        return reply.status(422).send({
+          error: 'Validation failed',
+          message: parse.error.errors.map((e) => e.message).join(', '),
+        })
+      }
+
+      const { memberEmail, surveyId, source } = parse.data
+
+      // Find survey
+      const survey = await fastify.prisma.survey.findFirst({
+        where: { id: surveyId, status: 'ACTIVE' },
+        select: { id: true, name: true, brandId: true },
+      })
+      if (!survey) {
+        return reply.status(404).send({ error: 'Survey not found or not active' })
+      }
+
+      // Issue #231 PR2: lookup keyed on canonical externalId (R5
+      // case-insensitive). For EMAIL brands externalId mirrors lower(trim(email))
+      // per the migration backfill, so a webhook arriving with the email value
+      // resolves to the same member regardless of case.
+      const member = await fastify.prisma.member.findUnique({
+        where: {
+          brandId_externalId: {
+            brandId: survey.brandId,
+            externalId: memberEmail.trim().toLowerCase(),
+          },
+        },
+        select: { id: true, consentGivenAt: true, email: true, deletedAt: true },
+      })
+      if (!member || member.deletedAt) {
+        return reply.status(200).send({ skipped: true, reason: 'member_not_found' })
+      }
+      if (!member.consentGivenAt) {
+        return reply.status(200).send({ skipped: true, reason: 'no_consent' })
+      }
+
+      // Check if already responded — see #231 PR1 note above for findUnique→findFirst rationale.
+      const existing = await fastify.prisma.surveyResponse.findFirst({
+        where: { surveyId, memberId: member.id },
+      })
+      if (existing) {
+        return reply.status(200).send({ skipped: true, reason: 'already_responded' })
+      }
+
+      // Build survey link
+      const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000'
+      const surveyLink = `${frontendUrl}/survey/${surveyId}?email=${encodeURIComponent(memberEmail)}`
+
+      // Issue #241 — incentive points are no longer surfaced on the form (D19) and
+      // earning is driven by EarningRule cx events (D50). The trigger message
+      // therefore no longer advertises a points figure.
+
+      // Enqueue notification to send survey link
+      const { enqueueNotification } = await import('../queues/bullmq.js')
+      await enqueueNotification({
+        memberId: member.id,
+        brandId: survey.brandId,
+        message: `We'd love your feedback! Please take our survey "${survey.name}": ${surveyLink}`,
+        channel: 'email',
+        metadata: { surveyId, surveyLink, source: source ?? 'api' },
+      })
+
+      return reply.status(202).send({
+        triggered: true,
+        surveyLink,
+        message: 'Survey notification queued',
+      })
+    },
+  )
 
   // GET /v1/public/surveys/:id/widget.js — embeddable JavaScript widget
   fastify.get(
@@ -797,5 +867,5 @@ function generateWidgetJs(
 })();`
 }
 
-export { generateWidgetJs, PublicSurveyResponseSchema }
+export { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema }
 export default publicRoutes
