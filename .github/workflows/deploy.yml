@@ -148,6 +148,14 @@ jobs:
             --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
             .
 
+      - name: Build and push Turbo Cache image
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az acr build --registry customereqcr \
+            --image customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }} \
+            --image customereq-turbo-cache:latest \
+            --file Dockerfile.turbo-cache .
+
       # Issue #386: run prisma migrate deploy in an ephemeral ACA Job before
       # any container swap. If the job fails the pipeline stops here and the
       # old containers remain live. Applies to both workflow_run and
@@ -241,6 +249,14 @@ jobs:
             --name customereq-demo \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Deploy Turbo Cache
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az containerapp update \
+            --name customereq-turbo-cache \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }}
 
       # Issue #387: assert that each container app is running the expected
       # image tag before treating the deploy as successful. Catches the
