@@ -16,6 +16,7 @@ import { processExternalSignalIngestion } from './processors/externalSignalInges
 import { processWebhookDelivery } from './processors/webhookDelivery.js'
 import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
 import { createSurveyImportProcessor } from './processors/surveyImport.js'
+import { createSupportOrchestrationProcessor } from './processors/supportOrchestration.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -111,6 +112,12 @@ const surveyImportWorker = new Worker(
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const supportOrchestrationWorker = new Worker(
+  QUEUES.SUPPORT_ORCHESTRATION,
+  createSupportOrchestrationProcessor(connection),
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // SLA breach check — repeating job every 5 minutes
 const SLA_BREACH_QUEUE = 'sla-breach-check'
 const slaBreachQueue = new Queue(SLA_BREACH_QUEUE, { connection })
@@ -131,7 +138,7 @@ void slaBreachQueue.add(
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -159,6 +166,7 @@ logger.info(
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
       QUEUES.WEBHOOK_DELIVERY,
       QUEUES.SURVEY_IMPORT,
+      QUEUES.SUPPORT_ORCHESTRATION,
       SLA_BREACH_QUEUE,
     ],
   },
@@ -184,6 +192,7 @@ async function shutdown(signal: string): Promise<void> {
     externalSignalIngestionWorker.close(),
     webhookDeliveryWorker.close(),
     surveyImportWorker.close(),
+    supportOrchestrationWorker.close(),
     slaBreachWorker.close(),
     slaBreachQueue.close(),
   ])

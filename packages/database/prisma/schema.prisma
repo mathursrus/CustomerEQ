@@ -105,6 +105,40 @@ enum KBArticleStatus {
   PUBLISHED
 }
 
+enum KBSourceKind {
+  MANUAL
+  URL
+  SITEMAP
+}
+
+enum KBSourceStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ChunkEmbedStatus {
+  PENDING
+  EMBEDDED
+  FAILED
+}
+
+enum SupportActionMode {
+  AUTO_REPLY
+  DRAFT_FOR_AGENT
+  ESCALATE
+}
+
+enum ResolutionSource {
+  CSAT
+  AI_TIMEOUT
+  AGENT
+}
+
+enum ConversationChannel {
+  WIDGET
+  SLACK
+}
+
 enum ExternalSourceType {
   GOOGLE_BUSINESS_PROFILE
   LINKEDIN_ORG
@@ -176,11 +210,11 @@ enum ConsentMode {
 }
 
 enum MemberEnrolledVia {
-  MANUAL_API       // integrator POST /v1/members/enroll
-  BULK_IMPORT      // bulk migration import
-  SURVEY_RESPONSE  // auto-enrolled via standalone survey link/email — responder self-identified on form
-  EMBEDDED_FORM    // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
-  CLERK_OAUTH      // signup via Clerk webhook
+  MANUAL_API // integrator POST /v1/members/enroll
+  BULK_IMPORT // bulk migration import
+  SURVEY_RESPONSE // auto-enrolled via standalone survey link/email — responder self-identified on form
+  EMBEDDED_FORM // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
+  CLERK_OAUTH // signup via Clerk webhook
 }
 
 enum ResponsePolicy {
@@ -192,29 +226,29 @@ enum ResponsePolicy {
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
-  id                    String                 @id @default(cuid())
-  clerkOrgId            String                 @unique // Clerk organization ID → brandId mapping
+  id                    String                      @id @default(cuid())
+  clerkOrgId            String                      @unique // Clerk organization ID → brandId mapping
   name                  String
   // Step 1.5 org-profile fields (Issue #170)
   siteDomain            String?
   logoUrl               String?
   // Issue #231 — Survey response data model rework
-  memberIdentifierKind  MemberIdentifierKind   @default(EMAIL)   // R4
-  consentMode           ConsentMode            @default(EXPLICIT) // R16
-  consentTextDefault    String?                                  // R16 — brand-wide disclosure / checkbox text
-  privacyPolicyUrl      String?                                  // R16 — captured at brand onboarding
-  termsUrl              String?                                  // R16 — captured at brand onboarding
+  memberIdentifierKind  MemberIdentifierKind        @default(EMAIL) // R4
+  consentMode           ConsentMode                 @default(EXPLICIT) // R16
+  consentTextDefault    String? // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl      String? // R16 — captured at brand onboarding
+  termsUrl              String? // R16 — captured at brand onboarding
   // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
   defaultThemeId        String?
-  defaultTheme          BrandTheme?            @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
+  defaultTheme          BrandTheme?                 @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
   // Issue #277 — Organization Settings: orgSize (renamed from sizeCategory), timezone, locale.
   orgSize               OrgSizeCategory?
-  timezone              String                 @default("UTC")
-  locale                String                 @default("en-US")
+  timezone              String                      @default("UTC")
+  locale                String                      @default("en-US")
   programs              Program[]
   members               Member[]
   surveys               Survey[]
-  brandThemes           BrandTheme[]           @relation("BrandThemes")
+  brandThemes           BrandTheme[]                @relation("BrandThemes")
   questionTemplates     QuestionTemplate[]
   alertRules            AlertRule[]
   caseFollowUps         CaseFollowUp[]
@@ -225,10 +259,11 @@ model Brand {
   externalSignals       ExternalSignal[]
   apiKeys               ApiKey[]
   webhookEndpoints      WebhookEndpoint[]
+  kbSources             KBSource[]
   // Onboarding (Issue #170)
   onboardingState       OnboardingState?
   activationEvents      OnboardingActivationEvent[]
-  createdAt             DateTime               @default(now())
+  createdAt             DateTime                    @default(now())
 
   @@map("brands")
 }
@@ -322,8 +357,8 @@ model Member {
   // PR1 ships externalId as the canonical key alongside the existing email column.
   // PR2 will make `email` nullable when auto-enrolling members for PHONE / CUSTOMER_ID brands.
   // V0 is uniformly case-insensitive across all identifier kinds (R5).
-  externalId           String               // R4 — canonical lookup column (lowercased + trimmed)
-  enrolledVia          MemberEnrolledVia    // R15 — set at create time per channel attribution
+  externalId           String // R4 — canonical lookup column (lowercased + trimmed)
+  enrolledVia          MemberEnrolledVia // R15 — set at create time per channel attribution
   // PR2 (#231): email is now nullable. Auto-enrolled members on PHONE /
   // CUSTOMER_ID brands have no email at create time; the field is populated
   // later if/when the integrator provides one (R6 idempotent upsert).
@@ -359,9 +394,9 @@ model Member {
   // PR2 (#231): @@unique([brandId, email]) dropped — externalId is now the
   // canonical lookup. email is a PII sidecar populated when identifierKind=EMAIL
   // (and may be set via the late-arriving update path R6 for non-EMAIL brands).
-  @@unique([brandId, externalId])               // R4 — canonical lookup
+  @@unique([brandId, externalId]) // R4 — canonical lookup
   @@index([brandId])
-  @@index([brandId, externalId])                // R5 — canonical lookup index
+  @@index([brandId, externalId]) // R5 — canonical lookup index
   @@index([clerkUserId, brandId])
   @@index([brandId, healthScore])
   @@map("members")
@@ -564,9 +599,9 @@ model Campaign {
   status           CampaignStatus  @default(DRAFT)
   startDate        DateTime
   endDate          DateTime?
-  surveyId         String?         // denormalized for loop monitor queries (Issue #80)
+  surveyId         String? // denormalized for loop monitor queries (Issue #80)
   survey           Survey?         @relation(fields: [surveyId], references: [id])
-  surveyRule       SurveyRule?     // back-relation; null for non-survey campaigns
+  surveyRule       SurveyRule? // back-relation; null for non-survey campaigns
   campaignEvents   CampaignEvent[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -577,16 +612,16 @@ model Campaign {
 }
 
 model CampaignEvent {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   brandId          String
   campaignId       String
-  campaign         Campaign       @relation(fields: [campaignId], references: [id])
+  campaign         Campaign        @relation(fields: [campaignId], references: [id])
   memberId         String
-  member           Member         @relation(fields: [memberId], references: [id])
-  triggeredAt      DateTime       @default(now())
+  member           Member          @relation(fields: [memberId], references: [id])
+  triggeredAt      DateTime        @default(now())
   executedAt       DateTime?
   latencyMs        Int? // measured latency from event ingestion to action execution
-  status           String         @default("executed")
+  status           String          @default("executed")
   result           Json? // spin_wheel: { winningIndex, rewardId?, points?, label }
   surveyResponseId String? // FK → SurveyResponse, for loop monitor linkage (Issue #80)
   surveyResponse   SurveyResponse? @relation(fields: [surveyResponseId], references: [id])
@@ -598,46 +633,46 @@ model CampaignEvent {
 }
 
 model Survey {
-  id                 String           @id @default(cuid())
-  brandId            String
-  brand              Brand            @relation(fields: [brandId], references: [id])
-  programId          String
-  name               String
-  title              String?          // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
-  description        String?          // Issue #241 Slice 2 — list-page meta line (R26 / D26); nullable
-  type               SurveyType       @default(NPS)
-  questions          Json             // Question definitions (array of question objects)
-  settings           Json?            // Distribution settings, branding, etc.
-  status             SurveyStatus     @default(DRAFT)
-  responsesCount     Int              @default(0)
-  distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
-  themeId            String?
-  theme              BrandTheme?      @relation(fields: [themeId], references: [id])
-  triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
-  triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
-  surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
+  id                          String         @id @default(cuid())
+  brandId                     String
+  brand                       Brand          @relation(fields: [brandId], references: [id])
+  programId                   String
+  name                        String
+  title                       String? // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
+  description                 String? // Issue #241 Slice 2 — list-page meta line (R26 / D26); nullable
+  type                        SurveyType     @default(NPS)
+  questions                   Json // Question definitions (array of question objects)
+  settings                    Json? // Distribution settings, branding, etc.
+  status                      SurveyStatus   @default(DRAFT)
+  responsesCount              Int            @default(0)
+  distributionCount           Int            @default(0) // incremented by survey distribution jobs (Issue #80)
+  themeId                     String?
+  theme                       BrandTheme?    @relation(fields: [themeId], references: [id])
+  triggerCategory             String? // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
+  triggerKey                  String? // e.g. 'tier_upgrade', 'after_support' (Issue #79)
+  surveyTypeOverride          String? // Manager override of recommended type (Issue #79)
   // Issue #231 — Survey response data model rework
-  responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
-  consentTextOverride           String?                            // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
-  consentSuppressedAttestedBy   String?                            // R17 / Issue #276 — admin/system who attested
-  consentSuppressedAttestedAt   DateTime?                          // R17 / Issue #276 — attestation timestamp
+  responsePolicy              ResponsePolicy @default(MULTIPLE) // R3
+  consentTextOverride         String? // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
+  consentSuppressedAttestedBy String? // R17 / Issue #276 — admin/system who attested
+  consentSuppressedAttestedAt DateTime? // R17 / Issue #276 — attestation timestamp
   // Issue #276 — survey-level consent mode override
-  consentMode                   ConsentMode?                       // null → inherit Brand.consentMode
-  consentReason                 String?       @db.VarChar(500)     // operator/system justification when override is set
+  consentMode                 ConsentMode? // null → inherit Brand.consentMode
+  consentReason               String?        @db.VarChar(500) // operator/system justification when override is set
   // Issue #291 — per-survey thank-you copy/routing/toggle (moved from SurveyTheme)
-  thankYouMessage               String        @default("Thank you for your feedback!")
-  thankYouRedirectUrl           String?
+  thankYouMessage             String         @default("Thank you for your feedback!")
+  thankYouRedirectUrl         String?
   // Issue #241 — showIncentivePoints + incentivePoints removed (D19, D40, D50): points never appear
   // on the form; earning consolidates to EarningRule keyed on cx events.
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  deletedAt          DateTime?        // Issue #332 — soft delete (matches Program/Member/Reward convention)
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  deletedAt                   DateTime? // Issue #332 — soft delete (matches Program/Member/Reward convention)
 
   responses     SurveyResponse[]
-  surveyRules   SurveyRule[]         // response-to-action rules (Issue #80)
-  campaigns     Campaign[]           // campaigns linked to this survey (Issue #80)
+  surveyRules   SurveyRule[] // response-to-action rules (Issue #80)
+  campaigns     Campaign[] // campaigns linked to this survey (Issue #80)
   distributions SurveyDistribution[] // triggered distribution records (Issue #117)
-  importBatches SurveyImportBatch[]  // historical import batches (Issue #262)
+  importBatches SurveyImportBatch[] // historical import batches (Issue #262)
 
   @@index([brandId, status])
   @@index([brandId, triggerKey, status]) // survey distribution lookup (Issue #117)
@@ -647,13 +682,13 @@ model Survey {
 // ─── Issue #117: Survey Trigger Distribution ──────────────────────────────────
 
 model SurveyDistribution {
-  id        String   @id @default(cuid())
-  surveyId  String
-  survey    Survey   @relation(fields: [surveyId], references: [id])
-  memberId  String
-  member    Member   @relation(fields: [memberId], references: [id])
-  brandId   String
-  sentAt    DateTime @default(now())
+  id       String   @id @default(cuid())
+  surveyId String
+  survey   Survey   @relation(fields: [surveyId], references: [id])
+  memberId String
+  member   Member   @relation(fields: [memberId], references: [id])
+  brandId  String
+  sentAt   DateTime @default(now())
 
   @@unique([surveyId, memberId]) // one active distribution record per member per survey
   @@index([surveyId, memberId, sentAt]) // cooldown window query (Issue #117)
@@ -668,8 +703,8 @@ model CxPlaybook {
   brand      Brand      @relation(fields: [brandId], references: [id])
   name       String
   surveyType SurveyType
-  rules      Json       // Array of SurveyRuleInput objects
-  deletedAt  DateTime?  // soft delete
+  rules      Json // Array of SurveyRuleInput objects
+  deletedAt  DateTime? // soft delete
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -687,8 +722,8 @@ model SurveyRule {
   campaign     Campaign @relation(fields: [campaignId], references: [id])
   scoreMin     Float
   scoreMax     Float
-  actionType   String   // award_points | award_reward | send_message | spin_wheel | scratch_card | mystery_box
-  actionConfig Json     // same shape as Campaign.actionConfig
+  actionType   String // award_points | award_reward | send_message | spin_wheel | scratch_card | mystery_box
+  actionConfig Json // same shape as Campaign.actionConfig
   ruleLabel    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -703,10 +738,10 @@ model SurveyRule {
 // moved to Survey columns. Logo / brand-name fall through to Brand.logoUrl /
 // Brand.name. Default-theme flag replaced by Brand.defaultThemeId FK.
 model BrandTheme {
-  id        String  @id @default(cuid())
-  brandId   String
-  brand     Brand   @relation("BrandThemes", fields: [brandId], references: [id])
-  name      String
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation("BrandThemes", fields: [brandId], references: [id])
+  name    String
 
   primaryColor    String @default("#6366f1")
   secondaryColor  String @default("#818cf8")
@@ -753,28 +788,28 @@ model SurveyResponse {
   id             String           @id @default(cuid())
   surveyId       String
   survey         Survey           @relation(fields: [surveyId], references: [id])
-  memberId       String?          // null for anonymous sources (e.g. Google Reviews)
+  memberId       String? // null for anonymous sources (e.g. Google Reviews)
   member         Member?          @relation(fields: [memberId], references: [id])
   brandId        String
-  answers        Json             // { questionId: answer }
-  score          Float?           // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
-  sentiment      Float?           // -1.0 to 1.0 (AI-analyzed from open-ended text)
-  confidence     Float?           // AI confidence in sentiment score, 0.0 to 1.0
-  topics         String[]         // AI-extracted topics from open-ended responses
-  summary        String?          // AI-generated one-line summary
-  clusterId      String?          // FK to FeedbackCluster
+  answers        Json // { questionId: answer }
+  score          Float? // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
+  sentiment      Float? // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  confidence     Float? // AI confidence in sentiment score, 0.0 to 1.0
+  topics         String[] // AI-extracted topics from open-ended responses
+  summary        String? // AI-generated one-line summary
+  clusterId      String? // FK to FeedbackCluster
   cluster        FeedbackCluster? @relation(fields: [clusterId], references: [id])
   channel        String           @default("link") // email, in_app, link, sms, review
   completedAt    DateTime         @default(now())
   createdAt      DateTime         @default(now())
-  campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
-  caseFollowUps  CaseFollowUp[]   // cases opened from this response
+  campaignEvents CampaignEvent[] // campaign events triggered by this response (Issue #80)
+  caseFollowUps  CaseFollowUp[] // cases opened from this response
 
   // Issue #262: historical import fields (null = live response)
   importBatchId        String?
   importBatch          SurveyImportBatch? @relation(fields: [importBatchId], references: [id])
-  importedAt           DateTime?          // original response timestamp from source
-  externalRespondentId String?            // source-system respondent ID for deduplication
+  importedAt           DateTime? // original response timestamp from source
+  externalRespondentId String? // source-system respondent ID for deduplication
 
   // R2 — `@@unique([surveyId, memberId])` removed; policy-controlled by Survey.responsePolicy (R3).
   // #262 added a partial unique index `survey_responses_live_dedup` for live
@@ -791,20 +826,20 @@ model SurveyResponse {
 
 // Issue #262: tracks a single historical import operation
 model SurveyImportBatch {
-  id            String           @id @default(cuid())
+  id            String    @id @default(cuid())
   surveyId      String
-  survey        Survey           @relation(fields: [surveyId], references: [id])
+  survey        Survey    @relation(fields: [surveyId], references: [id])
   brandId       String
-  sourceType    String           // 'excel' | 'google_reviews'
+  sourceType    String // 'excel' | 'google_reviews'
   filename      String?
-  status        String           @default("pending") // pending | processing | complete | failed
-  totalRows     Int              @default(0)
-  processedRows Int              @default(0)
-  failedRows    Int              @default(0)
-  errors        Json             @default("[]") // array of { rowIndex, message }
+  status        String    @default("pending") // pending | processing | complete | failed
+  totalRows     Int       @default(0)
+  processedRows Int       @default(0)
+  failedRows    Int       @default(0)
+  errors        Json      @default("[]") // array of { rowIndex, message }
   deletedAt     DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   responses SurveyResponse[]
 
@@ -902,12 +937,12 @@ model AlertRule {
 }
 
 model CaseFollowUp {
-  id               String    @id @default(cuid())
+  id               String          @id @default(cuid())
   brandId          String
-  brand            Brand     @relation(fields: [brandId], references: [id])
+  brand            Brand           @relation(fields: [brandId], references: [id])
   alertRuleId      String
-  alertRule        AlertRule      @relation(fields: [alertRuleId], references: [id])
-  surveyResponseId String?        // nullable: cases can be created without a survey response
+  alertRule        AlertRule       @relation(fields: [alertRuleId], references: [id])
+  surveyResponseId String? // nullable: cases can be created without a survey response
   surveyResponse   SurveyResponse? @relation(fields: [surveyResponseId], references: [id])
   memberId         String
 
@@ -967,35 +1002,37 @@ model AuditEvent {
 // ─── Support Chat Models ─────────────────────────────────────────────────────
 
 model Conversation {
-  id       String @id @default(cuid())
+  id       String              @id @default(cuid())
   brandId  String
-  brand    Brand  @relation(fields: [brandId], references: [id])
-  memberId String
-  member   Member @relation(fields: [memberId], references: [id])
+  brand    Brand               @relation(fields: [brandId], references: [id])
+  memberId String?
+  member   Member?             @relation(fields: [memberId], references: [id])
+  channel  ConversationChannel @default(WIDGET)
+  anonId   String?
+  email    String?
 
-  status     ConversationStatus @default(ACTIVE)
-  intent     String? // classified intent (billing, shipping, etc.)
-  confidence Float? // intent classification confidence
-  topic      String? // extracted topic
-  summary    String? // AI-generated conversation summary
-
-  // Escalation
-  assignee       String? // human agent email
-  caseFollowUpId String? // FK to CaseFollowUp if escalated
+  status         ConversationStatus @default(ACTIVE)
+  intent         String?
+  confidence     Float?
+  topic          String?
+  summary        String?
+  assignee       String?
+  caseFollowUpId String?
   escalatedAt    DateTime?
+  rulesMatched   String[]
 
-  // Rules matched
-  rulesMatched String[] // SupportRule IDs that fired
+  resolutionSource ResolutionSource?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
 
-  messages Message[]
-
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  resolvedAt DateTime?
-  closedAt   DateTime?
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([brandId, status])
   @@index([memberId])
+  @@index([brandId, channel, status])
+  @@index([brandId, anonId])
   @@index([brandId, createdAt])
   @@map("conversations")
 }
@@ -1003,15 +1040,20 @@ model Conversation {
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String
+  metadata       Json?
 
-  role     MessageRole // CUSTOMER, AI, AGENT
-  content  String // message text
-  metadata Json? // { kbArticleIds, customer360Snapshot, intentResult, confidence }
+  aiConfidence Float?
+  aiSources    Json?
+  draftedByAi  Boolean @default(false)
+  slackTs      String?
 
   createdAt DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, role])
   @@map("messages")
 }
 
@@ -1021,45 +1063,94 @@ model SupportRule {
   brand       Brand   @relation(fields: [brandId], references: [id])
   name        String
   description String?
-  status      String  @default("ACTIVE") // ACTIVE, PAUSED
-  priority    Int     @default(0) // lower = evaluated first
+  status      String  @default("ACTIVE")
+  priority    Int     @default(0)
 
-  // Match conditions
-  intentFilters  String[] // ["billing", "shipping"] or empty = all
-  tierFilters    String[] // ["Gold", "Platinum"] or empty = all
-  healthScoreMin Float? // match if health score >= this
-  healthScoreMax Float? // match if health score <= this
-  topicFilters   String[] // ["refund", "overcharge"] or empty = all
-  conditions     Json     @default("{}") // ConditionGroup for additional field/op/value matching
+  intentFilters  String[]
+  tierFilters    String[]
+  healthScoreMin Float?
+  healthScoreMax Float?
+  topicFilters   String[]
+  conditions     Json     @default("{}")
 
-  // Actions (multiple can fire)
-  autoRespondArticleId String? // KB article ID to auto-respond with
-  escalateToAssignee   String? // human agent email for escalation
-  awardPoints          Int? // compensatory points to award
-  triggerSurveyId      String? // post-resolution survey to trigger
+  actionMode           SupportActionMode @default(ESCALATE)
+  confidenceThreshold  Float             @default(0.8)
+  autoRespondArticleId String?
+  escalateToAssignee   String?
+  awardPoints          Int?
+  triggerSurveyId      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brandId, status])
+  @@index([brandId, status, priority])
   @@map("support_rules")
 }
 
+model KBSource {
+  id               String         @id @default(cuid())
+  brandId          String
+  brand            Brand          @relation(fields: [brandId], references: [id])
+  kind             KBSourceKind
+  url              String?
+  title            String
+  status           KBSourceStatus @default(ACTIVE)
+  crawlCron        String?
+  lastCrawledAt    DateTime?
+  lastErrorMessage String?
+  articles         KBArticle[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([brandId, status])
+  @@index([brandId, kind])
+  @@map("kb_sources")
+}
+
+model KBChunk {
+  id          String                              @id @default(cuid())
+  articleId   String
+  article     KBArticle                           @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  brandId     String
+  chunkIndex  Int
+  content     String
+  tokenCount  Int
+  embedding   Unsupported("public.vector(1536)")?
+  embedStatus ChunkEmbedStatus                    @default(PENDING)
+  createdAt   DateTime                            @default(now())
+  updatedAt   DateTime                            @updatedAt
+
+  @@index([brandId])
+  @@index([articleId, chunkIndex])
+  @@map("kb_chunks")
+}
+
 model KBArticle {
-  id        String                       @id @default(cuid())
+  id        String                              @id @default(cuid())
   brandId   String
   title     String
-  body      String // Markdown content
-  category  KBArticleCategory            @default(FAQ)
+  body      String
+  category  KBArticleCategory                   @default(FAQ)
   tags      String[]
-  status    KBArticleStatus              @default(DRAFT)
-  embedding Unsupported("public.vector(1536)")? // pgvector -- schema-qualified so db push works in isolated test schemas
-  deletedAt DateTime? // soft delete (GDPR/CCPA, project rule #13)
-  createdAt DateTime                     @default(now())
-  updatedAt DateTime                     @updatedAt
+  status    KBArticleStatus                     @default(DRAFT)
+  embedding Unsupported("public.vector(1536)")?
+
+  sourceId    String?
+  source      KBSource? @relation(fields: [sourceId], references: [id])
+  sourceUrl   String?
+  contentHash String?
+  publishedAt DateTime?
+  archivedAt  DateTime?
+
+  chunks    KBChunk[]
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([brandId, status])
   @@index([brandId, category])
+  @@index([brandId, sourceId])
   @@map("kb_articles")
 }
 
@@ -1074,7 +1165,7 @@ model McpOAuthCode {
   clerkUserId         String
   clientId            String
   redirectUri         String
-  codeChallenge       String    // PKCE S256 challenge (base64url SHA-256 of verifier)
+  codeChallenge       String // PKCE S256 challenge (base64url SHA-256 of verifier)
   codeChallengeMethod String    @default("S256")
   expiresAt           DateTime
   usedAt              DateTime? // set when exchanged — prevents replay
@@ -1132,9 +1223,9 @@ model WebhookDeliveryLog {
 // the post-activation widget). Single mutable row per brand; activation
 // history lives in OnboardingActivationEvent.
 model OnboardingState {
-  id                  String       @id @default(cuid())
-  brandId             String       @unique
-  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  brandId String @unique
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   useCasePath         UseCasePath?
   // Shape: { brandCreated, dataSourceConnected, firstEventReceived,
@@ -1145,9 +1236,9 @@ model OnboardingState {
   dismissedByUserIds  String[]     @default([])
   invitedAdminUserIds String[]     @default([])
 
-  activatedAt         DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  activatedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([activatedAt])
   @@map("onboarding_state")
@@ -1158,18 +1249,17 @@ model OnboardingState {
 // event. metadata captures per-step context (oauth provider, picked path,
 // etc.) for forensics.
 model OnboardingActivationEvent {
-  id           String          @id @default(cuid())
-  brandId      String
-  brand        Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   step         OnboardingStep
   previousStep OnboardingStep?
   occurredAt   DateTime        @default(now())
-  dwellMs     Int?
+  dwellMs      Int?
   metadata     Json            @default("{}")
 
   @@index([brandId, occurredAt])
   @@index([step, occurredAt])
   @@map("onboarding_activation_events")
 }
-

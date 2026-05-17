@@ -1,27 +1,27 @@
-/**
- * Support rule evaluation logic.
- * Evaluates SupportRules against conversation context (intent, tier, health score, topics).
- * Rules are evaluated in priority order (lower priority number = evaluated first).
- * All matching rules fire (not first-match-wins).
- */
-
-import { evaluateConditions, type ConditionGroup } from './conditions.js'
-
-export interface SupportRuleContext {
-  intent: string
-  tier?: string
-  healthScore?: number
-  topics: string[]
-}
+import type { SupportActionMode } from './zod/support.schema.js'
 
 export interface SupportRuleInput {
   id: string
+  status: 'ACTIVE' | 'INACTIVE'
+  priority: number
   intentFilters: string[]
   tierFilters: string[]
   healthScoreMin: number | null
   healthScoreMax: number | null
   topicFilters: string[]
-  conditions: unknown // JSON — ConditionGroup
+  conditions: Record<string, unknown>
+  actionMode: SupportActionMode
+  confidenceThreshold: number
+  autoRespondArticleId: string | null
+  escalateToAssignee: string | null
+  awardPoints: number | null
+  triggerSurveyId: string | null
+}
+
+export interface SupportRuleMatch {
+  ruleId: string
+  actionMode: SupportActionMode
+  confidenceThreshold: number
   autoRespondArticleId: string | null
   escalateToAssignee: string | null
   awardPoints: number | null
@@ -29,48 +29,55 @@ export interface SupportRuleInput {
 }
 
 export interface SupportRuleMatchResult {
-  rules: SupportRuleInput[]
+  matchedRules: SupportRuleMatch[]
   ruleIds: string[]
   shouldEscalate: boolean
   escalateToAssignee: string | null
-  autoResponseContent: string | null
+  autoResponseArticleId: string | null
+}
+
+export interface SupportRuleContext {
+  intent: string
+  tier: string | null
+  healthScore: number | undefined
+  topics: string[]
 }
 
 export function evaluateSupportRules(
   rules: SupportRuleInput[],
   context: SupportRuleContext,
 ): SupportRuleMatchResult {
-  const matched: SupportRuleInput[] = []
+  const active = rules.filter((r) => r.status === 'ACTIVE')
+  const sorted = [...active].sort((a, b) => a.priority - b.priority)
 
-  for (const rule of rules) {
-    // Intent filter: empty = match all
-    if (rule.intentFilters.length > 0 && !rule.intentFilters.includes(context.intent)) continue
-    // Tier filter: empty = match all; skip if tier is not provided
-    if (rule.tierFilters.length > 0 && context.tier && !rule.tierFilters.includes(context.tier)) continue
-    // If tier filters are set but no tier in context, skip this rule
-    if (rule.tierFilters.length > 0 && !context.tier) continue
-    // Health score range
-    if (rule.healthScoreMin !== null && context.healthScore !== undefined && context.healthScore < rule.healthScoreMin) continue
-    if (rule.healthScoreMax !== null && context.healthScore !== undefined && context.healthScore > rule.healthScoreMax) continue
-    // If health score filters are set but no health score in context, skip
-    if ((rule.healthScoreMin !== null || rule.healthScoreMax !== null) && context.healthScore === undefined) continue
-    // Topic filter: empty = match all
-    if (rule.topicFilters.length > 0 && !rule.topicFilters.some(
-      (t) => context.topics.some((ct) => ct.toLowerCase().includes(t.toLowerCase())),
-    )) continue
-    // Additional conditions (ConditionGroup)
-    if (rule.conditions && typeof rule.conditions === 'object' && Object.keys(rule.conditions as object).length > 0) {
-      if (!evaluateConditions(rule.conditions as ConditionGroup, context as unknown as Record<string, unknown>)) continue
-    }
+  const matches: SupportRuleMatch[] = []
+  for (const rule of sorted) {
+    if (rule.intentFilters.length && !rule.intentFilters.includes(context.intent)) continue
+    if (rule.tierFilters.length && (!context.tier || !rule.tierFilters.includes(context.tier))) continue
+    if (rule.healthScoreMin != null && (context.healthScore == null || context.healthScore < rule.healthScoreMin)) continue
+    if (rule.healthScoreMax != null && (context.healthScore == null || context.healthScore > rule.healthScoreMax)) continue
+    if (rule.topicFilters.length && !rule.topicFilters.some((t) => context.topics.includes(t))) continue
 
-    matched.push(rule)
+    matches.push({
+      ruleId: rule.id,
+      actionMode: rule.actionMode,
+      confidenceThreshold: rule.confidenceThreshold,
+      autoRespondArticleId: rule.autoRespondArticleId,
+      escalateToAssignee: rule.escalateToAssignee,
+      awardPoints: rule.awardPoints,
+      triggerSurveyId: rule.triggerSurveyId,
+    })
   }
 
+  const shouldEscalate = matches.some((m) => m.actionMode === 'ESCALATE')
+  const escalateRule = matches.find((m) => m.actionMode === 'ESCALATE')
+  const autoReplyRule = matches.find((m) => m.actionMode === 'AUTO_REPLY' && m.autoRespondArticleId)
+
   return {
-    rules: matched,
-    ruleIds: matched.map((r) => r.id),
-    shouldEscalate: matched.some((r) => r.escalateToAssignee != null),
-    escalateToAssignee: matched.find((r) => r.escalateToAssignee)?.escalateToAssignee ?? null,
-    autoResponseContent: matched.find((r) => r.autoRespondArticleId)?.autoRespondArticleId ?? null,
+    matchedRules: matches,
+    ruleIds: matches.map((m) => m.ruleId),
+    shouldEscalate,
+    escalateToAssignee: escalateRule?.escalateToAssignee ?? null,
+    autoResponseArticleId: autoReplyRule?.autoRespondArticleId ?? null,
   }
 }

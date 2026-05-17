@@ -212,7 +212,7 @@ describe('UpdateSupportRuleSchema', () => {
   })
 
   it('accepts status toggle', () => {
-    const result = UpdateSupportRuleSchema.safeParse({ status: 'PAUSED' })
+    const result = UpdateSupportRuleSchema.safeParse({ status: 'INACTIVE' })
     expect(result.success).toBe(true)
   })
 

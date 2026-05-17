@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    "./processors/supportOrchestration": "./src/processors/supportOrchestration.ts"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
