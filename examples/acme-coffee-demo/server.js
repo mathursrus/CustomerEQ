@@ -8,9 +8,8 @@
 //   3. Member 360 view        → GET  /v1/members/:id/360
 //   4. Reward redemption      → POST /v1/redemptions
 //   5. Public survey widget   → embedded <script src=".../widget.js">
-//   6. Survey trigger webhook → POST /v1/public/surveys/trigger
-//   7. KB search              → POST /v1/kb/search
-//   8. CX analytics dashboard → GET  /v1/analytics/cx
+//   6. KB search              → POST /v1/kb/search
+//   7. CX analytics dashboard → GET  /v1/analytics/cx
 //
 // Run:
 //   cp .env.example .env  &&  edit .env to fill in CUSTOMEREQ_API_KEY etc.
@@ -179,28 +178,12 @@ app.post('/api/redeem', async (req, res) => {
   }
 })
 
-// ── Trigger a follow-up survey from a "ticket resolved" webhook ────────
-// In a real integration, this would be called from your support tool
-// (Zendesk, Intercom, etc.) when a ticket closes.
-app.post('/api/ticket-resolved', async (req, res) => {
-  const session = getSession(req)
-  if (!session) return res.status(401).json({ error: 'sign up first' })
-
-  if (!process.env.CUSTOMEREQ_CSAT_SURVEY_ID) {
-    return res.status(400).json({ error: 'CUSTOMEREQ_CSAT_SURVEY_ID not configured' })
-  }
-
-  try {
-    const result = await ceq.triggerSurvey({
-      memberEmail: session.email,
-      surveyId: process.env.CUSTOMEREQ_CSAT_SURVEY_ID,
-      source: 'acme-coffee-helpdesk',
-    })
-    res.json(result)
-  } catch (err) {
-    res.status(err.status ?? 500).json({ error: err.message })
-  }
-})
+// Issue #378: the "ticket resolved → trigger survey via webhook" handler is
+// retired. The replacement V0 flow is operator-side: a brand admin uses the
+// admin Distribute action on the survey detail page (Custom List of one identifier
+// → tokenized URL via Mailchimp / HubSpot / Klaviyo / Gmail mail-merge). For
+// headless ticket-close → survey integrations in the future, see the
+// implementation-phase delivery of POST /v1/surveys/:id/distribution-batches.
 
 // ── Knowledge base search (powers Acme's self-serve help page) ─────────
 app.post('/api/help/search', async (req, res) => {
