@@ -34,6 +34,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "onboard-org": "node scripts/onboard-org.mjs",
     "setup:dev-brand": "tsx --env-file=.env scripts/setup-dev-brand.ts",
+    "backfill:brand-default-themes": "tsx --env-file=.env scripts/backfill-brand-default-themes.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "run-scenario": "tsx scripts/run-scenario.ts"
   },

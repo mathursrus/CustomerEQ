@@ -118,6 +118,66 @@ describe('<LookFeelTab>', () => {
     })
   })
 
+  describe('empty themes state — belts-and-suspenders fallback (Issue #405)', () => {
+    // Updated behavior per Issue #405 user direction 2026-05-17:
+    //   - Informational banner (not blocking) so the operator knows brand has
+    //     no themes AND that the preview is rendering with the CustomerEQ
+    //     default.
+    //   - Preview STILL renders, using `FALLBACK_RESPONDENT_THEME` (same
+    //     constant the public renderer uses as tier-3 fallback). Marketing-
+    //     manager / survey-creator role isn't blocked waiting for an admin.
+    //   - Theme picker fieldset is hidden — there's nothing to pick from
+    //     until an admin seeds themes.
+    //   - Chrome matrix below is theme-independent and continues to render.
+    //   - Copy is RBAC-neutral: points at the admin role rather than
+    //     deeplinking to org settings (survey creator may not have access).
+
+    it('renders an informational empty-state banner when themes=[]', () => {
+      renderTab({ themes: [] })
+      expect(
+        screen.getByText(/there are no themes defined for your brand/i),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/defaulting to the customerEQ default theme/i),
+      ).toBeInTheDocument()
+    })
+
+    it('tells the operator administrators can set themes in Settings → Organization (no outbound link)', () => {
+      renderTab({ themes: [] })
+      expect(
+        screen.getByText(/themes can be set by administrators/i),
+      ).toBeInTheDocument()
+      // No live link — survey-creator role may not have org-settings access.
+      expect(
+        screen.queryByRole('link', { name: /organization/i }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: /open themes/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('still renders the desktop and mobile preview panes (using CustomerEQ default fallback) when themes=[]', () => {
+      // The preview is not blocked — it falls back to FALLBACK_RESPONDENT_THEME
+      // so the operator can preview their survey content even before themes
+      // are seeded for the brand.
+      renderTab({ themes: [] })
+      expect(screen.getByTestId('preview-desktop')).toBeInTheDocument()
+      expect(screen.getByTestId('preview-mobile')).toBeInTheDocument()
+    })
+
+    it('hides the theme picker fieldset when themes=[] (nothing to pick from)', () => {
+      renderTab({ themes: [] })
+      expect(
+        screen.queryByRole('radiogroup', { name: /theme/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('still renders the chrome matrix when themes=[] (theme-independent)', () => {
+      renderTab({ themes: [] })
+      expect(screen.getByTestId('chrome-matrix')).toBeInTheDocument()
+    })
+  })
+
   describe('disabled mode (STOPPED)', () => {
     it('theme picker + chrome toggles disabled when disabled=true', () => {
       render(

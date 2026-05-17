@@ -51,28 +51,19 @@ interface PublicSurveyPayload {
     privacyPolicyUrl: string | null
     memberIdentifierKind: 'email' | 'phone' | 'external_id'
   }
-  theme: BrandThemeLite | null
+  // Issue #405 — the public API resolves theme server-side via the chain
+  // Survey.themeId → Brand.defaultThemeId → DEFAULT_THEMES[0] and guarantees
+  // a non-null value. Type tightened accordingly.
+  theme: BrandThemeLite
   hasCxRules?: boolean
 }
 
-const DEFAULT_THEME: BrandThemeLite = {
-  id: 'thm_default',
-  name: 'Default',
-  primaryColor: '#6366f1',
-  secondaryColor: '#818cf8',
-  backgroundColor: '#ffffff',
-  textColor: '#111827',
-  buttonColor: '#6366f1',
-  buttonTextColor: '#ffffff',
-  accentColor: '#6366f1',
-  fontFamily: 'system-ui',
-  headingSize: 'md',
-  bodySize: 'md',
-  maxWidth: 'md',
-  borderRadius: 'md',
-  cardStyle: 'shadow',
-  backgroundImageUrl: null,
-}
+// Issue #405 — the page no longer carries its own `DEFAULT_THEME` fallback.
+// The public API (`apps/api/src/routes/public.ts`) now resolves the theme
+// server-side via Survey.themeId → Brand.defaultThemeId → DEFAULT_THEMES[0]
+// (canonical CustomerEQ Indigo, single source of truth in
+// `apps/api/src/lib/default-themes.ts`). The client renders `survey.theme`
+// directly; the API contract guarantees it is non-null.
 
 function memberIdLabel(kind: BrandLite['memberIdentifierKind']): string {
   switch (kind) {
@@ -173,7 +164,6 @@ export default function SurveyResponsePage() {
     }
   }, [survey])
 
-  const themeForRender = survey?.theme ?? DEFAULT_THEME
 
   const handleAnswerChange = useCallback((questionId: string, value: unknown) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
@@ -343,7 +333,13 @@ export default function SurveyResponsePage() {
     )
   }
 
-  if (!resolvedSurvey || !brandLite) return null
+  if (!resolvedSurvey || !brandLite || !survey) return null
+
+  // Issue #405 — `survey.theme` is guaranteed non-null by the public API
+  // (resolved server-side via Survey.themeId → Brand.defaultThemeId →
+  // DEFAULT_THEMES[0]). Reading it here after the null-guard avoids the
+  // need for a divergent client-side fallback constant.
+  const themeForRender = survey.theme
 
   // The submit button is intentionally NOT blocked on missing fields —
   // clicking with errors triggers inline messages next to the offending

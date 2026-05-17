@@ -16,6 +16,8 @@
 
 import { useMemo, useState } from 'react'
 
+import { FALLBACK_RESPONDENT_THEME } from '@customerEQ/shared'
+
 import { PreviewSurvey } from '@/components/survey-form/PreviewSurvey'
 import {
   DEFAULT_CHROME_MATRIX,
@@ -93,6 +95,16 @@ export function LookFeelTab({
     [themes, selectedThemeId],
   )
 
+  // Issue #405 — same fallback chain the public renderer uses
+  // (`apps/api/src/routes/public.ts` GET handler). When the brand has no
+  // themes seeded, the editor preview falls back to the canonical
+  // CustomerEQ default (`FALLBACK_RESPONDENT_THEME` from @customerEQ/shared,
+  // same source of truth as the seed payload). This unblocks the marketing-
+  // manager / survey-creator role: they can iterate on a real preview
+  // without waiting on an admin to seed themes. Once an admin seeds, the
+  // selected theme takes over.
+  const previewTheme: BrandThemeLite = theme ?? FALLBACK_RESPONDENT_THEME
+
   const previewSurvey = useMemo(
     () => toSurveyResolved(survey, chromeMatrix),
     [survey, chromeMatrix],
@@ -144,6 +156,29 @@ export function LookFeelTab({
         })}
       </div>
 
+      {/* Issue #405 — informational banner when the brand has no themes
+          configured (pre-#307 brands like ArtistOS, or any future path that
+          failed to seed). NOT blocking: the preview below still renders
+          using the CustomerEQ default theme (same `FALLBACK_RESPONDENT_THEME`
+          the public renderer uses as its third-tier fallback). RBAC-neutral
+          copy — survey-creator role may not have access to Organization
+          Settings, so we point at the admin role rather than deeplinking. */}
+      {themes.length === 0 && (
+        <div
+          data-testid="themes-empty-state"
+          role="status"
+          className="rounded-md border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900"
+        >
+          <p className="font-medium">
+            There are no themes defined for your brand. Defaulting to the
+            CustomerEQ default theme.
+          </p>
+          <p className="mt-1">
+            Themes can be set by administrators in <strong>Settings → Organization</strong>.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {(['desktop', 'mobile'] as const).map((viewport) => (
           <div
@@ -156,84 +191,87 @@ export function LookFeelTab({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
               {viewport === 'desktop' ? 'Desktop preview' : 'Mobile preview (375px)'}
             </p>
-            {theme && (
-              <PreviewSurvey
-                survey={previewSurvey}
-                theme={theme}
-                brand={brand}
-                channel={activeChannel}
-                viewport={viewport}
-                readOnly
-              />
-            )}
+            <PreviewSurvey
+              survey={previewSurvey}
+              theme={previewTheme}
+              brand={brand}
+              channel={activeChannel}
+              viewport={viewport}
+              readOnly
+            />
           </div>
         ))}
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-gray-900">Theme</legend>
-        <p className="text-xs text-gray-500">
-          Pick from any theme defined for your brand. The brand&apos;s default
-          theme is selected automatically; you can override per survey.
-        </p>
-        {/* Color-swatch cards per mock §241 lines 884-917. */}
-        <div
-          role="radiogroup"
-          aria-label="Theme"
-          className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
-        >
-          {themes.map((t) => {
-            const selected = t.id === selectedThemeId
-            const isBrandDefault = defaultThemeId !== null && defaultThemeId !== undefined && t.id === defaultThemeId
-            return (
-              <label
-                key={t.id}
-                data-testid={`theme-card-${t.id}`}
-                className={`flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
-                  selected
-                    ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                    : 'border-gray-200 hover:border-gray-300'
-                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-              >
-                <input
-                  type="radio"
-                  role="radio"
-                  name="theme-picker"
-                  value={t.id}
-                  aria-label={t.name}
-                  checked={selected}
-                  disabled={disabled}
-                  onChange={() => handleThemeSelect(t.id)}
-                  className="sr-only"
-                />
-                <span aria-hidden="true" className="flex gap-1">
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.primaryColor }}
-                  />
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.backgroundColor }}
-                  />
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.textColor }}
-                  />
-                </span>
-                <span className="text-sm font-semibold text-gray-900">{t.name}</span>
-                <span className="text-[11px] text-gray-500">
-                  {t.fontFamily}
-                </span>
-                {isBrandDefault && (
-                  <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-600">
-                    Brand default
-                  </span>
-                )}
-              </label>
-            )
-          })}
-        </div>
-      </fieldset>
+      {/* Issue #405 — Theme picker only renders when there are themes to
+          pick from. When themes=[] the preview above falls back to the
+          CustomerEQ default theme and no per-survey override is possible
+          until an admin seeds brand themes. */}
+      {themes.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-gray-900">Theme</legend>
+            <p className="text-xs text-gray-500">
+              Pick from any theme defined for your brand. The brand&apos;s default
+              theme is selected automatically; you can override per survey.
+            </p>
+            {/* Color-swatch cards per mock §241 lines 884-917. */}
+            <div
+              role="radiogroup"
+              aria-label="Theme"
+              className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
+            >
+              {themes.map((t) => {
+                const selected = t.id === selectedThemeId
+                const isBrandDefault =
+                  defaultThemeId !== null && defaultThemeId !== undefined && t.id === defaultThemeId
+                return (
+                  <label
+                    key={t.id}
+                    data-testid={`theme-card-${t.id}`}
+                    className={`flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
+                      selected
+                        ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  >
+                    <input
+                      type="radio"
+                      role="radio"
+                      name="theme-picker"
+                      value={t.id}
+                      aria-label={t.name}
+                      checked={selected}
+                      disabled={disabled}
+                      onChange={() => handleThemeSelect(t.id)}
+                      className="sr-only"
+                    />
+                    <span aria-hidden="true" className="flex gap-1">
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.primaryColor }}
+                      />
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.backgroundColor }}
+                      />
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.textColor }}
+                      />
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+                    <span className="text-[11px] text-gray-500">{t.fontFamily}</span>
+                    {isBrandDefault && (
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-600">
+                        Brand default
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+        </fieldset>
+      )}
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-gray-900">Chrome</legend>
