@@ -154,6 +154,8 @@ The feedback file `docs/evidence/378-feature-specification-feedback.md` is inclu
   - `0a1e9b3` — evidence doc with PR link + `follow-your-mentor` over-gating learning
   - `843f7f2` — L0 coaching moment capture (over-gated push+PR)
   - `3c8f037` — **Round 2 UX rewrite** (852 insertions, 793 deletions across 3 files; all 20 chat-feedback items addressed)
+  - `cb00c7c` — Round 2.1 (6 mock-review items + Decision A locked)
+  - `72d1c5a` — **Round 3 PR review** (30 inline comments addressed across 9 files, 401 insertions / 215 deletions; trigger endpoint retired in code; competitors added to `fraim/config.json`; #403 filed for `Brand.supportEmail`; typecheck clean; 456/456 tests pass)
 - **Remote**: `origin/feature/378-...` (fast-forward, no force)
 - **PR**: [#385](https://github.com/mathursrus/CustomerEQ/pull/385) — title `spec(#378): personalized survey links for BYO-email — tokenized batches, sampling, and recurring waves`; body includes summary, test plan, and three `← recommended` reviewer-decision items
 - **Issue labels**: `phase:spec` + `status:needs-review` applied
