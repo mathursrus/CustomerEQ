@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-17
-synthesized:
+synthesized: 2026-05-17
 ---
 
 # Postmortem: Technical-Design — Issue #378 (Personalized Survey Links for BYO-Email Distribution)
