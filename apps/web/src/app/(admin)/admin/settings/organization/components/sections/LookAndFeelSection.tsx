@@ -37,8 +37,16 @@ export function LookAndFeelSection({ themes }: LookAndFeelSectionProps) {
           className="mt-2 max-h-60 overflow-y-auto rounded-md border border-gray-200 bg-white"
         >
           {themes.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-gray-400">
-              No themes available yet — refresh after the API seeds defaults.
+            // Issue #405 — replaces the prior "refresh after the API seeds
+            // defaults" copy. The lazy-upsert self-heal in admin-brand-profile
+            // now seeds defaults on first GET for any themeless brand, so this
+            // empty state is reachable only if a manual deletion or future
+            // bug regression occurs. Prescriptive action — admin-only surface,
+            // existing "Open Themes →" link in the banner above handles the
+            // jump.
+            <p className="px-4 py-6 text-center text-sm text-gray-500">
+              No themes are configured for this brand yet. Use{' '}
+              <strong>Settings → Themes</strong> to add the first one.
             </p>
           ) : (
             themes.map((t) => {

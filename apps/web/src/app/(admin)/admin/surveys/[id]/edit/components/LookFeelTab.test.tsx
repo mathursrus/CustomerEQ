@@ -118,6 +118,55 @@ describe('<LookFeelTab>', () => {
     })
   })
 
+  describe('empty themes state (Issue #405)', () => {
+    // Today the component renders an empty <div role="radiogroup"> and a
+    // silent `{theme && <PreviewSurvey>}` skip when themes=[] — the operator
+    // sees nothing and can't tell whether data is loading, the page is
+    // broken, or themes were never configured. RBAC-neutral copy because a
+    // future survey-creator role may not have access to Organization Settings.
+
+    it('renders an explicit empty-state message when themes=[]', () => {
+      renderTab({ themes: [] })
+      // Anchor on a phrase from the new copy. Keep loose enough that minor
+      // wording changes don't flake the assertion.
+      expect(
+        screen.getByText(/no themes are configured for this brand/i),
+      ).toBeInTheDocument()
+    })
+
+    it('tells the operator to contact an administrator (RBAC-neutral — no outbound link)', () => {
+      renderTab({ themes: [] })
+      expect(
+        screen.getByText(/contact a brand administrator/i),
+      ).toBeInTheDocument()
+      // No link to Organization Settings — survey-creator RBAC may not allow it.
+      expect(
+        screen.queryByRole('link', { name: /organization settings/i }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: /open themes/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('does NOT render the desktop or mobile preview panes when themes=[]', () => {
+      // Previously the preview containers still rendered with just their
+      // labels but no <PreviewSurvey> child — two side-by-side blank boxes
+      // with no explanation. The empty state replaces them entirely with
+      // the single message.
+      renderTab({ themes: [] })
+      expect(screen.queryByTestId('preview-desktop')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('preview-mobile')).not.toBeInTheDocument()
+    })
+
+    it('still renders the chrome matrix when themes=[] (it does not depend on themes)', () => {
+      // The Chrome matrix below the preview is theme-independent — toggling
+      // logo/name/title for each channel doesn't require any theme to exist.
+      // Don't accidentally hide it as part of the empty-state branch.
+      renderTab({ themes: [] })
+      expect(screen.getByTestId('chrome-matrix')).toBeInTheDocument()
+    })
+  })
+
   describe('disabled mode (STOPPED)', () => {
     it('theme picker + chrome toggles disabled when disabled=true', () => {
       render(

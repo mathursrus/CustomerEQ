@@ -209,6 +209,32 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: 'No brandId could be resolved for this session' })
       }
 
+      // Issue #405 — self-heal: pre-existing brands created before PR #307
+      // added theme-seeding to the lazy-upsert's create branch can sit
+      // permanently with zero themes (e.g. ArtistOS — Brand row inserted by
+      // hand long ago). The upsert above only seeds on the `create` branch;
+      // `update: {}` never re-evaluates whether themes exist. This block
+      // closes the gap for any brand that lands here without themes,
+      // mirroring the create-branch payload + Indigo default-theme pointer.
+      const existingThemeCount = await fastify.prisma.brandTheme.count({
+        where: { brandId },
+      })
+      if (existingThemeCount === 0) {
+        await fastify.prisma.brandTheme.createMany({
+          data: DEFAULT_THEMES.map((t) => ({ ...t, brandId })),
+        })
+        const indigo = await fastify.prisma.brandTheme.findFirst({
+          where: { brandId, name: 'Indigo' },
+          select: { id: true },
+        })
+        if (indigo) {
+          await fastify.prisma.brand.update({
+            where: { id: brandId },
+            data: { defaultThemeId: indigo.id },
+          })
+        }
+      }
+
       const [brand, themes, memberCount] = await Promise.all([
         fastify.prisma.brand.findUniqueOrThrow({
           where: { id: brandId },

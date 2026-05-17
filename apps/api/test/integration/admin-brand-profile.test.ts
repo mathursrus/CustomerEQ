@@ -277,6 +277,96 @@ describe('Admin Brand Profile API — /v1/admin/brand/profile', () => {
       // re-seed.
       expect(themeCount).toBe(4)
     })
+
+    // -------------------------------------------------------------------------
+    // Issue #405 — self-heal: when a pre-existing brand has zero BrandTheme
+    // rows (e.g. ArtistOS, created before PR #307 added theme-seeding to the
+    // lazy-upsert's create branch), the GET endpoint must seed the 4 defaults
+    // and set Brand.defaultThemeId to the new Indigo row. Without this, such
+    // brands stay permanently themeless because the upsert's update:{} branch
+    // never re-evaluates whether themes exist.
+    // -------------------------------------------------------------------------
+
+    it('self-heals a pre-existing brand with zero themes — seeds 4 defaults + Indigo defaultThemeId (Issue #405)', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_405_heal_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+      // Pre-condition: brand exists but has no themes — simulates ArtistOS in
+      // prod (created before PR #307 added the lazy-upsert seeding logic).
+      const preExisting = await prisma.brand.create({
+        data: { clerkOrgId, name: 'Themeless Org' },
+        select: { id: true },
+      })
+      const before = await prisma.brandTheme.count({ where: { brandId: preExisting.id } })
+      expect(before).toBe(0)
+
+      const request = lazyUpsertRequest(clerkOrgId)
+      const res = await request.get('/v1/admin/brand/profile')
+      expect(res.status).toBe(200)
+
+      // Self-heal: themes seeded + Indigo set as default.
+      const themes = await prisma.brandTheme.findMany({
+        where: { brandId: preExisting.id },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      })
+      expect(themes.map((t) => t.name)).toEqual(['Forest', 'Indigo', 'Slate', 'Sunset'])
+
+      const after = await prisma.brand.findUniqueOrThrow({
+        where: { id: preExisting.id },
+        select: { defaultThemeId: true },
+      })
+      const indigo = themes.find((t) => t.name === 'Indigo')
+      expect(indigo, 'Indigo theme must exist after self-heal').toBeDefined()
+      expect(after.defaultThemeId).toBe(indigo!.id)
+
+      // Response shape contract: themes array in GET response reflects the seed.
+      expect(Array.isArray(res.body.themes)).toBe(true)
+      expect(res.body.themes).toHaveLength(4)
+    })
+
+    it('does not re-seed when a pre-existing brand already has at least one theme (#405 self-heal is gated on zero count)', async () => {
+      const prisma = getTestPrisma()
+      const clerkOrgId = `org_405_partial_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+      // Pre-condition: brand exists with ONE custom theme (operator-added or
+      // residual from prior seeding). Self-heal must not clobber or duplicate.
+      const preExisting = await prisma.brand.create({
+        data: {
+          clerkOrgId,
+          name: 'Partially Themed Org',
+          brandThemes: {
+            createMany: {
+              data: [
+                {
+                  name: 'Custom',
+                  primaryColor: '#000000',
+                  secondaryColor: '#111111',
+                  backgroundColor: '#ffffff',
+                  textColor: '#000000',
+                  buttonColor: '#000000',
+                  buttonTextColor: '#ffffff',
+                  accentColor: '#222222',
+                },
+              ],
+            },
+          },
+        },
+        select: { id: true },
+      })
+
+      const request = lazyUpsertRequest(clerkOrgId)
+      const res = await request.get('/v1/admin/brand/profile')
+      expect(res.status).toBe(200)
+
+      const themes = await prisma.brandTheme.findMany({
+        where: { brandId: preExisting.id },
+        select: { name: true },
+      })
+      // Still exactly one — self-heal only fires when count is zero.
+      expect(themes).toHaveLength(1)
+      expect(themes[0].name).toBe('Custom')
+    })
   })
 
   // ---------------------------------------------------------------------------

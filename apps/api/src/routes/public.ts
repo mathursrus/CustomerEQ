@@ -7,9 +7,37 @@ import { extractOpenEndedText } from '../utils/survey.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import { getConsentTextForSurvey } from '../services/consentResolver.js'
 import { buildEnrollmentSignals } from '../services/enrollmentSignals.js'
+import { DEFAULT_THEMES } from '../lib/default-themes.js'
 
 const API_BASE_URL =
   process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
+
+// Issue #405 — final-tier fallback for the public renderer's theme
+// resolution chain (Survey.themeId → Brand.defaultThemeId → this constant).
+// Built from `DEFAULT_THEMES[0]` (the canonical "Indigo" CustomerEQ default)
+// so the fallback shares a single source of truth with the seed payload
+// used by the lazy-upsert (admin-brand-profile.ts), the org.created webhook
+// path (when #239 lands), and the one-off backfill script.
+//
+// Typography defaults match the Prisma BrandTheme schema's `@default(...)`
+// (packages/database/prisma/schema.prisma:719-726) so a fallback render is
+// visually indistinguishable from a real seeded Indigo row. In practice
+// this tier is almost never hit after lazy-upsert + backfill — every brand
+// ends up with seeded themes + a non-null defaultThemeId. It exists so the
+// public renderer never returns null for `theme`, even under a degenerate
+// state (brand wiped manually, race during theme delete, etc.). The id
+// sentinel makes that origin obvious in logs and any client-side analytics.
+const FALLBACK_RESPONDENT_THEME = {
+  id: '__customereq_default_indigo__',
+  ...DEFAULT_THEMES[0],
+  fontFamily: 'system-ui',
+  headingSize: 'md',
+  bodySize: 'md',
+  cardStyle: 'shadow',
+  borderRadius: 'md',
+  maxWidth: 'md',
+  backgroundImageUrl: null,
+} as const
 
 // Issue #231 PR2 — survey response submission schema.
 //
@@ -173,6 +201,10 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           // Issue #241 — brand carries the fields BrandLite expects for the
           // SurveyFormRenderer: consentMode/text default, terms/privacy
           // URLs, memberIdentifierKind. R15 / R17 depend on these.
+          // Issue #405 — also include `defaultTheme` (relation to BrandTheme
+          // via Brand.defaultThemeId) so the public renderer can fall back
+          // to the brand's chosen default when the survey itself has no
+          // theme picked.
           brand: {
             select: {
               id: true,
@@ -183,6 +215,7 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
               termsUrl: true,
               privacyPolicyUrl: true,
               memberIdentifierKind: true,
+              defaultTheme: true,
             },
           },
           theme: true,
@@ -194,8 +227,29 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Survey not found or not active' })
       }
 
-      const { _count, ...surveyData } = survey
-      return reply.status(200).send({ ...surveyData, hasCxRules: _count.surveyRules > 0 })
+      // Issue #405 — three-tier theme resolution:
+      //   1. Survey.themeId (operator picked per-survey override)
+      //   2. Brand.defaultThemeId (brand-wide default)
+      //   3. FALLBACK_RESPONDENT_THEME (canonical CustomerEQ Indigo, built
+      //      from DEFAULT_THEMES[0])
+      //
+      // Pre-#405 the route only resolved tier 1 and returned `theme: null`
+      // when the survey had no themeId. The client at
+      // `apps/web/src/app/survey/[id]/page.tsx` then fell back to a
+      // *separate* hardcoded constant — a divergent second source of truth
+      // that silently masked themeless-brand bugs at the customer-facing
+      // surface for as long as the bug shape existed. This route now
+      // guarantees a non-null `theme` so the client can render it directly.
+      const { _count, brand, ...surveyData } = survey
+      const { defaultTheme: brandDefaultTheme, ...brandLite } = brand
+      const resolvedTheme = surveyData.theme ?? brandDefaultTheme ?? FALLBACK_RESPONDENT_THEME
+
+      return reply.status(200).send({
+        ...surveyData,
+        brand: brandLite,
+        theme: resolvedTheme,
+        hasCxRules: _count.surveyRules > 0,
+      })
     },
   )
 

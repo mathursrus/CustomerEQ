@@ -144,96 +144,117 @@ export function LookFeelTab({
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(['desktop', 'mobile'] as const).map((viewport) => (
-          <div
-            key={viewport}
-            data-testid={`preview-${viewport}`}
-            data-channel={activeChannel}
-            data-viewport={viewport}
-            className="rounded-md border border-gray-200 bg-gray-50 p-3"
-          >
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-              {viewport === 'desktop' ? 'Desktop preview' : 'Mobile preview (375px)'}
-            </p>
-            {theme && (
-              <PreviewSurvey
-                survey={previewSurvey}
-                theme={theme}
-                brand={brand}
-                channel={activeChannel}
-                viewport={viewport}
-                readOnly
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-gray-900">Theme</legend>
-        <p className="text-xs text-gray-500">
-          Pick from any theme defined for your brand. The brand&apos;s default
-          theme is selected automatically; you can override per survey.
-        </p>
-        {/* Color-swatch cards per mock §241 lines 884-917. */}
+      {/* Issue #405 — empty-state guard. When the brand has no themes
+          configured (pre-#307 brands like ArtistOS, or any future path that
+          fails to seed), render a single explanatory message in place of
+          the two blank preview boxes + empty radiogroup. RBAC-neutral copy:
+          a future survey-creator role may not have access to Organization
+          Settings, so we don't deeplink — we tell them to escalate. */}
+      {themes.length === 0 ? (
         <div
-          role="radiogroup"
-          aria-label="Theme"
-          className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
+          data-testid="themes-empty-state"
+          role="status"
+          className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
         >
-          {themes.map((t) => {
-            const selected = t.id === selectedThemeId
-            const isBrandDefault = defaultThemeId !== null && defaultThemeId !== undefined && t.id === defaultThemeId
-            return (
-              <label
-                key={t.id}
-                data-testid={`theme-card-${t.id}`}
-                className={`flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
-                  selected
-                    ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                    : 'border-gray-200 hover:border-gray-300'
-                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-              >
-                <input
-                  type="radio"
-                  role="radio"
-                  name="theme-picker"
-                  value={t.id}
-                  aria-label={t.name}
-                  checked={selected}
-                  disabled={disabled}
-                  onChange={() => handleThemeSelect(t.id)}
-                  className="sr-only"
-                />
-                <span aria-hidden="true" className="flex gap-1">
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.primaryColor }}
-                  />
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.backgroundColor }}
-                  />
-                  <span
-                    className="h-[18px] w-[18px] rounded"
-                    style={{ backgroundColor: t.textColor }}
-                  />
-                </span>
-                <span className="text-sm font-semibold text-gray-900">{t.name}</span>
-                <span className="text-[11px] text-gray-500">
-                  {t.fontFamily}
-                </span>
-                {isBrandDefault && (
-                  <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-600">
-                    Brand default
-                  </span>
-                )}
-              </label>
-            )
-          })}
+          <p className="font-medium">No themes are configured for this brand yet.</p>
+          <p className="mt-1">
+            Survey previews can&apos;t render until at least one theme exists for the
+            brand. Contact a brand administrator to set one up.
+          </p>
         </div>
-      </fieldset>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {(['desktop', 'mobile'] as const).map((viewport) => (
+              <div
+                key={viewport}
+                data-testid={`preview-${viewport}`}
+                data-channel={activeChannel}
+                data-viewport={viewport}
+                className="rounded-md border border-gray-200 bg-gray-50 p-3"
+              >
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                  {viewport === 'desktop' ? 'Desktop preview' : 'Mobile preview (375px)'}
+                </p>
+                {theme && (
+                  <PreviewSurvey
+                    survey={previewSurvey}
+                    theme={theme}
+                    brand={brand}
+                    channel={activeChannel}
+                    viewport={viewport}
+                    readOnly
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-gray-900">Theme</legend>
+            <p className="text-xs text-gray-500">
+              Pick from any theme defined for your brand. The brand&apos;s default
+              theme is selected automatically; you can override per survey.
+            </p>
+            {/* Color-swatch cards per mock §241 lines 884-917. */}
+            <div
+              role="radiogroup"
+              aria-label="Theme"
+              className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
+            >
+              {themes.map((t) => {
+                const selected = t.id === selectedThemeId
+                const isBrandDefault =
+                  defaultThemeId !== null && defaultThemeId !== undefined && t.id === defaultThemeId
+                return (
+                  <label
+                    key={t.id}
+                    data-testid={`theme-card-${t.id}`}
+                    className={`flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors ${
+                      selected
+                        ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  >
+                    <input
+                      type="radio"
+                      role="radio"
+                      name="theme-picker"
+                      value={t.id}
+                      aria-label={t.name}
+                      checked={selected}
+                      disabled={disabled}
+                      onChange={() => handleThemeSelect(t.id)}
+                      className="sr-only"
+                    />
+                    <span aria-hidden="true" className="flex gap-1">
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.primaryColor }}
+                      />
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.backgroundColor }}
+                      />
+                      <span
+                        className="h-[18px] w-[18px] rounded"
+                        style={{ backgroundColor: t.textColor }}
+                      />
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+                    <span className="text-[11px] text-gray-500">{t.fontFamily}</span>
+                    {isBrandDefault && (
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-600">
+                        Brand default
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+        </>
+      )}
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-gray-900">Chrome</legend>
