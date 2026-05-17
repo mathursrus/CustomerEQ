@@ -120,10 +120,19 @@ export class CustomerEQ {
   }
 
   // ── Surveys ───────────────────────────────────────────────────────────
-  triggerSurvey({ memberEmail, surveyId, source = 'acme-coffee' }) {
-    return this.request('POST', '/v1/public/surveys/trigger', {
-      publicRoute: true,
-      body: { memberEmail, surveyId, source },
+  // Issue #378 — migrated from the deleted POST /v1/public/surveys/trigger
+  // to POST /v1/surveys/:id/distribution-batches (Custom List of one
+  // identifier). The new endpoint mints a tokenized URL, returns it once
+  // in the response body, and binds the eventual response to the
+  // DistributionBatch via SurveyResponse.distributionBatchId.
+  triggerSurvey({ memberEmail, surveyId, source: _source = 'acme-coffee' }) {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
+    return this.request('POST', `/v1/surveys/${surveyId}/distribution-batches`, {
+      body: {
+        surveyNameInMail: 'How was your support experience?',
+        expiresAt,
+        audience: { mode: 'custom_list', identifiers: memberEmail, autoEnroll: true },
+      },
     })
   }
 
