@@ -10,11 +10,11 @@
 
 | # | AC | Status |
 |---|----|----|
-| 1 | `prisma migrate deploy` runs as a named pipeline step before any `az containerapp update` | TODO |
-| 2 | Pipeline fails and containers are not swapped if any migration step fails | TODO |
-| 3 | `_prisma_migrations` queried post-migration to assert `applied_steps_count == steps_count` | TODO |
+| 1 | `prisma migrate deploy` runs as a named pipeline step before any `az containerapp update` | **DONE** — "Run database migrations" step in deploy.yml at line 155, before Deploy API at line 198 |
+| 2 | Pipeline fails and containers are not swapped if any migration step fails | **DONE** — polling loop exits 1 on Failed/Stopped/timeout; GitHub Actions stops subsequent steps |
+| 3 | `_prisma_migrations` queried post-migration to assert `applied_steps_count == steps_count` | **DONE** — `packages/database/scripts/verify-migrations.mjs` via `prisma.$queryRaw` |
 | 4 | `20260505000000_survey_import_batch` reworked to dedup before unique index | **DONE** — resolved by closed issue #389; unique index was wrong by design (contradicts `responsePolicy=MULTIPLE`) and was removed. Drop migration `20260514120000_drop_live_dedup_unique` cleans up any environment where it was applied. No further action needed. |
-| 5 | `workflow_dispatch` (manual hotfix path) also runs the migration gate | TODO |
+| 5 | `workflow_dispatch` (manual hotfix path) also runs the migration gate | **DONE** — migration step is in the single `build-and-deploy` job shared by both `workflow_run` and `workflow_dispatch` triggers |
 
 ---
 
@@ -22,14 +22,14 @@
 
 ### Files to Create
 
-- [ ] `apps/api/docker-entrypoint-migrate.sh` — Migration-only container entrypoint. Runs `prisma migrate deploy` then calls the verify script. Does NOT start API server. Exits non-zero on any failure.
-- [ ] `packages/database/scripts/verify-migrations.mjs` — Queries `_prisma_migrations` via Prisma `$queryRaw` and exits 1 if any row has `applied_steps_count < steps_count` or is stuck in a started-but-never-finished state.
-- [ ] `scripts/provision-migrate-job.sh` — One-time provisioning of the `customereq-migrate` Azure Container Apps Job. Uses system-assigned managed identity for ACR pull and Key Vault `database-url` secret (per CLAUDE.md secrets policy).
+- [x] `apps/api/docker-entrypoint-migrate.sh` — Migration-only container entrypoint. Runs `prisma migrate deploy` then calls the verify script. Does NOT start API server. Exits non-zero on any failure.
+- [x] `packages/database/scripts/verify-migrations.mjs` — Queries `_prisma_migrations` via Prisma `$queryRaw` and exits 1 if any row has `applied_steps_count < steps_count` or is stuck in a started-but-never-finished state.
+- [x] `scripts/provision-migrate-job.sh` — One-time provisioning of the `customereq-migrate` Azure Container Apps Job. Uses system-assigned managed identity for ACR pull and Key Vault `database-url` secret (per CLAUDE.md secrets policy).
 
 ### Files to Modify
 
-- [ ] `Dockerfile.api` — Add `chmod +x` for `docker-entrypoint-migrate.sh` alongside existing entrypoint.
-- [ ] `.github/workflows/deploy.yml` — Insert "Run database migrations" step between image pushes and first `az containerapp update`. Step: update job image → start execution → poll until Succeeded/Failed → fail pipeline if not Succeeded.
+- [x] `Dockerfile.api` — Add `chmod +x` for `docker-entrypoint-migrate.sh` alongside existing entrypoint.
+- [x] `.github/workflows/deploy.yml` — Insert "Run database migrations" step between image pushes and first `az containerapp update`. Step: update job image → start execution → poll until Succeeded/Failed → fail pipeline if not Succeeded.
 
 ---
 
