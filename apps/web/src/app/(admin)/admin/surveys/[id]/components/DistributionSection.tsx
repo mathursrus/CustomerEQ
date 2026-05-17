@@ -87,6 +87,56 @@ function dataPrefillAttrFor(kind: MemberIdentifierKind): { attr: string; label: 
   }
 }
 
+// Issue #378 — primary action that routes to the per-recipient links page.
+function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: SurveyStatus }) {
+  const isActive = status === 'ACTIVE'
+  const disabledTooltip =
+    status === 'DRAFT'
+      ? 'Activate the survey before distributing'
+      : status === 'PAUSED'
+        ? 'Resume the survey to distribute'
+        : status === 'STOPPED'
+          ? 'This survey is stopped — Restart to distribute'
+          : ''
+
+  const tile = (
+    <div
+      className={`mt-4 rounded-lg border p-4 ${
+        isActive
+          ? 'border-indigo-200 bg-indigo-50'
+          : 'border-gray-200 bg-gray-50 opacity-60'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-gray-900">Send via my email tool →</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Generate per-recipient links for mail-merge applications like Mailchimp, or use the
+            links to send individual mails.
+          </p>
+        </div>
+        {isActive ? (
+          <a
+            href={`/admin/surveys/${surveyId}/distribute`}
+            className="flex-shrink-0 rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            Open
+          </a>
+        ) : (
+          <span
+            aria-disabled
+            title={disabledTooltip}
+            className="flex-shrink-0 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
+          >
+            Open
+          </span>
+        )}
+      </div>
+    </div>
+  )
+  return tile
+}
+
 function buildEmbedSnippet(apiUrl: string, surveyId: string, kind: MemberIdentifierKind): string {
   const { attr, label } = dataPrefillAttrFor(kind)
   return [
@@ -126,6 +176,10 @@ export function DistributionSection({
         <CopyTile label="Share link" value={shareLink} copyAriaLabel="Copy share link" />
         <CopyTile label="Embed snippet" value={embedSnippet} copyAriaLabel="Copy embed snippet" />
       </div>
+      {/* Issue #378 — third tile: Send via my email tool. Routes to the
+          per-recipient links generator. State-aware: disabled for non-ACTIVE
+          surveys with a tooltip keyed to the state (R2). */}
+      <SendViaEmailToolTile surveyId={surveyId} status={status} />
       <p className="mt-3 text-xs text-gray-500">
         Replace the <code className="rounded bg-gray-100 px-1">{`{{...}}`}</code> placeholders in the
         embed snippet with values templated server-side by your host page. The member identifier

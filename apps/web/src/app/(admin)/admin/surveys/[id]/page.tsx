@@ -17,6 +17,7 @@ import type {
 } from '@/components/survey-form/types'
 
 import { ConfigurationSummarySection } from './components/ConfigurationSummarySection'
+import { DistributionBatchesFilter } from './components/DistributionBatchesFilter'
 import { DistributionSection } from './components/DistributionSection'
 import { LoopMonitorSection } from './components/LoopMonitorSection'
 import { ResponseSection } from './components/ResponseSection'
@@ -176,6 +177,14 @@ export default function SurveyDetailPage() {
         surveyId={surveyId}
         surveyStatus={status}
         getToken={getToken}
+      />
+      {/* Issue #378 — filter row between Loop Monitor and Response. Hidden
+          when no batches and no direct responses exist (component self-gates). */}
+      <DistributionBatchesFilter
+        surveyId={surveyId}
+        brandTimezone={(effectiveBrand as { timezone?: string }).timezone ?? 'UTC'}
+        brandLocale={(effectiveBrand as { locale?: string }).locale ?? 'en-US'}
+        hasDirectResponses={responsesCount > 0}
       />
       <ResponseSection
         surveyId={surveyId}
