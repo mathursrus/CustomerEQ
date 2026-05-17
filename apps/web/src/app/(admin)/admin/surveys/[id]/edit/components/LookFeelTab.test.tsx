@@ -118,50 +118,61 @@ describe('<LookFeelTab>', () => {
     })
   })
 
-  describe('empty themes state (Issue #405)', () => {
-    // Today the component renders an empty <div role="radiogroup"> and a
-    // silent `{theme && <PreviewSurvey>}` skip when themes=[] — the operator
-    // sees nothing and can't tell whether data is loading, the page is
-    // broken, or themes were never configured. RBAC-neutral copy because a
-    // future survey-creator role may not have access to Organization Settings.
+  describe('empty themes state — belts-and-suspenders fallback (Issue #405)', () => {
+    // Updated behavior per Issue #405 user direction 2026-05-17:
+    //   - Informational banner (not blocking) so the operator knows brand has
+    //     no themes AND that the preview is rendering with the CustomerEQ
+    //     default.
+    //   - Preview STILL renders, using `FALLBACK_RESPONDENT_THEME` (same
+    //     constant the public renderer uses as tier-3 fallback). Marketing-
+    //     manager / survey-creator role isn't blocked waiting for an admin.
+    //   - Theme picker fieldset is hidden — there's nothing to pick from
+    //     until an admin seeds themes.
+    //   - Chrome matrix below is theme-independent and continues to render.
+    //   - Copy is RBAC-neutral: points at the admin role rather than
+    //     deeplinking to org settings (survey creator may not have access).
 
-    it('renders an explicit empty-state message when themes=[]', () => {
+    it('renders an informational empty-state banner when themes=[]', () => {
       renderTab({ themes: [] })
-      // Anchor on a phrase from the new copy. Keep loose enough that minor
-      // wording changes don't flake the assertion.
       expect(
-        screen.getByText(/no themes are configured for this brand/i),
+        screen.getByText(/there are no themes defined for your brand/i),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/defaulting to the customerEQ default theme/i),
       ).toBeInTheDocument()
     })
 
-    it('tells the operator to contact an administrator (RBAC-neutral — no outbound link)', () => {
+    it('tells the operator administrators can set themes in Settings → Organization (no outbound link)', () => {
       renderTab({ themes: [] })
       expect(
-        screen.getByText(/contact a brand administrator/i),
+        screen.getByText(/themes can be set by administrators/i),
       ).toBeInTheDocument()
-      // No link to Organization Settings — survey-creator RBAC may not allow it.
+      // No live link — survey-creator role may not have org-settings access.
       expect(
-        screen.queryByRole('link', { name: /organization settings/i }),
+        screen.queryByRole('link', { name: /organization/i }),
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('link', { name: /open themes/i }),
       ).not.toBeInTheDocument()
     })
 
-    it('does NOT render the desktop or mobile preview panes when themes=[]', () => {
-      // Previously the preview containers still rendered with just their
-      // labels but no <PreviewSurvey> child — two side-by-side blank boxes
-      // with no explanation. The empty state replaces them entirely with
-      // the single message.
+    it('still renders the desktop and mobile preview panes (using CustomerEQ default fallback) when themes=[]', () => {
+      // The preview is not blocked — it falls back to FALLBACK_RESPONDENT_THEME
+      // so the operator can preview their survey content even before themes
+      // are seeded for the brand.
       renderTab({ themes: [] })
-      expect(screen.queryByTestId('preview-desktop')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('preview-mobile')).not.toBeInTheDocument()
+      expect(screen.getByTestId('preview-desktop')).toBeInTheDocument()
+      expect(screen.getByTestId('preview-mobile')).toBeInTheDocument()
     })
 
-    it('still renders the chrome matrix when themes=[] (it does not depend on themes)', () => {
-      // The Chrome matrix below the preview is theme-independent — toggling
-      // logo/name/title for each channel doesn't require any theme to exist.
-      // Don't accidentally hide it as part of the empty-state branch.
+    it('hides the theme picker fieldset when themes=[] (nothing to pick from)', () => {
+      renderTab({ themes: [] })
+      expect(
+        screen.queryByRole('radiogroup', { name: /theme/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('still renders the chrome matrix when themes=[] (theme-independent)', () => {
       renderTab({ themes: [] })
       expect(screen.getByTestId('chrome-matrix')).toBeInTheDocument()
     })

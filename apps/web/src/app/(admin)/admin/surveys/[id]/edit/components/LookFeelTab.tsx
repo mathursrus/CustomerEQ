@@ -16,6 +16,8 @@
 
 import { useMemo, useState } from 'react'
 
+import { FALLBACK_RESPONDENT_THEME } from '@customerEQ/shared'
+
 import { PreviewSurvey } from '@/components/survey-form/PreviewSurvey'
 import {
   DEFAULT_CHROME_MATRIX,
@@ -93,6 +95,16 @@ export function LookFeelTab({
     [themes, selectedThemeId],
   )
 
+  // Issue #405 — same fallback chain the public renderer uses
+  // (`apps/api/src/routes/public.ts` GET handler). When the brand has no
+  // themes seeded, the editor preview falls back to the canonical
+  // CustomerEQ default (`FALLBACK_RESPONDENT_THEME` from @customerEQ/shared,
+  // same source of truth as the seed payload). This unblocks the marketing-
+  // manager / survey-creator role: they can iterate on a real preview
+  // without waiting on an admin to seed themes. Once an admin seeds, the
+  // selected theme takes over.
+  const previewTheme: BrandThemeLite = theme ?? FALLBACK_RESPONDENT_THEME
+
   const previewSurvey = useMemo(
     () => toSurveyResolved(survey, chromeMatrix),
     [survey, chromeMatrix],
@@ -144,54 +156,60 @@ export function LookFeelTab({
         })}
       </div>
 
-      {/* Issue #405 — empty-state guard. When the brand has no themes
+      {/* Issue #405 — informational banner when the brand has no themes
           configured (pre-#307 brands like ArtistOS, or any future path that
-          fails to seed), render a single explanatory message in place of
-          the two blank preview boxes + empty radiogroup. RBAC-neutral copy:
-          a future survey-creator role may not have access to Organization
-          Settings, so we don't deeplink — we tell them to escalate. */}
-      {themes.length === 0 ? (
+          failed to seed). NOT blocking: the preview below still renders
+          using the CustomerEQ default theme (same `FALLBACK_RESPONDENT_THEME`
+          the public renderer uses as its third-tier fallback). RBAC-neutral
+          copy — survey-creator role may not have access to Organization
+          Settings, so we point at the admin role rather than deeplinking. */}
+      {themes.length === 0 && (
         <div
           data-testid="themes-empty-state"
           role="status"
-          className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          className="rounded-md border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900"
         >
-          <p className="font-medium">No themes are configured for this brand yet.</p>
+          <p className="font-medium">
+            There are no themes defined for your brand. Defaulting to the
+            CustomerEQ default theme.
+          </p>
           <p className="mt-1">
-            Survey previews can&apos;t render until at least one theme exists for the
-            brand. Contact a brand administrator to set one up.
+            Themes can be set by administrators in <strong>Settings → Organization</strong>.
           </p>
         </div>
-      ) : (
-        <>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {(['desktop', 'mobile'] as const).map((viewport) => (
-              <div
-                key={viewport}
-                data-testid={`preview-${viewport}`}
-                data-channel={activeChannel}
-                data-viewport={viewport}
-                className="rounded-md border border-gray-200 bg-gray-50 p-3"
-              >
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-                  {viewport === 'desktop' ? 'Desktop preview' : 'Mobile preview (375px)'}
-                </p>
-                {theme && (
-                  <PreviewSurvey
-                    survey={previewSurvey}
-                    theme={theme}
-                    brand={brand}
-                    channel={activeChannel}
-                    viewport={viewport}
-                    readOnly
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+      )}
 
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-900">Theme</legend>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {(['desktop', 'mobile'] as const).map((viewport) => (
+          <div
+            key={viewport}
+            data-testid={`preview-${viewport}`}
+            data-channel={activeChannel}
+            data-viewport={viewport}
+            className="rounded-md border border-gray-200 bg-gray-50 p-3"
+          >
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+              {viewport === 'desktop' ? 'Desktop preview' : 'Mobile preview (375px)'}
+            </p>
+            <PreviewSurvey
+              survey={previewSurvey}
+              theme={previewTheme}
+              brand={brand}
+              channel={activeChannel}
+              viewport={viewport}
+              readOnly
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Issue #405 — Theme picker only renders when there are themes to
+          pick from. When themes=[] the preview above falls back to the
+          CustomerEQ default theme and no per-survey override is possible
+          until an admin seeds brand themes. */}
+      {themes.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-gray-900">Theme</legend>
             <p className="text-xs text-gray-500">
               Pick from any theme defined for your brand. The brand&apos;s default
               theme is selected automatically; you can override per survey.
@@ -252,8 +270,7 @@ export function LookFeelTab({
                 )
               })}
             </div>
-          </fieldset>
-        </>
+        </fieldset>
       )}
 
       <fieldset className="space-y-2">

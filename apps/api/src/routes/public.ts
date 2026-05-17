@@ -7,37 +7,10 @@ import { extractOpenEndedText } from '../utils/survey.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import { getConsentTextForSurvey } from '../services/consentResolver.js'
 import { buildEnrollmentSignals } from '../services/enrollmentSignals.js'
-import { DEFAULT_THEMES } from '../lib/default-themes.js'
+import { FALLBACK_RESPONDENT_THEME } from '../lib/default-themes.js'
 
 const API_BASE_URL =
   process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
-
-// Issue #405 — final-tier fallback for the public renderer's theme
-// resolution chain (Survey.themeId → Brand.defaultThemeId → this constant).
-// Built from `DEFAULT_THEMES[0]` (the canonical "Indigo" CustomerEQ default)
-// so the fallback shares a single source of truth with the seed payload
-// used by the lazy-upsert (admin-brand-profile.ts), the org.created webhook
-// path (when #239 lands), and the one-off backfill script.
-//
-// Typography defaults match the Prisma BrandTheme schema's `@default(...)`
-// (packages/database/prisma/schema.prisma:719-726) so a fallback render is
-// visually indistinguishable from a real seeded Indigo row. In practice
-// this tier is almost never hit after lazy-upsert + backfill — every brand
-// ends up with seeded themes + a non-null defaultThemeId. It exists so the
-// public renderer never returns null for `theme`, even under a degenerate
-// state (brand wiped manually, race during theme delete, etc.). The id
-// sentinel makes that origin obvious in logs and any client-side analytics.
-const FALLBACK_RESPONDENT_THEME = {
-  id: '__customereq_default_indigo__',
-  ...DEFAULT_THEMES[0],
-  fontFamily: 'system-ui',
-  headingSize: 'md',
-  bodySize: 'md',
-  cardStyle: 'shadow',
-  borderRadius: 'md',
-  maxWidth: 'md',
-  backgroundImageUrl: null,
-} as const
 
 // Issue #231 PR2 — survey response submission schema.
 //
