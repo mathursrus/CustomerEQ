@@ -79,10 +79,11 @@
 - **Comment**: "Even if we had predicate, how would it change the Tokens to mint? Would it not always be same as audience count after filter?"
 - **Implication**: the spec text is faulty — tokens-to-mint always equals audience count (predicate or no predicate). Reframe: drop the "with predicates removed" rationale; the redundancy was never about predicates, it was about not having two counters for the same number. Simplify the spec text.
 
-#### Comment R3-9 — UNADDRESSED — [r3252442601](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252442601)
+#### Comment R3-9 — ADDRESSED (Round 3.1, post-PR-pushback) — [r3252442601](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252442601)
 - **Spec line**: 137 (§2.6 / mock URL)
 - **Comment**: "Note: We are not yet offering custom domains for brands. The URL should include the correct domain."
-- **Implication**: mock URLs use the standard CustomerEQ domain (e.g., `https://app.customereq.io/s/...`), not branded subdomain (`acmecoffee.customereq.io/s/...`). Update mock scenes 1, 3, 4, 5, 6 accordingly.
+- **Round-3 (wrong) implication**: mock URLs use `https://app.customereq.io/s/...` (no brand subdomain). **Status: rejected by user on 2026-05-17 — *"app.customereq.io is NOT the correct domain. Check how the Survey distribution URLs are created."***
+- **Round 3.1 correction**: audited URL-construction sites in code (`apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx:109`, `apps/api/src/routes/developer.ts:9,43`, `apps/api/src/routes/public.ts:656-657`, `apps/worker/src/processors/loyaltyEvents.ts:333`, `apps/demo-storefront/src/app/survey/[id]/page.tsx:8`). Every site uses `${configured-frontend-host}/survey/{id}`. No `app.` subdomain. Path is `/survey/<id>`, not `/s/<id>`. Current deployed host value is `customereq.wellnessatwork.me` (naming may shift later; nothing registered). Mock + spec updated to `https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2/r/<token>` across all 5 scene URLs + §2.6 CSV merge-tag example + §4 URL shape + §3.1 batch detail + §6 validation plan + GDPR Art. 5(1)(c) + Alternatives table.
 
 #### Comment R3-11 — UNADDRESSED — [r3252456045](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252456045)
 - **Spec line**: 139 (§2.6 — Filename)
