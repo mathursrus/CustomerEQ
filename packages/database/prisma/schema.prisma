@@ -176,11 +176,12 @@ enum ConsentMode {
 }
 
 enum MemberEnrolledVia {
-  MANUAL_API       // integrator POST /v1/members/enroll
-  BULK_IMPORT      // bulk migration import
-  SURVEY_RESPONSE  // auto-enrolled via standalone survey link/email — responder self-identified on form
-  EMBEDDED_FORM    // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
-  CLERK_OAUTH      // signup via Clerk webhook
+  MANUAL_API         // integrator POST /v1/members/enroll
+  BULK_IMPORT        // bulk migration import
+  SURVEY_RESPONSE    // auto-enrolled via standalone survey link/email — responder self-identified on form
+  EMBEDDED_FORM      // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
+  CLERK_OAUTH        // signup via Clerk webhook
+  BULK_DISTRIBUTION  // Issue #378 — auto-enrolled via Custom List batch generation
 }
 
 enum ResponsePolicy {
@@ -352,7 +353,8 @@ model Member {
   conversations        Conversation[]
   notes                MemberNote[]
   externalSignals      ExternalSignal[]
-  surveyDistributions  SurveyDistribution[] // Issue #117
+  surveyDistributions  SurveyDistribution[]      // Issue #117
+  distributionTokens   SurveyDistributionToken[] // Issue #378 — tokenized distribution batches
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -633,11 +635,12 @@ model Survey {
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?        // Issue #332 — soft delete (matches Program/Member/Reward convention)
 
-  responses     SurveyResponse[]
-  surveyRules   SurveyRule[]         // response-to-action rules (Issue #80)
-  campaigns     Campaign[]           // campaigns linked to this survey (Issue #80)
-  distributions SurveyDistribution[] // triggered distribution records (Issue #117)
-  importBatches SurveyImportBatch[]  // historical import batches (Issue #262)
+  responses           SurveyResponse[]
+  surveyRules         SurveyRule[]              // response-to-action rules (Issue #80)
+  campaigns           Campaign[]                // campaigns linked to this survey (Issue #80)
+  distributions       SurveyDistribution[]      // triggered distribution records (Issue #117)
+  importBatches       SurveyImportBatch[]       // historical import batches (Issue #262)
+  distributionBatches DistributionBatch[]       // Issue #378 — tokenized distribution waves
 
   @@index([brandId, status])
   @@index([brandId, triggerKey, status]) // survey distribution lookup (Issue #117)
@@ -647,17 +650,67 @@ model Survey {
 // ─── Issue #117: Survey Trigger Distribution ──────────────────────────────────
 
 model SurveyDistribution {
-  id        String   @id @default(cuid())
+  id        String             @id @default(cuid())
   surveyId  String
-  survey    Survey   @relation(fields: [surveyId], references: [id])
+  survey    Survey             @relation(fields: [surveyId], references: [id])
   memberId  String
-  member    Member   @relation(fields: [memberId], references: [id])
+  member    Member             @relation(fields: [memberId], references: [id])
   brandId   String
-  sentAt    DateTime @default(now())
+  sentAt    DateTime           @default(now())
+  // Issue #378 — tokenized distribution batches. Null for legacy and
+  // share-link / embed rows; required for rows written by token-mint.
+  batchId   String?
+  batch     DistributionBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-  @@unique([surveyId, memberId]) // one active distribution record per member per survey
+  // Issue #378 — constraint moved from (surveyId, memberId) to (batchId, memberId).
+  // Postgres treats NULL as distinct in unique constraints, so all legacy rows
+  // (batchId IS NULL) coexist; share-link / embed rows continue to write
+  // batchId IS NULL and never collide.
+  @@unique([batchId, memberId])
   @@index([surveyId, memberId, sentAt]) // cooldown window query (Issue #117)
   @@map("survey_distributions")
+}
+
+// ─── Issue #378: Personalized survey links for BYO-email distribution ─────────
+
+model DistributionBatch {
+  id                 String                    @id @default(cuid())
+  surveyId           String
+  survey             Survey                    @relation(fields: [surveyId], references: [id])
+  brandId            String                    // tenant-scoped per project rule R6
+  label              String                    // operator-facing wave name; <Survey.title> · <YYYY-MM-DD>
+  surveyNameInMail   String                    // respondent-facing survey name flowing into CSV's `surveyName` column
+  audienceSpec       Json                      // mode + counts + identifiersResolved; see RFC §audienceSpec shape
+  expiresAt          DateTime                  // wave expiry stored as UTC; copied to every child token
+  samplingSeed       String?                   // internal infrastructure for V1 re-sample; null for Custom List
+  createdBy          String                    // clerk user id of the operator
+  createdAt          DateTime                  @default(now())
+
+  tokens             SurveyDistributionToken[]
+  distributions      SurveyDistribution[]
+  responses          SurveyResponse[]
+
+  @@index([surveyId, createdAt])               // filter-row dropdown query
+  @@index([brandId, expiresAt])                // future "expiring soon" surfaces
+  @@map("distribution_batches")
+}
+
+model SurveyDistributionToken {
+  id          String              @id @default(cuid())
+  batchId     String
+  batch       DistributionBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  memberId    String
+  member      Member              @relation(fields: [memberId], references: [id])
+  brandId     String              // tenant-scoped per project rule R6
+  tokenHash   String              @unique // SHA-256(plaintext); plaintext never stored
+  tokenPrefix String                      // first 8 chars of plaintext, display-only
+  expiresAt   DateTime                    // copied from DistributionBatch.expiresAt; updated atomically on Edit Expiry
+  consumedAt  DateTime?                   // single-use marker; set atomically with SurveyResponse write
+  responses   SurveyResponse[]            // reverse relation for optional FK on SurveyResponse
+
+  @@unique([batchId, memberId])           // one token per member per batch
+  @@index([batchId, consumedAt])          // batch-detail "responded vs awaiting" counters
+  @@map("survey_distribution_tokens")
 }
 
 // ─── Issue #80: Response-to-Action Rule Builder ───────────────────────────────
@@ -776,6 +829,14 @@ model SurveyResponse {
   importedAt           DateTime?          // original response timestamp from source
   externalRespondentId String?            // source-system respondent ID for deduplication
 
+  // Issue #378 — tokenized distribution batches. Both nullable: null for
+  // share-link / embed / import responses; populated when the response was
+  // authorized by a SurveyDistributionToken from a DistributionBatch.
+  distributionBatchId  String?
+  distributionBatch    DistributionBatch?       @relation(fields: [distributionBatchId], references: [id])
+  distributionTokenId  String?
+  distributionToken    SurveyDistributionToken? @relation(fields: [distributionTokenId], references: [id])
+
   // R2 — `@@unique([surveyId, memberId])` removed; policy-controlled by Survey.responsePolicy (R3).
   // #262 added a partial unique index `survey_responses_live_dedup` for live
   // rows (importBatchId IS NULL, memberId IS NOT NULL). Issue #336 Phase 11
@@ -786,6 +847,7 @@ model SurveyResponse {
   @@index([brandId, completedAt])
   @@index([clusterId])
   @@index([importBatchId])
+  @@index([distributionBatchId, completedAt]) // Issue #378 — "NPS by wave" aggregation
   @@map("survey_responses")
 }
 
