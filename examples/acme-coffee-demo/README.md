@@ -13,9 +13,10 @@ It's intentionally tiny: ~600 lines of HTML/CSS/JS + a 200-line Express backend 
 | 3 | View account | `GET /v1/members/:id/360` + `/balance` | "My Account" section |
 | 4 | Redeem reward | `GET /v1/rewards` + `POST /v1/redemptions` | "Redeem Rewards" section |
 | 5 | Submit feedback | Embedded `<script src=".../widget.js">` | "Feedback" section |
-| 6 | Server-trigger CSAT survey after a ticket closes | `POST /v1/public/surveys/trigger` | "Feedback" → "Simulate ticket resolved" |
-| 7 | Self-serve help (RAG over KB) | `POST /v1/kb/search` | "Help" section |
-| 8 | Internal CX ops dashboard | `GET /v1/analytics/cx` | "Ops Dashboard" section |
+| 6 | Self-serve help (RAG over KB) | `POST /v1/kb/search` | "Help" section |
+| 7 | Internal CX ops dashboard | `GET /v1/analytics/cx` | "Ops Dashboard" section |
+
+> **Retired in #378**: the prior server-trigger-CSAT-survey flow (`POST /v1/public/surveys/trigger`) was deleted to satisfy the no-PII-in-URL invariant. The replacement is operator-side: a brand admin uses the admin Distribute action on the survey detail page (Custom List of one identifier → tokenized URL → mail-merge via the brand's own ESP). For headless integrations, the future replacement is `POST /v1/surveys/:id/distribution-batches`, shipping in the implementation phase of #378.
 
 The tag line above each section (`CustomerEQ → POST /v1/events`) tells the audience exactly which endpoint is firing.
 
@@ -57,9 +58,10 @@ Open <http://localhost:5000> in a browser.
 3. **My Account → Refresh from CustomerEQ**. Points balance, recent events, surveys. This is `/v1/members/:id/360` rendered straight through — no Acme database involved.
 4. **Redeem Rewards → Load reward catalog**. Show that Acme is reading the catalog from CustomerEQ. Click Redeem on a reward; show the atomic ledger update on the member.
 5. **Feedback → embedded survey**. The widget is a single `<script>` tag — no SDK install. Submit a 9 score and a positive comment. Switch to admin → CX Analytics: NPS just moved.
-6. **Simulate "ticket resolved"** to fire `POST /v1/public/surveys/trigger`. Show the email-trigger flow that a real helpdesk would use.
-7. **Help → search "How do I redeem points?"** Demonstrates KB RAG search.
-8. **Ops Dashboard → Pull analytics**. Acme's internal team sees live CX numbers from CustomerEQ.
+6. **Help → search "How do I redeem points?"** Demonstrates KB RAG search.
+7. **Ops Dashboard → Pull analytics**. Acme's internal team sees live CX numbers from CustomerEQ.
+
+> The prior "Simulate ticket resolved" step was retired by #378 (no PII in URL). The replacement flow is operator-side: open the survey in the admin → Distribute → Custom List of one identifier → grab the tokenized URL → put it into the helpdesk's outbound email template. For headless integrations, the future `POST /v1/surveys/:id/distribution-batches` is the replacement endpoint.
 
 ## File map
 

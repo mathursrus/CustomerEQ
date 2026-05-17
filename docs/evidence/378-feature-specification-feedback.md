@@ -1,5 +1,181 @@
 # Feedback for Issue #378 — feature-specification workflow
 
+## Round 3 Feedback
+*Received: 2026-05-16 via 30 inline PR review comments on PR #385 (commit `cb00c7c`)*
+*Surface: spec body — line numbers below reference the Round-2.1 spec*
+*Reviewer: rmadhira86 (@manohar.madhira@outlook.com)*
+*Approach: agent captures all 30 items here; presents grouped synthesis + 4 clarifying Qs to user before mass-editing per L1 "pre-execution confirmation on multi-section rewrites".*
+
+### Theme A — Brand timezone propagation (5 items)
+
+#### Comment R3-1 — UNADDRESSED — [r3252411066](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252411066)
+- **Spec line**: 89 (§2.2 — Links expire in field)
+- **Comment**: "Date should be a datetime field with the expiration happening at midnight of the org's timezone set in organization settings - not UTC"
+- **Implication**: expiry default = EOD brand timezone (not UTC). Brand timezone lives in Organization Settings (per #277).
+
+#### Comment R3-8 — UNADDRESSED — [r3252440019](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252440019)
+- **Spec line**: 118 (§2.5 — Success banner)
+- **Comment**: "Tokens expire should include time and the timezone (from Brand's default time zone)"
+- **Implication**: Success banner expiry display shows time + brand timezone label (e.g., "2026-05-22 23:59 PT").
+
+#### Comment R3-13 — UNADDRESSED — [r3252467335](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252467335)
+- **Spec line**: 174 (§3.1 — Audience Spec member counts / Created at)
+- **Comment**: "Note: Time should be the Brand's default time zone and should be shown here. now() should also be based on the same time zone"
+- **Implication**: timestamps in batch detail (Created at, Members in audience now) display in brand timezone.
+
+#### Comment R3-19 — UNADDRESSED — [r3253132022](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253132022)
+- **Spec line**: 368 (R11 — Links expire in preset select)
+- **Comment**: "Expires at should default to EOD for the date calculated - not the time that user picks ExpiresAt. The time MUST be in Brand's default timezone indicated below the picker."
+- **Implication**: same as R3-1 — preset selections (7 days / 30 days / etc.) snap to EOD brand-TZ. Custom Date picker shows TZ label below input.
+
+#### Comment R3-21 — UNADDRESSED — [r3253146035](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253146035)
+- **Spec line**: 405 (R26 — Edit Expiry control)
+- **Comment**: "Expiry date behavior here should allow time selection. Timezone should be brand's default timezone and displayed below as text."
+- **Implication**: Edit Expiry picker permits both date AND time selection; brand TZ shown as helper text below.
+
+### Theme B — Custom List / CSV permissiveness (3 items)
+
+#### Comment R3-2 — UNADDRESSED — [r3252402311](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252402311)
+- **Spec line**: 76 (§2.1 — Upload CSV)
+- **Comment**: "Following the pattern of Import Survey results, we should be permissible about the format. We should be able to figure out the 2 or three columns we need from the headers or data. Enforcing rules of which column contains what burdens work for customers and brands"
+- **Implication**: CSV upload uses header-inference like Import Survey results (#262). Drop hard rule that first column must be identifier. Infer from headers (any of `email`, `e-mail`, `mail`, `phone`, `external_id`, `customer_id`, `member_id`, `first_name`, `firstName`, etc.) and from data shape.
+
+#### Comment R3-10 — UNADDRESSED — [r3252451056](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252451056)
+- **Spec line**: 76 (§2.1 — Upload CSV)
+- **Comment**: "Confirm if we have Azure Storage setup for accepting uploads. In previous spec, image upload was deemed not possible, but Import Survey data allows file upload."
+- **Implication**: verify Azure Storage availability before specifying file-upload in V0. If absent, fall back to paste-only (operator can paste a long comma-separated line from any CSV export). Investigation needed.
+
+#### Comment R3-18 — UNADDRESSED — [r3253096637](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253096637)
+- **Spec line**: 358 (R6 — Custom List paste parser)
+- **Comment**: "It should accept entries based on the Brand's Key Identifier, it email then Email. If Phone, then Phone, I memberID then member ID. The delimiters remain the same"
+- **Implication**: paste parser prefers `Brand.memberIdentifierKind` for ambiguous entries; the kind-inference fallback applies only when the line clearly isn't the brand's primary kind. Resolves Round-1 OQ1 (identifier disambiguation) directly — close OQ1.
+
+### Theme C — Preview behavior (3 items)
+
+#### Comment R3-3 — UNADDRESSED — [r3252424973](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252424973)
+- **Spec line**: 75 (§2.1 — Paste textarea)
+- **Comment**: "How many emails would this text area support?"
+- **Implication**: spec a paste-size cap. Suggest 10,000 entries (large enough for the BYO-email use case; small enough to render the preview without paginating madly). Question for user — clarifying Q3 below.
+
+#### Comment R3-4 — UNADDRESSED — [r3252429914](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252429914)
+- **Spec line**: 98 (§2.3 — preview block)
+- **Comment**: "How many are we showing. Mock says paginate to see all. Moderate POV, we allow them to see all, especially if user types in the text area and not paste. Viewing all will allow them to spot errors. If technical implementation is difficult, can show preview."
+- **Implication**: show ALL rows in the preview by default (esp. for typed/pasted Custom List where the operator wants to spot typos). Pagination kicks in only beyond a threshold (e.g., >500 rows). For Existing Members at large counts, the first-50 cap stays since the operator can't visually verify a random sample of 5,000 anyway.
+
+#### Comment R3-6 — UNADDRESSED — [r3252433929](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252433929)
+- **Spec line**: 98 (§2.3 — preview block)
+- **Comment**: "This data should be shown for both - the modes of member selection. This would enable user to verify the sampled member list."
+- **Implication**: confirm preview table renders for BOTH Existing Members AND Custom List modes (V2.1 spec already says this — verify it's clear).
+
+#### Comment R3-20 — UNADDRESSED — [r3253133969](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253133969)
+- **Spec line**: 369 (R12 — preview table)
+- **Comment**: "Clarify what is the pagination behavior"
+- **Implication**: same as R3-4 + R3-3 — pagination policy needs explicit acceptance criterion in R12.
+
+### Theme D — UI fixes (5 items)
+
+#### Comment R3-5 — UNADDRESSED — [r3252431695](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252431695)
+- **Spec line**: 104 (§2.3 — "No Tokens to mint counter")
+- **Comment**: "Even if we had predicate, how would it change the Tokens to mint? Would it not always be same as audience count after filter?"
+- **Implication**: the spec text is faulty — tokens-to-mint always equals audience count (predicate or no predicate). Reframe: drop the "with predicates removed" rationale; the redundancy was never about predicates, it was about not having two counters for the same number. Simplify the spec text.
+
+#### Comment R3-9 — UNADDRESSED — [r3252442601](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252442601)
+- **Spec line**: 137 (§2.6 / mock URL)
+- **Comment**: "Note: We are not yet offering custom domains for brands. The URL should include the correct domain."
+- **Implication**: mock URLs use the standard CustomerEQ domain (e.g., `https://app.customereq.io/s/...`), not branded subdomain (`acmecoffee.customereq.io/s/...`). Update mock scenes 1, 3, 4, 5, 6 accordingly.
+
+#### Comment R3-11 — UNADDRESSED — [r3252456045](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252456045)
+- **Spec line**: 139 (§2.6 — Filename)
+- **Comment**: "Filename should be <Survey Internal Name>-<YYYY-MM-DD>-links.csv, not <survey-slug>"
+- **Implication**: filename uses `Survey.name` (admin-internal label) sanitized for filesystems, not a slug.
+
+#### Comment R3-14 — UNADDRESSED — [r3252469542](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252469542)
+- **Spec line**: 188 (§3.1 — Re-download)
+- **Comment**: "For clarity - CSV should be pulled from the batch data. Tokens should not be regenerated"
+- **Implication**: re-download pulls existing batch state, never re-mints tokens. The CSV is the same per-token URLs the operator received at generate time (token hashes are stable; URLs reconstructible from token plaintext... wait, plaintext isn't stored — so this isn't quite right; see clarifying Q1 below).
+
+#### Comment R3-22 — UNADDRESSED — [r3253166993](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253166993)
+- **Spec line**: 421 (R13/R14 — Generate button)
+- **Comment**: "Generate button should be displayed and message displayed to user while generate is working. Estimated time should be based on the number of records"
+- **Implication**: Generate transitions to a loading state with progress message + estimated time before reaching Success state. Add to R13 acceptance criteria.
+
+### Theme E — Distribution batches filter & response data (1 item)
+
+#### Comment R3-12 — UNADDRESSED — [r3252464566](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252464566)
+- **Spec line**: 156 (§3 — filter row select)
+- **Comment**: "Note: There can be situations where a survey response is created without a batch and another with a batch - e.g. if Brand posts a survey on a website and also sends to specific members. All batches should show across both. If such a situation occurs, a <No batch> or <blank> should be shown to filter for non-batched survey responses."
+- **Implication**: filter dropdown includes a `<No batch>` / `<Shared link / embed>` option that scopes Response to `distributionBatchId IS NULL`. Important: confirms responses with no batch (share-link / embed sources) coexist with batch responses.
+
+### Theme F — Token data model edge cases (3 items)
+
+#### Comment R3-7 — UNADDRESSED — [r3252438964](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3252438964)
+- **Spec line**: 119 (§2.5 — explanatory line about one-response-per-wave)
+- **Comment**: "In V1.x, if Survey is set to multiple responses or latest updated, we may retrieve the previous response and allow respondents to edit."
+- **Implication**: add V1.x roadmap note — respondent-side edit of prior response on MULTIPLE / LATEST_OVERWRITES surveys. Captured in Non-goals.
+
+#### Comment R3-17 — UNADDRESSED — [r3253064631](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253064631)
+- **Spec line**: 268 (Data Model — `SurveyDistribution.@@unique([batchId, memberId])` migration note)
+- **Comment**: "What happens when the direct link is shared? Is a psuedo batch ID created, or does it stay null? If null, how would the constraint work?"
+- **Implication**: PostgreSQL unique constraints treat each NULL as distinct, so multiple `(NULL, memberId)` rows are allowed — the constraint enforces uniqueness only when both columns are non-null. The existing `(surveyId, memberId, sentAt)` query index handles cooldown for legacy/null-batch rows. Need to clarify this in the migration note + add an acceptance criterion: "Share-link / embed responses continue to write SurveyDistribution rows with `batchId = NULL`; no pseudo batch is created."
+
+#### Comment R3-15 — UNADDRESSED — [r3253046803](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253046803)
+- **Spec line**: 198 (§4 — note about ?email= being deprecated)
+- **Comment**: "?email= should be retired as part of this spec."
+- **Implication**: ?email= URL parameter on the standalone survey link path retired entirely in V0. **Verified in code**: `apps/api/src/routes/public.ts:248` comment says receiver-side is gone since Slice 5; but `apps/api/src/routes/public.ts:657` actively builds `?email=...` outbound URL in the `/v1/public/surveys/trigger` handler. **Design question — clarifying Q4 below**: how does the trigger endpoint change in V0?
+
+#### Comment R3-23 — UNADDRESSED — [r3253176176](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253176176)
+- **Spec line**: 514 (§5 — Existing surfaces / Alternatives)
+- **Comment**: "Contradictory claims in spec - saying legacy ?email= should be supported and ?email= was removed. Check from code and if it exists, it should be removed now."
+- **Implication**: same as R3-15. Resolve contradiction; trigger endpoint code path needs new URL shape.
+
+### Theme G — Brand support-email backlog (1 item)
+
+#### Comment R3-16 — UNADDRESSED — [r3253052690](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253052690)
+- **Spec line**: 200 (§4 — error-state copy)
+- **Comment**: "Check if there is an existing Issue, else create a backlog to capture SupportEMail in the Organization Setting and change this text in that Issue to Brand.supportEmail if present."
+- **Implication**: search GitHub issues for "supportEmail" / "support email" in Organization Settings context; file a new backlog issue if absent. The note remains in #378 spec to surface "contact the sender" as the V0 fallback when Brand.supportEmail is not yet captured.
+
+### Theme H — Validation plan strengthening (1 item)
+
+#### Comment R3-24 — UNADDRESSED — [r3253179845](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253179845)
+- **Spec line**: 531 (Validation Plan)
+- **Comment**: "Functional Validation plan is weak - doesn't cover redownload, doesn't cover response side. Do a thorough review and add as needed"
+- **Implication**: thorough sweep of validation plan to cover: re-download invariance, response-side flows (each error state in §4, token-consumed atomicity, expiry edits propagating to tokens at submit time, audit-log completeness for response-submit), brand-timezone formatting checks.
+
+### Theme I — OQ resolutions (4 items)
+
+#### Comment R3-25 — RESOLVED (Agreed) — [r3253180970](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253180970)
+- **Spec line**: 607 (OQ-S1 — CSV `surveyName` column shape)
+- **Comment**: "Agreed"
+- **Resolution**: lock OQ-S1's proposed default — separate column. Update OQ-S1 to RESOLVED.
+
+#### Comment R3-26 — RESOLVED (Agreed) — [r3253181351](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253181351)
+- **Spec line**: 608 (OQ-S2 — RBAC for Edit Expiry)
+- **Comment**: "Agreed"
+- **Resolution**: lock OQ-S2's proposed default — same permission as `survey.distribute`. Update OQ-S2 to RESOLVED.
+
+#### Comment R3-27 — RESOLVED (nice-to-have) — [r3253181989](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253181989)
+- **Spec line**: 609 (OQ-S3 — low-response indicator)
+- **Comment**: "This is a nice to have."
+- **Resolution**: OQ-S3 moves from "out of V0 spec / RFC question" to "V1.x nice-to-have". Update OQ-S3 status accordingly; not blocking.
+
+#### Comment R3-28 — RESOLVED (with refinement) — [r3253183242](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253183242)
+- **Spec line**: 610 (OQ-S4 — multi-column CSV name resolution)
+- **Comment**: "Explicit columns win, except if the first Name / Last Name columns are empty"
+- **Resolution**: lock OQ-S4 with refinement — explicit columns win **only when non-empty**; bracketed-name form is the fallback for empty explicit columns. Update OQ-S4 to RESOLVED with the refined rule.
+
+### Theme J — Code-state verification (2 items)
+
+#### Comment R3-29 — INVESTIGATED — [r3253184149](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253184149)
+- **Spec line**: 614 (Competitive Analysis intro)
+- **Comment**: "This seems incorrect. Verify in code."
+- **Verification**: `grep "competitors" fraim/config.json` → **no matches**. The spec's claim *"CustomerEQ's `fraim/config.json` does not have a `competitors` list configured"* is **correct** — no change needed to the spec text itself, but the directive flows into R3-30 below.
+
+#### Comment R3-30 — UNADDRESSED — [r3253191551](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253191551)
+- **Spec line**: 694 (Config recommendations block)
+- **Comment**: "Check and add"
+- **Implication**: paired with R3-29 — add the 8-competitor block to `fraim/config.json` in this same PR (not as a chore-issue split per Rule 26). Bundles with this issue's scope per the user directive; supersedes my Round-1 PR-body Decision 1a recommendation.
+
 ## Round 2 Feedback
 *Received: 2026-05-15 via chat with manohar.madhira@outlook.com*
 *Surface: post-Round-2-rewrite mock review (spec rewrite paused until alignment)*
