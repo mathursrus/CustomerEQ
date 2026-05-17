@@ -42,5 +42,5 @@ ENV NODE_ENV=production
 ENV API_PORT=4000
 ENV API_HOST=0.0.0.0
 
-RUN chmod +x /app/apps/api/docker-entrypoint.sh
+RUN chmod +x /app/apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint-migrate.sh
 CMD ["/app/apps/api/docker-entrypoint.sh"]
