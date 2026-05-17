@@ -120,14 +120,12 @@ export class CustomerEQ {
   }
 
   // ── Surveys ───────────────────────────────────────────────────────────
-  //
-  // Issue #378: the legacy `triggerSurvey()` wrapper (POST /v1/public/surveys/trigger)
-  // is retired. The replacement is the brand-side admin Distribute action — a marketing
-  // manager goes to the survey detail page → "Send via my email tool" → picks Custom List
-  // → pastes one identifier → gets a tokenized URL in the CSV → sends from their ESP.
-  // For headless brand-side triggers (e.g., ticket-close webhooks), the future shape is
-  // POST /v1/surveys/:id/distribution-batches with a one-member Custom List; that endpoint
-  // ships in the implementation phase of #378 and the SDK regains a method then.
+  triggerSurvey({ memberEmail, surveyId, source = 'acme-coffee' }) {
+    return this.request('POST', '/v1/public/surveys/trigger', {
+      publicRoute: true,
+      body: { memberEmail, surveyId, source },
+    })
+  }
 
   // ── CRM notes ─────────────────────────────────────────────────────────
   addMemberNote({ memberId, body, category = 'note', sentiment = 'neutral', author }) {

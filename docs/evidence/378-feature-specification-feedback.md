@@ -118,12 +118,12 @@
 - **Comment**: "What happens when the direct link is shared? Is a psuedo batch ID created, or does it stay null? If null, how would the constraint work?"
 - **Implication**: PostgreSQL unique constraints treat each NULL as distinct, so multiple `(NULL, memberId)` rows are allowed — the constraint enforces uniqueness only when both columns are non-null. The existing `(surveyId, memberId, sentAt)` query index handles cooldown for legacy/null-batch rows. Need to clarify this in the migration note + add an acceptance criterion: "Share-link / embed responses continue to write SurveyDistribution rows with `batchId = NULL`; no pseudo batch is created."
 
-#### Comment R3-15 — UNADDRESSED — [r3253046803](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253046803)
+#### Comment R3-15 — DESIGN ADDRESSED IN SPEC; IMPL-PHASE COMMITS PENDING — [r3253046803](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253046803)
 - **Spec line**: 198 (§4 — note about ?email= being deprecated)
 - **Comment**: "?email= should be retired as part of this spec."
 - **Implication**: ?email= URL parameter on the standalone survey link path retired entirely in V0. **Verified in code**: `apps/api/src/routes/public.ts:248` comment says receiver-side is gone since Slice 5; but `apps/api/src/routes/public.ts:657` actively builds `?email=...` outbound URL in the `/v1/public/surveys/trigger` handler. **Design question — clarifying Q4 below**: how does the trigger endpoint change in V0?
 
-#### Comment R3-23 — UNADDRESSED — [r3253176176](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253176176)
+#### Comment R3-23 — DESIGN ADDRESSED IN SPEC; IMPL-PHASE COMMITS PENDING — [r3253176176](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253176176)
 - **Spec line**: 514 (§5 — Existing surfaces / Alternatives)
 - **Comment**: "Contradictory claims in spec - saying legacy ?email= should be supported and ?email= was removed. Check from code and if it exists, it should be removed now."
 - **Implication**: same as R3-15. Resolve contradiction; trigger endpoint code path needs new URL shape.
@@ -171,7 +171,7 @@
 - **Comment**: "This seems incorrect. Verify in code."
 - **Verification**: `grep "competitors" fraim/config.json` → **no matches**. The spec's claim *"CustomerEQ's `fraim/config.json` does not have a `competitors` list configured"* is **correct** — no change needed to the spec text itself, but the directive flows into R3-30 below.
 
-#### Comment R3-30 — UNADDRESSED — [r3253191551](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253191551)
+#### Comment R3-30 — DESIGN ADDRESSED IN SPEC; IMPL-PHASE COMMIT PENDING — [r3253191551](https://github.com/mathursrus/CustomerEQ/pull/385#discussion_r3253191551)
 - **Spec line**: 694 (Config recommendations block)
 - **Comment**: "Check and add"
 - **Implication**: paired with R3-29 — add the 8-competitor block to `fraim/config.json` in this same PR (not as a chore-issue split per Rule 26). Bundles with this issue's scope per the user directive; supersedes my Round-1 PR-body Decision 1a recommendation.

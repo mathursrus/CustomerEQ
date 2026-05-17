@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { generateWidgetJs, PublicSurveyResponseSchema } from './public.js'
+import { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema } from './public.js'
 
 // ---------------------------------------------------------------------------
 // PublicSurveyResponseSchema validation
@@ -74,8 +74,43 @@ describe('PublicSurveyResponseSchema', () => {
   })
 })
 
-// Issue #378: SurveyTriggerSchema and its describe block deleted — the
-// /v1/public/surveys/trigger endpoint is retired in V0.
+// ---------------------------------------------------------------------------
+// SurveyTriggerSchema validation
+// ---------------------------------------------------------------------------
+
+describe('SurveyTriggerSchema', () => {
+  it('accepts valid trigger payload', () => {
+    const result = SurveyTriggerSchema.safeParse({
+      memberEmail: 'test@example.com',
+      surveyId: 'survey-123',
+      source: 'zendesk',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts without optional source', () => {
+    const result = SurveyTriggerSchema.safeParse({
+      memberEmail: 'test@example.com',
+      surveyId: 'survey-123',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects missing surveyId', () => {
+    const result = SurveyTriggerSchema.safeParse({
+      memberEmail: 'test@example.com',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty surveyId', () => {
+    const result = SurveyTriggerSchema.safeParse({
+      memberEmail: 'test@example.com',
+      surveyId: '',
+    })
+    expect(result.success).toBe(false)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // generateWidgetJs
