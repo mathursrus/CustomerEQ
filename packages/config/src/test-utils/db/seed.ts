@@ -37,6 +37,13 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
   await deleteAll(prisma.surveyResponse)
   await deleteAll((prisma as any).surveyImportBatch)
   await deleteAll(prisma.feedbackCluster)
+  // Issue #378 — tokenized distribution batches. Order: tokens first
+  // (memberId FK RESTRICT), then SurveyDistribution (surveyId / memberId FK
+  // RESTRICT), then DistributionBatch (surveyId FK RESTRICT). Delete before
+  // Survey so the Survey deleteMany can proceed.
+  await deleteAll((prisma as any).surveyDistributionToken)
+  await deleteAll((prisma as any).surveyDistribution)
+  await deleteAll((prisma as any).distributionBatch)
   await deleteAll(prisma.survey)
   await deleteAll((prisma as any).message)
   await deleteAll((prisma as any).conversation)
