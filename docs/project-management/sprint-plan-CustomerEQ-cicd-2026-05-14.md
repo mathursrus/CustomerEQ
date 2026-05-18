@@ -22,10 +22,11 @@ Scale: BV / TC / RR on 1–13 Fibonacci. WSJF = (BV + TC + RR) / Size.
 |----|------|----|----|----|------|------|--------|
 | D | Doc-only CI skip (main `ci` job) | 4 | 3 | 2 | 1 | 9.0 | **Do now** |
 | E | Move `pnpm audit` to weekly schedule | 3 | 2 | 3 | 1 | 8.0 | **Do now** |
-| A | Enable Turbo remote cache | 8 | 6 | 5 | 2 | 9.5 | **Do now** |
+| A | Enable Turbo remote cache | 8 | 6 | 5 | 2 | 9.5 | ✅ Done 2026-05-18 |
 | C | Split `lint` into parallel job | 5 | 4 | 3 | 2 | 6.0 | **Do now** |
 | G | Codecov coverage threshold | 5 | 3 | 6 | 1 | 14.0 | Parked — gap round |
 | B | Add `test:integration` to CI gate | 9 | 7 | 9 | 3 | 8.3 | Parked — gap round |
+| J | Move BAML LLM evals out of smoke path | 6 | 5 | 4 | 2 | 7.5 | Parked — gap round |
 | I | Nightly `test:baml` scheduled job | 5 | 3 | 5 | 5 | 2.6 | Parked — gap round |
 | F | Parallel Docker builds (matrix) | 5 | 3 | 3 | 5 | 2.2 | Parked — gap round |
 | H | Nightly E2E job | 8 | 4 | 8 | 13 | 1.5 | Parked — gap round |
@@ -55,6 +56,7 @@ Filed under the epic with label `status: future`. Ranked by WSJF within the park
 |----|------|------|--------------------|
 | G | Codecov coverage threshold | 14.0 | — (trivial; pull forward if gap round starts) |
 | B | `test:integration` in CI gate | 8.3 | — (DB already available in CI; needs step + config) |
+| J | Move BAML LLM evals out of smoke path | 7.5 | BAML evals currently block every CI run (~LLM RTT × 11 tests). Moving them to a dedicated optional/nightly job restores the ~33% wall-time saving that Turbo remote cache was expected to deliver but couldn't because tests dominate. Discovered 2026-05-18 during warm-cache measurement. |
 | I | Nightly `test:baml` scheduled job | 2.6 | `OPENAI_API_KEY` secret + spending cap policy |
 | F | Parallel Docker builds (matrix) | 2.2 | Medium refactor; validate cache coherence |
 | H | Nightly E2E job | 1.5 | High complexity; requires full stack + auth in CI |
