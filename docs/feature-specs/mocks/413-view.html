@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mock · #413 — "Powered by CustomerEQ" footer on every survey surface</title>
+<style>
+  /* ============================================================== */
+  /* Mock-page scaffolding (NOT part of the implementation spec)     */
+  /* ============================================================== */
+  :root {
+    --page-bg: #f3f4f6;
+    --page-fg: #111827;
+    --page-muted: #6b7280;
+    --page-border: #e5e7eb;
+    --page-card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 80px;
+    background: var(--page-bg); color: var(--page-fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .doc-wrap { max-width: 1080px; margin: 0 auto; }
+  .doc-title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .doc-sub { color: var(--page-muted); margin: 0 0 28px; font-size: 13px; }
+  .scene { background: var(--page-card); border: 1px solid var(--page-border); border-radius: 12px; padding: 24px; margin-bottom: 28px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .scene-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .scene-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #6366f1; color: white; border-radius: 50%; font-weight: 700; font-size: 13px; }
+  .scene-title { font-size: 16px; font-weight: 600; margin: 0; }
+  .scene-meta { font-size: 12px; color: var(--page-muted); margin: 0 0 18px; }
+  .scene-note { background: #fef3c7; border-left: 3px solid #f59e0b; padding: 8px 12px; font-size: 12px; color: #78350f; margin: 0 0 16px; border-radius: 4px; }
+  .scene-stage { background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px; padding: 32px 24px; min-height: 240px; display: flex; align-items: center; justify-content: center; }
+  .scene-stage--host { background: #e5e7eb; }
+  .scene-stage--email { background: #f1f5f9; padding: 24px; }
+  hr.scene-rule { border: none; border-top: 1px solid var(--page-border); margin: 36px 0; }
+
+  /* ============================================================== */
+  /* SURVEY CARD — theme-aware (Indigo seed theme)                   */
+  /*   Token values mirror apps/api/src/lib/default-themes.ts        */
+  /*   Indigo: primary=#6366f1, secondary=#818cf8, bg=#ffffff,        */
+  /*   text=#111827, button=#6366f1, accent=#6366f1, font=system-ui   */
+  /* ============================================================== */
+  .ceq-survey-card {
+    --ceq-primary-color: #6366f1;
+    --ceq-secondary-color: #818cf8;
+    --ceq-background-color: #ffffff;
+    --ceq-text-color: #111827;
+    --ceq-button-color: #6366f1;
+    --ceq-button-text-color: #ffffff;
+    --ceq-accent-color: #6366f1;
+    --ceq-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --ceq-heading-size: 24px;
+    --ceq-body-size: 16px;
+    --ceq-border-radius: 8px;
+    --ceq-max-width: 640px;
+    background: var(--ceq-background-color);
+    color: var(--ceq-text-color);
+    font-family: var(--ceq-font-family);
+    font-size: var(--ceq-body-size);
+    border-radius: var(--ceq-border-radius);
+    max-width: var(--ceq-max-width);
+    margin: 0 auto;
+    width: 100%;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .ceq-survey-body { padding: 24px 24px 8px; }
+  .ceq-survey-brand-name { color: var(--ceq-primary-color); font-size: var(--ceq-heading-size); font-weight: 600; margin: 0; }
+  .ceq-survey-title { color: var(--ceq-text-color); font-size: var(--ceq-heading-size); margin: 8px 0 20px; font-weight: 600; }
+  .ceq-question { margin-bottom: 20px; }
+  .ceq-question-label { display: block; color: var(--ceq-text-color); font-weight: 500; margin-bottom: 8px; }
+  .ceq-rating-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ceq-rating-pill { width: 36px; height: 36px; border: 1px solid var(--ceq-secondary-color); border-radius: var(--ceq-border-radius); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ceq-text-color); background: var(--ceq-background-color); }
+  .ceq-rating-pill[data-selected] { background: var(--ceq-accent-color); border-color: var(--ceq-accent-color); color: var(--ceq-button-text-color); }
+  .ceq-textarea { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid var(--ceq-secondary-color); border-radius: var(--ceq-border-radius); font-family: var(--ceq-font-family); font-size: var(--ceq-body-size); color: var(--ceq-text-color); }
+  .ceq-member-id-label { display: block; padding: 10px 12px; background: var(--ceq-background-color); border: 1px solid var(--ceq-secondary-color); border-radius: var(--ceq-border-radius); margin-bottom: 20px; }
+  .ceq-member-id-label > span { display: block; font-weight: 600; margin-bottom: 4px; }
+  .ceq-member-id-label > input { width: 100%; padding: 6px 8px; border: 1px solid var(--ceq-secondary-color); border-radius: var(--ceq-border-radius); }
+  .ceq-required { color: var(--ceq-accent-color); }
+  .ceq-submit { background: var(--ceq-button-color); color: var(--ceq-button-text-color); font-family: var(--ceq-font-family); font-size: var(--ceq-body-size); padding: 10px 20px; border: none; border-radius: var(--ceq-border-radius); cursor: pointer; }
+
+  /* ------------------------------------------------------- */
+  /* THE FOOTER — CANONICAL TREATMENT                         */
+  /* Pattern adopted from mocks/36-theme-editor.html L148-149 */
+  /* Theme-aware: text uses --ceq-text-color at 0.55 opacity  */
+  /* Anchor:                                  at 0.85 opacity  */
+  /* ------------------------------------------------------- */
+  .ceq-powered-by {
+    text-align: center;
+    padding: 12px 16px;
+    font-family: var(--ceq-font-family, system-ui);
+    /* font-size is 75% of the theme body size, with a 10.5–13.5 px effective range */
+    font-size: calc(var(--ceq-body-size, 16px) * 0.75);
+    border-top: 1px solid rgba(0,0,0,0.04);
+    color: var(--ceq-text-color, #111827);
+    opacity: 0.55;
+    margin: 0;
+  }
+  .ceq-powered-by a {
+    color: var(--ceq-text-color, #111827);
+    opacity: 0.85;
+    text-decoration: none;
+    /* opacity stacks visually — anchor reads slightly darker than the prefix */
+    /* Underline-on-hover is the affordance, NOT color alone */
+  }
+  .ceq-powered-by a:hover,
+  .ceq-powered-by a:focus-visible {
+    text-decoration: underline;
+  }
+  .ceq-powered-by a:focus-visible {
+    /* WCAG 2.4.7 — focus indicator visible per RFC #241 §"Focus-visible outline" */
+    outline: 2px solid var(--ceq-primary-color, #6366f1);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* ============================================================== */
+  /* NON-THEMED FOOTER — used by widget, email, pre-theme states     */
+  /* ============================================================== */
+  .ceq-powered-by--neutral {
+    color: #6b7280;
+    opacity: 1;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 11px;
+  }
+  .ceq-powered-by--neutral a {
+    color: #374151;
+    opacity: 1;
+  }
+  .ceq-powered-by--neutral a:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+  }
+
+  /* ============================================================== */
+  /* Scene 3 — Already-responded amber chrome                        */
+  /* ============================================================== */
+  .state-card { max-width: 480px; margin: 0 auto; width: 100%; border-radius: 12px; overflow: hidden; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .state-card--duplicate { background: #fffbeb; border: 1px solid #fde68a; }
+  .state-card--duplicate .state-card-body { padding: 28px 24px; text-align: center; }
+  .state-card--duplicate h2 { color: #92400e; margin: 0 0 8px; font-size: 18px; }
+  .state-card--duplicate p { color: #b45309; margin: 0; font-size: 14px; }
+
+  .state-card--error { background: #fef2f2; border: 1px solid #fecaca; }
+  .state-card--error .state-card-body { padding: 28px 24px; text-align: center; }
+  .state-card--error h2 { color: #991b1b; margin: 0 0 8px; font-size: 18px; }
+  .state-card--error p { color: #b91c1c; margin: 0; font-size: 14px; }
+
+  .state-card--thank { /* uses theme tokens via inline override below */ }
+  .state-card--loading { background: white; border: 1px solid var(--page-border); }
+  .state-card--loading .state-card-body { padding: 48px 24px; display: flex; align-items: center; justify-content: center; }
+  .spinner { width: 32px; height: 32px; border-radius: 50%; border: 4px solid #e0e7ff; border-top-color: #6366f1; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================== */
+  /* Scene 6 — Widget embedded in host site                          */
+  /*   (matches generated CSS from generateWidgetJs)                 */
+  /* ============================================================== */
+  .host-site { background: #e5e7eb; padding: 32px 24px; border-radius: 8px; }
+  .host-site-fake-content { color: #6b7280; font-size: 13px; max-width: 600px; margin: 0 auto 16px; padding: 16px; background: white; border-radius: 6px; border: 1px solid #d1d5db; }
+  .host-site-fake-content::before { content: ""; display: block; width: 60%; height: 8px; background: #d1d5db; border-radius: 4px; margin-bottom: 8px; }
+  .host-site-fake-content::after { content: ""; display: block; width: 80%; height: 8px; background: #e5e7eb; border-radius: 4px; }
+  .ceq-widget {
+    /* Matches generateWidgetJs container style */
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    max-width: 480px; margin: 20px auto 0; background: white;
+    border: 1px solid #e5e7eb; border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  .ceq-widget-body { padding: 24px; }
+  .ceq-widget h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; color: #111827; }
+  .ceq-widget label { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 500; color: #374151; }
+  .ceq-widget-rating { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .ceq-widget-rating button { width: 36px; height: 36px; border: 1px solid #d1d5db; border-radius: 8px; background: white; font-size: 14px; color: #374151; cursor: pointer; }
+  .ceq-widget-rating button[data-selected] { background: #6366f1; border-color: #6366f1; color: white; }
+  .ceq-widget input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; margin-bottom: 16px; box-sizing: border-box; }
+  .ceq-widget button.ceq-widget-submit { width: 100%; padding: 10px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+  /* ============================================================== */
+  /* Scene 7 — Email body                                             */
+  /* ============================================================== */
+  .email-mock { max-width: 600px; margin: 0 auto; background: white; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-family: Arial, Helvetica, sans-serif; overflow: hidden; }
+  .email-mock-header { padding: 12px 18px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+  .email-mock-header strong { color: #111827; }
+  .email-mock-body { padding: 24px 24px 8px; color: #111827; font-size: 14px; line-height: 1.55; }
+  .email-mock-body h2 { font-size: 18px; margin: 0 0 12px; color: #111827; }
+  .email-mock-cta { display: inline-block; margin: 12px 0; padding: 10px 18px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; }
+  .email-mock-footer { padding: 12px 16px 16px; text-align: center; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; font-family: Arial, Helvetica, sans-serif; }
+  .email-mock-footer a { color: #374151; text-decoration: none; }
+
+  /* ============================================================== */
+  /* Scene 8 — Focus state close-up                                  */
+  /* ============================================================== */
+  .focus-demo { background: white; border: 1px solid var(--page-border); border-radius: 8px; padding: 24px; max-width: 480px; margin: 0 auto; }
+  .focus-demo p { color: #6b7280; font-size: 12px; margin: 0 0 12px; }
+  .focus-demo .ceq-powered-by a {
+    /* Force focus state for the screenshot */
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+    border-radius: 2px;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div class="doc-wrap">
+
+  <h1 class="doc-title">Mock · Issue #413 — "Powered by CustomerEQ" footer on every survey surface</h1>
+  <p class="doc-sub">
+    Canonical visual + DOM for the platform-attribution footer.
+    Theme-aware on the React renderer (Indigo seed theme below); non-themed neutral on the widget JS, email body, and pre-theme states.
+    The mock is the spec — every visible element should ship verbatim.
+  </p>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 1 — Direct link · Active questions (themed)               -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">1</span>
+      <h2 class="scene-title">Direct link · Active questions</h2>
+    </div>
+    <p class="scene-meta">
+      <code>apps/web/src/app/survey/[id]/page.tsx</code> active-form branch (L336+) →
+      <code>SurveyFormRenderer</code> with <code>channel="standalone"</code> · <strong>Indigo</strong> seed theme · footer themed via <code>--ceq-text-color</code> at 0.55 opacity.
+    </p>
+    <div class="scene-stage">
+      <div class="ceq-survey-card">
+        <div class="ceq-survey-body">
+          <p class="ceq-survey-brand-name">Acme Corp</p>
+          <h2 class="ceq-survey-title">How likely are you to recommend Acme to a friend?</h2>
+
+          <label class="ceq-member-id-label">
+            <span>Your email <span class="ceq-required">*</span></span>
+            <input type="email" placeholder="you@example.com" value="alex@example.com">
+          </label>
+
+          <div class="ceq-question">
+            <span class="ceq-question-label">On a scale of 0 to 10, how likely?</span>
+            <div class="ceq-rating-row">
+              <span class="ceq-rating-pill">0</span><span class="ceq-rating-pill">1</span><span class="ceq-rating-pill">2</span>
+              <span class="ceq-rating-pill">3</span><span class="ceq-rating-pill">4</span><span class="ceq-rating-pill">5</span>
+              <span class="ceq-rating-pill">6</span><span class="ceq-rating-pill">7</span><span class="ceq-rating-pill">8</span>
+              <span class="ceq-rating-pill" data-selected>9</span><span class="ceq-rating-pill">10</span>
+            </div>
+          </div>
+
+          <div class="ceq-question">
+            <span class="ceq-question-label">What's the primary reason for your score?</span>
+            <textarea class="ceq-textarea" readonly>The new dashboard saves me hours.</textarea>
+          </div>
+
+          <button class="ceq-submit" type="button">Submit</button>
+        </div>
+
+        <!-- FOOTER -->
+        <p class="ceq-powered-by" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 2 — Direct link · Thank you (neutral, standalone page)    -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">2</span>
+      <h2 class="scene-title">Direct link · Thank you (standalone)</h2>
+    </div>
+    <p class="scene-meta">
+      <code>apps/web/src/app/survey/[id]/page.tsx</code> submitted branch (~L153-166) · neutral state-card chrome (Tailwind <code>bg-white</code>) · <strong>neutral</strong> footer.
+    </p>
+    <p class="scene-note">
+      <strong>Why neutral (not themed):</strong> the surrounding state-card uses Tailwind utility classes today, not theme tokens — theming the footer alone would create visual inconsistency. Lifting the state-card into the themed shell is a separate, larger refactor captured in Deferred follow-ups.
+    </p>
+    <div class="scene-stage">
+      <div class="state-card state-card--loading" style="background: white; border: 1px solid #e5e7eb;">
+        <div class="state-card-body" style="padding: 32px 24px 16px; text-align: center;">
+          <h2 style="font-size: 18px; margin: 0 0 8px; color: #111827; font-weight: 600;">Thank you!</h2>
+          <p style="margin: 0; font-size: 14px; color: #374151;">Your feedback has been submitted.</p>
+        </div>
+        <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 3 — Direct link · Already responded (amber, neutral footer)-->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">3</span>
+      <h2 class="scene-title">Direct link · Already responded (standalone)</h2>
+    </div>
+    <p class="scene-meta">
+      <code>survey/[id]/page.tsx</code> duplicate branch (~L140-151) · amber state-card chrome (Tailwind <code>bg-amber-50</code>) · <strong>neutral</strong> footer.
+    </p>
+    <div class="scene-stage">
+      <div class="state-card state-card--duplicate" style="background: #fffbeb;">
+        <div class="state-card-body">
+          <h2>Already responded</h2>
+          <p>You've already submitted a response to this survey. Thank you for your feedback!</p>
+        </div>
+        <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 4 — Direct link · Load error (standalone, neutral)        -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">4</span>
+      <h2 class="scene-title">Direct link · Load error (standalone)</h2>
+    </div>
+    <p class="scene-meta">
+      <code>survey/[id]/page.tsx</code> load-error branch (~L130-138) · <strong>no theme</strong> (fetch failed) · neutral footer.
+    </p>
+    <div class="scene-stage">
+      <div class="state-card state-card--error">
+        <div class="state-card-body">
+          <h2>Survey not found</h2>
+          <p>This survey is no longer available. It may have expired or been removed.</p>
+        </div>
+        <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 5 — Direct link · Loading (non-themed)                    -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">5</span>
+      <h2 class="scene-title">Direct link · Loading</h2>
+    </div>
+    <p class="scene-meta">
+      <code>survey/[id]/page.tsx</code> loading branch (~L122-128) · pre-fetch · neutral footer. Tokenized page (<code>r/[token]/page.tsx</code> ~L127) renders the same neutral footer over the simpler "Loading…" text.
+    </p>
+    <div class="scene-stage">
+      <div class="state-card state-card--loading">
+        <div class="state-card-body">
+          <div class="spinner" aria-hidden="true"></div>
+        </div>
+        <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 6 — Embedded widget on a host site (non-themed)           -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">6</span>
+      <h2 class="scene-title">Embedded widget (in host site context)</h2>
+    </div>
+    <p class="scene-meta">
+      <code>apps/api/src/routes/public.ts</code> · <code>generateWidgetJs()</code> output (~L811-894) rendered into a host site · <code>channel="embed"</code> · widget today is theme-unaware → neutral footer.
+    </p>
+    <p class="scene-note">
+      <strong>R3 implication:</strong> the footer must be added in two places — after the form append AND inside the <code>container.innerHTML</code> replacement for the thank-you swap (~L872). Otherwise the footer disappears on submission.
+    </p>
+    <div class="scene-stage scene-stage--host">
+      <div style="width: 100%;">
+        <div class="host-site-fake-content"></div>
+        <div class="host-site-fake-content"></div>
+
+        <!-- Widget output (matches generateWidgetJs container CSS) -->
+        <div class="ceq-widget" id="ceq-survey-widget-demo">
+          <div class="ceq-widget-body">
+            <h3>How satisfied are you with our support?</h3>
+            <div class="ceq-widget-rating">
+              <button type="button">1</button><button type="button">2</button>
+              <button type="button">3</button><button type="button" data-selected>4</button><button type="button">5</button>
+            </div>
+            <label>Your email</label>
+            <input type="email" placeholder="you@company.com">
+            <button type="button" class="ceq-widget-submit">Submit Feedback</button>
+          </div>
+          <!-- FOOTER appended after form append AND retained after thank-you DOM swap -->
+          <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+            Powered by
+            <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=embed&utm_campaign=powered_by"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+          </p>
+        </div>
+
+        <div class="host-site-fake-content" style="margin-top: 16px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 7 — Email body                                            -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">7</span>
+      <h2 class="scene-title">Survey-bearing email body</h2>
+    </div>
+    <p class="scene-meta">
+      <strong>Contract only</strong> per OD-3 / R5 · email templates today are stubs (<code>apps/worker/src/processors/notifications.ts</code> L35) · footer rendering rides whenever the email-template renderer ships · <code>channel="email"</code>.
+    </p>
+    <p class="scene-note">
+      <strong>R5 — future-binding requirement:</strong> when the email-template renderer ships, this footer block must be present in every survey-bearing email body.
+      Email-safe inline styles only (CSS variables don't reliably work in email clients).
+    </p>
+    <div class="scene-stage scene-stage--email">
+      <div class="email-mock">
+        <div class="email-mock-header">
+          From: <strong>Acme Corp</strong> &lt;noreply@acmeco.com&gt;<br>
+          Subject: <strong>How are we doing?</strong>
+        </div>
+        <div class="email-mock-body">
+          <h2>Hi Alex,</h2>
+          <p>Thanks for being an Acme customer. We'd love your feedback — it takes 30 seconds.</p>
+          <p>
+            <a href="https://app.acmeco.com/survey/abc123" class="email-mock-cta">Take the survey →</a>
+          </p>
+          <p style="color: #6b7280; font-size: 13px;">Or paste this link into your browser:<br>
+            <code style="font-size: 11px; color: #6366f1;">https://app.acmeco.com/survey/abc123</code>
+          </p>
+        </div>
+        <div class="email-mock-footer" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=email&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 8 — Keyboard-focus state close-up                         -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">8</span>
+      <h2 class="scene-title">Keyboard-focus state (close-up)</h2>
+    </div>
+    <p class="scene-meta">
+      WCAG 2.4.7 · 2px outline at <code>--ceq-primary-color</code>, 2px offset · matches RFC #241 §"Focus-visible outline" · accessible name from <code>aria-label</code>.
+    </p>
+    <div class="scene-stage">
+      <div class="focus-demo">
+        <p>Simulated <code>:focus-visible</code> state when the user Tab-keys to the anchor:</p>
+        <p class="ceq-powered-by" data-survey-footer>
+          Powered by
+          <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- SCENE 9 — Tokenized route · 4 token-error states                -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head">
+      <span class="scene-num">9</span>
+      <h2 class="scene-title">Tokenized route · 4 token-error states</h2>
+    </div>
+    <p class="scene-meta">
+      <code>apps/web/src/app/survey/[id]/r/[token]/page.tsx</code> error branch (~L135-143). All four states render the same card chrome with different copy. Footer is <strong>neutral</strong> and <strong>byte-identical</strong> across the four states (per R12 + #378 NFR-S5 timing-attack-resistance against token enumeration).
+    </p>
+    <p class="scene-note">
+      <strong>R12 + #378 implication:</strong> the footer DOM and bytes must be identical across <code>expired</code> / <code>responded</code> / <code>survey-not-open</code> / <code>invalid</code> — any per-state variation would leak the state to an attacker timing the response.
+    </p>
+    <div class="scene-stage" style="flex-direction: column; gap: 16px; align-items: stretch;">
+      <!-- expired -->
+      <div style="width: 100%; max-width: 540px; margin: 0 auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #6b7280;">
+          <code style="background: #f3f4f6; padding: 1px 6px; border-radius: 3px;">state=expired</code>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="padding: 28px 24px; text-align: center;">
+            <p style="margin: 0; font-size: 14px; color: #111827;">This survey link has expired. If you still want to share feedback, please contact the sender.</p>
+          </div>
+          <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+            Powered by
+            <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- responded -->
+      <div style="width: 100%; max-width: 540px; margin: 0 auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #6b7280;">
+          <code style="background: #f3f4f6; padding: 1px 6px; border-radius: 3px;">state=responded</code>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="padding: 28px 24px; text-align: center;">
+            <p style="margin: 0; font-size: 14px; color: #111827;">This survey has already been submitted. Thank you for your response!</p>
+          </div>
+          <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+            Powered by
+            <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- survey-not-open -->
+      <div style="width: 100%; max-width: 540px; margin: 0 auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #6b7280;">
+          <code style="background: #f3f4f6; padding: 1px 6px; border-radius: 3px;">state=survey-not-open</code>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="padding: 28px 24px; text-align: center;">
+            <p style="margin: 0; font-size: 14px; color: #111827;">This survey is no longer open. If you still want to share feedback, please contact the sender.</p>
+          </div>
+          <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+            Powered by
+            <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- invalid -->
+      <div style="width: 100%; max-width: 540px; margin: 0 auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #6b7280;">
+          <code style="background: #f3f4f6; padding: 1px 6px; border-radius: 3px;">state=invalid</code>
+        </div>
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="padding: 28px 24px; text-align: center;">
+            <p style="margin: 0; font-size: 14px; color: #111827;">This link is not valid. Please check that you copied the full link from your email, or contact the sender.</p>
+          </div>
+          <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
+            Powered by
+            <a href="https://customereq.com/?utm_source=survey_footer&utm_medium=link&utm_campaign=powered_by"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Powered by CustomerEQ — opens customereq.com in a new tab">CustomerEQ</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="scene-rule">
+
+  <!-- ============================================================== -->
+  <!-- LEGEND / TOKEN CONTRACT                                         -->
+  <!-- ============================================================== -->
+  <section class="scene">
+    <div class="scene-head"><h2 class="scene-title">Token contract recap</h2></div>
+    <p class="scene-meta">
+      Reference for implementation — derived from <code>docs/rfcs/241-survey-admin-ux.md</code> L474.
+    </p>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+      <thead>
+        <tr style="background: #f3f4f6;">
+          <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb;">Surface</th>
+          <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb;">UTM <code>medium</code></th>
+          <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb;">Theme tokens</th>
+          <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb;">Text color</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Direct link · active / thank-you / duplicate</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>link</code></td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Themed</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>--ceq-text-color</code> at 0.55</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Direct link · loading / error</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>link</code></td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Neutral</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>#6b7280</code> (gray-500)</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Embedded widget JS</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>embed</code></td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;">Neutral (widget is theme-unaware today)</td><td style="padding: 8px; border-bottom: 1px solid #f3f4f6;"><code>#6b7280</code></td></tr>
+        <tr><td style="padding: 8px;">Email body</td><td style="padding: 8px;"><code>email</code></td><td style="padding: 8px;">Neutral (email CSS-variable support is unreliable)</td><td style="padding: 8px;"><code>#6b7280</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+</body>
+</html>
