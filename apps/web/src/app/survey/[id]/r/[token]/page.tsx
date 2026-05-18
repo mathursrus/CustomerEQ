@@ -11,70 +11,24 @@
 // No PII appears in any of the 4 error states (NFR-S4). Copy is keyed off
 // the server-returned state; the body shape from the server is uniform
 // (per NFR-S5) so a timing-attack token-guess can't distinguish states.
+//
+// Host-page glue (survey fetch, answers/consent state, required-question +
+// explicit-consent validation, error wiring) is shared with the public
+// BYO-member-id page via useSurveyResponseForm — see that hook for the
+// rationale behind the extraction (#378 first introduced this second
+// surface; without the shared hook the validation logic would drift, as
+// it already did once in this PR).
 
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
 import { SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
-import type {
-  AnswersState,
-  BrandLite,
-  BrandThemeLite,
-  SurveyResolved,
-} from '@/components/survey-form/types'
-
-interface PublicSurveyPayload {
-  id: string
-  name: string
-  title: string | null
-  description: string | null
-  type: SurveyResolved['type']
-  status: SurveyResolved['status']
-  programId: string
-  themeId: string | null
-  questions: SurveyResolved['questions']
-  settings: SurveyResolved['settings'] | null
-  responsePolicy: SurveyResolved['responsePolicy']
-  consentMode: SurveyResolved['consentMode']
-  consentTextOverride: string | null
-  thankYouMessage: string
-  thankYouRedirectUrl: string | null
-  brand: {
-    id: string
-    name: string
-    logoUrl: string | null
-    consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
-    consentTextDefault: string | null
-    termsUrl: string | null
-    privacyPolicyUrl: string | null
-    memberIdentifierKind: 'email' | 'phone' | 'external_id'
-  }
-  theme: BrandThemeLite | null
-}
+import { useSurveyResponseForm } from '@/components/survey-form/useSurveyResponseForm'
 
 type TokenState = 'valid' | 'expired' | 'responded' | 'survey-not-open' | 'invalid'
-
-const DEFAULT_THEME: BrandThemeLite = {
-  id: 'thm_default',
-  name: 'Default',
-  primaryColor: '#6366f1',
-  secondaryColor: '#818cf8',
-  backgroundColor: '#ffffff',
-  textColor: '#111827',
-  buttonColor: '#6366f1',
-  buttonTextColor: '#ffffff',
-  accentColor: '#6366f1',
-  fontFamily: 'system-ui',
-  headingSize: 'md',
-  bodySize: 'md',
-  maxWidth: 'md',
-  borderRadius: 'md',
-  cardStyle: 'shadow',
-  backgroundImageUrl: null,
-}
 
 const ERROR_COPY: Record<Exclude<TokenState, 'valid'>, string> = {
   expired:
@@ -92,104 +46,56 @@ export default function TokenizedSurveyPage() {
   const token = params.token
 
   const [tokenState, setTokenState] = useState<TokenState | null>(null)
-  const [survey, setSurvey] = useState<PublicSurveyPayload | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [answers, setAnswers] = useState<AnswersState>({})
-  const [consentChecked, setConsentChecked] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [tokenStatusLoading, setTokenStatusLoading] = useState(true)
 
-  // Validate the token, then load the survey if valid.
+  // Only fetch the survey once the token-status preflight resolves to 'valid'.
+  // The 4 error states don't need (and must not expose) survey content.
+  const form = useSurveyResponseForm({
+    surveyId,
+    identityFromToken: true,
+    enabled: tokenState === 'valid',
+  })
+
   useEffect(() => {
     let cancelled = false
-    async function load() {
+    async function loadStatus() {
       try {
-        const statusRes = await fetch(
+        const res = await fetch(
           `${API_URL}/v1/public/surveys/${surveyId}/token-status?token=${encodeURIComponent(token)}`,
         )
-        if (!statusRes.ok) {
+        if (!res.ok) {
           if (!cancelled) setTokenState('invalid')
           return
         }
-        const statusBody = (await statusRes.json()) as { state: TokenState }
-        if (cancelled) return
-        setTokenState(statusBody.state)
-        if (statusBody.state !== 'valid') return
-
-        const surveyRes = await fetch(`${API_URL}/v1/public/surveys/${surveyId}`)
-        if (!surveyRes.ok) {
-          if (!cancelled) setError('Failed to load survey.')
-          return
-        }
-        const surveyBody = (await surveyRes.json()) as PublicSurveyPayload
-        if (!cancelled) setSurvey(surveyBody)
+        const body = (await res.json()) as { state: TokenState }
+        if (!cancelled) setTokenState(body.state)
       } catch {
         if (!cancelled) setTokenState('invalid')
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setTokenStatusLoading(false)
       }
     }
-    void load()
+    void loadStatus()
     return () => {
       cancelled = true
     }
   }, [surveyId, token])
 
-  const resolvedSurvey = useMemo<SurveyResolved | null>(() => {
-    if (!survey) return null
-    return {
-      id: survey.id,
-      name: survey.name,
-      title: survey.title,
-      description: survey.description,
-      type: survey.type,
-      status: survey.status,
-      programId: survey.programId,
-      themeId: survey.themeId,
-      questions: survey.questions,
-      consentMode: survey.consentMode,
-      consentTextOverride: survey.consentTextOverride,
-      responsePolicy: survey.responsePolicy,
-      thankYouMessage: survey.thankYouMessage,
-      thankYouRedirectUrl: survey.thankYouRedirectUrl,
-      settings: survey.settings ?? {},
-    }
-  }, [survey])
+  async function handleSubmit() {
+    if (!form.resolvedSurvey || !form.brandLite) return
+    if (!form.validate()) return
 
-  const brandLite = useMemo<BrandLite | null>(() => {
-    if (!survey) return null
-    return {
-      id: survey.brand.id,
-      name: survey.brand.name,
-      logoUrl: survey.brand.logoUrl,
-      consentMode: survey.brand.consentMode,
-      consentTextDefault: survey.brand.consentTextDefault,
-      termsUrl: survey.brand.termsUrl,
-      privacyPolicyUrl: survey.brand.privacyPolicyUrl,
-      memberIdentifierKind: survey.brand.memberIdentifierKind,
-    }
-  }, [survey])
-
-  const themeForRender = survey?.theme ?? DEFAULT_THEME
-
-  const handleAnswerChange = useCallback((questionId: string, value: unknown) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
-  }, [])
-
-  const handleSubmit = useCallback(async () => {
-    if (!resolvedSurvey || !brandLite) return
-    setSubmitting(true)
-    setError(null)
+    form.setSubmitting(true)
+    form.setError(null)
     try {
       const res = await fetch(`${API_URL}/v1/public/surveys/${surveyId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
-          answers,
+          answers: form.answers,
           channel: 'link',
-          consent: brandLite.consentMode === 'EXPLICIT' ? consentChecked : undefined,
+          consent: form.effectiveConsentMode === 'EXPLICIT' ? form.consentChecked : undefined,
         }),
       })
       if (res.status === 409) {
@@ -205,18 +111,20 @@ export default function TokenizedSurveyPage() {
       }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        setError((body as { error?: string; message?: string }).message ?? `Submit failed (${res.status})`)
+        form.setError(
+          (body as { error?: string; message?: string }).message ?? `Submit failed (${res.status})`,
+        )
         return
       }
-      setSubmitted(true)
+      form.setSubmitted(true)
     } catch (err) {
-      setError((err as Error).message)
+      form.setError((err as Error).message)
     } finally {
-      setSubmitting(false)
+      form.setSubmitting(false)
     }
-  }, [resolvedSurvey, brandLite, surveyId, token, answers, consentChecked])
+  }
 
-  if (loading) {
+  if (tokenStatusLoading || (tokenState === 'valid' && form.loading)) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
         <p className="text-gray-500">Loading…</p>
@@ -234,17 +142,17 @@ export default function TokenizedSurveyPage() {
     )
   }
 
-  if (submitted) {
+  if (form.submitted) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
           <p className="text-base text-gray-900">
-            {survey?.thankYouMessage ?? 'Thank you for your feedback!'}
+            {form.survey?.thankYouMessage ?? 'Thank you for your feedback!'}
           </p>
-          {survey?.thankYouRedirectUrl ? (
+          {form.survey?.thankYouRedirectUrl ? (
             <p className="mt-4">
               <a
-                href={survey.thankYouRedirectUrl}
+                href={form.survey.thankYouRedirectUrl}
                 className="text-sm text-indigo-600 hover:underline"
               >
                 Continue →
@@ -256,42 +164,41 @@ export default function TokenizedSurveyPage() {
     )
   }
 
-  if (!resolvedSurvey || !brandLite) {
+  if (!form.resolvedSurvey || !form.brandLite) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <p className="text-red-600">{error ?? 'Failed to load survey.'}</p>
+        <p className="text-red-600">{form.error ?? form.loadError ?? 'Failed to load survey.'}</p>
       </main>
     )
   }
 
-  // Issue #378 — the member-id field is suppressed in token-authorized flow.
-  // The token resolves the member; the respondent never sees who they are.
-  // SurveyFormRenderer owns the consent checkbox + submit button — we just
-  // wire it up via props so we don't render duplicates.
+  // The member-id field is suppressed in token-authorized flow — the token
+  // resolves the member; the respondent never sees who they are.
   return (
     <main className="max-w-2xl mx-auto px-6 py-12">
-      {error ? (
+      {form.error ? (
         <div
           role="alert"
           className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
         >
-          {error}
+          {form.error}
         </div>
       ) : null}
       <SurveyFormRenderer
-        survey={resolvedSurvey}
-        theme={themeForRender}
-        brand={brandLite}
+        survey={form.resolvedSurvey}
+        theme={form.theme}
+        brand={form.brandLite}
         channel="standalone"
         viewport="desktop"
         mode="live"
-        answers={answers}
-        onAnswerChange={handleAnswerChange}
+        answers={form.answers}
+        onAnswerChange={form.handleAnswerChange}
         onSubmit={handleSubmit}
-        submitLabel={submitting ? 'Submitting…' : 'Submit'}
-        submitDisabled={submitting}
-        consentChecked={consentChecked}
-        onConsentCheckedChange={setConsentChecked}
+        submitLabel={form.submitting ? 'Submitting…' : 'Submit'}
+        submitDisabled={form.submitting}
+        consentChecked={form.consentChecked}
+        onConsentCheckedChange={form.handleConsentChange}
+        errors={{ consent: form.fieldErrors.consent, questions: form.fieldErrors.questions }}
       />
     </main>
   )

@@ -1,5 +1,8 @@
 // Issue #241 Slice 4a — Spec §7 Distribution section.
-// Two tiles: Share link (Copy), Embed snippet (Copy).
+// Three tiles, left → right: Send via my email tool (#378 primary CTA),
+// Embed snippet (Copy), Share link (Copy). Order is intentional — the
+// per-recipient flow is the preferred distribution mode for #378, so it
+// occupies the left slot to draw the operator's eye first.
 // R27 default-expanded when responsesCount === 0.
 //
 // Round-2 feedback (#335 post-merge testing):
@@ -67,20 +70,20 @@ function CopyTile({
         {title}
       </h3>
       <p className="mt-1 text-xs text-gray-600">{description}</p>
-      <pre className="mt-3 max-h-24 overflow-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 whitespace-pre-wrap break-all">
-        <code>{value}</code>
-      </pre>
-      <div className="mt-3 flex items-center justify-between gap-2">
+      <div className="mt-3 flex justify-end">
         <button
           type="button"
           onClick={handleCopy}
           aria-label={copyAriaLabel}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
-        {footer ?? null}
       </div>
+      <pre className="mt-2 max-h-24 overflow-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 whitespace-pre-wrap break-all">
+        <code>{value}</code>
+      </pre>
+      {footer ? <div className="mt-3">{footer}</div> : null}
     </div>
   )
 }
@@ -115,7 +118,7 @@ function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: 
   return (
     <div
       className={`flex flex-col rounded-lg border-2 p-4 ${
-        isActive ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-gray-50 opacity-60'
+        isActive ? 'border-indigo-300 bg-white' : 'border-gray-200 bg-gray-50 opacity-60'
       }`}
     >
       <h3 className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
@@ -184,13 +187,10 @@ export function DistributionSection({
         </div>
       ) : null}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <CopyTile
-          icon="🔗"
-          title="Share link"
-          description="Post the URL anywhere — social, blog, signage."
-          value={shareLink}
-          copyAriaLabel="Copy share link"
-        />
+        {/* Issue #378 — primary tile placed first (left) to drive operators toward
+            the per-recipient flow over the share link. State-aware: disabled for
+            non-ACTIVE surveys with a tooltip keyed to the state (R2). */}
+        <SendViaEmailToolTile surveyId={surveyId} status={status} />
         <CopyTile
           icon="🧩"
           title="Embed snippet"
@@ -205,10 +205,13 @@ export function DistributionSection({
             </span>
           }
         />
-        {/* Issue #378 — third tile: Send via my email tool. Routes to the
-            per-recipient links generator. State-aware: disabled for non-ACTIVE
-            surveys with a tooltip keyed to the state (R2). */}
-        <SendViaEmailToolTile surveyId={surveyId} status={status} />
+        <CopyTile
+          icon="🔗"
+          title="Share link"
+          description="Post the URL anywhere — social, blog, signage."
+          value={shareLink}
+          copyAriaLabel="Copy share link"
+        />
       </div>
     </CollapsibleSection>
   )

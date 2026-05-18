@@ -55,7 +55,7 @@ The mock at [`mocks/378-distribute-flow.html`](mocks/378-distribute-flow.html) i
 ### §1. Entry point
 
 - **Path**: `/admin/surveys/[id]/distribute` — a new sub-route of the existing survey detail page (`/admin/surveys/[id]`) per the Standard CRUD admin pattern in `docs/architecture/architecture.md` §3.1.
-- **How the operator gets there**: from the existing Distribution section on the survey detail page (#241 R26 / R27), a new **`Send via my email tool →`** primary action sits alongside the existing `Share link` and `Embed snippet` tiles. Tile copy: *"Generate per-recipient links for mail-merge applications like Mailchimp, or use the links to send individual mails."* Clicking it routes to `/admin/surveys/[id]/distribute`.
+- **How the operator gets there**: from the existing Distribution section on the survey detail page (#241 R26 / R27), a new **`Send via my email tool →`** primary action is placed **leftmost** in the three-tile row, with `Embed snippet` in the center and `Share link` rightmost. The left slot draws the operator's eye first and matches the per-recipient flow's status as the preferred V0 distribution mode. Tile copy: *"Generate per-recipient links for mail-merge applications like Mailchimp, or use the links to send individual mails."* The tile renders on a white background with a 2px indigo border to read as primary without the heavier fill used in earlier mocks (see deviation note in the Phase 12 resolution log). Clicking it routes to `/admin/surveys/[id]/distribute`.
 - **DRAFT vs. ACTIVE**: the entry point is **disabled when `Survey.status === 'DRAFT'`** with a tooltip "Activate the survey before distributing". Once the survey is ACTIVE, the entry point is live. PAUSED disables with "Resume the survey to distribute"; STOPPED disables with "This survey is stopped — Restart to distribute".
 
 ### §2. The Distribute page — single short page
@@ -694,6 +694,10 @@ The mock files demonstrate these conventions in interactive HTML — no Markdown
 - **Re-download semantics** (Q1 from agent): **RESOLVED 1c** — re-download regenerates all tokens; strong warnings at success-download AND regenerate-confirmation. R18, R29, §2.5, §3.1.
 - **Paste / CSV size caps** (Q2 / Q3): **RESOLVED** — paste 10,000 entries; CSV 100,000 entries / 11 MB body. R6 + NFR-SC2.
 - **Trigger endpoint retirement** (Q4 / R3-15 / R3-23): **RESOLVED 4a** — endpoint deleted in this PR; demo storefront updated to use the new batches API. §5 + code changes in `apps/api/src/routes/public.ts` and `examples/acme-coffee-demo/`.
+
+### Resolved in Phase 12 (manual walkthrough deviations from the mock, 2026-05-17)
+
+- **P12-1 — Distribution tile order and styling**: **resolved as a deliberate deviation from `mocks/378-distribute-flow.html`** during the Phase 12 manual walkthrough. The mock placed `Share link` leftmost, `Embed snippet` center, and `Send via my email tool` rightmost on an indigo fill (`bg-indigo-50`). The shipped layout reverses the outer tiles — `Send via my email tool` leftmost, `Embed snippet` center, `Share link` rightmost — and drops the fill in favor of a white background with the 2px indigo border retained. Reason: the per-recipient flow is the V0 primary distribution mode (it carries the new tokenized authorization, batch attribution, and CSV export semantics) and should occupy the left slot to draw the operator's eye first; the indigo fill made the tile read as a banner rather than a peer of the other two tiles. The mock is not the authority on this single point — when the mock is next regenerated it should pick up this order. Captured in §1.1 ("How the operator gets there"). Code: `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx`.
 
 ### Resolved in Round 2.1 (post-mock-review chat feedback 2026-05-15)
 

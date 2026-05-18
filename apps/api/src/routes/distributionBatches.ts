@@ -18,7 +18,6 @@ import {
   GenerateBatchRequestSchema,
   EditExpiryRequestSchema,
   RegenerateTokensRequestSchema,
-  type PreviewBatchRequest,
   type AudienceSpecSchema,
 } from '@customerEQ/shared'
 import { z } from 'zod'
