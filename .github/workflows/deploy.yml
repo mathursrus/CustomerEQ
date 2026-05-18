@@ -148,6 +148,61 @@ jobs:
             --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
             .
 
+      - name: Build and push Turbo Cache image
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az acr build --registry customereqcr \
+            --image customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }} \
+            --image customereq-turbo-cache:latest \
+            --file Dockerfile.turbo-cache .
+
+      # Issue #386: run prisma migrate deploy in an ephemeral ACA Job before
+      # any container swap. If the job fails the pipeline stops here and the
+      # old containers remain live. Applies to both workflow_run and
+      # workflow_dispatch trigger paths (same job, same step sequence).
+      - name: Run database migrations
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+
+          # Point the migrate job at the image we just pushed
+          az containerapp job update \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-api:${IMAGE_TAG}
+
+          # Start an execution and capture its name for status polling
+          EXECUTION=$(az containerapp job start \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query name -o tsv)
+          echo "Migration execution: $EXECUTION"
+
+          # Poll until Succeeded or Failed (5-minute timeout)
+          TIMEOUT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(az containerapp job execution show \
+              --name customereq-migrate \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --job-execution-name "$EXECUTION" \
+              --query "properties.status" -o tsv)
+            echo "  status: $STATUS (${ELAPSED}s elapsed)"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "Migration succeeded — proceeding to container swap."
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Stopped" ]; then
+              echo "Migration job failed ($STATUS) — containers will NOT be swapped."
+              exit 1
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+          if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+            echo "Migration job timed out after ${TIMEOUT}s — containers will NOT be swapped."
+            exit 1
+          fi
+
       - name: Deploy API
         if: steps.changes.outputs.build == 'true'
         run: |
@@ -194,6 +249,42 @@ jobs:
             --name customereq-demo \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Deploy Turbo Cache
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az containerapp update \
+            --name customereq-turbo-cache \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Issue #387: assert that each container app is running the expected
+      # image tag before treating the deploy as successful. Catches the
+      # failure class where az containerapp update returns 200 but the
+      # revision did not swap (ACR push failure, silent rollback, wrong-app
+      # update in a concurrent deploy race).
+      - name: Verify deployed image SHAs
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+          APPS="customereq-api customereq-worker customereq-web customereq-demo"
+          FAILED=0
+          for APP in $APPS; do
+            DEPLOYED=$(az containerapp show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name "$APP" \
+              --query "properties.template.containers[0].image" -o tsv)
+            if [[ "$DEPLOYED" == *":${IMAGE_TAG}" ]]; then
+              echo "  ✓ $APP — image tag matches: $IMAGE_TAG"
+            else
+              echo "  ✗ $APP — expected :${IMAGE_TAG} but got: $DEPLOYED"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            echo "One or more container apps are running the wrong image. Failing deploy."
+            exit 1
+          fi
 
       - name: Verify API health
         if: steps.changes.outputs.build == 'true'

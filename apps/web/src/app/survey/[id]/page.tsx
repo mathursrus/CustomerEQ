@@ -27,6 +27,13 @@ import { useSurveyResponseForm } from '@/components/survey-form/useSurveyRespons
 import type { BrandLite } from '@/components/survey-form/types'
 import { useState } from 'react'
 
+// Issue #378 — host-page glue (survey fetch, answers/consent/memberId state,
+// validation, error wiring) is shared with the tokenized respondent page via
+// `useSurveyResponseForm`. The hook owns `PublicSurveyPayload` + the
+// DEFAULT_THEME loading-window fallback. Issue #405 made `survey.theme`
+// non-null at the API contract, so the fallback is only hit during the
+// pre-fetch loading window — the hook returns `survey.theme` once loaded.
+
 function memberIdLabel(kind: BrandLite['memberIdentifierKind']): string {
   switch (kind) {
     case 'phone':

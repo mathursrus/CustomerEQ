@@ -1,0 +1,5 @@
+FROM node:22-slim
+RUN npm install -g turborepo-remote-cache
+EXPOSE 3000
+ENV PORT=3000
+CMD ["turborepo-remote-cache"]

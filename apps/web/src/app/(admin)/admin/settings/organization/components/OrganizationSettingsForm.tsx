@@ -120,7 +120,18 @@ export function OrganizationSettingsForm({ initial }: OrganizationSettingsFormPr
   } | null>(null)
 
   const values = methods.watch()
-  const pendingItems = useMemo(() => computePendingItems(values), [values])
+  // Issue #405 — surface themes-empty + default-not-set rows in the top
+  // banner. Both come from server-loaded brand state, NOT live form values
+  // (in-flight form edits to defaultThemeId shouldn't flicker the banner
+  // before they're saved).
+  const pendingItems = useMemo(
+    () =>
+      computePendingItems(values, {
+        themesCount: initial.themes.length,
+        hasDefaultTheme: Boolean(initial.brand.defaultThemeId),
+      }),
+    [values, initial.themes.length, initial.brand.defaultThemeId],
+  )
 
   async function patchProfile(body: Record<string, unknown>): Promise<void> {
     const token = await getAuthToken(getToken)

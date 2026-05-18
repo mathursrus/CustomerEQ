@@ -528,6 +528,14 @@ Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
 
 This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist files at PR time, before the image reaches CD. Probe target is **deliberately narrow** to `@customerEQ/ai`'s dist — importing the full app entry would couple the gate to env-var reads and false-positive in CI. Complementary to the CD-side `Verify API health` step in `deploy.yml`, not a replacement.
 
+**CD pipeline shape (post Issue #386)**:
+```
+Build images → Push to ACR → [customereq-migrate ACA Job] → Deploy containers → Image SHA probe → Health check → Canary checks
+                                       ↓ (on failure)
+                               Pipeline fails, old containers stay live
+```
+The migration job uses the just-pushed API image (`docker-entrypoint-migrate.sh`), runs `prisma migrate deploy`, and asserts `_prisma_migrations` completeness. If it exits non-zero, all subsequent `az containerapp update` steps are skipped. This applies to both `workflow_run` (CI-triggered) and `workflow_dispatch` (manual hotfix) paths.
+
 ---
 
 ## 8. Infrastructure
@@ -536,6 +544,7 @@ This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist f
 |---|---|---|
 | API | Azure Container Apps | Serverless containers, scale-to-zero, built-in ingress |
 | Worker | Azure Container Apps | Same image as API, separate app, scales independently |
+| Migration Gate (`customereq-migrate`) | Azure Container Apps Job (Manual) | Runs `prisma migrate deploy` + `_prisma_migrations` completeness check before any container swap (Issue #386). Exits non-zero on failure → pipeline stops, old containers stay live. Uses API image, system-assigned managed identity for ACR pull and `DATABASE_URL` from Key Vault. Provision via `scripts/provision-migrate-job.sh`. |
 | Database | Azure Database for PostgreSQL Flexible Server | Managed PostgreSQL 16, HA, automated backups, encryption at rest |
 | Cache/Queue (optional) | Upstash Redis (managed) | Managed Redis used by BullMQ when `QUEUE_MODE=redis`. Optional — the system runs end-to-end without it under `QUEUE_MODE=inline`. |
 | Frontend | Vercel | Zero-ops Next.js deploys, first-party App Router support, edge CDN |
