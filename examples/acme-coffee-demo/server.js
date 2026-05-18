@@ -8,7 +8,7 @@
 //   3. Member 360 view        → GET  /v1/members/:id/360
 //   4. Reward redemption      → POST /v1/redemptions
 //   5. Public survey widget   → embedded <script src=".../widget.js">
-//   6. Survey trigger webhook → POST /v1/public/surveys/trigger
+//   6. Survey trigger via tokenized batch → POST /v1/surveys/:id/distribution-batches
 //   7. KB search              → POST /v1/kb/search
 //   8. CX analytics dashboard → GET  /v1/analytics/cx
 //

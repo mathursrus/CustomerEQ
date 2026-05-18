@@ -6,6 +6,12 @@
 // that diverged from the editor preview in chrome, theme tokens, rating
 // labels, consent rendering, and submit button styling.
 //
+// Issue #378 — host-page glue (fetch + answers/consent/memberId state +
+// validation + error wiring) is shared with the tokenized respondent page
+// via useSurveyResponseForm. The page itself only owns its identity field
+// (member-id, since the public flow has no token) and the POST body /
+// duplicate-or-error branching.
+//
 // Data shape comes from GET /v1/public/surveys/:id — that endpoint now
 // returns title, settings (chromeMatrix), consentMode / consentTextOverride,
 // brand consent/identity fields, and the full theme record. See
@@ -13,57 +19,20 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
 import { RendererErrorLine, SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
-import type {
-  AnswersState,
-  BrandLite,
-  BrandThemeLite,
-  SurveyResolved,
-} from '@/components/survey-form/types'
+import { useSurveyResponseForm } from '@/components/survey-form/useSurveyResponseForm'
+import type { BrandLite } from '@/components/survey-form/types'
+import { useState } from 'react'
 
-interface PublicSurveyPayload {
-  id: string
-  name: string
-  title: string | null
-  description: string | null
-  type: SurveyResolved['type']
-  status: SurveyResolved['status']
-  programId: string
-  themeId: string | null
-  questions: SurveyResolved['questions']
-  settings: SurveyResolved['settings'] | null
-  responsePolicy: SurveyResolved['responsePolicy']
-  consentMode: SurveyResolved['consentMode']
-  consentTextOverride: string | null
-  thankYouMessage: string
-  thankYouRedirectUrl: string | null
-  brand: {
-    id: string
-    name: string
-    logoUrl: string | null
-    consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
-    consentTextDefault: string | null
-    termsUrl: string | null
-    privacyPolicyUrl: string | null
-    memberIdentifierKind: 'email' | 'phone' | 'external_id'
-  }
-  // Issue #405 — the public API resolves theme server-side via the chain
-  // Survey.themeId → Brand.defaultThemeId → DEFAULT_THEMES[0] and guarantees
-  // a non-null value. Type tightened accordingly.
-  theme: BrandThemeLite
-  hasCxRules?: boolean
-}
-
-// Issue #405 — the page no longer carries its own `DEFAULT_THEME` fallback.
-// The public API (`apps/api/src/routes/public.ts`) now resolves the theme
-// server-side via Survey.themeId → Brand.defaultThemeId → DEFAULT_THEMES[0]
-// (canonical CustomerEQ Indigo, single source of truth in
-// `apps/api/src/lib/default-themes.ts`). The client renders `survey.theme`
-// directly; the API contract guarantees it is non-null.
+// Issue #378 — host-page glue (survey fetch, answers/consent/memberId state,
+// validation, error wiring) is shared with the tokenized respondent page via
+// `useSurveyResponseForm`. The hook owns `PublicSurveyPayload` + the
+// DEFAULT_THEME loading-window fallback. Issue #405 made `survey.theme`
+// non-null at the API contract, so the fallback is only hit during the
+// pre-fetch loading window — the hook returns `survey.theme` once loaded.
 
 function memberIdLabel(kind: BrandLite['memberIdentifierKind']): string {
   switch (kind) {
@@ -90,175 +59,38 @@ function memberIdInputType(kind: BrandLite['memberIdentifierKind']): string {
 
 export default function SurveyResponsePage() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const surveyId = params.id as string
 
-  const [survey, setSurvey] = useState<PublicSurveyPayload | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [answers, setAnswers] = useState<AnswersState>({})
-  const [memberId, setMemberId] = useState(searchParams.get('email') ?? '')
-  const [consentChecked, setConsentChecked] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const form = useSurveyResponseForm({
+    surveyId,
+    memberIdRequiredMessage: () => {
+      const kind = form.brandLite?.memberIdentifierKind ?? 'email'
+      return `${memberIdLabel(kind)} is required.`
+    },
+  })
+
   const [duplicate, setDuplicate] = useState(false)
-  // Field-level validation errors. Populated on submit-attempt and cleared
-  // when the operator fixes the offending field. Server failures still set
-  // top-level `error`.
-  const [fieldErrors, setFieldErrors] = useState<{
-    memberId?: string
-    consent?: string
-    questions?: Record<string, string>
-  }>({})
-
-  useEffect(() => {
-    async function fetchSurvey() {
-      try {
-        const res = await fetch(`${API_URL}/v1/public/surveys/${surveyId}`)
-        if (!res.ok) {
-          throw new Error(res.status === 404 ? 'Survey not found' : 'Failed to load survey')
-        }
-        const data = (await res.json()) as PublicSurveyPayload
-        setSurvey(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchSurvey()
-  }, [surveyId])
-
-  const resolvedSurvey = useMemo<SurveyResolved | null>(() => {
-    if (!survey) return null
-    return {
-      id: survey.id,
-      name: survey.name,
-      title: survey.title,
-      description: survey.description,
-      type: survey.type,
-      status: survey.status,
-      programId: survey.programId,
-      themeId: survey.themeId,
-      questions: survey.questions,
-      consentMode: survey.consentMode,
-      consentTextOverride: survey.consentTextOverride,
-      responsePolicy: survey.responsePolicy,
-      thankYouMessage: survey.thankYouMessage,
-      thankYouRedirectUrl: survey.thankYouRedirectUrl,
-      settings: survey.settings ?? {},
-    }
-  }, [survey])
-
-  const brandLite = useMemo<BrandLite | null>(() => {
-    if (!survey) return null
-    return {
-      id: survey.brand.id,
-      name: survey.brand.name,
-      logoUrl: survey.brand.logoUrl,
-      consentMode: survey.brand.consentMode,
-      consentTextDefault: survey.brand.consentTextDefault,
-      termsUrl: survey.brand.termsUrl,
-      privacyPolicyUrl: survey.brand.privacyPolicyUrl,
-      memberIdentifierKind: survey.brand.memberIdentifierKind,
-    }
-  }, [survey])
-
-
-  const handleAnswerChange = useCallback((questionId: string, value: unknown) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
-    // Clear the per-question error the moment the operator answers it.
-    setFieldErrors((prev) => {
-      if (!prev.questions?.[questionId]) return prev
-      const nextQuestions = { ...prev.questions }
-      delete nextQuestions[questionId]
-      return { ...prev, questions: nextQuestions }
-    })
-  }, [])
-
-  const handleMemberIdChange = useCallback((value: string) => {
-    setMemberId(value)
-    if (value.trim()) {
-      setFieldErrors((prev) => (prev.memberId ? { ...prev, memberId: undefined } : prev))
-    }
-  }, [])
-
-  const handleConsentChange = useCallback((next: boolean) => {
-    setConsentChecked(next)
-    if (next) {
-      setFieldErrors((prev) => (prev.consent ? { ...prev, consent: undefined } : prev))
-    }
-  }, [])
-
-  function isAnswerMissing(value: unknown): boolean {
-    if (value === undefined || value === null) return true
-    if (typeof value === 'string') return value.trim().length === 0
-    if (Array.isArray(value)) return value.length === 0
-    if (typeof value === 'object') return Object.keys(value as object).length === 0
-    return false
-  }
 
   async function handleSubmit() {
-    if (!resolvedSurvey || !brandLite) return
+    if (!form.resolvedSurvey || !form.brandLite) return
+    if (!form.validate()) return
 
-    // Client-side validation: required identifier, required-question
-    // answers, explicit-consent checkbox. Surfaced as inline field errors
-    // (next to each control) so the operator sees what's missing without
-    // a generic banner.
-    const effectiveMode = resolvedSurvey.consentMode ?? brandLite.consentMode
-    const explicit = effectiveMode === 'EXPLICIT'
-    const nextQuestionErrors: Record<string, string> = {}
-    for (const q of resolvedSurvey.questions) {
-      if (!q.required) continue
-      if (isAnswerMissing(answers[q.id])) {
-        nextQuestionErrors[q.id] = 'This question is required.'
-      }
-    }
-    const nextErrors: typeof fieldErrors = {}
-    if (!memberId.trim()) {
-      nextErrors.memberId = `${memberIdLabel(brandLite.memberIdentifierKind)} is required.`
-    }
-    if (explicit && !consentChecked) {
-      nextErrors.consent = 'Please confirm you agree before submitting.'
-    }
-    if (Object.keys(nextQuestionErrors).length > 0) {
-      nextErrors.questions = nextQuestionErrors
-    }
-
-    const hasErrors =
-      !!nextErrors.memberId || !!nextErrors.consent || !!nextErrors.questions
-    if (hasErrors) {
-      setFieldErrors(nextErrors)
-      // Scroll the first errored element into view so the operator sees it.
-      // Run on next tick so the error nodes are in the DOM first.
-      setTimeout(() => {
-        const target = document.querySelector('[data-error]') as HTMLElement | null
-        target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      }, 0)
-      return
-    }
-
-    setFieldErrors({})
-    setSubmitting(true)
-    setError(null)
+    form.setSubmitting(true)
+    form.setError(null)
 
     try {
-      // Build answers excluding hidden (skip-rule-filtered) questions —
-      // skip-rule evaluation lives in the renderer; we trust answers state
-      // here since the renderer only writes through onAnswerChange for
-      // visible questions.
       const res = await fetch(`${API_URL}/v1/public/surveys/${surveyId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          memberEmail: memberId.trim(),
-          answers,
+          memberEmail: form.memberId.trim(),
+          answers: form.answers,
           channel: 'link',
           // R10 / R11: when effective consent mode is EXPLICIT, the API
           // requires `consent: true` in the body. We always send the box's
           // current state — server still rejects (400 CONSENT_REQUIRED) if
           // the box is unchecked, which matches the visible UI gate.
-          consent: consentChecked,
+          consent: form.consentChecked,
         }),
       })
 
@@ -273,21 +105,21 @@ export default function SurveyResponsePage() {
         throw new Error(data.error ?? 'Failed to submit response. Please try again.')
       }
 
-      setSubmitted(true)
+      form.setSubmitted(true)
 
-      if (survey?.thankYouRedirectUrl) {
+      if (form.survey?.thankYouRedirectUrl) {
         setTimeout(() => {
-          window.location.href = survey.thankYouRedirectUrl as string
+          window.location.href = form.survey!.thankYouRedirectUrl as string
         }, 2000)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      form.setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
-      setSubmitting(false)
+      form.setSubmitting(false)
     }
   }
 
-  if (loading) {
+  if (form.loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
@@ -295,11 +127,11 @@ export default function SurveyResponsePage() {
     )
   }
 
-  if (error && !survey) {
+  if (form.loadError && !form.survey) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-800">
-          {error}
+          {form.loadError}
         </div>
       </div>
     )
@@ -318,14 +150,14 @@ export default function SurveyResponsePage() {
     )
   }
 
-  if (submitted) {
-    const thankYouMsg = survey?.thankYouMessage ?? 'Your feedback has been submitted.'
+  if (form.submitted) {
+    const thankYouMsg = form.survey?.thankYouMessage ?? 'Your feedback has been submitted.'
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">Thank you!</h2>
           <p className="mt-2 whitespace-pre-line text-sm text-gray-700">{thankYouMsg}</p>
-          {survey?.thankYouRedirectUrl && (
+          {form.survey?.thankYouRedirectUrl && (
             <p className="mt-4 text-xs text-gray-400">Redirecting you shortly…</p>
           )}
         </div>
@@ -333,23 +165,17 @@ export default function SurveyResponsePage() {
     )
   }
 
-  if (!resolvedSurvey || !brandLite || !survey) return null
-
-  // Issue #405 — `survey.theme` is guaranteed non-null by the public API
-  // (resolved server-side via Survey.themeId → Brand.defaultThemeId →
-  // DEFAULT_THEMES[0]). Reading it here after the null-guard avoids the
-  // need for a divergent client-side fallback constant.
-  const themeForRender = survey.theme
+  if (!form.resolvedSurvey || !form.brandLite) return null
 
   // The submit button is intentionally NOT blocked on missing fields —
   // clicking with errors triggers inline messages next to the offending
   // field (and a scroll-to-first-error) so the operator sees what's
   // wrong. Only block while a request is in flight.
-  const submitBlocked = submitting
+  const submitBlocked = form.submitting
 
   // R15: member-id field rendered above the questions inside the renderer's
   // form. Live mode collects the value here; the renderer is agnostic.
-  const memberIdError = fieldErrors.memberId
+  const memberIdError = form.fieldErrors.memberId
   const memberIdField = (
     <div>
       <label
@@ -365,14 +191,15 @@ export default function SurveyResponsePage() {
         }}
       >
         <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>
-          {memberIdLabel(brandLite.memberIdentifierKind)} <span style={{ color: 'var(--ceq-accent-color)' }}>*</span>
+          {memberIdLabel(form.brandLite.memberIdentifierKind)}{' '}
+          <span style={{ color: 'var(--ceq-accent-color)' }}>*</span>
         </span>
         <input
-          type={memberIdInputType(brandLite.memberIdentifierKind)}
-          value={memberId}
-          onChange={(e) => handleMemberIdChange(e.target.value)}
+          type={memberIdInputType(form.brandLite.memberIdentifierKind)}
+          value={form.memberId}
+          onChange={(e) => form.handleMemberIdChange(e.target.value)}
           aria-invalid={memberIdError ? 'true' : 'false'}
-          placeholder={brandLite.memberIdentifierKind === 'email' ? 'you@example.com' : ''}
+          placeholder={form.brandLite.memberIdentifierKind === 'email' ? 'you@example.com' : ''}
           style={{
             width: '100%',
             padding: '0.4rem 0.5rem',
@@ -394,26 +221,26 @@ export default function SurveyResponsePage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10">
       <div className="mx-auto max-w-2xl">
-        {error && (
+        {form.error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {error}
+            {form.error}
           </div>
         )}
         <SurveyFormRenderer
-          survey={resolvedSurvey}
-          theme={themeForRender}
-          brand={brandLite}
+          survey={form.resolvedSurvey}
+          theme={form.theme}
+          brand={form.brandLite}
           channel="standalone"
           viewport="desktop"
           mode="live"
-          answers={answers}
-          onAnswerChange={handleAnswerChange}
-          consentChecked={consentChecked}
-          onConsentCheckedChange={handleConsentChange}
-          errors={{ consent: fieldErrors.consent, questions: fieldErrors.questions }}
+          answers={form.answers}
+          onAnswerChange={form.handleAnswerChange}
+          consentChecked={form.consentChecked}
+          onConsentCheckedChange={form.handleConsentChange}
+          errors={{ consent: form.fieldErrors.consent, questions: form.fieldErrors.questions }}
           prefixSlot={memberIdField}
           onSubmit={handleSubmit}
-          submitLabel={submitting ? 'Submitting…' : 'Submit'}
+          submitLabel={form.submitting ? 'Submitting…' : 'Submit'}
           submitDisabled={submitBlocked}
         />
       </div>
