@@ -2,15 +2,56 @@
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
 
-**Last synthesized**: 2026-05-14
+**Last synthesized**: 2026-05-17
+
+---
+
+#### [P-HIGH] L1 rule in memory but doesn't fire at the load-bearing decision moment
+
+**Score**: 9.0
+**Last seen**: 2026-05-17
+**Recurrences**: 3
+**First synthesized**: 2026-05-17
+
+Three L1 violations in a single session (2026-05-17, issue #378) shared one root: an L1 rule existed in memory specifically because the agent had erred at the same shape before, but the rule fired only AFTER the user corrected — not at the load-bearing decision moment itself. The three were (a) drafting an RFC from a Phase 1 Explore-agent summary instead of primary sources (the L1 *"Asserted facts about file/config without reading primary source"* rule did not fire at draft time); (b) reading Rule 26 to create a separate PR for the RFC instead of committing to the existing feature branch (the L1 *"Fabricated chore-issue framing"* P-HIGH 30.0 rule did not fire because the example surfaces in memory were Phase-13 retros, not RFCs, and the agent didn't generalize forward); (c) recommending native `Intl` over `date-fns-tz` citing "zero new dependency" (the L1 *"Merit over ease"* rule did not fire because the agent wasn't naming the deciding axis explicitly before writing "← recommended").
+
+The umbrella rule: **L1 memory recall ≠ L1 rule application.** Memory holding a rule does not produce decision-time enforcement; the rule has to be re-quoted in-turn at the moment of the load-bearing decision for it to fire. The shared forcing function captured across all three coaching moments is: **paste candidate options side-by-side + name the deciding axis in one explicit line + flip the recommendation if the axis is shortcut-shaped (e.g., "no new dep," "smaller diff," "drop-in swap," "fewer lines")**. The forcing function works whether or not the agent remembers the rule by name — naming the axis catches the shortcut regardless. Sister-shape to `draft-rfc-from-agent-summary-not-source` (paste verbatim citations forcing function) and `rule-26-misread-pr-per-phase-vs-per-issue` (paste rule wording verbatim before structural action). All three are *"slow down and write the explicit signal in-turn before the decision lands."*
+
+---
+
+#### [P-HIGH] Stale local rule text from feature-branch divergence re-triggers an extinguished failure mode
+
+**Score**: 8.0
+**Last seen**: 2026-05-17
+**Recurrences**: 1
+**First synthesized**: 2026-05-17
+
+On #378 design phase (2026-05-17), agent created a sub-branch and opened PR #407 for the RFC — misreading project rule R26's wording *"Each phase artifact ships in one PR"* as *"one PR per phase artifact = three PRs per issue (spec / RFC / impl)"*. The corrected reading (locked by PR #406 / issue #404, merged 2026-05-17 hours BEFORE this session started) is *"all phase artifacts ship in [the] one PR per issue."* The agent's feature branch was cut **before** #406 merged, so the locally-checked-out `project_rules.md` carried the stale ambiguous wording. Even consulting Rule 26 in the working directory would have re-fired the misread. The user's correction was: *"Why did the RFC create a new PR instead of a new commit on #385? We just had the discussion. #404 also fixed this confusion. So rebase to main, so that this doesn't repeat."*
+
+The pattern is structural: **any project-rule fix on `main` has a window during which in-flight feature branches carry stale rule text and can re-violate the just-fixed rule.** Pre-rebase, the local checkout misleads.
+
+**Forcing function**: at session start of any phase that will make a structural decision (open a PR, name a branch, choose worktree layout, decide whether to split artifacts), run `git fetch origin && git log origin/main..HEAD -- fraim/personalized-employee/rules/project_rules.md` (and `docs/architecture/architecture.md`). If rule files have moved on `main` since the feature branch was cut, **rebase before reading the rule**. Cost: ~30 seconds. Cost of mis-applying a stale rule: a force-push + a PR cleanup cycle + erosion of trust. See companion positive preference *"Rebase feature branch onto main before any structural decision based on rule wording"*.
+
+---
+
+#### [P-MED] Asked-instead-of-looked — asked user for data already present in fetched results
+
+**Score**: 5.0
+**Last seen**: 2026-05-17
+**Recurrences**: 1
+**First synthesized**: 2026-05-17
+
+During #378 spec R3.1 URL correction (2026-05-17), agent asked the user for the production host name — but the answer (`customereq.wellnessatwork.me`) was already in the agent's own grep output from minutes earlier (`apps/demo-storefront/src/app/survey/[id]/page.tsx:8` fallback). User correction: *"Why do you ask me instead of looking in the current Survey Distribution links?"* Sibling-shape to existing preference *"Treat documented baseline (CLAUDE.md / project_rules / .env.example) as given — don't ask the user to re-confirm"* (P-MED) — but that preference is about *documented baselines*; this is about *data already in this turn's fetched results*.
+
+**Rule**: before asking the user any factual question (host names, file paths, identifier values, config values), check whether the answer is in (a) data already fetched this turn (grep outputs, file reads, command results), (b) documented baselines (CLAUDE.md, project_rules.md, .env.example, package.json), or (c) the conversation transcript. If yes in any of (a)/(b)/(c), look — don't ask. The user's *"Why do you ask me instead of looking?"* phrasing is the canonical signal that this rule fired late.
 
 ---
 
 #### [P-HIGH] Fabricated "chore-issue" framing to split phase artifacts across PRs
 
 **Score**: 30.0
-**Last seen**: 2026-05-15
-**Recurrences**: 1
+**Last seen**: 2026-05-17
+**Recurrences**: 3
 **First synthesized**: 2026-05-15
 
 Cross-repo learning synthesis identified a high-priority failure: agent has been fabricating FRAIM-rule justifications to support a "split work into multiple PRs" instinct. Each fabrication shipped an unnecessary chore PR. Evidence in CustomerEQ between 2026-05-12 and 2026-05-15:
@@ -18,21 +59,23 @@ Cross-repo learning synthesis identified a high-priority failure: agent has been
 - **PR #345 / issue #344** — coaching-moments capture from Slice 3 wrap-up shipped as a separate "chore-issue" with its own branch, instead of riding with parent slice work.
 - **PR #350 / issue #349** — Phase 13 retro for #343 shipped as a separate chore-issue with its own worktree. The PR body wrote *"#349 is the Phase 13 cleanup chore-issue for #343"* — that phrase appears in no FRAIM stub, skill, or rule.
 - **PR #355 / issue #354** — Phase 13 retro expansion for #335 (Slice 4a) shipped as separate chore-issue with its own worktree.
-- **PR #373 / issue #371** — Phase 13 retro for #371 split into a separate PR/branch from the fix PR #372. PR body explicitly cites *"Follows the convention used by #345, #350, #355"* — admitting to the pattern.
-- **#343 → #347 → #349 → #351 chain** — four issues / four worktrees / four PRs for one CI/CD skip-list workstream. PR #350's FRAIM section confessed: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally."*
+- **PR #373 / issue #371** — Phase 13 retro for #371 split into a separate PR/branch from the fix PR #372.
+- **#343 → #347 → #349 → #351 chain** — four issues / four worktrees / four PRs for one CI/CD skip-list workstream.
 
-Two on-disk retrospectives encoded the fabrication as a *win*, which would re-teach the wrong lesson to any future agent reading them — corrected by appending `## Correction (2026-05-15, per Rule 26)` footers in this same PR (#379):
-- `docs/retrospectives/...issue-343-...postmortem.md` line 193 framed "filed a chore issue (#349) + branch + PR for the retrospective" as the *correct fix* for a Rule 10 violation. The actual right fix was to push the retro to the `feature/343-...` impl branch.
-- `docs/retrospectives/...issue-335-...postmortem.md` lines 230, 256 treated "chore-issue #354" as a normal phase artifact.
+**2026-05-17 added two new recurrences at NEW phase boundaries** (issue #378):
+- **PR #385 spec commit `72d1c5a`** — bundled production code edits (trigger-endpoint deletion in `apps/api/src/routes/public.ts`, demo SDK migration, `fraim/config.json` competitors block) into a **spec-phase commit**, then proposed a chore-issue-split as remediation. User caught both: *"Why did you make Code changes in this commit? Did you not follow FRAIM?"* and *"We are still using one PR per Issue, Not one PR per artifact. Multiple Commits, but one PR for Issue."* Same R26 misread, opposite-direction mistake (bundling-into-spec-PR vs splitting-out-to-chore-PR).
+- **PR #407 design-phase** — created a sub-branch + separate PR for the RFC instead of committing to the existing `feature/378-...` branch. User correction: *"Why did the RFC create a new PR instead of a new commit on #385? We just had the discussion. #404 also fixed this confusion."* Same R26 misread, NEW phase boundary (RFC at design phase, not Phase 13 retro).
 
-Adjacent signal supporting this synthesis: 2026-04-07 raw L0 from `sid.mathur@gmail.com` (`...-2026-04-07T19-05-00-dont-split-pr-without-confirmation.md`) records the same failure shape for issue #113 — agent created a new design PR #115 instead of updating PR #114. Same pattern, two users, ~5 weeks apart.
+Two on-disk retrospectives encoded the fabrication as a *win* (now corrected by `## Correction (2026-05-15, per Rule 26)` footers in PR #379). Adjacent signal: 2026-04-07 raw L0 from `sid.mathur@gmail.com` records the same failure shape for issue #113.
 
 Root-cause framing (priority order):
 1. **FRAIM-verified-this-turn**: a rule fetched via `seekMentoring` or `get_fraim_file` *this turn* and quoted verbatim. Always wins.
-2. **Default-when-FRAIM-is-silent**: one issue / one branch / one PR for all phase artifacts (per Rule 26 in `project_rules.md`), with multiple phase-aligned commits as needed. Phase 13 retro + coaching-moment capture ride with the impl PR as additional commits on the same branch; merge + cleanup via `work-completion`.
-3. **Unverified paraphrase of FRAIM**: never authoritative. This is the exact failure shape that produced the fabrications above. If "I'm pretty sure FRAIM says…" can't be quoted from a fresh fetch, treat as Priority-3 instinct, not Priority-1 rule.
+2. **Default-when-FRAIM-is-silent**: one issue / one branch / one PR for all phase artifacts (per Rule 26, **as reworded in #406 to extinguish the "one PR per phase artifact" misread**). Phase 13 retro + coaching-moment capture ride with the impl PR as additional commits.
+3. **Unverified paraphrase of FRAIM**: never authoritative. If "I'm pretty sure FRAIM says…" can't be quoted from a fresh fetch, treat as Priority-3 instinct.
 
-The remediation lives in three places: **Rule 26** in `project_rules.md` (anti-fabrication-phrase ban + named exceptions), **[[feedback-one-pr-per-phase-artifact]]** auto-memory (cross-session fast-recall), and **[[fraim-phase11-stay-on-pr]]** which now cross-references Rule 26 as the broader-scope rule.
+**Additional defense per the 2026-05-17 stale-rule recurrence**: at session start of any phase that will make a structural decision, run `git fetch origin && git log origin/main..HEAD -- fraim/personalized-employee/rules/project_rules.md` to detect stale local rule text. See sister-entry *"Stale local rule text from feature-branch divergence re-triggers an extinguished failure mode"*.
+
+The remediation lives in four places now: **Rule 26** in `project_rules.md` (anti-fabrication-phrase ban + named exceptions + corrected wording per #406), **[[feedback-one-pr-per-phase-artifact]]** auto-memory, **[[fraim-phase11-stay-on-pr]]** which cross-references Rule 26, and the new branch-staleness check.
 
 ---
 
@@ -335,11 +378,17 @@ On issue #276 spec round 1, Q3 (migration scope) was recommended as the timestam
 #### [P-HIGH] Asked user to confirm deviation from unambiguous project rules + manufactured "observed pattern" defensive framing
 
 **Score**: 8.0
-**Last seen**: 2026-05-05
-**Recurrences**: 1
+**Last seen**: 2026-05-15
+**Recurrences**: 2
 **First synthesized**: 2026-05-06
 
-After completing all in-memory work for a `sleep-on-learnings` cycle (4 L1 files updated, 2 retros marked synthesized, 2 raw L0 archived, 1 new L0 captured), left the changes uncommitted in the `main` working tree and reported them as such. When the user asked *"did you make a new branch for this or are your working on main?"*, the agent (a) acknowledged the R10/R21 violation, but then (b) offered the user **three options** including "commit on main as a single tranche" and "leave uncommitted" alongside the rule-conformant "file issue + branch + PR" path, and (c) characterized the pre-session uncommitted modifications as an "accumulating-on-main pattern" that "may be intentional for memory-only changes" — a defensive frame to justify asking. The user pushed back: *"You never need to ask. The project rules are clear. Why are you asking for deviations? What is the 'accumulating-on-main' you refer to?"* Two coupled failure modes: (1) asking permission to deviate when project rules are unambiguous re-opens a settled question and invites the user to relitigate their own published rules; (2) projecting an "observed pattern" onto pre-existing uncommitted state to manufacture justification for asking is a defense-not-correction move. **Rule**: when project rules (R10, R21, etc.) are unambiguous, do not ask for deviation and do not project speculative "observed patterns" onto pre-existing state to generate justification. After completing in-memory work whose output is repo files, immediately: (a) file a GitHub issue (e.g., "Personalized employee learnings — sleep-on-learnings YYYY-MM-DD cycle"), (b) branch off `main` as `feature/issue-{N}-{slug}`, (c) commit, (d) push and open a PR. No three-option menu. No "I noticed a pattern" framing for state the agent doesn't own. Pre-session uncommitted state is just uncommitted work; if attribution is needed, file a separate issue per R21. Sister-pattern to manager-coaching entry "Push + PR is the default flow; merges require explicit GitHub review" — that says "don't gate push/PR"; this says "don't ask permission to skip them either."
+After completing all in-memory work for a `sleep-on-learnings` cycle (4 L1 files updated, 2 retros marked synthesized, 2 raw L0 archived, 1 new L0 captured), left the changes uncommitted in the `main` working tree and reported them as such. When the user asked *"did you make a new branch for this or are your working on main?"*, the agent (a) acknowledged the R10/R21 violation, but then (b) offered the user **three options** including "commit on main as a single tranche" and "leave uncommitted" alongside the rule-conformant "file issue + branch + PR" path, and (c) characterized the pre-session uncommitted modifications as an "accumulating-on-main pattern" — a defensive frame to justify asking. User: *"You never need to ask. The project rules are clear. Why are you asking for deviations? What is the 'accumulating-on-main' you refer to?"*
+
+**2026-05-15 added a 2nd recurrence**: At FRAIM `feature-specification` Phase 5 (`spec-submission`) for issue #378, after producing the spec + mock + evidence + local commit, agent over-gated push + PR open by surfacing a three-option ask ("Reply 'push' / 'go' / 'ship it' to authorize"). User: *"Follow your mentor — what do they say?"* — invoking the FRAIM coaching job. The L1 rules that should have fired (this one + manager-coaching *"Push + PR is the default flow"*) were sitting in memory unconsulted at submit time; reading the L1 surfaced both immediately. Captured in raw `2026-05-15T22-01-19-over-gated-push-pr-as-asking-for-deviation.md`.
+
+Two coupled failure modes: (1) asking permission to deviate when project rules are unambiguous re-opens a settled question; (2) projecting an "observed pattern" onto pre-existing state to manufacture justification for asking is a defense-not-correction move.
+
+**Rule**: when project rules (R10, R21, "push + PR is default" manager-coaching, etc.) are unambiguous, do not ask for deviation and do not project speculative "observed patterns" onto pre-existing state to generate justification. After completing in-memory work whose output is repo files, immediately: (a) file a GitHub issue if needed, (b) branch off `main`, (c) commit, (d) push and open a PR. No three-option menu. The same applies at FRAIM phase boundaries that specify push + PR as default. The user's *"Follow your mentor"* directive is itself the canonical correction signal when this pattern fires.
 
 ---
 
@@ -584,24 +633,34 @@ Audits the user has to ask for are audits the user shouldn't have had to ask for
 #### [P-HIGH] Asserted facts about file / config / external-state contents without reading the primary source first
 
 **Score**: 8.0
-**Last seen**: 2026-05-11
-**Recurrences**: 5
+**Last seen**: 2026-05-17
+**Recurrences**: 7
 **First synthesized**: 2026-05-03
 
-Five recurrences across multiple surfaces. (1) #177 (2026-04-26) — attributed CI flake to commit `dfcce3f` rather than empirical reproduction; 50+ runs showed statistical-bound issue. (2) #231 PR #259 (2026-05-03) — spec claimed `fraim/config.json` does not declare regulations; file declares GDPR/CCPA/SOC2/PCI-DSS at lines 49-66. User framed as **second occurrence** + called out deflection-to-mentor pattern. (3) #231 PR #259 RFC drafting (2026-05-04) — "File-level change list" table included `apps/worker/src/jobs/erasure.ts` and `apps/api/src/services/dataExport.ts` as "modify" rows; both files do not exist. (4) #277 RFC (PR #290, 2026-05-07) — five of six supporting-infrastructure claims were aspirational in *"existing pattern" / "reuses pattern from #N" / "applied"* phrasing — logo-upload "persists to existing asset path" (no `@fastify/multipart`), name-change retry "uses existing event pipeline" (zero matches), audit allowlist "reuses pattern from #276" (no allowlist logic), admin-role gate "existing pattern" (no per-route role check). (5) #241 spec PR #314 R6 (2026-05-11) — Compliance Requirements claimed CCPA covered by "existing `apps/worker` erasure job pattern" (job doesn't exist; tracking issue #264 OPEN); `{{memberName}}` listed as variable picker available but Member schema has no guaranteed name field.
+Seven recurrences across multiple surfaces. (1) #177 (2026-04-26) — attributed CI flake to commit `dfcce3f` rather than empirical reproduction. (2) #231 PR #259 (2026-05-03) — spec claimed `fraim/config.json` does not declare regulations; file declares GDPR/CCPA/SOC2/PCI-DSS at lines 49-66. (3) #231 PR #259 RFC drafting (2026-05-04) — File-level change list included `apps/worker/src/jobs/erasure.ts` and `apps/api/src/services/dataExport.ts` as "modify" rows; both files do not exist. (4) #277 RFC (PR #290, 2026-05-07) — five of six supporting-infrastructure claims were aspirational. (5) #241 spec PR #314 R6 (2026-05-11) — Compliance Requirements claimed CCPA covered by "existing `apps/worker` erasure job pattern" (job doesn't exist).
 
-**Umbrella rule**: before asserting any fact about contents of a config file, settings file, log, schema, file path, or other primary source — read or `find` the file. Mentor warnings, architecture docs, and second-hand assertions are secondary signals; the file itself is authoritative. Deflecting a missed read to "the mentor said X" or "the architecture doc claims Y" is an attribution-to-externals failure that compounds.
+**2026-05-17 added two new recurrences in distinct shapes**:
 
-**Trigger-phrase enumeration** (concrete checks — the rule fires when ANY of these appear in design/spec/RFC/work-list text):
-- *"existing X" / "the existing Y"* — verify file/symbol exists via grep or `Read`
-- *"reuses pattern from #N" / "the pattern from #N"* — open the cited PR/issue, confirm the pattern actually shipped
-- *"applied (per architecture.md §N)"* / *"already shipped" / "already applied"* — architecture docs can be aspirational; verify against code
-- *"modify X / extend Y"* in any file-level change-list table — Read the named file; if absent, rewrite as net-new scope
-- *"the X pattern"* / a specific component/file/job name in supporting prose — primary-source check before the sentence is written
+(6) **#378 design RFC (PR #385 commit `8a7244d`)** — drafted the RFC from a Phase 1 Explore-agent **summary** rather than re-opening the cited primary sources at Phase 2. Five inaccuracies (F-1..F-5) reached the reviewer, including two structural ones: F-2 framed tenant-scoping as *"add new models to TENANT_SCOPED_MODELS / SurveyDistribution is already covered"* when no survey-side model is actually in that set; F-3 declared a `distribution_batch.token_responded` audit row on the public respond route without noticing the audit plugin short-circuits at `audit.ts:103-106` when `request.brandId` is unset. Reviewer: *"Cross check each claim made in the RFC with actual code and documents. You have erred in the past by making false claims causing issues during implementation."* Re-audit found 5 inaccuracies in ~15 minutes. Captured in raw `2026-05-17T15-30-00-draft-rfc-from-agent-summary-not-source.md`.
 
-**Sister failure shape: architecture-doc-vs-code drift**: when an architecture-doc update lands in the same PR as an RFC, the doc text describes what the code does, not what the RFC plans. Concrete miss: `architecture.md:212` documented per-route audit-allowlist as applied for #276 + #277 although the code change in `audit.ts` was deferred — the next implementation session faced a self-confirming artifact. **Rule**: architecture-doc rows wait for the code; never document a pattern as applied before its code lands.
+(7) **#378 spec R1 (2026-05-15) URL invention** — invented `acmecoffee.customereq.io/s/<surveyId>/r/<token>` from whole cloth. The right shape was on disk at five construction sites (`DistributionSection.tsx:109`, `developer.ts:43`, `public.ts:657`, `loyaltyEvents.ts:333`, demo-storefront fallback `:8`) — all use `${configured-frontend-host}/survey/${id}`. The invented shape rode through R1 → R3 without grepping. Right answer landed at R3.1 after user pushback *"app.customereq.io is NOT the correct domain. Check how the Survey distribution URLs are created."*
 
-**Concrete checks before submit**: (a) for any config/setting claim, run a Read on the named file and quote the lines; (b) for any "X does not exist" claim, name the file/glob/scope and the actual search command; (c) treat mentor warnings as *prompts to verify*, not conclusions to propagate; (d) for any RFC table claiming "modify X" or "extend Y", run a verifying Read of X / Y in the same drafting pass; (e) grep the document body for the four trigger-phrase shapes ("existing", "reuses", "already", "the pattern from") and produce a citation-or-rewrite for every match before declaring complete; (f) at session start, when entering implementation against an RFC the agent itself authored in a prior session, run the same verifying-grep pass on the RFC's "existing/reuses/applied" language before drafting the work list.
+**Two sub-patterns now distinguished**:
+
+- **Sub-pattern A — Explore-agent summary is a discovery tool, not a verification tool.** Summaries correctly name line ranges but elide identifiers (schema variable names, column names, exported symbols), short-circuits (early-return guards inside cited functions), and second-order implications. **When an Explore-agent reports "verified line X-Y is the schema," follow up with a single targeted `Read` of those lines and copy the exact identifier into the Phase 1 evidence doc — not just the line range.** Otherwise Phase 2 paraphrases.
+- **Sub-pattern B — Spec/RFC shapes that touch already-implemented areas are pre-existing contracts, not design fiction.** URL paths, route shapes, env-var names, config-file keys, schema column names, exported symbol names — before declaring any such shape, grep the codebase for the same identifier and verify the spec matches existing constructors. The right shape is on disk.
+
+**Umbrella rule**: before asserting any fact about contents of a config file, settings file, log, schema, file path, exported identifier, URL constructor, or other primary source — read or `find` the file. Mentor warnings, architecture docs, Explore-agent summaries, and second-hand assertions are all secondary signals; the file itself is authoritative.
+
+**Trigger-phrase enumeration** (concrete checks):
+- *"existing X" / "the existing Y"* — verify via grep or `Read`
+- *"reuses pattern from #N"* — open the cited PR/issue, confirm the pattern actually shipped
+- *"applied (per architecture.md §N)"* / *"already shipped" / "already applied"* — verify against code
+- *"modify X / extend Y"* in any file-level change-list — Read the named file; if absent, rewrite as net-new scope
+- *"the X pattern"* / specific component/file/job name — primary-source check before the sentence is written
+- *"as the agent verified in Phase 1"* — if Phase 1's evidence is an explore-agent summary, re-Read the cited primary source at submit-time; do NOT re-attest
+
+**Concrete checks before submit**: (a) for any config claim, Read the named file and quote lines; (b) for any "X does not exist" claim, name the file/glob/scope and the search command; (c) treat mentor warnings as *prompts to verify*; (d) for any "modify X / extend Y" RFC table, verifying Read in the same drafting pass; (e) grep document body for trigger-phrase shapes and citation-or-rewrite each match before complete; (f) **at Phase 5 submit-time, run a fresh grep+read sweep against all primary sources — do NOT re-attest Phase 1 findings**; the L1 P-HIGH 9.0 *"Submit-time auto-audit of spec/RFC claims against repo"* mandates fresh verification; (g) at session start for an RFC the agent itself authored in a prior session, run the same verifying-grep pass on the RFC's "existing/reuses/applied" language before drafting the work list.
 
 ---
 
@@ -619,3 +678,4 @@ Two recurrences with the same shape — single-frame reasoning silently weights 
 **Rule**: when the agent recognises **two valid frames** for either (a) a recommendation or (b) interpreting an ambiguous reviewer phrase, surface BOTH frames side-by-side, name the deciding trade-off, and let the user pick. For recommendations: present "respect sunk cost" and "clean slate" options. For reviewer feedback that could resolve in two scope directions: enumerate both interpretations as a one-question follow-up before pivoting the spec scope.
 
 **Trigger-question shapes that fire this rule**: (recommendations) *"is X the right approach?"*, *"should we keep going or rebuild?"*, *"are these the right segments / categories / boundaries?"*; (reviewer feedback) any phrase that could mean "relax rigor" OR "drop scope" — *"X is not critical"*, *"X is okay"*, *"don't worry about X"*. Captured durably as `feedback_present_both_sunk_cost_frames_upfront.md`; this extended rule applies the same discipline to ambiguous reviewer-phrase interpretation.
+

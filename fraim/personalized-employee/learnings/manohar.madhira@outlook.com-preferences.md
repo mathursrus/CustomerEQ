@@ -2,7 +2,7 @@
 
 Patterns that describe how this user prefers to work, interact, and approach recurring decisions.
 
-**Last synthesized**: 2026-05-14
+**Last synthesized**: 2026-05-17
 
 ---
 
@@ -198,3 +198,53 @@ Sister-rule to "Read HTML mocks directly" + "Mock-to-implementation drift is the
 
 Before executing any non-trivial user request in this repo, start the FRAIM discovery flow: **(1) read `fraim/personalized-employee/rules/project_rules.md`** (the entry-point checklist — CLAUDE.md prologue directs this; failing it leaves the agent operating without project guardrails, surfacing later as concrete rule violations), (2) match the request to a FRAIM job via `mcp__fraim__list_fraim_jobs`, (3) call `mcp__fraim__get_fraim_job` for the full phased instructions, (4) follow phases via `seekMentoring`. Do not enter Claude Plan mode; do not launch Explore agents ahead of FRAIM context. Confirmed across multiple sessions in 2026-04 (issues #157 broken-windows, #166, #170 spec, #170 RFC, #170 implementation phase 1, #177, #179) — when this flow is followed, jobs run cleanly through their phases with zero rework. **#331 Slice 3 wrap-up (2026-05-12) added a 7th recurrence with a concrete failure cost**: agent skipped reading `project_rules.md` at session start; several hours later during Phase 13 retrospective cleanup, committed directly to `main` (commit `7def500`) — a Rule 10 violation (*"Never commit directly to `main`"*). The retrospective being a 208-line doc-only commit did not exempt it from Rule 10; had project_rules.md been in working memory at the moment `gh pr merge --delete-branch` auto-switched to `main`, the right action (`git switch -c chore/...` before any commit) would have been the default. **Strengthening after recurrence #7**: treat the CLAUDE.md prologue list (currently: `project_rules.md`) as a hard pre-condition before any tool call against the user's actual ask — not advisory. When the flow is skipped, work lands on wrong branches, phases are falsely marked complete, project rules get violated, and recovery costs accumulate.
 
+---
+
+#### [P-HIGH] Merit over ease — recommend long-term-best on merit; cite a specific blocker if a short-term alternate is genuinely required
+
+**Score**: 8.0
+**Last seen**: 2026-05-17
+**Recurrences**: 2
+**First synthesized**: 2026-05-17 (promoted to L1 from auto-memory `feedback_merit_over_ease.md`, originally saved 2026-05-14)
+
+User directive (verbatim, 2026-05-14): *"Don't optimize for development time or ease. Aim for what is best in long term... You give me shortcuts all the time and then cause problems down the road. The issue list is ballooning for this reason."* The rule lives in user-side auto-memory as `feedback_merit_over_ease.md` and is being promoted to L1 here after two recurrences in the 2026-05-17 #378 session despite the rule existing in memory.
+
+**Recurrence 1 — OD-2 (Brand-TZ library), 2026-05-17**: agent drafted Open Decision OD-2 with **2a (native `Intl.DateTimeFormat` + ~30-line `endOfDayInBrandTz` helper) ← recommended**, citing *"zero new dependency, Node 22's ICU includes IANA TZ data, sufficient for the 5 display sites + 1 EOD-arithmetic site #378 needs."* Reviewer Q2 response (paraphrasing the rule back): *"long term stability and direction should be preferred over short term. Especially for 1st time implementation of a solution, when product is just being built new, first time usage should not mean take shortcuts. That then introduces a precendence and finally we are in a death spiral of keep writing shortcuts."* Phase 3 spike confirmed all three candidate approaches converge correctness-wise (15/15 pass); library wins on ergonomics. OD-2 reversed to 2b post-spike. Captured in raw `2026-05-17T17-00-00-merit-over-ease-misfired-on-od-2.md`.
+
+**Recurrence 2 — #378 spec R3.1 URL corrections, 2026-05-17**: agent proposed inferior URL shapes (`app.customereq.io/s/{id}/r/{token}` host+path, then `?t={token}` query param) as "drop-in" / "minimal-delta" fixes. Both required user pushback. Same shortcut-shaped framing. Captured in `2026-05-17` spec retrospective.
+
+**Rule** (canonical statement):
+
+1. **Never optimize for development time, diff size, or "drop-in swap" framing.** Recommend the long-term-best option on merit first.
+2. **Cite a specific blocker** if a short-term alternate is genuinely required (runtime incompatibility, license, footprint that materially matters). "No new dep" is not by itself a blocker.
+3. **Shortcuts have ballooned the issue list across prior sessions.** The cost is not a single bad recommendation; it is the precedent of shortcut-shaped reasoning that compounds across the product's first-time decisions.
+
+**Forcing function — apply at the moment of writing "← recommended"**: before writing "← recommended" on any decision option, paste the candidate options side-by-side and write the deciding axis in one explicit line. If the axis is shortcut-shaped (one of the trigger phrases below), the recommendation is wrong by this rule and must be flipped to the long-term-durable option unless a specific blocker against that option can be cited.
+
+**Linguistic shortcut-trigger phrases to audit**: "drop-in," "minimal delta," "smallest diff," "easier to extend," "for now," "reuse existing," "cheapest," "quick win," "zero new dependency," "fewer lines of code," "smallest change," "no new package," "minimal route delta." Each phrase either has a named blocker reason justifying it, or it gets cut and the recommendation flipped.
+
+**Companion mistake-pattern**: *"L1 rule in memory but doesn't fire at the load-bearing decision moment"* (P-HIGH 9.0). The forcing function above is the prevention for the present rule and the umbrella pattern for the other two 2026-05-17 violations (drafted-from-summary, Rule-26-misread). Captured durably in user-side auto-memory `feedback_merit_over_ease.md` (still authoritative) and now in L1 preferences with the forcing function added.
+
+---
+
+#### [P-MED] Rebase feature branch onto main before any structural decision based on rule wording
+
+**Score**: 5.0
+**Last seen**: 2026-05-17
+**Recurrences**: 1
+**First synthesized**: 2026-05-17
+
+On #378 design phase (2026-05-17), the agent's feature branch was cut on 2026-05-15 — **before** PR #406 (reword of Rule 26) merged on 2026-05-17T11:05. The agent read the locally-checked-out `project_rules.md` to inform a structural decision (whether the RFC ships in its own PR or commits to the existing feature branch), got the ambiguous pre-#406 wording, misread it, and opened PR #407. The user corrected: *"#404 also fixed this confusion. So rebase to main, so that this doesn't repeat."*
+
+**Rule**: at session start of any phase that will make a structural decision (open a PR, name a branch, choose worktree layout, decide whether to split artifacts), run two commands before reading any rule file:
+
+```bash
+git fetch origin
+git log origin/main..HEAD -- fraim/personalized-employee/rules/project_rules.md docs/architecture/architecture.md CLAUDE.md
+```
+
+If the upstream files have moved on `main` since the feature branch was cut (the `log` shows commits on main that the branch doesn't have), **rebase the feature branch onto main before reading the rule**. The corrected wording is on `main`; the local checkout is stale until rebased.
+
+**Cost / benefit**: ~30 seconds at session start vs. a force-push + PR cleanup cycle + erosion of trust if a just-fixed rule gets re-violated. Sister-rule to mistake-pattern *"Stale local rule text from feature-branch divergence re-triggers an extinguished failure mode"*. Authoritative version of the forcing function lives in this preference; the mistake-pattern entry catalogs the failure mode it prevents.
+
+**Applies to all rule-bearing files**: `fraim/personalized-employee/rules/project_rules.md` (project rules), `docs/architecture/architecture.md` (architectural conventions), `CLAUDE.md` (project guardrails), `fraim/personalized-employee/learnings/*` (L1 corpus — should also be re-pulled for stale entries, though synthesis cycles are slower than rule fixes).
