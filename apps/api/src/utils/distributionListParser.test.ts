@@ -1,5 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { parsePasteBody, parseCsvBody } from './distributionListParser.js'
+import { parsePasteBody, parseCsvBody, bodyHasCsvHeader } from './distributionListParser.js'
+
+describe('bodyHasCsvHeader — CSV-vs-paste routing', () => {
+  it('returns true when first cell is a known header alias', () => {
+    expect(bodyHasCsvHeader('email,first_name\njohn@x.com,John')).toBe(true)
+    expect(bodyHasCsvHeader('Email Address,FNAME\njohn@x.com,John')).toBe(true)
+    expect(bodyHasCsvHeader('phone,name\n+15551234,Jane')).toBe(true)
+    expect(bodyHasCsvHeader('customer_id,name\nabc,X')).toBe(true)
+  })
+
+  it('returns false for a paste of bare emails with trailing commas (#378 walk-through #15)', () => {
+    // Regression test for the bug where `looksLikeCsv = firstLine.includes(',') && body.includes('\n')`
+    // false-positived on every paste with trailing commas and silently
+    // consumed the first row as a fake header, dropping 1 email from the audience.
+    expect(bodyHasCsvHeader('user001@x.com,\nuser002@x.com,\nuser003@x.com,')).toBe(false)
+    expect(bodyHasCsvHeader('a@b.com,c@d.com\ne@f.com')).toBe(false)
+  })
+
+  it('returns false for single-line paste (no newline)', () => {
+    expect(bodyHasCsvHeader('email,first_name')).toBe(false)
+    expect(bodyHasCsvHeader('a@b.com')).toBe(false)
+  })
+
+  it('returns false for empty body', () => {
+    expect(bodyHasCsvHeader('')).toBe(false)
+    expect(bodyHasCsvHeader('\n\n')).toBe(false)
+  })
+})
 
 describe('parsePasteBody — separators', () => {
   it('splits on newline', () => {

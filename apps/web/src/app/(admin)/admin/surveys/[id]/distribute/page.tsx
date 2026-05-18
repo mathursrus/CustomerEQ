@@ -17,6 +17,7 @@ interface PreviewResponse {
   audienceCount: number
   willAutoEnrollCount: number
   unmatchedCount: number
+  parsedRowCount?: number
   members: {
     memberId: string | null
     identifier: string
@@ -900,12 +901,19 @@ function LivePreview({
     )
   }
   const summary = summaryParts.join(' · ')
+  // Parsed-entry count (Custom List only). Lets the operator spot when their
+  // pasted N is not what the server received (browser/clipboard truncation).
+  const parsedLine =
+    mode === 'custom_list' && typeof preview.parsedRowCount === 'number'
+      ? `Parsed ${preview.parsedRowCount.toLocaleString()} entr${preview.parsedRowCount === 1 ? 'y' : 'ies'} from your input.`
+      : null
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm font-medium text-gray-900 mb-3">
+      <p className="text-sm font-medium text-gray-900">
         {summary}
         {previewing ? <span className="ml-2 text-xs text-gray-400">updating…</span> : null}
       </p>
+      {parsedLine ? <p className="mb-3 mt-1 text-xs text-gray-500">{parsedLine}</p> : <div className="mb-3" />}
       {preview.members.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">

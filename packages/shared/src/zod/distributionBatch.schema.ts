@@ -65,6 +65,12 @@ export const PreviewBatchResponseSchema = z.object({
   audienceCount: z.number().int().nonnegative(),
   willAutoEnrollCount: z.number().int().nonnegative(),
   unmatchedCount: z.number().int().nonnegative(),
+  /** Custom-List only: total entries the parser produced from the input body
+   * (matched + unmatched). Lets the UI surface "Parsed N entries from your
+   * input" so silent body-size truncations (browser/clipboard quirks) are
+   * visible against the operator's expected count. Omitted for Existing
+   * Members where the concept doesn't apply. */
+  parsedRowCount: z.number().int().nonnegative().optional(),
   members: z.array(PreviewMemberRow),                 // Existing Members: first-50 cap; Custom List: up to 500
   unmatched: z.array(z.string()),                     // raw identifier strings that didn't resolve
   totalRows: z.number().int().nonnegative(),          // for pagination — total before slicing

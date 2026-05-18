@@ -50,11 +50,29 @@ const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
 const E164_RE = /^\+?[1-9]\d{6,14}$/
 const NAME_EMAIL_RE = /^(.*)\s*<\s*([^<>\s]+)\s*>\s*$/
 
+/**
+ * Returns true when the first cell of the first CSV-style line matches a
+ * recognized header alias (`email`, `phone`, `first_name`, etc.). Used by
+ * `resolveCustomList` to decide CSV-vs-paste mode without false-positiving
+ * on a bare paste of emails with trailing commas (which would otherwise
+ * cause parseCsvBody to silently consume the first row as a fake header).
+ */
+export function bodyHasCsvHeader(body: string): boolean {
+  const firstLine = body.split(/\r?\n/, 1)[0] ?? ''
+  if (!firstLine.includes(',') || !body.includes('\n')) return false
+  const firstCell = (firstLine.split(',', 1)[0] ?? '').trim().toLowerCase()
+  if (firstCell.length === 0) return false
+  return firstCell in HEADER_ALIASES
+}
+
 const HEADER_ALIASES: Readonly<Record<string, IdentifierKind | 'firstName' | 'lastName'>> = {
   // identifier kinds
   email: 'email',
   'e-mail': 'email',
   mail: 'email',
+  'email address': 'email',
+  email_address: 'email',
+  emailaddress: 'email',
   phone: 'phone',
   'phone number': 'phone',
   phonenumber: 'phone',

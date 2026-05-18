@@ -23,7 +23,12 @@ import {
 } from '@customerEQ/shared'
 import { z } from 'zod'
 import { mintToken, hashToken } from '@customerEQ/shared/distributionTokens'
-import { parsePasteBody, parseCsvBody, type ParsedRow } from '../utils/distributionListParser.js'
+import {
+  parsePasteBody,
+  parseCsvBody,
+  bodyHasCsvHeader,
+  type ParsedRow,
+} from '../utils/distributionListParser.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
 
 const PASTE_ENTRIES_CAP = 10_000
@@ -119,6 +124,12 @@ interface ResolvedAudience {
   autoEnrolledMemberIds: string[]
   unmatched: string[]
   samplingSeed: string | null
+  /** Total entries the parser produced (matched + unmatched). Surfaces to the UI
+   * so an operator can sanity-check the row count against the input size and
+   * catch silent truncations like the #378 walk-through #15 case where the
+   * stored body was 4168 chars vs an expected ~5500. Undefined for the
+   * Existing Members path where it isn't meaningful. */
+  parsedRowCount?: number
 }
 
 async function resolveExistingMembers(
@@ -182,14 +193,13 @@ async function resolveCustomList(
     return { members: [], autoEnrolledMemberIds: [], unmatched: [], samplingSeed: null, rowsForAudit: [] }
   }
 
-  // Try paste parser first; if the body smells like CSV (has a comma in the
-  // first line + at least 2 lines), use the CSV parser instead. This is a
-  // best-effort sniff for the case where the route was hit with a JSON body
-  // carrying the raw CSV in the `identifiers` string (common when the client
-  // uploads via the same field shape).
-  const firstLine = identifiersBody.split(/\r?\n/, 1)[0] ?? ''
-  const looksLikeCsv = firstLine.includes(',') && identifiersBody.includes('\n')
-  const parsed = looksLikeCsv
+  // Route to CSV mode ONLY when the first cell of the first line is a known
+  // header alias (email / phone / customer_id / first_name / last_name / …).
+  // The previous sniff was just "first line has a comma + body has a newline",
+  // which false-positived on a bare paste of `email,\nemail,\n` and silently
+  // consumed the first row as a fake header (#378 walk-through #15 root cause).
+  const isCsv = bodyHasCsvHeader(identifiersBody)
+  const parsed = isCsv
     ? parseCsvBody({ body: identifiersBody, brandKind: brand.memberIdentifierKind })
     : parsePasteBody(identifiersBody, brand.memberIdentifierKind)
 
@@ -202,7 +212,7 @@ async function resolveCustomList(
     err.code = 'PASTE_TOO_LARGE'
     throw err
   }
-  if (!looksLikeCsv && parsed.rows.length > PASTE_ENTRIES_CAP) {
+  if (!isCsv && parsed.rows.length > PASTE_ENTRIES_CAP) {
     const err = new Error(`Too many entries: ${parsed.rows.length} > ${PASTE_ENTRIES_CAP}`) as Error & {
       statusCode?: number
       code?: string
@@ -276,6 +286,7 @@ async function resolveCustomList(
     unmatched: unmatchedFinal,
     samplingSeed: null,
     rowsForAudit: parsed.rows,
+    parsedRowCount: parsed.rows.length + parsed.unmatched.length,
   }
 }
 
@@ -380,10 +391,20 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Predict auto-enrollments. The preview path never persists, so
+      // `autoEnrolledMemberIds` is always empty in the resolver output —
+      // instead, infer the would-be-enrolled count from the synthesised
+      // rows (memberId === '' marks a Custom-List row that doesn't match
+      // an existing member and would be auto-created at generate time).
+      const willAutoEnrollCountPreview =
+        input.audience.mode === 'custom_list'
+          ? resolved.members.filter((m) => m.memberId === '').length
+          : 0
       return reply.status(200).send({
         audienceCount: resolved.members.length,
-        willAutoEnrollCount: resolved.autoEnrolledMemberIds.length,
+        willAutoEnrollCount: willAutoEnrollCountPreview,
         unmatchedCount: resolved.unmatched.length,
+        parsedRowCount: resolved.parsedRowCount ?? resolved.members.length,
         members: visible.map((m) => ({
           memberId: m.memberId.length > 0 ? m.memberId : null,
           identifier: m.identifier,
