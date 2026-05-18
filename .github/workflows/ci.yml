@@ -8,6 +8,12 @@ jobs:
   ci:
     name: Build, Lint, Test
     runs-on: ubuntu-latest
+    # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
+    # pull_request events. The default GITHUB_TOKEN on this repo lacks
+    # pull-requests: read — same fix as applied to docker-build in #346.
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_API: ${{ secrets.TURBO_API }}
@@ -44,27 +50,57 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Issue #393: skip CI on doc-only commits. Skip-list semantics mirror
+      # docker-build: leading '**' seeds the match set (required — negation-only
+      # patterns default to true per #351). New top-level dirs are
+      # default-included; only listed patterns are excluded.
+      - name: Determine if CI is needed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            build:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/pull_request_template.md'
+              - '!CODEOWNERS'
+              - '!.gitattributes'
+              - '!LICENSE'
+
+      - name: Skip if doc-only
+        if: steps.changes.outputs.build == 'false'
+        run: |
+          echo "Doc-only change; skipping CI (issue 393)."
+
       - name: Setup pnpm
+        if: steps.changes.outputs.build == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.changes.outputs.build == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.changes.outputs.build == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Validate Prisma schema
+        if: steps.changes.outputs.build == 'true'
         run: pnpm --filter @customerEQ/database exec prisma validate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
       - name: Check enum migration coverage
+        if: steps.changes.outputs.build == 'true'
         run: bash packages/database/scripts/check-enum-migrations.sh
 
       - name: Generate Prisma client
+        if: steps.changes.outputs.build == 'true'
         run: pnpm db:generate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
@@ -74,26 +110,33 @@ jobs:
       # `pnpm db:reset` and on prod restore-from-migrations. Running the full
       # history against an empty postgres on every PR catches that class.
       - name: Run migrations (regression gate for #270)
+        if: steps.changes.outputs.build == 'true'
         run: pnpm db:migrate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
       - name: Build
+        if: steps.changes.outputs.build == 'true'
         run: pnpm build
 
       - name: Type check
+        if: steps.changes.outputs.build == 'true'
         run: pnpm typecheck
 
       - name: Lint
+        if: steps.changes.outputs.build == 'true'
         run: pnpm lint
 
       - name: Security audit
+        if: steps.changes.outputs.build == 'true'
         run: pnpm audit --audit-level=high
 
       - name: Install Playwright browsers
+        if: steps.changes.outputs.build == 'true'
         run: pnpm --filter @customerEQ/web exec playwright install --with-deps chromium
 
       - name: Validate smoke test secrets
+        if: steps.changes.outputs.build == 'true'
         run: |
           test -n "$AZURE_OPENAI_API_KEY" || test -n "$OPENAI_API_KEY" || (echo "Missing AZURE_OPENAI_API_KEY / OPENAI_API_KEY" && exit 1)
         env:
@@ -101,6 +144,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Prepare smoke test env
+        if: steps.changes.outputs.build == 'true'
         run: |
           if [ -n "$AZURE_OPENAI_API_KEY" ]; then
             echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY" >> "$GITHUB_ENV"
@@ -112,6 +156,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Start demo storefront dependencies
+        if: steps.changes.outputs.build == 'true'
         run: |
           wait_for_url() {
             local url="$1"
@@ -144,6 +189,7 @@ jobs:
           NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR: '#CBA258'
 
       - name: Smoke Test Suite
+        if: steps.changes.outputs.build == 'true'
         run: pnpm test:smoke
         env:
           API_PORT: '4010'
@@ -155,8 +201,8 @@ jobs:
           # Only the Azure/OpenAI API key must be present.
 
       - name: Upload coverage
+        if: steps.changes.outputs.build == 'true'
         uses: codecov/codecov-action@v4
-        if: always()
         with:
           fail_ci_if_error: false
 
