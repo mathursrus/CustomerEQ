@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-05-16
-synthesized:
+synthesized: 2026-05-18
 ---
 
 # Postmortem: CD: add canary API checks to post-deploy probe — Issue #388

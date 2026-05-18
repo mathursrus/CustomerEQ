@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-05-15
-synthesized:
+synthesized: 2026-05-18
 ---
 
 # Postmortem: Drop Erroneous survey_responses_live_dedup Unique Index — Issue #389

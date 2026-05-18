@@ -1,6 +1,6 @@
 # Manager Coaching — swavak@gmail.com
 
-**Last synthesized**: 2026-05-08
+**Last synthesized**: 2026-05-18
 
 Direct coaching guidance and behavioral expectations provided by managers or senior devs.
 
@@ -14,13 +14,13 @@ Direct coaching guidance and behavioral expectations provided by managers or sen
 
 ## Coaching Moments
 
-#### [MC-MED] Mid-session directional correction for missing role perspective improved artifact materially
+#### [MC-MED] Mid-session directional corrections consistently catch agent mistakes before PR merge
 
-**Score**: 4.4
-**Last seen**: 2026-04-01
-**Recurrences**: 1
+**Score**: 7.5
+**Last seen**: 2026-05-03
+**Recurrences**: 2
 **First synthesized**: 2026-05-08
 
-During Issue #75 spec execution, the user identified mid-session that the spec was entirely member-facing and redirected to include operator workflows. This correction — given mid-execution rather than at scope definition — was highly effective: it resulted in 13 new requirements, a second HTML mock, and 5 new friction items. Providing role-scope clarity upfront (listing all roles and confirming each needs a workflow at context-gathering) would prevent needing this correction mid-execution, but the timely intervention recovered the artifact fully.
+The manager's pattern of intervening mid-session when the agent is going wrong has a strong track record: Issue #75 (role-perspective correction produced 13 new requirements and a second HTML mock), Issue #262 (premature implementation on external data feature caught before any code merged — agent had written ~600 lines against a wrong schema assumption). Both interventions arrived early enough to recover without merged-code rework. Providing scope clarity at context-gathering (listing all roles; triggering `feature-specification` for external-data features) would prevent needing these corrections, but timely mid-session redirection is an effective backstop when it occurs.
 
 ---
