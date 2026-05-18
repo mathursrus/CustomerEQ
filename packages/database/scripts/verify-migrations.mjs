@@ -6,18 +6,17 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 try {
   const incomplete = await prisma.$queryRaw`
-    SELECT migration_name, applied_steps_count, steps_count, finished_at
+    SELECT migration_name, applied_steps_count, finished_at
     FROM "_prisma_migrations"
-    WHERE applied_steps_count < steps_count
-       OR (  finished_at IS NULL
-          AND rolled_back_at IS NULL
-          AND started_at IS NOT NULL)
+    WHERE finished_at IS NULL
+      AND rolled_back_at IS NULL
+      AND started_at IS NOT NULL
   `;
   if (incomplete.length > 0) {
     console.error('ERROR: incomplete migrations detected:');
     for (const row of incomplete) {
       console.error(
-        `  ${row.migration_name}: ${row.applied_steps_count}/${row.steps_count} steps applied, finished_at=${row.finished_at}`
+        `  ${row.migration_name}: ${row.applied_steps_count} steps applied, finished_at=${row.finished_at}`
       );
     }
     process.exit(1);
