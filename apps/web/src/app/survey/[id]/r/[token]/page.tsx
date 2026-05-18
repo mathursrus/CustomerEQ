@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
-import { RendererErrorLine, SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
+import { SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
 import type {
   AnswersState,
   BrandLite,
@@ -264,8 +264,20 @@ export default function TokenizedSurveyPage() {
     )
   }
 
+  // Issue #378 — the member-id field is suppressed in token-authorized flow.
+  // The token resolves the member; the respondent never sees who they are.
+  // SurveyFormRenderer owns the consent checkbox + submit button — we just
+  // wire it up via props so we don't render duplicates.
   return (
     <main className="max-w-2xl mx-auto px-6 py-12">
+      {error ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+        >
+          {error}
+        </div>
+      ) : null}
       <SurveyFormRenderer
         survey={resolvedSurvey}
         theme={themeForRender}
@@ -275,33 +287,12 @@ export default function TokenizedSurveyPage() {
         mode="live"
         answers={answers}
         onAnswerChange={handleAnswerChange}
+        onSubmit={handleSubmit}
+        submitLabel={submitting ? 'Submitting…' : 'Submit'}
+        submitDisabled={submitting}
+        consentChecked={consentChecked}
+        onConsentCheckedChange={setConsentChecked}
       />
-      {/* Issue #378 — the member-id field is suppressed in token-authorized flow.
-          The token resolves the member; the respondent never sees who they are. */}
-      {brandLite.consentMode === 'EXPLICIT' && resolvedSurvey.consentTextOverride !== '' ? (
-        <label className="mt-4 flex items-start gap-3 text-sm text-gray-900">
-          <input
-            type="checkbox"
-            checked={consentChecked}
-            onChange={(e) => setConsentChecked(e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            {resolvedSurvey.consentTextOverride ??
-              brandLite.consentTextDefault ??
-              'I agree to share my feedback for the brand\'s use.'}
-          </span>
-        </label>
-      ) : null}
-      {error ? <RendererErrorLine slug="submit" message={error} /> : null}
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={submitting}
-        className="mt-6 rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-      >
-        {submitting ? 'Submitting…' : 'Submit'}
-      </button>
     </main>
   )
 }

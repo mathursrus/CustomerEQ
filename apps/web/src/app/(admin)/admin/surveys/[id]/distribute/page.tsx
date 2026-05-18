@@ -76,6 +76,24 @@ function formatDistributionTzDate(iso: string, timezone: string, locale: string)
   }
 }
 
+// Map the API's UPPERCASE enum (EMAIL / PHONE / CUSTOMER_ID) to the lowercase
+// form the client uses. The previous inline `.toLowerCase().replace('_', '_')`
+// was a no-op that left CUSTOMER_ID brands with an invalid `customer_id` value
+// at runtime even though the type said `external_id`.
+function brandKindToClient(
+  raw: string | undefined,
+): 'email' | 'phone' | 'external_id' {
+  switch ((raw ?? 'EMAIL').toUpperCase()) {
+    case 'PHONE':
+      return 'phone'
+    case 'CUSTOMER_ID':
+      return 'external_id'
+    case 'EMAIL':
+    default:
+      return 'email'
+  }
+}
+
 function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d', _timezone: string): string {
   // Caller passes brand timezone for end-of-day snap; server re-validates.
   // For V0 the client computes a UTC offset from now() rounded to the next
@@ -90,18 +108,40 @@ function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d', _timezone: stri
   return target.toISOString()
 }
 
+// Per-platform identifier-column header keyed off the brand's Member ID type
+// (issue #378 walk-through feedback #10 — drop internal `memberId` from the
+// customer-facing CSV; rename the identifier column using the brand's term).
+function identifierHeaderFor(
+  format: DistributionFormat,
+  kind: 'email' | 'phone' | 'external_id',
+): string {
+  if (format === 'mailchimp') {
+    return { email: 'Email Address', phone: 'Phone Number', external_id: 'Customer ID' }[kind]
+  }
+  if (format === 'hubspot') {
+    return { email: 'email', phone: 'phone_number', external_id: 'customer_id' }[kind]
+  }
+  if (format === 'klaviyo') {
+    return { email: 'Email', phone: 'Phone Number', external_id: 'Customer ID' }[kind]
+  }
+  // generic — match the brand's wording as surfaced in Organization → Settings.
+  return { email: 'Email', phone: 'Phone Number', external_id: 'Customer ID' }[kind]
+}
+
 function csvForFormat(
   format: DistributionFormat,
   rows: GenerateResponse['tokens'],
   surveyNameInMail: string,
   baseUrl: string,
   surveyId: string,
+  memberIdentifierKind: 'email' | 'phone' | 'external_id',
 ): string {
+  const idHeader = identifierHeaderFor(format, memberIdentifierKind)
   const headers = {
-    generic: ['memberId', 'identifier', 'firstName', 'lastName', 'surveyName', 'mergeTagUrl'],
-    mailchimp: ['memberId', 'Email Address', 'FNAME', 'LNAME', 'SURVEY_NAME', 'SURVEY_URL'],
-    hubspot: ['member_id', 'email', 'firstname', 'lastname', 'survey_name', 'survey_url'],
-    klaviyo: ['Member ID', 'Email', 'First Name', 'Last Name', 'Survey Name', 'Survey URL'],
+    generic: [idHeader, 'firstName', 'lastName', 'surveyName', 'mergeTagUrl'],
+    mailchimp: [idHeader, 'FNAME', 'LNAME', 'SURVEY_NAME', 'SURVEY_URL'],
+    hubspot: [idHeader, 'firstname', 'lastname', 'survey_name', 'survey_url'],
+    klaviyo: [idHeader, 'First Name', 'Last Name', 'Survey Name', 'Survey URL'],
   }[format]
   const escape = (s: string | null): string => {
     if (s === null || s === undefined) return ''
@@ -112,9 +152,7 @@ function csvForFormat(
   for (const row of rows) {
     const url = `${baseUrl}/survey/${surveyId}/r/${row.plaintext}`
     lines.push(
-      [row.memberId, row.identifier, row.firstName, row.lastName, surveyNameInMail, url]
-        .map(escape)
-        .join(','),
+      [row.identifier, row.firstName, row.lastName, surveyNameInMail, url].map(escape).join(','),
     )
   }
   return lines.join('\n') + '\n'
@@ -191,10 +229,7 @@ export default function DistributePage() {
         setBrand({
           timezone: brandBody.timezone ?? 'UTC',
           locale: brandBody.locale ?? 'en-US',
-          memberIdentifierKind: (brandBody.memberIdentifierKind ?? 'EMAIL').toLowerCase().replace('_', '_') as
-            | 'email'
-            | 'phone'
-            | 'external_id',
+          memberIdentifierKind: brandKindToClient(brandBody.memberIdentifierKind),
           memberCount,
         })
         // Default survey-name-in-mail to respondent-facing title (R10).
@@ -210,8 +245,12 @@ export default function DistributePage() {
   }, [surveyId, getToken])
 
   // ── Auto-refresh preview when inputs change (debounced).
+  // Uses AbortController so a slow in-flight preview can't land after a newer
+  // one and revert the UI to a stale count (issue #378 walk-through #7 — user
+  // changed Count to 0 but the preview still showed the previous value).
   useEffect(() => {
     if (!survey || !brand || generated) return
+    const controller = new AbortController()
     const handle = setTimeout(async () => {
       const token = await getAuthToken(getToken)
       if (!token) return
@@ -243,18 +282,24 @@ export default function DistributePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
+          signal: controller.signal,
         })
+        if (controller.signal.aborted) return
         if (res.ok) {
           const previewBody = (await res.json()) as PreviewResponse
-          setPreview(previewBody)
+          if (!controller.signal.aborted) setPreview(previewBody)
         }
-      } catch {
+      } catch (err) {
+        if ((err as { name?: string }).name === 'AbortError') return
         // Soft-fail — preview is best-effort.
       } finally {
-        setPreviewing(false)
+        if (!controller.signal.aborted) setPreviewing(false)
       }
-    }, 350)
-    return () => clearTimeout(handle)
+    }, 250)
+    return () => {
+      clearTimeout(handle)
+      controller.abort()
+    }
   }, [
     survey,
     brand,
@@ -331,16 +376,23 @@ export default function DistributePage() {
   ])
 
   const handleDownload = useCallback(() => {
-    if (!generated || !survey) return
+    if (!generated || !survey || !brand) return
     const baseUrl =
       typeof window !== 'undefined'
         ? `${window.location.protocol}//${window.location.host}`
         : ''
-    const csv = csvForFormat(downloadFormat, generated.tokens, surveyNameInMail, baseUrl, surveyId)
+    const csv = csvForFormat(
+      downloadFormat,
+      generated.tokens,
+      surveyNameInMail,
+      baseUrl,
+      surveyId,
+      brand.memberIdentifierKind,
+    )
     const safeName = (survey.name || 'survey').replace(/[^A-Za-z0-9-]/g, '-')
     const yyyymmdd = new Date().toISOString().slice(0, 10)
     downloadCsv(`${safeName}-${yyyymmdd}-links.csv`, csv)
-  }, [generated, downloadFormat, surveyNameInMail, survey, surveyId])
+  }, [generated, downloadFormat, surveyNameInMail, survey, brand, surveyId])
 
   if (loadError) {
     return (
@@ -447,6 +499,218 @@ export default function DistributePage() {
 
 // ─── Configure-state subcomponents ────────────────────────────────────────────
 
+function SegmentedToggle<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+  ariaLabel: string
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="inline-flex overflow-hidden rounded-md border border-gray-300"
+    >
+      {options.map((opt) => {
+        const active = opt.value === value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ExistingMembersBody({
+  brandMemberCount,
+  strategy,
+  setStrategy,
+  strategyValue,
+  setStrategyValue,
+}: {
+  brandMemberCount: number
+  strategy: 'percent' | 'count'
+  setStrategy: (s: 'percent' | 'count') => void
+  strategyValue: number
+  setStrategyValue: (n: number) => void
+}) {
+  // String-backed input state so the user can transiently clear or edit
+  // without the displayed value snapping back through Number coercion.
+  // Addresses #378 walk-through #6 ("can't remove leading zero") and #5
+  // (count cap enforced as the user types, not just on submit).
+  const [raw, setRaw] = useState<string>(String(strategyValue))
+  const max = strategy === 'percent' ? 100 : Math.max(0, brandMemberCount)
+  useEffect(() => {
+    // Keep the input in sync when strategy or brandMemberCount changes
+    // upstream (e.g. switching Percent → Count clamps the active value).
+    setRaw(String(strategyValue))
+  }, [strategyValue, strategy])
+  const helper =
+    strategy === 'percent'
+      ? `Percent of all eligible non-ERASED members (max ${brandMemberCount} total).`
+      : `Max ${brandMemberCount.toLocaleString()} (all eligible non-ERASED members).`
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedToggle
+          ariaLabel="Sampling strategy"
+          options={[
+            { value: 'percent', label: 'Percent' },
+            { value: 'count', label: 'Count' },
+          ]}
+          value={strategy}
+          onChange={setStrategy}
+        />
+        <input
+          type="number"
+          min={0}
+          max={max}
+          value={raw}
+          inputMode="numeric"
+          onChange={(e) => {
+            const next = e.target.value
+            setRaw(next)
+            if (next === '') {
+              setStrategyValue(0)
+              return
+            }
+            const parsed = Number.parseInt(next, 10)
+            if (Number.isNaN(parsed)) return
+            const clamped = Math.min(Math.max(0, parsed), max)
+            setStrategyValue(clamped)
+            // If the user typed a number above the cap, snap the displayed
+            // value too so they see the enforced ceiling immediately.
+            if (clamped !== parsed) setRaw(String(clamped))
+          }}
+          onBlur={() => {
+            if (raw === '' || Number.isNaN(Number.parseInt(raw, 10))) setRaw('0')
+          }}
+          className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+        />
+        <span className="text-xs text-gray-500">{strategy === 'percent' ? '%' : 'members'}</span>
+      </div>
+      <p className="text-xs text-gray-500">{helper}</p>
+    </div>
+  )
+}
+
+function CustomListBody({
+  pasteBody,
+  setPasteBody,
+  autoEnroll,
+  setAutoEnroll,
+}: {
+  pasteBody: string
+  setPasteBody: (s: string) => void
+  autoEnroll: boolean
+  setAutoEnroll: (b: boolean) => void
+}) {
+  const [inputMode, setInputMode] = useState<'paste' | 'upload'>('paste')
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadedFilename, setUploadedFilename] = useState<string | null>(null)
+  return (
+    <div className="mt-3 space-y-3">
+      <SegmentedToggle
+        ariaLabel="Custom list input mode"
+        options={[
+          { value: 'paste', label: 'Paste' },
+          { value: 'upload', label: '⤓ Upload CSV' },
+        ]}
+        value={inputMode}
+        onChange={(v) => {
+          setInputMode(v)
+          setUploadError(null)
+        }}
+      />
+      {inputMode === 'paste' ? (
+        <>
+          <textarea
+            value={pasteBody}
+            onChange={(e) => {
+              setPasteBody(e.target.value)
+              if (uploadedFilename) setUploadedFilename(null)
+            }}
+            placeholder="jane@example.com&#10;Jane Mitchell <bob@example.com>&#10;+15551234567"
+            className="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono"
+            rows={6}
+          />
+          <p className="text-[11px] text-gray-500">
+            Up to 10,000 entries · separate with newline, comma, or semicolon · also accepts{' '}
+            <code className="rounded bg-gray-100 px-1">Name &lt;email&gt;</code> form.
+          </p>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <input
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file) return
+                setUploadError(null)
+                if (file.size > 10 * 1024 * 1024) {
+                  setUploadError(`File is ${(file.size / 1024 / 1024).toFixed(1)} MB; max 10 MB.`)
+                  return
+                }
+                try {
+                  const text = await file.text()
+                  setPasteBody(text)
+                  setUploadedFilename(file.name)
+                } catch (err) {
+                  setUploadError(`Could not read file: ${(err as Error).message}`)
+                }
+              }}
+            />
+            Choose CSV file…
+          </label>
+          {uploadedFilename ? (
+            <p className="text-xs text-gray-600">
+              Loaded <span className="font-mono">{uploadedFilename}</span> ·{' '}
+              {pasteBody.length.toLocaleString()} chars. The CSV header row is auto-detected
+              (recognised column names: <code>email</code>, <code>phone</code>,{' '}
+              <code>customer_id</code>, <code>first_name</code>, <code>last_name</code>).
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              CSV header row is auto-detected. Recognised columns: <code>email</code>,{' '}
+              <code>phone</code>, <code>customer_id</code>, <code>first_name</code>,{' '}
+              <code>last_name</code>. Max 10 MB / 100,000 rows.
+            </p>
+          )}
+          {uploadError ? <p className="text-xs text-red-600">{uploadError}</p> : null}
+        </div>
+      )}
+      <label className="flex items-center gap-2 text-xs text-gray-700">
+        <input
+          type="checkbox"
+          checked={autoEnroll}
+          onChange={(e) => setAutoEnroll(e.target.checked)}
+        />
+        Auto-enroll members not in this brand
+      </label>
+    </div>
+  )
+}
+
 function ModeChooser({
   mode,
   setMode,
@@ -472,11 +736,19 @@ function ModeChooser({
   autoEnroll: boolean
   setAutoEnroll: (b: boolean) => void
 }) {
+  // Two cards side-by-side on one row (#378 walk-through #4 — match mock layout
+  // at docs/feature-specs/mocks/378-distribute-flow.html scene 2 mode-grid).
+  // Collapses to one column on small screens so the body stays usable on mobile.
+  const showExisting = brandMemberCount > 0
   return (
-    <div className="grid grid-cols-1 gap-3" role="radiogroup" aria-label="Audience mode">
-      {brandMemberCount > 0 ? (
+    <div
+      className={`grid grid-cols-1 gap-3 ${showExisting ? 'sm:grid-cols-2' : ''}`}
+      role="radiogroup"
+      aria-label="Audience mode"
+    >
+      {showExisting ? (
         <label
-          className={`block rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+          className={`block cursor-pointer rounded-lg border-2 p-4 transition-colors ${
             mode === 'existing_members'
               ? 'border-indigo-500 bg-indigo-50'
               : 'border-gray-200 hover:border-gray-300'
@@ -489,52 +761,27 @@ function ModeChooser({
             onChange={() => setMode('existing_members')}
             className="sr-only"
           />
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-900">
-                Existing Members · {brandMemberCount} total
-              </p>
-              <p className="mt-1 text-xs text-gray-600">
-                Random sample of your member roster.
-              </p>
-            </div>
-          </div>
+          <p className="text-sm font-medium text-gray-900">
+            Existing Members{' '}
+            <span className="font-normal text-gray-500">· {brandMemberCount.toLocaleString()} total</span>
+          </p>
+          <p className="mt-1 text-xs text-gray-600">Random sample from your member roster.</p>
           {mode === 'existing_members' ? (
-            <div className="mt-3 flex items-center gap-3">
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="radio"
-                  checked={strategy === 'percent'}
-                  onChange={() => setStrategy('percent')}
-                />
-                Percent
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="radio"
-                  checked={strategy === 'count'}
-                  onChange={() => setStrategy('count')}
-                />
-                Count
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={strategy === 'percent' ? 100 : brandMemberCount}
-                value={strategyValue}
-                onChange={(e) => setStrategyValue(Number.parseInt(e.target.value, 10) || 0)}
-                className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-              />
-              <span className="text-xs text-gray-500">
-                {strategy === 'percent' ? '%' : 'members'}
-              </span>
-            </div>
+            <ExistingMembersBody
+              brandMemberCount={brandMemberCount}
+              strategy={strategy}
+              setStrategy={setStrategy}
+              strategyValue={strategyValue}
+              setStrategyValue={setStrategyValue}
+            />
           ) : null}
         </label>
       ) : null}
       <label
-        className={`block rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-          mode === 'custom_list' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+        className={`block cursor-pointer rounded-lg border-2 p-4 transition-colors ${
+          mode === 'custom_list'
+            ? 'border-indigo-500 bg-indigo-50'
+            : 'border-gray-200 hover:border-gray-300'
         }`}
       >
         <input
@@ -546,26 +793,15 @@ function ModeChooser({
         />
         <p className="text-sm font-medium text-gray-900">Custom List</p>
         <p className="mt-1 text-xs text-gray-600">
-          Paste identifiers (up to 10,000), separated by newline, comma, or semicolon.
+          Paste identifiers (with optional names) or upload a CSV.
         </p>
         {mode === 'custom_list' ? (
-          <div className="mt-3 space-y-3">
-            <textarea
-              value={pasteBody}
-              onChange={(e) => setPasteBody(e.target.value)}
-              placeholder="jane@example.com&#10;Jane Mitchell <bob@example.com>"
-              className="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono"
-              rows={6}
-            />
-            <label className="flex items-center gap-2 text-xs text-gray-700">
-              <input
-                type="checkbox"
-                checked={autoEnroll}
-                onChange={(e) => setAutoEnroll(e.target.checked)}
-              />
-              Auto-enroll members not in this brand
-            </label>
-          </div>
+          <CustomListBody
+            pasteBody={pasteBody}
+            setPasteBody={setPasteBody}
+            autoEnroll={autoEnroll}
+            setAutoEnroll={setAutoEnroll}
+          />
         ) : null}
       </label>
     </div>
@@ -645,15 +881,31 @@ function LivePreview({
 }) {
   if (previewing && !preview) return <p className="text-sm text-gray-500">Loading preview…</p>
   if (!preview) return null
-  const summary =
-    mode === 'custom_list' && preview.willAutoEnrollCount > 0
-      ? `${preview.audienceCount} members will receive this wave · ${preview.willAutoEnrollCount} will be auto-enrolled`
-      : mode === 'custom_list' && preview.unmatchedCount > 0
-        ? `${preview.audienceCount} members will receive this wave · ${preview.unmatchedCount} identifiers are unrecognized and will be skipped`
-        : `${preview.audienceCount} members will receive this wave`
+  // Always surface unmatched + auto-enroll counts together so the operator can
+  // see why a paste of N entries produced an audience of M < N. Addresses #378
+  // walk-through #15 (100 emails accepted as 75; silent truncation).
+  const summaryParts: string[] = [
+    `${preview.audienceCount.toLocaleString()} ${
+      preview.audienceCount === 1 ? 'member' : 'members'
+    } will receive this wave`,
+  ]
+  if (mode === 'custom_list' && preview.willAutoEnrollCount > 0) {
+    summaryParts.push(`${preview.willAutoEnrollCount} will be auto-enrolled`)
+  }
+  if (mode === 'custom_list' && preview.unmatchedCount > 0) {
+    summaryParts.push(
+      `${preview.unmatchedCount} unrecognized identifier${
+        preview.unmatchedCount === 1 ? '' : 's'
+      } skipped`,
+    )
+  }
+  const summary = summaryParts.join(' · ')
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm font-medium text-gray-900 mb-3">{summary}</p>
+      <p className="text-sm font-medium text-gray-900 mb-3">
+        {summary}
+        {previewing ? <span className="ml-2 text-xs text-gray-400">updating…</span> : null}
+      </p>
       {preview.members.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">

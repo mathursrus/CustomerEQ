@@ -52,6 +52,26 @@ interface BatchDetail {
 interface BrandContext {
   timezone: string
   locale: string
+  memberIdentifierKind: 'email' | 'phone' | 'external_id'
+}
+
+function identifierHeaderLabel(kind: 'email' | 'phone' | 'external_id'): string {
+  // Matches the per-brand customer-facing column header used by the Generate
+  // CSV download (apps/web/.../distribute/page.tsx). Keeps the regenerated
+  // CSV consistent with the original (#378 walk-through #10).
+  return { email: 'Email', phone: 'Phone Number', external_id: 'Customer ID' }[kind]
+}
+
+function brandKindToClient(raw: string | undefined): 'email' | 'phone' | 'external_id' {
+  switch ((raw ?? 'EMAIL').toUpperCase()) {
+    case 'PHONE':
+      return 'phone'
+    case 'CUSTOMER_ID':
+      return 'external_id'
+    case 'EMAIL':
+    default:
+      return 'email'
+  }
 }
 
 function fmt(iso: string, tz: string, locale: string): string {
@@ -107,9 +127,13 @@ export default function BatchDetailPage() {
       setBatch(batchBody)
       if (brandRes.ok) {
         const bb = await brandRes.json()
-        setBrand({ timezone: bb.timezone ?? 'UTC', locale: bb.locale ?? 'en-US' })
+        setBrand({
+          timezone: bb.timezone ?? 'UTC',
+          locale: bb.locale ?? 'en-US',
+          memberIdentifierKind: brandKindToClient(bb.memberIdentifierKind),
+        })
       } else {
-        setBrand({ timezone: 'UTC', locale: 'en-US' })
+        setBrand({ timezone: 'UTC', locale: 'en-US', memberIdentifierKind: 'email' })
       }
     } catch (err) {
       setError((err as Error).message)
@@ -170,11 +194,13 @@ export default function BatchDetailPage() {
         }
         const baseUrl =
           typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : ''
+        // Drop internal `memberId` from the customer-facing CSV; rename the
+        // identifier column to the brand's term (#378 walk-through #10).
+        const idHeader = identifierHeaderLabel(brand?.memberIdentifierKind ?? 'email')
         const csv = [
-          'memberId,identifier,firstName,lastName,surveyName,mergeTagUrl',
+          `${idHeader},firstName,lastName,surveyName,mergeTagUrl`,
           ...body.tokens.map((t) =>
             [
-              t.memberId,
               t.identifier,
               t.firstName ?? '',
               t.lastName ?? '',
@@ -185,11 +211,17 @@ export default function BatchDetailPage() {
               .join(','),
           ),
         ].join('\n')
+        // Filename matches the original distribute-page download convention
+        // (`${safeName}-${yyyymmdd}-links.csv`) with a `regenerated-` prefix so
+        // operators can pair the regenerated CSV with the one they downloaded
+        // at batch creation (issue #378 walk-through feedback #13).
+        const safeName = (batch?.surveyNameInMail || 'survey').replace(/[^A-Za-z0-9-]/g, '-')
+        const yyyymmdd = new Date().toISOString().slice(0, 10)
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.setAttribute('download', `regenerated-${batchId}.csv`)
+        link.setAttribute('download', `regenerated-${safeName}-${yyyymmdd}-links.csv`)
         document.body.appendChild(link)
         link.click()
         link.remove()
