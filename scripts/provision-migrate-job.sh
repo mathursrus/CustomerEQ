@@ -13,6 +13,11 @@
 #
 # Usage:
 #   ./scripts/provision-migrate-job.sh [--dry-run]
+#
+# NOTE: Must be run in bash (not PowerShell). On Windows, use Git Bash or WSL.
+# MSYS_NO_PATHCONV=1 prevents Git Bash from translating /app/... POSIX paths
+# to C:/Program Files/Git/app/... before they reach the Azure CLI.
+export MSYS_NO_PATHCONV=1
 set -euo pipefail
 
 RESOURCE_GROUP="customereq-prod"
@@ -63,6 +68,18 @@ run az containerapp job create \
   --secrets "database-url=keyvaultref:https://${VAULT}.vault.azure.net/secrets/database-url,identityref:system" \
   --env-vars "DATABASE_URL=secretref:database-url" \
   --command "/app/apps/api/docker-entrypoint-migrate.sh"
+
+# Verify the job was created with the correct command and image
+# (Git Bash on Windows can silently corrupt /app/... paths without MSYS_NO_PATHCONV=1)
+STORED_CMD=$(az containerapp job show \
+  --name "$JOB_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.template.containers[0].command[0]" -o tsv)
+if [[ "$STORED_CMD" != "/app/apps/api/docker-entrypoint-migrate.sh" ]]; then
+  echo "ERROR: entrypoint stored incorrectly: ${STORED_CMD}" >&2
+  echo "Re-run with MSYS_NO_PATHCONV=1 or patch via: az rest --method PATCH ..." >&2
+  exit 1
+fi
 
 # Retrieve the system-assigned principal ID for role assignments
 PRINCIPAL_ID=$(az containerapp job show \
