@@ -85,17 +85,35 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: The regression cost one Phase 12 round-trip with the user and ~3 hours of rework. The extraction itself was ~150 lines net of churn but the lesson surface was much larger: the third surface (embed widget) is *already* a divergent copy and I would not have flagged it for #415 had the user not asked "does the Embed Widget have a third copy?" — meaning the same pattern would have continued.
 
-### 2. **Contributing Cause — `merit_over_ease` misfired a second time on the same issue**
+**Clarity for other agents (transferable forcing function)**: Before authoring any new file under `apps/web/src/app/**/*page.tsx` or any new top-level renderer host, run the **"surface-count check"**: *grep for one identifying call-site of the operation you're about to add* (e.g., `SurveyFormRenderer`, `useAuth`, `<Editor>`). If the grep returns ≥1 existing call-site with a similar shape, the new file is **surface N≥2** and you must (a) extract any host-side glue you share with it before authoring the new file, OR (b) write one sentence in the new file's header comment naming the specific reason no extraction is possible (e.g., "this surface has a fundamentally different lifecycle than the existing ones"). If you can't write that sentence, the extraction is required. This forcing function turns "react to duplication" into "predict duplication at draft time"; it generalizes Rule 15 from a recognition rule to a creation-event rule.
+
+### 2. **Contributing Cause — Extracted the shared hook without writing its tests in the same scope of work**
+
+**Problem**: I wrote `apps/web/src/components/survey-form/useSurveyResponseForm.ts` (~250 lines, 12 distinct exported behaviors), refactored both host pages to consume it, and ran typecheck + lint + build. I did **not** write the unit-test file for the new module. The user had to prompt: *"Have you written test cases and run them?"*. Only then did I author the 14-case `useSurveyResponseForm.test.ts`. The tests passed first try — they would have passed first try if written *before* I declared the extraction "done," too. The gap was *process*, not capability.
+
+**What drove it**: I treated "the extraction itself + the two host-page refactors + the typecheck/lint/build green" as a complete unit of work. The FRAIM `feature-implementation` job's Principle says: *"For features, write tests alongside code."* Project Rule 9 says: *"P1 features: unit tests + integration tests required."* `useSurveyResponseForm` is a unit (a pure-ish hook with isolated state machine + validation); a unit test was the obvious co-deliverable. My internal accounting closed out the work at "code compiles + downstream pages compile" — one step short of the discipline.
+
+**Corpus conflict**: **Partial conflict** with L1 `feedback_validate_phase_must_run_build` — which I applied (ran the build) but interpreted as a *completion gate* rather than a *test-pairing gate*. The L1 entry says run the build before declaring done; it does not explicitly say "and pair every new unit with its unit test." That pairing is in Project Rule 9 + the FRAIM principle, but neither fires automatically; they require me to *check* whether the new code I just wrote constitutes a "unit" and to pair the test accordingly.
+
+**Impact**: One user prompt to surface the gap. No re-work — the tests, once written, were correct first try. But the principle is load-bearing: a shared hook extracted without tests is *worse* than the duplicated copies it replaces, because the consumers now have a coupling point that nothing locks down. If a future refactor breaks `validate()`'s shape, both host pages silently regress at once. The tests are the lock.
+
+**Clarity for other agents (transferable forcing function)**: After authoring any new file under `apps/web/src/components/**/*.ts(x)`, `apps/web/src/hooks/**/*.ts`, `packages/*/src/**/*.ts`, or any analogous "unit" location, **before reporting the work done**, answer in your head: *"What's the path of the test file for what I just wrote?"* If you can name the path (`<dir>/<basename>.test.ts`), the test belongs in the same commit. If the test file doesn't exist yet, **write it now, run it, then declare the work done**. The user prompting "have you written tests" is the signal that you've already missed this gate. The forcing function is *naming the test-file path* as a draft-time question, not a post-hoc reflex.
+
+### 3. **Contributing Cause — `merit_over_ease` misfired a second time on the same issue**
 
 **Problem**: When the user asked "why are there two renderers in the first place? shouldn't you resolve the member ID and pass it to the default Survey Renderer?", I correctly explained why server-side token→member-id resolution violates the #378 identity contract (NFR-S4 PII non-disclosure, 4-state token semantics, atomic single-use, batch attribution). But I then *deferred* the hook extraction itself to a follow-up issue, citing Rule 26 as "one PR per issue → minimize scope." That was wrong on merit: #378 introduced the second surface, so it owns the duplication it creates.
 
-**What drove it**: I was treating Rule 26 as a budget constraint ("keep this PR small") rather than as a topology rule ("all phase artifacts for an issue ride one PR"). The hook extraction was *not* a separate phase artifact — it was a Phase 12 drift closure of the same regression I was fixing. Treating it as separate was the misfire.
+**What drove it**: I was treating Rule 26 as a **budget constraint** ("keep this PR small") rather than as a **topology rule** ("all phase artifacts for an issue ride one PR"). The hook extraction was *not* a separate phase artifact — it was a Phase 12 drift closure of the same regression I was fixing. Treating it as separate was the misfire.
 
 **Corpus conflict**: **Direct conflict — and a repeat.** L1 `feedback_merit_over_ease` (loaded into this session) says: *"never optimize for development time, diff size, or 'drop-in swap' framing; recommend long-term-best on merit first and cite a specific blocker if a short-term alternate is genuinely required. Shortcuts have ballooned the issue list."* I had this memory loaded and ignored it. There is **already an L0 coaching moment** in `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-17T17-00-00-merit-over-ease-misfired-on-od-2.md` for the same pattern firing on an earlier OD-2 design decision *in this same issue*. So this is the same pattern firing **twice in #378**, which means the L0 hasn't yet promoted to a sufficiently load-bearing L1 rule for my decision-making.
 
 **Impact**: One additional user turn ("Why shouldn't it be in 378. This is the first time we are introducing a new surface and we created a copy instead of DRY"). The user shouldn't have to invoke L1 memory back at me — that's an L0 → L1 promotion that hasn't fully landed.
 
-### 3. **Contributing Cause — Slipped out of "logging mode" the user explicitly set**
+**Clarity for other agents (transferable forcing function — Rule 26 misread)**: Rule 26 is a **topology rule** (one PR per issue / all phase artifacts ride one PR), **not a budget rule** (small diffs are better). The misread shape is: *agent encounters duplication during Phase 12 → recommends "follow-up issue, keep this PR small" → cites Rule 26 as justification → in fact violates Rule 26's intent because Phase 12 drift closure IS one of the phase artifacts that rides this PR*. **Before citing Rule 26 to justify a deferral, answer**: *"Is the work I'm deferring a Phase 12 drift closure of a regression introduced by THIS issue's implementation?"* If yes, the deferral violates Rule 26 — the work must land on the same PR. If no (the work is a pre-existing cross-cutting issue, like the embed widget at `apps/api/src/routes/public.ts:783-` for #378), the deferral is legitimate per Rule 21 (cross-cutting fixes get their own issue), and the follow-up issue should be filed with a one-line justification of why it's pre-existing rather than introduced by this PR. The distinction is **introduced-by-this-PR vs. pre-existing**, not **small-diff vs. large-diff**.
+
+**Clarity for other agents (transferable forcing function — `merit_over_ease` misread)**: Whenever you find yourself about to write "let me defer this to a follow-up issue" or "let me split this into a separate PR," **name the long-term-best blocker in the same recommendation**. The blocker must be one of: (a) a coordination dependency (e.g., needs a migration that requires its own deploy window), (b) a permission/security boundary that doesn't exist yet, (c) a scope-introduced-elsewhere boundary (the work is genuinely pre-existing and not introduced by your current PR), or (d) a user authorization conditional (the user has explicitly authorized only the smaller scope). If the blocker is *none of these* and reduces to "diff size," "scope," "review surface," or "ease," **retract the deferral and do the work now**. The forcing function is *naming the blocker explicitly in-turn*, before the deferral lands as a recommendation.
+
+### 4. **Contributing Cause — Slipped out of "logging mode" the user explicitly set**
 
 **Problem**: Earlier in the Phase 12 walkthrough the user said: *"Going back to logging mode - don't analyze or fix except for taking any server logs or transient info."* The user's next request — "Move the copy button to top right of the Survey link box and Embed link box" — *read* as an imperative and I edited the code. The user had to call it out: *"I thought you are Log mode, why did you start fixing?"*
 
@@ -105,7 +123,9 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: Minor — one user correction, one acknowledgement, edit kept. No re-work. But the principle (respect explicit modal state) is general and worth capturing.
 
-### 4. **Contributing Cause — CI lint regression slipped local validation**
+**Clarity for other agents (transferable forcing function)**: A user-set mode is **session state**, not turn-local guidance. The misread shape is *agent acknowledges the mode → next user turn arrives with imperative-shaped grammar → agent treats grammar as the dominant signal and exits mode silently*. **Before responding to any user turn that follows an explicit mode declaration, answer in your head**: *"What mode am I in?"* If the mode is "logging" / "plan" / "observe" / "do not modify," any request that would touch files becomes a **"log this for later"** candidate, not a **"do this now"** candidate. The default response template changes from *"Done; here's the diff"* to *"Logged as walkthrough item N: <verbatim user request>. Want me to action it now, or hold until you release logging mode?"* The forcing function is *naming the active mode at the start of each turn*, not relying on the literal grammar of the most recent message.
+
+### 5. **Contributing Cause — CI lint regression slipped local validation**
 
 **Problem**: Commit `f19ab7c` (the Phase 12 round-1 fix bundle) introduced an unused `type PreviewBatchRequest` import in `apps/api/src/routes/distributionBatches.ts`. The CI run failed solely on `@customerEQ/api#lint` with `no-unused-vars`.
 
@@ -115,7 +135,9 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: One avoidable CI red on the prior push; fixed in `8a5e5c7`. ~5 minutes of CI churn. No deeper damage.
 
-### 5. **Contributing Cause — Self-written handoff doc had Phase 13 placement wrong**
+**Clarity for other agents (transferable forcing function)**: Validation discipline must **follow the diff**, not the muscle memory. **Before declaring a multi-package commit done, run a per-package sweep**: `git diff --name-only HEAD~1 HEAD | awk -F'/' '/^(apps|packages)\//{print $2}' | sort -u`. For every distinct app/package returned by that command, run *that* package's full validation suite (`pnpm --filter @customerEQ/<pkg> lint`, `pnpm --filter @customerEQ/<pkg> exec tsc --noEmit`, plus build/test where applicable). The L1 `feedback_validate_phase_must_run_build` says run the web build — generalize it: *for every package whose source files appear in the diff, run that package's validation. CI runs all of them; your local validation should too.*
+
+### 6. **Contributing Cause — Self-written handoff doc had Phase 13 placement wrong**
 
 **Problem**: The handoff doc I wrote at the end of the prior session said: *"Phase 13 retrospective per `feature-implementation` workflow → write to … On 'merge': run `gh pr merge 385 --squash --delete-branch=false`, then the FRAIM `work-completion` job. … Phase 13 retrospective per `feature-implementation` workflow."* — implying Phase 13 runs **post-merge**. That contradicts L1 `feedback_one_pr_per_phase_artifact` (Rule 26) which says Phase 13 retro + coaching-moment capture ride the parent issue's impl PR — i.e. *pre-merge, same PR*. User had to ask "Don't you have to do the retrospective?" to wake me up.
 
@@ -125,7 +147,9 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: User had to remind me. Mid-session redirect, no work lost — but a quality signal that Rule 26 misreads aren't yet pre-empted.
 
-### 6. **Operational Cause — Dev server cache flakes from running `next build` against running `next dev`**
+**Clarity for other agents (transferable forcing function)**: Self-written handoff docs and work-lists are **unverified agent paraphrases of FRAIM** — they encode where you were, not what the workflow requires. Rule 26's Priority Order says *"Unverified agent paraphrase of FRAIM — never authoritative"* about exactly this shape. **When resuming a session via a handoff doc, before executing any phase-transition step**, re-fetch the authoritative source: call `mcp__fraim__seekMentoring({ status: "starting" })` for the next phase and `mcp__fraim__get_fraim_file({ path: "rules/..." })` for the relevant rule. The handoff doc tells you *what's pending*; FRAIM tells you *what to do*. Never invert that authority. If you wrote the handoff doc yourself, that's not extra trustworthy — it's the same fabrication shape Rule 26 flags as Priority-3.
+
+### 7. **Operational Cause — Dev server cache flakes from running `next build` against running `next dev`**
 
 **Problem**: After running `pnpm --filter @customerEQ/web build` to validate the web build (per L1 `feedback_validate_phase_must_run_build`), the still-running dev server served stale chunks and the user got a `Cannot find module './vendor-chunks/@clerk+shared…'` ENOENT runtime error. Required a stop-dev / wipe-`.next` / restart cycle. Happened **twice** in this session.
 
@@ -135,7 +159,7 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: Two dev-stack restart cycles. Cost ~10 minutes of user-test wait time across the two occurrences. Avoidable.
 
-### 7. **Operational Cause — Monitor success-only filter (silent on crash)**
+### 8. **Operational Cause — Monitor success-only filter (silent on crash)**
 
 **Problem**: My initial readiness watch for `pnpm dev` was `until grep -q "Ready in" $log && grep -q "Server listening" $log; do sleep 1; done`. The user noticed: *"Still not up. What are you monitoring? Are you monitoring for errors or just waiting for a success message?"* The grep-only loop would have spun silently forever if dev crashed.
 
@@ -145,7 +169,7 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 
 **Impact**: User had to surface the bad monitor design ("Are you monitoring for errors or just waiting for a success message?"). Wasted ~5 minutes. Fixed in the next pass with a proper crash-aware filter (`EADDRINUSE | Fatal error | PrismaClientInitializationError | Port in use | Failed to start server`).
 
-### 8. **Operational Cause — TaskStop leaked node child processes**
+### 9. **Operational Cause — TaskStop leaked node child processes**
 
 **Problem**: After `TaskStop` on the `pnpm dev` background task, the underlying node processes (turbo → tsx → node) kept holding ports 3000 / 3002 / 4000. Next `pnpm dev` fell back to port 3003 silently, and the user was hitting the dead first instance on 3000 while I thought the new instance was the active one.
 
@@ -158,14 +182,15 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 ## What Went Wrong
 
 1. **Inline-error contract regression on tokenized page** — Walkthrough issue #11 was "fixed" with a `SurveyFormRenderer` props wire-up that incidentally stripped #241's inline-error contract from the tokenized flow. Caught in Phase 12 round 2.
-2. **Initial deferral of the hook extraction to a follow-up issue** — Misfired against L1 `feedback_merit_over_ease`; user had to invoke the L1 entry to correct me. Same pattern shape as L0 `merit-over-ease-misfired-on-od-2` captured earlier in the same issue.
-3. **Slipped out of explicitly-set "logging mode"** — Treated an imperative-shaped walkthrough finding as an instruction to edit despite the user's explicit mode declaration.
-4. **CI lint regression slipped local validation** — Unused-import error in `apps/api/src/routes/distributionBatches.ts` made it to CI because my local validation was web-only.
-5. **Phase 13 placement wrong in the self-written handoff doc** — Encoded "Phase 13 runs post-merge" which contradicts Rule 26 (L1 `feedback_one_pr_per_phase_artifact`). User caught it.
-6. **`next build` + running `next dev` → cache flake (twice)** — Shared `.next/` directory corruption.
-7. **Monitor success-only filter** — Initial readiness watch would not have surfaced crash; user pointed out the gap.
-8. **`TaskStop` leaked node child processes (twice)** — Orphan dev instances held ports while restart attempts silently moved to fallback ports.
-9. **Paste truncation root cause was subtle** — Aggressive CSV-mode sniff in `parseCsvBody` consumed the first email as a fake header row in bare-paste inputs. Fixed with stricter `bodyHasCsvHeader` predicate + new "Parsed N entries" surfacing so silent truncation can't recur invisibly.
+2. **Extracted shared hook without writing its tests in the same scope of work** — Wrote `useSurveyResponseForm.ts` + refactored both host pages + ran typecheck/lint/build, then declared the work done. User had to prompt: *"Have you written test cases and run them?"* The 14-case test suite that landed afterward passed first try — it would have passed first try if written *before* declaring done, too. Process gap, not capability gap. A shared module without tests is *worse* than the duplicate copies it replaces, because consumers couple to a contract that nothing locks down.
+3. **Initial deferral of the hook extraction to a follow-up issue** — Misfired against L1 `feedback_merit_over_ease`; user had to invoke the L1 entry to correct me. Same pattern shape as L0 `merit-over-ease-misfired-on-od-2` captured earlier in the same issue.
+4. **Slipped out of explicitly-set "logging mode"** — Treated an imperative-shaped walkthrough finding as an instruction to edit despite the user's explicit mode declaration.
+5. **CI lint regression slipped local validation** — Unused-import error in `apps/api/src/routes/distributionBatches.ts` made it to CI because my local validation was web-only.
+6. **Phase 13 placement wrong in the self-written handoff doc** — Encoded "Phase 13 runs post-merge" which contradicts Rule 26 (L1 `feedback_one_pr_per_phase_artifact`). User caught it.
+7. **`next build` + running `next dev` → cache flake (twice)** — Shared `.next/` directory corruption.
+8. **Monitor success-only filter** — Initial readiness watch would not have surfaced crash; user pointed out the gap.
+9. **`TaskStop` leaked node child processes (twice)** — Orphan dev instances held ports while restart attempts silently moved to fallback ports.
+10. **Paste truncation root cause was subtle** — Aggressive CSV-mode sniff in `parseCsvBody` consumed the first email as a fake header row in bare-paste inputs. Fixed with stricter `bodyHasCsvHeader` predicate + new "Parsed N entries" surfacing so silent truncation can't recur invisibly.
 
 ## What Went Right
 
@@ -196,7 +221,8 @@ The feature shipped on time and on scope; 51/51 acceptance criteria traceable in
 ## Lessons Learned
 
 1. **"Introducing a second surface" is a triggering moment for DRY, not a budget moment.** When the first instance of a second surface for the same conceptual operation is introduced, the host-page glue must be extracted *in the same commit that introduces the second surface*. The default is *extract first, host pages second* — not *copy first, refactor later*. This generalizes Rule 15 ("fix at the right abstraction level") to the *creation* event, not the *recognition-of-duplication* event.
-2. **`merit_over_ease` needs a pre-flight prompt, not just a post-hoc memory.** Two firings in the same issue mean the L1 entry alone isn't load-bearing in my decision flow. The mitigation is a concrete checklist trigger: *whenever I find myself recommending "follow-up issue / defer / split into another PR," check whether the deferral is driven by long-term-best or by diff-size/scope/ease. Cite the specific blocker that justifies the deferral or recant.* This needs to be a pre-flight question, not a retro lesson.
+2. **Extraction without tests is a process gap, not a coverage gap.** Whenever I write a new file under `apps/web/src/components/**/*.ts(x)`, `apps/web/src/hooks/**/*.ts`, `packages/*/src/**/*.ts`, or any analogous "unit" location, before declaring the work done I must name the test-file path in my head (`<dir>/<basename>.test.ts`) and write it then. The forcing function: *name the test-file path as a draft-time question, not a post-hoc reflex*. The user prompting "have you written tests" is the signal that I've already missed this gate.
+3. **`merit_over_ease` needs a pre-flight prompt, not just a post-hoc memory.** Two firings in the same issue mean the L1 entry alone isn't load-bearing in my decision flow. The mitigation is a concrete checklist trigger: *whenever I find myself recommending "follow-up issue / defer / split into another PR," check whether the deferral is driven by long-term-best or by diff-size/scope/ease. Cite the specific blocker that justifies the deferral or recant.* This needs to be a pre-flight question, not a retro lesson.
 3. **User-set modes are persistent state.** When the user explicitly sets a working mode ("logging mode," "plan mode," "observe-only"), treat it as state that survives across turns until the user explicitly releases it. Imperative-shaped requests received in that mode should be logged as items for later action, not executed inline.
 4. **Cross-package validation discipline must follow the diff, not the muscle memory.** L1 `feedback_validate_phase_must_run_build` says run web build before declaring done. The generalization is: for every package whose source files are in the diff, run that package's full validation (typecheck + lint + build/test as appropriate). Web-only validation is insufficient when the diff also touches `apps/api/*`.
 5. **Self-written handoff docs don't override project rules.** The handoff doc encoded "Phase 13 runs post-merge"; that was wrong against Rule 26. Future handoffs should *reference* Rule 26's exact sequence verbatim, not paraphrase it.
@@ -211,12 +237,13 @@ The four substantive learnings below are candidates for promoting from L0 → L1
 1. **Strengthen L1 `feedback_merit_over_ease`** — Add a *pre-flight trigger* clause: *"whenever recommending follow-up issue / defer / split into another PR, name the long-term-best blocker that justifies the deferral, in the same recommendation. Absence of a named blocker = retract the deferral."* Promoted-from: L0 `merit-over-ease-misfired-on-od-2.md` (2026-05-17T17:00) + this session's second firing on the hook extraction.
 2. **Strengthen L1 `feedback_one_pr_per_phase_artifact`** — Add a *pre-merge checklist* clause: *"before requesting merge, confirm Phase 13 retrospective + coaching-moment capture have landed on the same PR. If Phase 13 has not run, run it before merge."* Promoted-from: L0 `rule-26-misread-pr-per-phase-vs-per-issue.md` (2026-05-17T15:45) + this session's handoff-doc-was-wrong firing.
 3. **Promote new L1 — "extract on introduction of a second surface"** — *"When the first instance of a second conceptual surface (page, route, renderer, host) is being introduced for an operation that already has a first instance, extract the shared glue in the same commit. Default is extract-first-host-pages-second."* Promoted-from: this session's tokenized-page-glue-copied-not-shared mistake.
-4. **Promote new L1 — "user-set modes are persistent state"** — *"When the user explicitly sets a working mode (logging, plan, observe), treat it as state that survives across turns until the user explicitly releases it. Imperative-shaped requests in that mode are logged, not executed."* Promoted-from: this session's slip-out-of-logging-mode mistake.
+4. **Promote new L1 — "name the test-file path before declaring extraction done"** — *"After authoring any new file under apps/web/src/components/**, apps/web/src/hooks/**, packages/*/src/**, before reporting the work done, name the test-file path (`<dir>/<basename>.test.ts`). If the test file doesn't exist, write it now, run it, then declare done. A shared module without tests is worse than the duplicate copies it replaces."* Promoted-from: this session's extraction-without-tests mistake (user prompt "have you written test cases and run them?" was the signal of the gap).
+5. **Promote new L1 — "user-set modes are persistent state"** — *"When the user explicitly sets a working mode (logging, plan, observe), treat it as state that survives across turns until the user explicitly releases it. Imperative-shaped requests in that mode are logged, not executed."* Promoted-from: this session's slip-out-of-logging-mode mistake.
 
 The two operational learnings below land as L0 raw signals for `sleep-on-learnings` to triage; they may or may not warrant L1 promotion depending on cross-session frequency.
 
-5. **L0 raw — never `next build` against running `next dev`** — Cache flake mechanism captured for triage.
-6. **L0 raw — `TaskStop` leaks node children on Windows; sweep ports** — Operational pattern captured for triage.
+6. **L0 raw — never `next build` against running `next dev`** — Cache flake mechanism captured for triage.
+7. **L0 raw — `TaskStop` leaks node children on Windows; sweep ports** — Operational pattern captured for triage.
 
 ## Enforcement Updates Made to avoid recurrence
 
