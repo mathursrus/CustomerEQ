@@ -1,7 +1,7 @@
 # Feature Specification: "Powered by CustomerEQ" footer on every survey surface
 
 Issue: [#413](https://github.com/mathursrus/CustomerEQ/issues/413)
-PR: *(to be filled in once `gh pr create` returns the URL)*
+PR: [#419](https://github.com/mathursrus/CustomerEQ/pull/419)
 
 ## Completeness Evidence
 
