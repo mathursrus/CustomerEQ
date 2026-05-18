@@ -148,6 +148,53 @@ jobs:
             --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
             .
 
+      # Issue #386: run prisma migrate deploy in an ephemeral ACA Job before
+      # any container swap. If the job fails the pipeline stops here and the
+      # old containers remain live. Applies to both workflow_run and
+      # workflow_dispatch trigger paths (same job, same step sequence).
+      - name: Run database migrations
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+
+          # Point the migrate job at the image we just pushed
+          az containerapp job update \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-api:${IMAGE_TAG}
+
+          # Start an execution and capture its name for status polling
+          EXECUTION=$(az containerapp job start \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query name -o tsv)
+          echo "Migration execution: $EXECUTION"
+
+          # Poll until Succeeded or Failed (5-minute timeout)
+          TIMEOUT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(az containerapp job execution show \
+              --name customereq-migrate \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --job-execution-name "$EXECUTION" \
+              --query "properties.status" -o tsv)
+            echo "  status: $STATUS (${ELAPSED}s elapsed)"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "Migration succeeded — proceeding to container swap."
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Stopped" ]; then
+              echo "Migration job failed ($STATUS) — containers will NOT be swapped."
+              exit 1
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+          if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+            echo "Migration job timed out after ${TIMEOUT}s — containers will NOT be swapped."
+            exit 1
+          fi
+
       - name: Deploy API
         if: steps.changes.outputs.build == 'true'
         run: |
