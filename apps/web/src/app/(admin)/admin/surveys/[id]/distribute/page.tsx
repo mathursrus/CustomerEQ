@@ -182,7 +182,13 @@ export default function DistributePage() {
 
   const [mode, setMode] = useState<AudienceMode>('existing_members')
   const [strategy, setStrategy] = useState<'percent' | 'count'>('count')
-  const [strategyValue, setStrategyValue] = useState<number>(100)
+  // Issue #417 — default the Count strategy to the brand's full member roster.
+  // The initial 0 is a placeholder until brand context loads; the
+  // load-context effect below then sets it to `brand.memberCount`. Phase 12
+  // round-1 of #378 added a max-clamp here but missed updating the default,
+  // which left the field showing the hardcoded 100 even when the roster was
+  // smaller or larger.
+  const [strategyValue, setStrategyValue] = useState<number>(0)
   const [pasteBody, setPasteBody] = useState<string>('')
   const [autoEnroll, setAutoEnroll] = useState<boolean>(true)
   const [surveyNameInMail, setSurveyNameInMail] = useState<string>('')
@@ -233,6 +239,10 @@ export default function DistributePage() {
           memberIdentifierKind: brandKindToClient(brandBody.memberIdentifierKind),
           memberCount,
         })
+        // Issue #417 — default the Count strategy to the brand's full member
+        // roster (Phase 12 walkthrough item #5 fix completion: the clamp was
+        // applied in #378's round-1, but the default-init was missed).
+        setStrategyValue(memberCount)
         // Default survey-name-in-mail to respondent-facing title (R10).
         setSurveyNameInMail(surveyBody.title ?? surveyBody.name)
       } catch (err) {
