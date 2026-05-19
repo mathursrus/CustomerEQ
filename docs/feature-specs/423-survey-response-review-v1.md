@@ -50,7 +50,7 @@ The four narrower problems Phase 1 addresses, in the language of the Survey Owne
 
 ## User Experience that will solve the problem
 
-The mock at [`mocks/423-view.html`](mocks/423-view.html) is the working artifact — walk the scenes in-browser. Sections below describe the experience at the level of specific steps the operator takes; the mock is the source of truth for visual layout, copy, and affordances.
+The mock at [`mocks/423-survey-response-review-v1.html`](mocks/423-survey-response-review-v1.html) is the working artifact — walk the scenes in-browser. Sections below describe the experience at the level of specific steps the operator takes; the mock is the source of truth for visual layout, copy, and affordances.
 
 ### §1. Entry point
 
@@ -292,7 +292,7 @@ The FRAIM Phase 11 (`address-feedback` after implementation) verification checkl
 
 ## Design Standards Applied
 
-Mocks at [`mocks/423-view.html`](mocks/423-view.html) reuse the design-token set from `docs/feature-specs/mocks/378-distribute-flow.html` (the most recent admin-surface mock on the survey detail page) to keep visual continuity between adjacent sections — Distribution batches filter, the new Response section, and the Configuration summary section share a single visual idiom. Design source: `docs/architecture/architecture.md` §2 (Tech Stack: Tailwind v4 + shadcn) and §3.1 (Presentation Layer — Standard CRUD admin pattern).
+Mocks at [`mocks/423-survey-response-review-v1.html`](mocks/423-survey-response-review-v1.html) reuse the design-token set from `docs/feature-specs/mocks/378-distribute-flow.html` (the most recent admin-surface mock on the survey detail page) to keep visual continuity between adjacent sections — Distribution batches filter, the new Response section, and the Configuration summary section share a single visual idiom. Design source: `docs/architecture/architecture.md` §2 (Tech Stack: Tailwind v4 + shadcn) and §3.1 (Presentation Layer — Standard CRUD admin pattern).
 
 The chip-style filter UI in the mock matches the live `FilterChips.tsx` component at `apps/web/src/app/(admin)/admin/surveys/components/FilterChips.tsx` — same chip shape, same colour token (`var(--primary)` for the active chip border), same `aria-pressed` semantics. Implementation SHALL reuse the existing component, not a new one.
 

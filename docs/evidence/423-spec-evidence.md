@@ -20,7 +20,7 @@ Status: Phase 5 (`spec-submission`) — submitting for review.
 | Artifact | Path | Size |
 |---|---|---|
 | Feature spec | `docs/feature-specs/423-survey-response-review-v1.md` | ~44 KB |
-| HTML mock (10 scenes) | `docs/feature-specs/mocks/423-view.html` | ~44 KB |
+| HTML mock (10 scenes) | `docs/feature-specs/mocks/423-survey-response-review-v1.html` | ~44 KB |
 | Evidence doc | `docs/evidence/423-spec-evidence.md` | this file |
 
 ### Customer Research Areas
