@@ -19,6 +19,8 @@
     "test:smoke": "vitest run"
   },
   "dependencies": {
+    "@azure/communication-email": "^1.1.0",
+    "@customerEQ/shared": "workspace:*",
     "pino": "^9.1.0"
   },
   "devDependencies": {

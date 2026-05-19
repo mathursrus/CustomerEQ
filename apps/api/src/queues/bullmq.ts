@@ -21,6 +21,7 @@ import {
 } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
+import { deliverNotification } from '@customerEQ/connectors'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
@@ -689,15 +690,18 @@ export async function enqueueCampaignTrigger(payload: CampaignTriggerPayload): P
 }
 
 async function inlineNotification(payload: NotificationPayload): Promise<{ sent: boolean; reason?: string }> {
-  // Mirrors apps/worker/src/processors/notifications.ts processNotification
-  // exactly so both modes follow the same code path. Today both are stubs;
-  // when EMAIL_PROVIDER is wired up to a real provider, both modes pick up
-  // the change with no further refactor.
-  if (process.env.EMAIL_PROVIDER === 'stub' || !process.env.EMAIL_PROVIDER) {
-    log.info({ memberId: payload.memberId, channel: payload.channel }, 'Notification (stub provider)')
-    return { sent: false, reason: 'stub_provider' }
-  }
-  return { sent: true }
+  const result = await deliverNotification(payload, {
+    logger: log,
+    resolveRecipientEmail: async (notificationPayload) => {
+      const member = await prisma.member.findUnique({
+        where: { id: notificationPayload.memberId },
+        select: { email: true },
+      })
+      return member?.email ?? null
+    },
+  })
+
+  return { sent: result.sent, reason: result.reason }
 }
 
 export async function enqueueNotification(payload: NotificationPayload): Promise<Job> {

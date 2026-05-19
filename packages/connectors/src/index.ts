@@ -1,4 +1,5 @@
 import type { ProviderConnector } from './types.js'
+import { deliverNotification, resetEmailClientCache, sendEmailMessage } from './email.js'
 import { fetchGoogleBusinessProfileReviews } from './google.js'
 import { fetchLinkedInComments } from './linkedin.js'
 import { fetchRedditPosts } from './reddit.js'
@@ -17,3 +18,5 @@ export const CONNECTORS: Partial<Record<string, ProviderConnector>> = {
 
 export { type ProviderConnector, type ConnectorContext, type ConnectorResult } from './types.js'
 export { ConnectorAuthError, ConnectorRateLimitError } from './types.js'
+export { deliverNotification, resetEmailClientCache, sendEmailMessage }
+export type { NotificationDeliveryResult } from './email.js'
