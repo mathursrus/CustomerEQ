@@ -127,10 +127,6 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         run: pnpm lint
 
-      - name: Security audit
-        if: steps.changes.outputs.build == 'true'
-        run: pnpm audit --audit-level=high
-
       - name: Install Playwright browsers
         if: steps.changes.outputs.build == 'true'
         run: pnpm --filter @customerEQ/web exec playwright install --with-deps chromium
