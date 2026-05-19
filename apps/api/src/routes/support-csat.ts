@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { SubmitCSATSchema } from '@customerEQ/shared'
-import { resolveConversation } from '../lib/resolveConversation.js'
+import { resolveConversation } from '@customerEQ/ai'
+import { enqueueEvent } from '../queues/bullmq.js'
 
 const supportCsatRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: { id: string } }>(
@@ -27,11 +28,14 @@ const supportCsatRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(200).send({ rating: conv.csatResponse.rating, idempotent: true })
       }
 
-      const result = await resolveConversation({
-        conversationId: conv.id,
-        source: 'CSAT',
-        csat: { rating, comment: comment ?? null },
-      })
+      const result = await resolveConversation(
+        {
+          conversationId: conv.id,
+          source: 'CSAT',
+          csat: { rating, comment: comment ?? null },
+        },
+        { enqueueLoyaltyEvent: (payload) => enqueueEvent(payload).then(() => undefined) },
+      )
 
       return reply.status(200).send({
         rating,

@@ -10,7 +10,7 @@ const aiMock = vi.hoisted(() => ({ classifyResolution: vi.fn() }))
 vi.mock('@customerEQ/ai/src/support/resolution.js', () => ({ classifyResolution: aiMock.classifyResolution }))
 
 const resolveMock = vi.hoisted(() => ({ resolveConversation: vi.fn() }))
-vi.mock('../lib/resolveConversation.js', () => resolveMock)
+vi.mock('@customerEQ/ai', () => resolveMock)
 
 import { processSupportTimeoutClassifier } from './supportTimeoutClassifier.js'
 
@@ -67,7 +67,8 @@ describe('supportTimeoutClassifier processor', () => {
     aiMock.classifyResolution.mockResolvedValue({ resolved: true, confidence: 0.9, reason: 'Resolved' })
     resolveMock.resolveConversation.mockResolvedValue({ conversationId: 'conv-resolve', resolutionSource: 'AI_TIMEOUT', resolvedAt: new Date(), loyaltyEventEmitted: false })
 
-    await processSupportTimeoutClassifier()
+    const fakeConn = { host: 'localhost', port: 6379 }
+    await processSupportTimeoutClassifier(fakeConn)
 
     expect(aiMock.classifyResolution).toHaveBeenCalledOnce()
     expect(resolveMock.resolveConversation).toHaveBeenCalledWith(
@@ -75,6 +76,7 @@ describe('supportTimeoutClassifier processor', () => {
         conversationId: 'conv-resolve',
         source: 'AI_TIMEOUT',
       }),
+      expect.objectContaining({ enqueueLoyaltyEvent: expect.any(Function) }),
     )
   })
 

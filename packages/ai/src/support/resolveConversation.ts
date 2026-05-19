@@ -1,19 +1,5 @@
-import { Queue } from 'bullmq'
-import { QUEUES, type LoyaltyEventPayload } from '@customerEQ/shared'
-import { Redis } from 'ioredis'
 import { prisma } from '@customerEQ/database'
-
-let _loyaltyQueue: Queue | null = null
-function getLoyaltyQueue(): Queue {
-  if (_loyaltyQueue) return _loyaltyQueue
-  const url = process.env.REDIS_URL ?? 'redis://localhost:6379'
-  _loyaltyQueue = new Queue(QUEUES.LOYALTY_EVENTS, { connection: new Redis(url, { maxRetriesPerRequest: null }) })
-  return _loyaltyQueue
-}
-
-async function enqueueLoyaltyEvent(payload: LoyaltyEventPayload): Promise<void> {
-  await getLoyaltyQueue().add('event', payload)
-}
+import type { LoyaltyEventPayload } from '@customerEQ/shared'
 
 export interface ResolveInput {
   conversationId: string
@@ -28,7 +14,27 @@ export interface ResolveResult {
   loyaltyEventEmitted: boolean
 }
 
-export async function resolveConversation(input: ResolveInput): Promise<ResolveResult> {
+/**
+ * Dependencies passed in by the caller. `enqueueLoyaltyEvent` is the only
+ * piece that varies between api and worker — the api wires up to its own
+ * bullmq helper, the worker creates its own Queue. Passing the function in
+ * keeps this module free of queue/redis imports and breaks the previous
+ * api↔worker workspace dependency cycle.
+ */
+export interface ResolveConversationDeps {
+  enqueueLoyaltyEvent: (payload: LoyaltyEventPayload) => Promise<void>
+}
+
+/**
+ * Resolve a support conversation. Single source of truth for the
+ * CSAT / AI_TIMEOUT / AGENT resolution paths. Previously duplicated at
+ * apps/api/src/lib/resolveConversation.ts and apps/worker/src/lib/
+ * resolveConversation.ts; collapsed per issue #443.
+ */
+export async function resolveConversation(
+  input: ResolveInput,
+  deps: ResolveConversationDeps,
+): Promise<ResolveResult> {
   const conv = await prisma.conversation.findUniqueOrThrow({
     where: { id: input.conversationId },
     select: {
@@ -90,7 +96,7 @@ export async function resolveConversation(input: ResolveInput): Promise<ResolveR
   // Loyalty bridge — only for identified (non-anonymous) members
   let loyaltyEventEmitted = false
   if (conv.memberId) {
-    await enqueueLoyaltyEvent({
+    await deps.enqueueLoyaltyEvent({
       brandId: conv.brandId,
       memberId: conv.memberId,
       eventType: 'cx.ticket_resolved',

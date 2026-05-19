@@ -2,18 +2,19 @@ import type { Job, ConnectionOptions } from 'bullmq'
 import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { classifyResolution } from '@customerEQ/ai/src/support/resolution.js'
-import { resolveConversation } from '../lib/resolveConversation.js'
+import { resolveConversation } from '@customerEQ/ai'
+import { enqueueEvent } from '../queues/producers.js'
 
 const logger = pino({ name: 'support-timeout-classifier' })
 
 const HOURS_THRESHOLD = 24
 const MIN_CONFIDENCE = 0.7
 
-export function createSupportTimeoutClassifierProcessor(_conn: ConnectionOptions) {
-  return (_job: Job<Record<string, never>>) => processSupportTimeoutClassifier()
+export function createSupportTimeoutClassifierProcessor(conn: ConnectionOptions) {
+  return (_job: Job<Record<string, never>>) => processSupportTimeoutClassifier(conn)
 }
 
-export async function processSupportTimeoutClassifier(): Promise<void> {
+export async function processSupportTimeoutClassifier(conn?: ConnectionOptions): Promise<void> {
   const cutoff = new Date(Date.now() - HOURS_THRESHOLD * 60 * 60 * 1000)
 
   const candidates = await prisma.conversation.findMany({
@@ -49,10 +50,13 @@ export async function processSupportTimeoutClassifier(): Promise<void> {
       })
       if (result.resolved && result.confidence >= MIN_CONFIDENCE) {
         logger.info({ conversationId: conv.id, confidence: result.confidence }, 'auto-resolving via timeout')
-        await resolveConversation({
-          conversationId: conv.id,
-          source: 'AI_TIMEOUT',
-        })
+        if (!conn) {
+          throw new Error('processSupportTimeoutClassifier: ConnectionOptions required to enqueue loyalty events')
+        }
+        await resolveConversation(
+          { conversationId: conv.id, source: 'AI_TIMEOUT' },
+          { enqueueLoyaltyEvent: (payload) => enqueueEvent(conn, payload).then(() => undefined) },
+        )
       } else {
         logger.info(
           { conversationId: conv.id, confidence: result.confidence, resolved: result.resolved },

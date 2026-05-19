@@ -14,10 +14,9 @@ const prismaMock = vi.hoisted(() => {
 })
 vi.mock('@customerEQ/database', () => ({ prisma: prismaMock }))
 
-const queuesMock = vi.hoisted(() => ({ enqueueEvent: vi.fn() }))
-vi.mock('../queues/bullmq.js', () => queuesMock)
-
 import { resolveConversation } from './resolveConversation.js'
+
+const enqueueLoyaltyEvent = vi.fn()
 
 beforeEach(() => {
   prismaMock.conversation.findUniqueOrThrow.mockReset()
@@ -27,7 +26,7 @@ beforeEach(() => {
     async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({ cSATResponse: prismaMock.cSATResponse, conversation: prismaMock.conversation }),
   )
-  queuesMock.enqueueEvent.mockReset()
+  enqueueLoyaltyEvent.mockReset()
 })
 
 // ---------------------------------------------------------------------------
@@ -44,10 +43,10 @@ describe('resolveConversation — AGENT path', () => {
     })
     prismaMock.conversation.update.mockResolvedValue({})
 
-    const result = await resolveConversation({
-      conversationId: 'conv1',
-      source: 'AGENT',
-    })
+    const result = await resolveConversation(
+      { conversationId: 'conv1', source: 'AGENT' },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.conversationId).toBe('conv1')
     expect(result.resolutionSource).toBe('AGENT')
@@ -58,7 +57,7 @@ describe('resolveConversation — AGENT path', () => {
         data: expect.objectContaining({ status: 'RESOLVED', resolutionSource: 'AGENT' }),
       }),
     )
-    expect(queuesMock.enqueueEvent).toHaveBeenCalledWith(
+    expect(enqueueLoyaltyEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         brandId: 'brand1',
         memberId: 'member1',
@@ -68,9 +67,6 @@ describe('resolveConversation — AGENT path', () => {
     )
   })
 
-  // -------------------------------------------------------------------------
-  // Test 2: AGENT path — anonymous conversation (memberId null) → no loyalty event
-  // -------------------------------------------------------------------------
   it('resolves an anonymous conversation without emitting a loyalty event', async () => {
     prismaMock.conversation.findUniqueOrThrow.mockResolvedValue({
       id: 'conv-anon',
@@ -81,13 +77,13 @@ describe('resolveConversation — AGENT path', () => {
     })
     prismaMock.conversation.update.mockResolvedValue({})
 
-    const result = await resolveConversation({
-      conversationId: 'conv-anon',
-      source: 'AGENT',
-    })
+    const result = await resolveConversation(
+      { conversationId: 'conv-anon', source: 'AGENT' },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.loyaltyEventEmitted).toBe(false)
-    expect(queuesMock.enqueueEvent).not.toHaveBeenCalled()
+    expect(enqueueLoyaltyEvent).not.toHaveBeenCalled()
     expect(result.resolutionSource).toBe('AGENT')
   })
 })
@@ -106,14 +102,14 @@ describe('resolveConversation — AI_TIMEOUT path', () => {
     })
     prismaMock.conversation.update.mockResolvedValue({})
 
-    const result = await resolveConversation({
-      conversationId: 'conv2',
-      source: 'AI_TIMEOUT',
-    })
+    const result = await resolveConversation(
+      { conversationId: 'conv2', source: 'AI_TIMEOUT' },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.resolutionSource).toBe('AI_TIMEOUT')
     expect(result.loyaltyEventEmitted).toBe(true)
-    expect(queuesMock.enqueueEvent).toHaveBeenCalledWith(
+    expect(enqueueLoyaltyEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         brandId: 'brand2',
         memberId: 'member2',
@@ -139,11 +135,14 @@ describe('resolveConversation — CSAT THUMBS_UP', () => {
     prismaMock.cSATResponse.create.mockResolvedValue({ id: 'csat1' })
     prismaMock.conversation.update.mockResolvedValue({})
 
-    const result = await resolveConversation({
-      conversationId: 'conv3',
-      source: 'CSAT',
-      csat: { rating: 'THUMBS_UP', comment: 'Great support!' },
-    })
+    const result = await resolveConversation(
+      {
+        conversationId: 'conv3',
+        source: 'CSAT',
+        csat: { rating: 'THUMBS_UP', comment: 'Great support!' },
+      },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.resolutionSource).toBe('CSAT')
     expect(result.loyaltyEventEmitted).toBe(true)
@@ -157,7 +156,7 @@ describe('resolveConversation — CSAT THUMBS_UP', () => {
         }),
       }),
     )
-    expect(queuesMock.enqueueEvent).toHaveBeenCalledWith(
+    expect(enqueueLoyaltyEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: 'cx.ticket_resolved', memberId: 'member3' }),
     )
   })
@@ -179,15 +178,17 @@ describe('resolveConversation — CSAT THUMBS_DOWN', () => {
     prismaMock.cSATResponse.create.mockResolvedValue({ id: 'csat2' })
     prismaMock.conversation.update.mockResolvedValue({})
 
-    const result = await resolveConversation({
-      conversationId: 'conv4',
-      source: 'CSAT',
-      csat: { rating: 'THUMBS_DOWN' },
-    })
+    const result = await resolveConversation(
+      {
+        conversationId: 'conv4',
+        source: 'CSAT',
+        csat: { rating: 'THUMBS_DOWN' },
+      },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.loyaltyEventEmitted).toBe(false)
-    expect(queuesMock.enqueueEvent).not.toHaveBeenCalled()
-    // The final update (reopen) must be called after the transaction
+    expect(enqueueLoyaltyEvent).not.toHaveBeenCalled()
     expect(prismaMock.conversation.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'conv4' },
@@ -210,13 +211,13 @@ describe('resolveConversation — idempotency', () => {
       csatResponse: null,
     })
 
-    const result = await resolveConversation({
-      conversationId: 'conv5',
-      source: 'AGENT',
-    })
+    const result = await resolveConversation(
+      { conversationId: 'conv5', source: 'AGENT' },
+      { enqueueLoyaltyEvent },
+    )
 
     expect(result.loyaltyEventEmitted).toBe(false)
-    expect(queuesMock.enqueueEvent).not.toHaveBeenCalled()
+    expect(enqueueLoyaltyEvent).not.toHaveBeenCalled()
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
     expect(prismaMock.conversation.update).not.toHaveBeenCalled()
   })
