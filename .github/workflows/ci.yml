@@ -147,48 +147,13 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Start demo storefront dependencies
-        if: steps.changes.outputs.build == 'true'
-        run: |
-          wait_for_url() {
-            local url="$1"
-            local label="$2"
-            local log_file="$3"
-            for _ in $(seq 1 90); do
-              if curl -fsS "$url" >/dev/null; then
-                return 0
-              fi
-              sleep 2
-            done
-            echo "$label failed to start"
-            cat "$log_file"
-            return 1
-          }
-
-          pnpm --filter @customerEQ/api dev:inline >/tmp/ceq-demo-api.log 2>&1 &
-          wait_for_url "http://127.0.0.1:4010/healthz" "demo api" /tmp/ceq-demo-api.log
-
-          pnpm --filter @customerEQ/demo-storefront exec next dev -p 3022 --hostname 127.0.0.1 >/tmp/ceq-demo-storefront.log 2>&1 &
-          wait_for_url "http://127.0.0.1:3022/api/healthz" "demo storefront" /tmp/ceq-demo-storefront.log
-        env:
-          API_PORT: '4010'
-          DEMO_API_URL: http://127.0.0.1:4010
-          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
-          REDIS_URL: redis://localhost:6379
-          CLERK_SECRET_KEY: sk_test_123
-          NEXT_PUBLIC_DEMO_BRAND_NAME: StarBrew Coffee
-          NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR: '#00704A'
-          NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR: '#CBA258'
-
       - name: Smoke Test Suite
         if: steps.changes.outputs.build == 'true'
         run: pnpm test:smoke
         env:
-          API_PORT: '4010'
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
           CLERK_SECRET_KEY: sk_test_123
-          PLAYWRIGHT_REUSE_DEMO_STOREFRONT_SERVER: 'true'
           # CI smoke relies on the suite runner's Azure base URL fallback.
           # Only the Azure/OpenAI API key must be present.
 

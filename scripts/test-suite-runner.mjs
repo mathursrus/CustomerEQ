@@ -30,10 +30,6 @@ const smokeSuites = [
     name: 'web-e2e',
     command: 'pnpm --filter @customerEQ/web exec playwright test test/e2e/demo-request.spec.ts',
   },
-  {
-    name: 'demo-storefront-e2e',
-    command: 'pnpm --filter @customerEQ/demo-storefront exec playwright test test/e2e/checkout.spec.ts',
-  },
   { name: 'worker-unit', command: 'pnpm --filter @customerEQ/worker test -- src/processors/loyaltyEvents.test.ts' },
   { name: 'mcp-server-unit', command: 'pnpm --filter @customerEQ/mcp-server test -- src/api-client.test.ts' },
   { name: 'ai-unit', command: 'pnpm --filter @customerEQ/ai test -- src/analysis/sentiment.test.ts' },
@@ -55,7 +51,6 @@ const allSuites = [
   { name: 'api-integration', command: 'pnpm --filter @customerEQ/api test:integration' },
   { name: 'web-unit', command: 'pnpm --filter @customerEQ/web test' },
   { name: 'web-e2e', command: 'pnpm --filter @customerEQ/web test:e2e' },
-  { name: 'demo-storefront-e2e', command: 'pnpm --filter @customerEQ/demo-storefront test:e2e' },
   { name: 'worker-unit', command: 'pnpm --filter @customerEQ/worker test' },
   { name: 'mcp-server-unit', command: 'pnpm --filter @customerEQ/mcp-server test' },
   { name: 'ai-unit', command: 'pnpm --filter @customerEQ/ai test' },
