@@ -124,6 +124,51 @@ Full integration run requires a live Postgres (`pnpm test:integration`) — defe
 | R25 (anonymous `—` in UI / empty in export) | `projectResponseRow` + `renderResponsesXlsx` | Unit + Integration |
 | GDPR Art. 17 (erasure side-effect) | Forward-only — Phase-1 surface inherits null-FK rendering | Documented as future erasure-worker contract |
 
+## Feature Requirement Traceability Matrix
+
+See the existing "Traceability — every spec R# mapped to a delivered artifact" section earlier in this file. Every R# (R1–R26) has an artifact + test tier. No `Partial` / `Unmet` rows. Named design-callout commitments verified in the intended surfaces:
+
+| Named design callout (source) | Intended surface | Adoption proof |
+|---|---|---|
+| Spec R6 / RFC §3.2 — Reuse `packages/shared/src/datetime.ts` for all dates | api routes, web ResponseSection, Excel export | `excelExport.ts`, `responseFilters.ts`, `ResponseSection.tsx` all import `formatInBrandTz` / `endOfDayInBrandTz`. No new formatter introduced. |
+| Spec R9c / RFC §5.3 — Lift existing `FilterChips.tsx` into shared filter module, no copy left behind | `apps/web/src/components/filters/` | Old file deleted (commit `75cfc9f`); migrated consumer `apps/web/src/app/(admin)/admin/surveys/page.tsx`. `pnpm grep` for `from './components/FilterChips'` returns no matches. |
+| Spec R15 / RFC §6.4 — Powered-by URL from a single shared constant | api Excel export | `apps/api/src/utils/excelExport.ts` reads `EXPORTS_POWERED_BY_URL`; integration test asserts the hyperlink targets the constant value. |
+| Spec R6a / RFC §5.6 — AI caveat copy from a single shared constant | web ResponseSection + Excel disclaimer row | `AiCaveatIndicator.tsx` reads `AI_FIELDS_CAVEAT`; `excelExport.ts` writes the same constant verbatim to row 13. Integration test asserts row 13 == `AI_FIELDS_CAVEAT`. |
+| RFC §3.1 — `bandsForScale` accessor on each CX type | shared/constants.ts | `NPS.bandsForScale`, `CSAT.bandsForScale`, `CES.bandsForScale` all present with `'1_5'` no-throw addressable per unit test. |
+| RFC §4.4 — List endpoint envelope augments with `filters` echo block | apps/api list route | `buildFiltersEcho` produces `scoreBandGate / sentimentBandGate / wave / dates / bands / channels`; integration test verifies for CUSTOM-type → both gates hidden true. |
+| RFC §13.2 #2 — Auth plugin accepts `?token=` for browser downloads | apps/api/plugins/auth.ts | `queryToken` branch added; `<a href>` in `ResponseSection.tsx` appends `?token=`. Security review documents the credential-surface tradeoff. |
+
+## Technical Design Traceability Matrix
+
+| RFC commitment | Section | Implementation | Proof |
+|---|---|---|---|
+| ExcelJS over SheetJS (server-side render) | §6.1 | `exceljs@^4.4.0` in `apps/api/package.json`; `excelExport.ts` uses Workbook API | Build + 6 unit tests |
+| Cover block + AI disclaimer + Powered-by hyperlink | §6.2 | `renderResponsesXlsx` rows 1–14 | Unit test asserts row mapping; integration test asserts parsed `.xlsx` shape |
+| Filename slug pattern | §6.3 | `exportFilename` | 4 unit cases |
+| `EXPORTS_POWERED_BY_URL` shared constant | §6.4 | `packages/shared/src/constants.ts` | Imported by Excel export; integration test verifies hyperlink |
+| `EXPORT_ROW_CAP = 50_000` | §4.2 | shared constant; early-return in export handler | Documented in evidence + RFC §13.2 #10 |
+| List + export endpoints | §4.1, §4.2 | new routes on `surveys.ts` | Integration test (cross-tenant 404, payload shape) |
+| R21 — vestigial `responses: { take: 20 }` removed | §4.3 | `surveys.ts` GET /:id | Integration test asserts `body.responses === undefined` |
+| Filter echo envelope | §4.4 | `buildFiltersEcho` | Integration test asserts `scoreBandGate.hidden` for CUSTOM type |
+| State lift to detail page | §5.1 | `apps/web/.../[id]/page.tsx` `useState<…>('all')` | Page tests pass |
+| `<ResponseSection>` rewrite owning filter/page/expand state | §5.2 | new component family | Phase 5 RTL tests + manual mock walkthrough |
+| Shared filter modules at `apps/web/src/components/filters/` | §5.3 | New family + URL codec | 13 unit cases |
+| URL state codec | §5.4 | `responseFilters.url.ts` | 6 unit cases |
+| Empty / error states | §5.5 | `ResponseSection` empty bodies | RTL test verifies the zero-response disabled Export anchor |
+| AI caveat indicator | §5.6 | `AiCaveatIndicator.tsx` | Imported by `ResponseTable`; verbatim copy verified |
+| Audit on both new endpoints with `aiVintageNonNullCount` | §7 | Route configs + handler stamps `request.audit.metadata` | Documented; live verification deferred to integration run |
+| OQ-1 — ExcelJS | §10 | Confirmed in §6.1 | n/a |
+| OQ-2 — Member identifier kind retroactive | §10 | `projectResponseRow` resolves on read | 4 unit cases |
+| OQ-3 — SENTIMENT thresholds stay at 0.3 | §10 | `SENTIMENT` retained; spec corrigendum applied | Unit tests use 0.3 boundaries |
+| OQ-4 — `?token=` auth | §10 | `auth.ts` queryToken branch | Security review accepted with documented mitigations |
+| OQ-5 — `SurveyResponse.deletedAt` not added | §10 / §2.1 | No schema change; spec corrigendum applied | Documented |
+
+No `Partial` / `Unmet` rows. No unresolved named callouts. Intentional tradeoffs (ExcelJS dep, query-token auth) documented in security + RFC.
+
+## Feedback Verification
+
+All feedback items in `docs/evidence/423-feature-implementation-feedback.md` are marked **ADDRESSED**. No human-review feedback yet — the PR awaits review; any feedback comments will be collected during Phase 12 `address-feedback`.
+
 ## Regression Report (Phase 7)
 
 | Package | Result | Notes |
