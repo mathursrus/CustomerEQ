@@ -25,13 +25,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Rule 11a: fail loudly if the API key is missing — no silent skips.
-      - name: Validate OPENAI_API_KEY
+      - name: Validate AZURE_OPENAI_API_KEY
         run: |
-          test -n "$OPENAI_API_KEY" || (echo "OPENAI_API_KEY secret is not set — nightly regression requires a real API key" && exit 1)
+          test -n "$AZURE_OPENAI_API_KEY" || (echo "AZURE_OPENAI_API_KEY secret is not set — nightly regression requires a real API key" && exit 1)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
       - name: Run BAML evals
         run: pnpm test:baml
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
