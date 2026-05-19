@@ -19,7 +19,11 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const brand = await fastify.prisma.brand.findUnique({
           where: { id: brandIdHeader },
-          select: { id: true, supportWidgetConfig: { select: { anonAllowed: true } } },
+          select: {
+            id: true,
+            consentMode: true,
+            supportWidgetConfig: { select: { anonAllowed: true } },
+          },
         })
         if (!brand) return reply.status(404).send({ error: 'Brand not found' })
 
@@ -29,8 +33,21 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
         const parse = StartConversationPublicSchema.safeParse(request.body)
         if (!parse.success) return reply.status(422).send({ error: 'Validation failed', issues: parse.error.issues })
 
-        const { anonId, email, initialMessage } = parse.data
+        const { anonId, email, initialMessage, consent } = parse.data
         if (!anonId) return reply.status(400).send({ error: 'anonId required for anonymous flow' })
+
+        // Compliance gate (Brand.consentMode = EXPLICIT): if the widget is
+        // capturing PII (email) from an anonymous visitor, the host page must
+        // also pass `consent: true` proving the visitor ticked the disclosure
+        // checkbox. For IMPLIED_ON_SUBMIT brands or pure-anonymous (no email)
+        // conversations, the implicit-acceptance model from the surveys module
+        // applies and no checkbox is needed.
+        if (email && brand.consentMode === 'EXPLICIT' && consent !== true) {
+          return reply.status(400).send({
+            error: 'CONSENT_REQUIRED',
+            message: 'This brand requires explicit consent before email capture. Set consent: true in the request body after the visitor acknowledges the disclosure.',
+          })
+        }
 
         const { conversation, message } = await fastify.prisma.$transaction(async (tx) => {
           const conv = await tx.conversation.create({

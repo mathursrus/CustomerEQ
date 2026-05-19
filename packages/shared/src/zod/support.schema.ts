@@ -92,6 +92,13 @@ export const StartConversationPublicSchema = z.object({
   initialMessage: z.string().min(1).max(5000),
   anonId: z.string().min(8).max(128).optional(),
   email: z.string().email().optional(),
+  /**
+   * Explicit consent acknowledgement (ticked the widget's consent checkbox).
+   * Required when Brand.consentMode = 'EXPLICIT' AND the body captures `email`.
+   * For IMPLIED_ON_SUBMIT brands or anonymous (no-email) submissions, this is
+   * not required — the server treats acting on the widget as implicit consent.
+   */
+  consent: z.boolean().optional(),
 })
 export type StartConversationPublicInput = z.infer<typeof StartConversationPublicSchema>
 
