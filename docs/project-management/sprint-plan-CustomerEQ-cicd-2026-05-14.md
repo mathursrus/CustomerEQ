@@ -23,7 +23,7 @@ Scale: BV / TC / RR on 1–13 Fibonacci. WSJF = (BV + TC + RR) / Size.
 | D | Doc-only CI skip (main `ci` job) | 4 | 3 | 2 | 1 | 9.0 | ✅ Done 2026-05-19 |
 | E | Move `pnpm audit` to weekly schedule | 3 | 2 | 3 | 1 | 8.0 | ✅ Done 2026-05-19 |
 | A | Enable Turbo remote cache | 8 | 6 | 5 | 2 | 9.5 | ✅ Done 2026-05-18 |
-| C | Split `lint` into parallel job | 5 | 4 | 3 | 2 | 6.0 | **Do now** |
+| C | Split `lint` into parallel job | 5 | 4 | 3 | 2 | 6.0 | ✅ Done 2026-05-19 |
 | G | Codecov coverage threshold | 5 | 3 | 6 | 1 | 14.0 | Parked — gap round |
 | B | Add `test:integration` to CI gate | 9 | 7 | 9 | 3 | 8.3 | Parked — gap round |
 | J | Move BAML LLM evals out of smoke path | 6 | 5 | 4 | 2 | 7.5 | Parked — gap round |
