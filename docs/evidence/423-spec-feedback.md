@@ -229,3 +229,69 @@ Round 1 covers all comments left on commit `e26eaf1` plus two chat-thread design
 - Spec edited (§2.2 filter row default order + Score Band + Sentiment Band visibility rules + future-scale notes, §2.3 AI column-header `AI ·` prefix + tinted AI-group + generic caveat copy, §3 walkthrough scenes 1/2/8/9 reflecting new order + scene 8 added for custom-type, §4 edge case updated for generic caveat, R2 / R6a / R9a / R9b / R9d / R15 / R16 updated, Validation Plan extended with score-band-scale tests + survey-type-gated visibility test + custom-type filter-visibility test + cover-block expanded shape).
 - Mock edited: Scene 1 filter chips reordered + AI column headers prefixed `AI ·` + caveat tooltip de-referenced from `#235`; Scene 7 Excel export cover block restructured to 14 rows with separate Survey / Survey type / Survey ID rows + Powered-by row + updated disclaimer + `AI ·` headers in data sheet; Scene 11 + Scene 12 filter rows reordered; new Scene 13 covers custom-type survey filter-visibility.
 - Re-pushed to feature branch; each of the 12 inline review comments will receive a per-line ADDRESSED reply.
+
+---
+
+## Round 3 Feedback (self-audit, chat-driven)
+*Received: 2026-05-19 — user asked "Can you verify that all claims you have made in the spec are verified — by repo read, grep etc."*
+
+I audited every concrete file-path / line-number / schema-name / constant / URL / cross-issue-pattern reference in `docs/feature-specs/423-survey-response-review-v1.md` against the actual repo state. Findings:
+
+### Comment R3-1 — ADDRESSED · `SurveyResponse` schema line numbers stale
+- **Type / location**: self-audit on `docs/feature-specs/423-survey-response-review-v1.md`
+- **Claim**: `SurveyResponse.answers` is at `packages/database/prisma/schema.prisma:759`
+- **Actual**: `model SurveyResponse` starts at line 805; `answers Json` is at line 812. Schema has grown since the original draft.
+- **Resolution**: Updated the inline reference to `:812`.
+
+### Comment R3-2 — ADDRESSED · `Brand.timezone` / `Brand.locale` lines off by 1
+- **Claim**: Defaults at `packages/database/prisma/schema.prisma:212–213`
+- **Actual**: `timezone String @default("UTC")` at line 213, `locale String @default("en-US")` at line 214. (Issue #277 comment is at line 211.)
+- **Resolution**: Updated the inline reference to `:213–214`.
+
+### Comment R3-3 — ADDRESSED · `ResponseSection.tsx` line span minor under-claim
+- **Claim**: Placeholder body at `apps/web/src/app/(admin)/admin/surveys/[id]/components/ResponseSection.tsx:11–13` punts to "a sibling sub-issue to #235."
+- **Actual**: The "deferred-analytics placeholder" sentence and the "sibling sub-issue to #235" reference span lines 10–13 of the file. The original 11–13 omitted the first line of the relevant block.
+- **Resolution**: Updated the inline reference to `:10–13`.
+
+### Comment R3-4 — ADDRESSED · Issue #332 detail-endpoint line off by 1
+- **Claim**: Soft-delete pattern at `apps/api/src/routes/surveys.ts:103` and `surveys.ts:124`
+- **Actual**: List-endpoint `deletedAt: null` is at line 103 (comment at 102). Detail-endpoint `deletedAt: null` clause is at line **125** (comment at 124). The original conflated the comment line with the clause line on the detail endpoint.
+- **Resolution**: Updated the inline references to `surveys.ts:103` (list) and `surveys.ts:125` (detail, with comment at 124 noted).
+
+### Comment R3-5 — ADDRESSED · 50,000-row export cap "matches #262 SurveyImportBatch ceiling" — fabricated
+- **Claim** (Round 1): *"The 50k cap matches the existing `SurveyImportBatch` ceiling from #262, so platform-wide row limits stay consistent."*
+- **Actual**: Grep across `apps/`, `packages/`, and `docs/feature-specs/262-historical-survey-data-import.md` finds **no 50,000-row cap** on `SurveyImportBatch` anywhere. The only related caps in the platform are #378's `PASTE_ENTRIES_CAP = 10_000` and `CSV_ENTRIES_CAP = 100_000` (`apps/api/src/routes/distributionBatches.ts:33–34`) — and those gate paste/CSV input for distribution batches, not import rows. The `totalRows` column on `SurveyImportBatch` is a count of what was imported, not a cap.
+- **This is a fabrication.** The 50k cap is a reasonable Phase-1 design choice but the "matches #262" justification was not in the repo. Filing as a self-found error per the audit protocol.
+- **Resolution**: Removed the false "matches #262" claim from §4 (export-cap edge case) and R18a. Replaced with a reasoned standalone defense: *"balances operator access to large slices against producing files Excel can open quickly and reviewers can scroll — well within Excel's 1,048,576 sheet limit but conservative enough that ExcelJS / SheetJS render times stay under a few seconds on a typical API container. The cap is a single constant in `packages/shared/src/constants.ts` so a future evidence-driven adjustment changes one line."* The 50k value remains; only the fabricated provenance is removed.
+
+### Comment R3-6 — ADDRESSED · filter-row order drift in edge-case bullet
+- **Claim** (Round 1): edge-case bullet listed filter groups as *"Submitted · Score band · Sentiment band · Channel"* — Round 1's original order.
+- **Actual**: Round 2 changed the default to *"Score band · Sentiment band · Submitted · Channel"* (in §2.2 and R9d) but the §4 edge-case bullet was not updated — internal inconsistency.
+- **Resolution**: §4 edge-case bullet now reads the Round 2 order.
+
+### Verified clean (no change needed):
+
+- `extractOpenEndedText` at `apps/api/src/utils/survey.ts:1–13` — file is exactly 13 lines, function at 5–12.
+- `responses: { take: 20, … }` at `apps/api/src/routes/surveys.ts:129–144` — verified.
+- `apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx:181–188` `DistributionBatchesFilter` placement — verified.
+- `packages/shared/src/datetime.ts` exports `formatInBrandTz`, `endOfDayInBrandTz`, `addDaysInBrandTz`, `resolveLocale` — verified.
+- `packages/shared/src/constants.ts` `NPS = { PROMOTER_THRESHOLD: 9, DETRACTOR_THRESHOLD: 6, isPromoter, isDetractor }` — verified.
+- `apps/web/src/app/(admin)/admin/surveys/components/filter-chips.logic.ts` — exists (Bash-confirmed; Glob hit a Windows `()` quirk).
+- `SurveyType` enum = `NPS | CSAT | CES | CUSTOM` — verified, justifies the "hide for non-CX types" rule.
+- `https://customereq.wellnessatwork.me` canonical host — verified across `.github/workflows/deploy.yml:227`, `apps/demo-storefront/src/app/{checkout/confirm,survey/[id],account}/page.tsx`, and `docs/storefront-demo-script*.md`.
+- `"Powered by CustomerEQ"` pattern — verified at `apps/demo-storefront/src/app/layout.tsx:30`.
+- `DistributionBatchesFilter.onChange` un-wired — verified (no `onChange={...}` prop in page.tsx:183–188).
+- `SurveyResponse` fields `sentiment / confidence / topics / summary / clusterId / channel / completedAt / importedAt / importBatchId / distributionBatchId / distributionTokenId / memberId nullable / brandId` — verified.
+- `Survey.importBatches` (#262) at schema line 642; `Survey.distributionBatches` (#378) at line 643 — verified.
+- `Brand.memberIdentifierKind` enum + #231 comment — verified at schema lines 202–203.
+- Architecture references: `docs/architecture/architecture.md` §2 (Tech Stack — Tailwind v4 + shadcn) and §3.1 (Standard CRUD admin pattern) — verified earlier in this session.
+
+---
+
+## Round 3 — Re-validation evidence
+
+- All 6 audit items marked ADDRESSED (5 drift fixes + 1 fabrication corrected).
+- Spec edits: line numbers on lines 34, 38, 97 (Brand TZ/locale), 120 (50k cap rationale), 178 (Art. 17 erasure cross-ref); 50k-cap defense rewritten standalone; §4 edge-case filter-order drift fixed; R18a rationale paragraph added.
+- No content additions beyond honest fixes — every requirement that was already in scope stays in scope; only the unverified `#262` provenance and stale line numbers were corrected.
+- Mock unchanged this round (no mock claims were stale).
+- Re-pushed to feature branch.
