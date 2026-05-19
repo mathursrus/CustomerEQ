@@ -7,12 +7,22 @@ import { render, screen } from '@testing-library/react'
 // disabled state); the full filter / fetch / pagination flow is exercised in
 // the E2E Playwright suite (`tests/e2e/423-response-review.spec.ts`).
 
+// vi.mock calls are hoisted to the top of the file. Module-level consts
+// referenced in the mock factory are TDZ at hoist time — use `vi.hoisted`
+// so the stable references are also hoisted alongside the mocks.
+const stubs = vi.hoisted(() => {
+  const STABLE_GET_TOKEN = async () => 'test-token'
+  return {
+    STABLE_USE_AUTH: { getToken: STABLE_GET_TOKEN },
+    STABLE_GET_TOKEN,
+  }
+})
 vi.mock('@clerk/nextjs', () => ({
-  useAuth: () => ({ getToken: async () => 'test-token' }),
+  useAuth: () => stubs.STABLE_USE_AUTH,
 }))
 vi.mock('@/lib/config', () => ({
   API_URL: 'http://localhost:8000',
-  getAuthToken: async () => 'test-token',
+  getAuthToken: stubs.STABLE_GET_TOKEN,
 }))
 
 import { ResponseSection } from './ResponseSection'
