@@ -5,7 +5,7 @@ Parent: [#235](https://github.com/mathursrus/CustomerEQ/issues/235) (umbrella)
 PR: _to be linked on push_
 Branch: `feature/423-p0-survey-response-review-v1-per-member-tabular-view-basic-filters-wave-filtering-excel-export-phase-1-of-235`
 Worktree: `C:/Github/mathursrus/CustomerEQ - Issue 423`
-Status: Phase 5 (`spec-submission`) — submitting for review.
+Status: Phase 6 (`address-feedback`) — Round 1 (15 items) addressed; spec, mock, and evidence updated; awaiting re-review.
 
 ---
 
@@ -41,9 +41,11 @@ Status: Phase 5 (`spec-submission`) — submitting for review.
 
 ### PR-comment resolution log
 
-| PR Comment | How Addressed |
-|---|---|
-| _(no PR comments yet — populated during Phase 6 `address-feedback`)_ | — |
+See full `docs/evidence/423-spec-feedback.md` for the addressed feedback file (Round 1, 15 items). Summary:
+
+| Round | Date | Items | Outcome |
+|---|---|---|---|
+| 1 | 2026-05-19 | 13 PR review comments (R1–R13) + 2 chat-thread decisions (C14, C15) | All marked ADDRESSED. Spec extended with R6a/R9a/R9b/R9c/R9d/R11a/R18a, three new AI-derived columns, score-band + sentiment-band filters, filter-row overflow behavior, 50k export cap with 413 + UI guard, vestigial `responses: { take: 20 }` removal from `GET /v1/surveys/:id`, GDPR Art. 4(4)/22/5(1)(d)/17 expanded for AI fields, SOC2 PI1.4 for AI vintage, validation plan updates, alternatives inverted on AI columns, mock extended with 2 new scenes (overflow + export cap). |
 
 ---
 

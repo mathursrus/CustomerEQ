@@ -107,9 +107,36 @@
   td.col-submitted .sub-sub { color: var(--text-subtle); font-size: 11px; display: block; }
   td.col-score .score-cell { display: inline-flex; align-items: center; gap: 4px; }
   td.col-score .score-cell .scale { color: var(--text-subtle); font-size: 11px; }
+  td.col-score.detractor { background: rgba(220, 38, 38, 0.07); }
+  td.col-score.passive { background: rgba(217, 119, 6, 0.07); }
+  td.col-score.promoter { background: rgba(22, 163, 74, 0.07); }
   td.col-score.detractor .score-cell { color: var(--danger); font-weight: 600; }
   td.col-score.passive .score-cell { color: var(--warning); font-weight: 600; }
   td.col-score.promoter .score-cell { color: var(--success); font-weight: 600; }
+
+  /* AI-derived columns */
+  td.col-sentiment .sent-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.4; }
+  td.col-sentiment .sent-chip.positive { background: var(--success-soft); color: var(--success); }
+  td.col-sentiment .sent-chip.neutral { background: var(--surface-muted); color: var(--text-muted); }
+  td.col-sentiment .sent-chip.negative { background: var(--danger-soft); color: var(--danger); }
+  td.col-topics .topic-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; line-height: 1.4; background: var(--info-soft); color: var(--info); border: 1px solid #a5f3fc; margin: 1px 3px 1px 0; }
+  td.col-topics .topic-overflow { display: inline-block; padding: 2px 6px; background: white; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; border-radius: 999px; cursor: help; margin-left: 2px; }
+  td.col-summary { font-size: 12px; color: var(--text-muted); font-style: italic; max-width: 240px; }
+  td.col-summary .truncated { display: inline; }
+
+  th.ai-group { background: linear-gradient(180deg, #f5f3ff, var(--surface-muted)) !important; }
+  th.ai-group-last { background: linear-gradient(180deg, #f5f3ff, var(--surface-muted)) !important; position: relative; }
+  .ai-caveat-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; font-weight: 700; font-style: normal; margin-left: 6px; cursor: help; vertical-align: middle; }
+
+  /* More-filters popover */
+  .more-filters-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--border-strong); background: white; color: var(--text-muted); font-size: 12px; font-weight: 500; cursor: pointer; }
+  .more-filters-pill:hover { background: var(--surface-muted); color: var(--text); }
+  .more-filters-popover { position: absolute; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; box-shadow: var(--shadow-md); z-index: 60; }
+  .more-filters-popover h4 { margin: 0 0 6px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+
+  /* Export-cap banner */
+  .export-cap-banner { background: var(--warning-soft); color: var(--warning-strong); border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; margin-bottom: 10px; }
+  .export-cap-banner strong { font-weight: 700; }
 
   /* Header tooltip (hover full question text) */
   .header-tooltip { position: absolute; background: var(--text); color: white; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 400; max-width: 320px; line-height: 1.4; box-shadow: var(--shadow-md); z-index: 50; text-transform: none; letter-spacing: normal; }
@@ -173,6 +200,8 @@
     <a href="#scene-8">8 · Empty: zero</a>
     <a href="#scene-9">9 · Empty: filters</a>
     <a href="#scene-10">10 · Anonymous</a>
+    <a href="#scene-11">11 · Filter overflow</a>
+    <a href="#scene-12">12 · Export cap</a>
   </div>
 </div>
 
@@ -244,6 +273,18 @@
               <span class="chip">Custom…</span>
             </div>
             <div class="filter-group">
+              <span class="group-label">Score band:</span>
+              <span class="chip active">Promoter</span>
+              <span class="chip active">Passive</span>
+              <span class="chip active">Detractor</span>
+            </div>
+            <div class="filter-group">
+              <span class="group-label">Sentiment band: <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response. Correct for single-text-question surveys (standard NPS/CSAT/CES). Per-question synthesis lands in a later phase of #235.">i</span></span>
+              <span class="chip active">Positive</span>
+              <span class="chip active">Neutral</span>
+              <span class="chip active">Negative</span>
+            </div>
+            <div class="filter-group">
               <span class="group-label">Channel:</span>
               <span class="chip active">email</span>
               <span class="chip active">in_app</span>
@@ -261,6 +302,9 @@
                   <th>Channel</th>
                   <th>Submitted</th>
                   <th>Score</th>
+                  <th class="ai-group">Sentiment</th>
+                  <th class="ai-group">Topics</th>
+                  <th class="ai-group-last">AI summary <span class="ai-caveat-icon" title="AI-derived columns are computed across all open-ended answers on each response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, per-question synthesis lands in a later phase of #235.">i</span></th>
                   <th title="How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)">Recommend? <span style="color:var(--text-subtle)">…</span></th>
                   <th title="What's the main reason for the score you gave?">Reason for score</th>
                   <th title="What's one thing we could do better?">One thing to improve</th>
@@ -272,6 +316,9 @@
                   <td class="col-channel">email</td>
                   <td class="col-submitted">May 18, 2026<span class="sub-sub">11:24 AM PDT</span></td>
                   <td class="col-score promoter"><span class="score-cell">9 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip positive" title="+0.62">Positive</span></td>
+                  <td class="col-topics"><span class="topic-chip">support</span><span class="topic-chip">response time</span></td>
+                  <td class="col-summary">Mostly satisfied with support outcome but frustrated with response time.</td>
                   <td>9</td>
                   <td><span class="truncated">Their support team replied within minutes when our integration broke. The reps were polite but I waited 40 minutes for…</span><span class="more-link">more</span></td>
                   <td>Faster invoicing would be nice.</td>
@@ -281,6 +328,9 @@
                   <td class="col-channel">in_app</td>
                   <td class="col-submitted">May 18, 2026<span class="sub-sub">09:02 AM PDT</span></td>
                   <td class="col-score detractor"><span class="score-cell">3 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip negative" title="-0.74">Negative</span></td>
+                  <td class="col-topics"><span class="topic-chip">outages</span><span class="topic-chip">reliability</span></td>
+                  <td class="col-summary">Frustrated with recurring outages affecting operations.</td>
                   <td>3</td>
                   <td>Outages have been frequent this month.</td>
                   <td>—</td>
@@ -290,6 +340,9 @@
                   <td class="col-channel">link</td>
                   <td class="col-submitted">May 17, 2026<span class="sub-sub">06:48 PM PDT</span></td>
                   <td class="col-score passive"><span class="score-cell">7 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip neutral" title="+0.12">Neutral</span></td>
+                  <td class="col-topics"><span class="topic-chip">mobile app</span><span class="topic-chip">dark mode</span></td>
+                  <td class="col-summary">Generally positive with mobile app friction and feature request.</td>
                   <td>7</td>
                   <td>Mostly great, occasional friction with the mobile app.</td>
                   <td>Dark mode on the dashboard.</td>
@@ -299,6 +352,9 @@
                   <td class="col-channel">email</td>
                   <td class="col-submitted">May 17, 2026<span class="sub-sub">02:11 PM PDT</span></td>
                   <td class="col-score promoter"><span class="score-cell">10 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip positive" title="+0.91">Positive</span></td>
+                  <td class="col-topics"><span class="topic-chip">ease of use</span><span class="topic-chip">pricing</span></td>
+                  <td class="col-summary">Strong advocate citing usability and value combo.</td>
                   <td>10</td>
                   <td>Easy to use, fair pricing, the rare combo.</td>
                   <td>Nothing comes to mind.</td>
@@ -308,6 +364,9 @@
                   <td class="col-channel">sms</td>
                   <td class="col-submitted">May 16, 2026<span class="sub-sub">10:30 AM PDT</span></td>
                   <td class="col-score detractor"><span class="score-cell">2 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip negative" title="-0.88">Negative</span></td>
+                  <td class="col-topics"><span class="topic-chip">billing</span><span class="topic-chip">double charge</span><span class="topic-chip">support</span></td>
+                  <td class="col-summary">Billing trust break: unexplained double charge + dropped support calls.</td>
                   <td>2</td>
                   <td><span class="truncated">Your billing system charged me for two months in advance without warning. When I called support no one could explain…</span><span class="more-link">more</span></td>
                   <td>Stop double-charging customers and notify before any auto-renewal.</td>
@@ -565,13 +624,13 @@
 
 <!-- SCENE 7 — EXCEL EXPORT -->
 <div class="scene" id="scene-7">
-  <div class="scene-label"><strong>Scene 7</strong> — Operator clicked <em>Export to Excel</em>. Filename <code>survey-q2-2026-customer-pulse-responses-2026-05-18.xlsx</code>. Cover block (rows 1–6) states the filter set in effect at export time. Row 7 blank. Data sheet starts at row 8 with full question text in headers. Filter snapshot: Wave = "Q2 NPS Gold-tier wave", Submitted = "Apr 15 → Apr 22", Channels = "email, sms".</div>
+  <div class="scene-label"><strong>Scene 7</strong> — Operator clicked <em>Export to Excel</em>. Filename <code>survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</code>. Cover block (rows 1–9) states the filter set including the new Score band / Sentiment band slots. Row 10 blank, row 11 the AI-fields disclaimer, row 12 blank. Data sheet starts at row 13 with AI-derived columns + full question headers. Filter snapshot: Wave = "Q2 NPS Gold-tier wave", Submitted = "Apr 15 → Apr 22", Score band = "Detractor", Sentiment band = "Negative", Channels = "email, sms".</div>
   <div class="container">
     <div class="xlsx-window">
       <div class="xlsx-titlebar">
         <span class="xlsx-icon">X</span>
         <span>Microsoft Excel —</span>
-        <span class="xlsx-filename">survey-q2-2026-customer-pulse-responses-2026-05-18.xlsx</span>
+        <span class="xlsx-filename">survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</span>
       </div>
       <div class="xlsx-sheet-tabs">
         <div class="xlsx-sheet-tab active">Responses</div>
@@ -580,48 +639,62 @@
         <thead>
           <tr>
             <th class="row-num"></th>
-            <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th>
+            <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td class="row-num">1</td><td class="xlsx-cover-key">Survey</td><td class="xlsx-cover-val" colspan="6">Q2 2026 Customer Pulse · NPS · srv_aBc123xYz</td></tr>
-          <tr><td class="row-num">2</td><td class="xlsx-cover-key">Exported at</td><td class="xlsx-cover-val" colspan="6">May 18, 2026, 11:47 AM PDT</td></tr>
-          <tr><td class="row-num">3</td><td class="xlsx-cover-key">Exported by</td><td class="xlsx-cover-val" colspan="6">manohar.madhira@outlook.com</td></tr>
-          <tr><td class="row-num">4</td><td class="xlsx-cover-key">Wave</td><td class="xlsx-cover-val" colspan="6">Q2 NPS Gold-tier wave · Apr 15, 2026</td></tr>
-          <tr><td class="row-num">5</td><td class="xlsx-cover-key">Submitted range</td><td class="xlsx-cover-val" colspan="6">Apr 15, 2026 → Apr 22, 2026 (America/Los_Angeles)</td></tr>
-          <tr><td class="row-num">6</td><td class="xlsx-cover-key">Channels</td><td class="xlsx-cover-val" colspan="6">email, sms</td></tr>
-          <tr><td class="row-num">7</td><td class="xlsx-blank" colspan="7"></td></tr>
+          <tr><td class="row-num">1</td><td class="xlsx-cover-key">Survey</td><td class="xlsx-cover-val" colspan="9">Q2 2026 Customer Pulse · NPS · srv_aBc123xYz</td></tr>
+          <tr><td class="row-num">2</td><td class="xlsx-cover-key">Exported at</td><td class="xlsx-cover-val" colspan="9">May 19, 2026, 11:47 AM PDT</td></tr>
+          <tr><td class="row-num">3</td><td class="xlsx-cover-key">Exported by</td><td class="xlsx-cover-val" colspan="9">manohar.madhira@outlook.com</td></tr>
+          <tr><td class="row-num">4</td><td class="xlsx-cover-key">Wave</td><td class="xlsx-cover-val" colspan="9">Q2 NPS Gold-tier wave · Apr 15, 2026</td></tr>
+          <tr><td class="row-num">5</td><td class="xlsx-cover-key">Submitted range</td><td class="xlsx-cover-val" colspan="9">Apr 15, 2026 → Apr 22, 2026 (America/Los_Angeles)</td></tr>
+          <tr><td class="row-num">6</td><td class="xlsx-cover-key">Score band</td><td class="xlsx-cover-val" colspan="9">Detractor</td></tr>
+          <tr><td class="row-num">7</td><td class="xlsx-cover-key">Sentiment band</td><td class="xlsx-cover-val" colspan="9">Negative</td></tr>
+          <tr><td class="row-num">8</td><td class="xlsx-cover-key">Channels</td><td class="xlsx-cover-val" colspan="9">email, sms</td></tr>
+          <tr><td class="row-num">9</td><td class="xlsx-cover-key">Total rows</td><td class="xlsx-cover-val" colspan="9">23</td></tr>
+          <tr><td class="row-num">10</td><td class="xlsx-blank" colspan="10"></td></tr>
+          <tr><td class="row-num">11</td><td colspan="10" style="font-style:italic;color:var(--warning-strong);background:var(--warning-soft);font-size:11px;">AI-derived columns (Sentiment / Topics / AI summary) are computed across all open-ended answers per response. For multi-text-question surveys, per-question synthesis lands in a later phase of #235.</td></tr>
+          <tr><td class="row-num">12</td><td class="xlsx-blank" colspan="10"></td></tr>
           <tr>
-            <td class="row-num">8</td>
+            <td class="row-num">13</td>
             <td class="xlsx-data-header">Member</td>
             <td class="xlsx-data-header">Channel</td>
             <td class="xlsx-data-header">Submitted</td>
             <td class="xlsx-data-header">Score</td>
+            <td class="xlsx-data-header">Sentiment</td>
+            <td class="xlsx-data-header">Topics</td>
+            <td class="xlsx-data-header">AI summary</td>
             <td class="xlsx-data-header">How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)</td>
             <td class="xlsx-data-header">What's the main reason for the score you gave?</td>
             <td class="xlsx-data-header">What's one thing we could do better?</td>
           </tr>
           <tr class="xlsx-data-row">
-            <td class="row-num">9</td>
-            <td>Jane Cooper (jane@cooper.com)</td>
-            <td>email</td>
-            <td>Apr 22, 2026, 11:24 AM PDT</td>
-            <td>9</td>
-            <td>9</td>
-            <td>Their support team replied within minutes when our integration broke. The reps were polite but I waited 40 minutes for someone to acknowledge the SEV-1 we filed before anyone took ownership. Once it was assigned the resolution was actually very fast — about an hour — but that initial wait is hard to forgive when production is down.</td>
-            <td>Faster invoicing would be nice.</td>
-          </tr>
-          <tr class="xlsx-data-row">
-            <td class="row-num">10</td>
+            <td class="row-num">14</td>
             <td>Yuki Tanaka (yuki@bento.shop)</td>
             <td>sms</td>
             <td>Apr 18, 2026, 10:30 AM PDT</td>
             <td>2</td>
+            <td>Negative</td>
+            <td>billing, double charge, support</td>
+            <td>Billing trust break: unexplained double charge + dropped support calls.</td>
             <td>2</td>
             <td>Your billing system charged me for two months in advance without warning. When I called support no one could explain why and the call was disconnected twice before I got a manager.</td>
             <td>Stop double-charging customers and notify before any auto-renewal.</td>
           </tr>
-          <tr><td class="row-num">…</td><td colspan="7" style="font-style:italic;color:var(--text-subtle)">54 data rows total</td></tr>
+          <tr class="xlsx-data-row">
+            <td class="row-num">15</td>
+            <td>Marcus Lee (marcus@orbit.io)</td>
+            <td>email</td>
+            <td>Apr 17, 2026, 09:02 AM PDT</td>
+            <td>3</td>
+            <td>Negative</td>
+            <td>outages, reliability</td>
+            <td>Frustrated with recurring outages affecting operations.</td>
+            <td>3</td>
+            <td>Outages have been frequent this month. The status page doesn't always reflect what we're seeing.</td>
+            <td>Honest status page updates.</td>
+          </tr>
+          <tr><td class="row-num">…</td><td colspan="10" style="font-style:italic;color:var(--text-subtle)">23 data rows total</td></tr>
         </tbody>
       </table>
     </div>
@@ -731,6 +804,107 @@
           </table>
         </div>
         <p style="font-size:11px;color:var(--text-subtle);margin:8px 2px;">Anonymous rows export with an empty Member cell.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 11 — FILTER ROW OVERFLOW -->
+<div class="scene" id="scene-11">
+  <div class="scene-label"><strong>Scene 11</strong> — Viewport narrowed (or many chip groups). Filter bar would wrap past one row; <strong>Channel</strong> collapses behind a <em>More filters ↓</em> popover. Channel state is preserved across collapse/expand. Submitted / Score band / Sentiment band stay inline.</div>
+  <div class="container">
+    <div class="section new-section" style="position:relative">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row" style="position:relative">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">7d</span>
+            <span class="chip">30d</span>
+            <span class="chip">90d</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Score band:</span>
+            <span class="chip active">Promoter</span>
+            <span class="chip active">Passive</span>
+            <span class="chip active">Detractor</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Sentiment band:</span>
+            <span class="chip active">Positive</span>
+            <span class="chip active">Neutral</span>
+            <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="more-filters-pill">More filters ↓ <span style="background:var(--primary);color:white;font-size:9px;padding:1px 6px;border-radius:999px;margin-left:4px;">2/5</span></span>
+          </div>
+          <!-- Popover anchored under "More filters ↓" -->
+          <div class="more-filters-popover" style="top:48px;right:0;width:220px">
+            <h4>Channel</h4>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              <span class="chip active">email</span>
+              <span class="chip active">in_app</span>
+              <span class="chip">link</span>
+              <span class="chip">sms</span>
+              <span class="chip">review</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-style:italic;color:var(--text-subtle);padding:24px 2px;font-size:12px;">[ Table rows omitted — filtered by Channel = (email, in_app) only. ]</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 12 — EXPORT CAP EXCEEDED -->
+<div class="scene" id="scene-12">
+  <div class="scene-label"><strong>Scene 12</strong> — Filter set yields more than 50,000 responses. Server would return HTTP 413 on the export endpoint; the UI pre-emptively disables the Export button and surfaces an inline banner. The 50k cap matches platform-wide limits (#262 import) and stays well within Excel's 1,048,576-row sheet limit.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">1,247,033 responses</span></h2>
+        <div class="head-actions"><button class="btn" disabled title="Filtered set is 1,247,033 responses — narrow the filters to under 50,000 rows and try again.">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Score band:</span>
+            <span class="chip active">Promoter</span>
+            <span class="chip active">Passive</span>
+            <span class="chip active">Detractor</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Sentiment band:</span>
+            <span class="chip active">Positive</span>
+            <span class="chip active">Neutral</span>
+            <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip active">in_app</span>
+            <span class="chip active">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip active">review</span>
+          </div>
+        </div>
+        <div class="export-cap-banner">
+          <strong>Export cap reached.</strong> The filtered set has <strong>1,247,033 responses</strong>; exports are capped at <strong>50,000 rows</strong> per file (matches the platform-wide row limit). <em>Narrow the filters</em> — try a date range or a single wave — and the Export button will re-enable.
+        </div>
+        <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Table loads paginated 25 rows at a time as usual; the cap only applies to export. ]</div>
       </div>
     </div>
   </div>
