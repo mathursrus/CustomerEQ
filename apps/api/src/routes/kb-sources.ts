@@ -22,7 +22,13 @@ const kbSourceRoutes: FastifyPluginAsync = async (fastify) => {
   })
 
   // POST /kb/sources
-  fastify.post('/kb/sources', async (request, reply) => {
+  fastify.post('/kb/sources', {
+    config: {
+      auditAction: 'kb_source.create',
+      auditResourceType: 'KBSource',
+      auditAllowlist: ['kind', 'url', 'title'],
+    },
+  }, async (request, reply) => {
     const parse = CreateKBSourceSchema.safeParse(request.body)
     if (!parse.success) {
       return reply.status(422).send({ error: 'Validation failed', issues: parse.error.issues })
@@ -30,22 +36,24 @@ const kbSourceRoutes: FastifyPluginAsync = async (fastify) => {
     const created = await fastify.prisma.kBSource.create({
       data: { ...parse.data, brandId: request.brandId },
     })
-    await fastify.prisma.auditEvent
-      .create({
-        data: {
-          brandId: request.brandId,
-          actorId: (request as any).clerkUserId ?? 'system',
-          action: 'kb_source.create',
-          resourceType: 'KBSource',
-          resourceId: created.id,
-        },
-      })
-      .catch(() => undefined)
+    request.audit = {
+      metadata: {
+        kind: created.kind,
+        url: created.url,
+        title: created.title,
+      },
+    }
     return reply.status(201).send(created)
   })
 
   // PATCH /kb/sources/:id
-  fastify.patch<{ Params: { id: string } }>('/kb/sources/:id', async (request, reply) => {
+  fastify.patch<{ Params: { id: string } }>('/kb/sources/:id', {
+    config: {
+      auditAction: 'kb_source.update',
+      auditResourceType: 'KBSource',
+      auditAllowlist: ['changedFields', 'before', 'after'],
+    },
+  }, async (request, reply) => {
     const existing = await fastify.prisma.kBSource.findUnique({ where: { id: request.params.id } })
     if (!existing || existing.brandId !== request.brandId) {
       return reply.status(404).send({ error: 'Not found' })
@@ -58,11 +66,29 @@ const kbSourceRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: request.params.id },
       data: parse.data,
     })
+    const changedFields = Object.keys(parse.data)
+    request.audit = {
+      metadata: {
+        changedFields,
+        before: Object.fromEntries(
+          changedFields.map((k) => [k, (existing as Record<string, unknown>)[k]]),
+        ),
+        after: Object.fromEntries(
+          changedFields.map((k) => [k, (updated as Record<string, unknown>)[k]]),
+        ),
+      },
+    }
     return reply.send(updated)
   })
 
   // DELETE /kb/sources/:id (soft-delete via status=DISABLED)
-  fastify.delete<{ Params: { id: string } }>('/kb/sources/:id', async (request, reply) => {
+  fastify.delete<{ Params: { id: string } }>('/kb/sources/:id', {
+    config: {
+      auditAction: 'kb_source.delete',
+      auditResourceType: 'KBSource',
+      auditAllowlist: ['previousStatus'],
+    },
+  }, async (request, reply) => {
     const existing = await fastify.prisma.kBSource.findUnique({ where: { id: request.params.id } })
     if (!existing || existing.brandId !== request.brandId) {
       return reply.status(404).send({ error: 'Not found' })
@@ -71,6 +97,9 @@ const kbSourceRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: request.params.id },
       data: { status: 'DISABLED' },
     })
+    request.audit = {
+      metadata: { previousStatus: existing.status },
+    }
     return reply.status(204).send()
   })
 

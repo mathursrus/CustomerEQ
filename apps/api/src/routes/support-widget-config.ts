@@ -103,28 +103,40 @@ const supportWidgetConfigRoutes: FastifyPluginAsync = async (fastify) => {
   )
 
   // ADMIN: PUT /support/widget-config (upsert by brandId from JWT)
-  fastify.put('/support/widget-config', async (request, reply) => {
+  fastify.put('/support/widget-config', {
+    config: {
+      auditAction: 'support_widget_config.update',
+      auditResourceType: 'SupportWidgetConfig',
+      auditAllowlist: ['changedFields', 'before', 'after'],
+    },
+  }, async (request, reply) => {
     const parse = UpdateSupportWidgetConfigSchema.safeParse(request.body)
     if (!parse.success) {
       return reply.status(422).send({ error: 'Validation failed', issues: parse.error.issues })
     }
     const data = parse.data
+    const before = await fastify.prisma.supportWidgetConfig.findUnique({
+      where: { brandId: request.brandId },
+    })
     const updated = await fastify.prisma.supportWidgetConfig.upsert({
       where: { brandId: request.brandId },
       create: { brandId: request.brandId, ...data },
       update: data,
     })
-    await fastify.prisma.auditEvent
-      .create({
-        data: {
-          brandId: request.brandId,
-          actorId: (request as any).clerkUserId ?? 'system',
-          action: 'support_widget_config.update',
-          resourceType: 'SupportWidgetConfig',
-          resourceId: updated.id,
-        },
-      })
-      .catch(() => undefined)
+    const changedFields = Object.keys(data)
+    request.audit = {
+      metadata: {
+        changedFields,
+        before: before
+          ? Object.fromEntries(
+              changedFields.map((k) => [k, (before as Record<string, unknown>)[k]]),
+            )
+          : null,
+        after: Object.fromEntries(
+          changedFields.map((k) => [k, (updated as Record<string, unknown>)[k]]),
+        ),
+      },
+    }
     return reply.send(updated)
   })
 }
