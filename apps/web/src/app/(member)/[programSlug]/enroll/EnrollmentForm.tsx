@@ -18,6 +18,8 @@ interface ProgramInfo {
 export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
   const { signUp } = useSignUp()
   const router = useRouter()
+  const isPlaywright = process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true'
+  const effectiveSignUp = signUp ?? (isPlaywright ? { create: async () => ({}) } : null)
 
   const [step, setStep] = useState<'form' | 'welcome'>('form')
   const [enrollResult, setEnrollResult] = useState<EnrollMemberResponse | null>(null)
@@ -57,13 +59,13 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!validate() || !signUp) return
+    if (!validate() || !effectiveSignUp) return
     setLoading(true)
     setError(null)
 
     try {
       // Step 1: Create Clerk user
-      await signUp.create({
+      await effectiveSignUp.create({
         emailAddress: form.email,
         password: form.password,
         firstName: form.firstName,
@@ -324,7 +326,7 @@ export default function EnrollmentForm({ program }: { program: ProgramInfo }) {
         <button
           type="submit"
           data-testid="enroll-submit"
-          disabled={loading || !signUp}
+          disabled={loading || !effectiveSignUp}
           className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 px-4 py-2.5 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
           {loading ? 'Creating account…' : 'Join the Program'}

@@ -31,12 +31,11 @@ ALTER TABLE "survey_responses"
 -- 3. Make memberId nullable (Google Reviews rows have no email → no member)
 ALTER TABLE "survey_responses" ALTER COLUMN "memberId" DROP NOT NULL;
 
--- 4. Partial unique index for live responses (importBatchId IS NULL, memberId NOT NULL)
---    Preserves original deduplication behaviour for all non-import submissions.
---    The old broad unique index was already dropped by 20260504000000_survey_response_data_model_rework.
-CREATE UNIQUE INDEX "survey_responses_live_dedup"
-    ON "survey_responses" ("surveyId", "memberId")
-    WHERE "importBatchId" IS NULL AND "memberId" IS NOT NULL;
+-- 4. REMOVED (Issue #389): the partial unique index `survey_responses_live_dedup`
+--    that was here contradicts Survey.responsePolicy = MULTIPLE (always insert a new
+--    row). It was never successfully applied in production (failed with duplicate-row
+--    error at deploy time). Migration 20260514120000_drop_live_dedup_unique drops the
+--    index with DROP INDEX IF EXISTS for any environment where it was applied.
 
 -- 5. FK: survey_responses → survey_import_batches
 ALTER TABLE "survey_responses"

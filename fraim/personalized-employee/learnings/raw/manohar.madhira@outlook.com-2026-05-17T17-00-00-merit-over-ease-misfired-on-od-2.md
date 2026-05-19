@@ -1,0 +1,25 @@
+---
+author: manohar.madhira@outlook.com
+date: 2026-05-17
+context: issue-378
+---
+
+# Coaching Moment: merit-over-ease-misfired-on-od-2
+
+## What happened
+
+On #378's technical-design RFC (PR #385, commit `8a7244d` then `5acc0b0`), I drafted Open Decision OD-2 (Brand-timezone library) with **2a (native `Intl.DateTimeFormat` + ~30-line `endOfDayInBrandTz` helper) ← recommended**, citing *"zero new dependency, Node 22's ICU includes IANA TZ data, sufficient for the 5 display sites + 1 EOD-arithmetic site #378 needs."* I also skipped Phase 3 (`technical-spike`) with the rationale that documentation-and-codebase reading was sufficient. The reviewer's R1-3 comment directed me to **Run a Spike for this** — questioning whether the simpler "current time in brand TZ + add days + set time to 23:59:59.999" approach worked at all, and whether the 30-line helper was even necessary. The Q2 answer when I surfaced the spike scope was explicit: *"long term stability and direction should be preferred over short term. Especially for 1st time implementation of a solution, when product is just being built new, first time usage should not mean take shortcuts. That then introduces a precendence and finally we are in a death spiral of keep writing shortcuts."* That phrasing is the exact text of L1 preference `feedback_merit_over_ease.md` (P-HIGH 8.0, saved 2026-05-14): *"never optimize for development time, diff size, or 'drop-in swap' framing; recommend long-term-best on merit first and cite a specific blocker if a short-term alternate is genuinely required."* I had memory of the rule and the rule was already in L1 — but I never re-quoted it at the moment of writing "← recommended" on OD-2a. The "zero new dependency" framing in my recommendation IS the optimization-for-ease the rule prohibits. The Phase 3 spike then ran cleanly (15/15 pass across all three approaches, including DST boundaries) — confirming that correctness was never the deciding axis, only ergonomics and maintenance cost. With those reframed: `date-fns-tz`'s `zonedTimeToUtc(...)` is one line, well-trodden, used in millions of projects; the 30-line helper has a maintenance and bug-discovery surface that future contributors pay for every time the file is touched. OD-2 reverses to 2b on merit. This is the third L1-rule violation in this session — same shape as the prior two (drafting RFC from agent-summary not primary source; misreading Rule 26 to create a separate PR): an L1 rule lives in memory specifically because the agent has erred at this shape before, and the rule fires only if it is re-quoted in-turn at the moment of the load-bearing decision.
+
+## What was learned
+
+Before writing "← recommended" on any decision option, paste the candidate options and explicitly name the deciding axis; if the axis is "no new dep / smaller diff / drop-in swap / faster to implement," the recommendation is wrong by `feedback_merit_over_ease.md` and must be flipped to the long-term-durable option unless a specific blocker against that option can be cited.
+
+## What the agent should have done
+
+Two concrete behaviors, in order:
+
+1. **At the moment of drafting OD-2** — before writing "← recommended," paste both options side-by-side and state the deciding axis in one line. If I had typed *"Deciding axis: dependency footprint (25 KB add) vs. industry standardization + future-reuse"*, the next line would force me to weigh "is 25 KB really worse than rolling our own TZ-math helper across 5 future surfaces?" and the answer is obviously no. The flip from 2a to 2b happens at draft time, not after a spike + a user correction. The forcing function works whether or not I remember the L1 rule by name — naming the axis catches the shortcut regardless.
+
+2. **At Phase 3 spike-decision time** — when an option's "advantage" is "no new dep" / "fewer lines of code," that is itself a signal that the durable answer is the library. Reframe the spike question from "does the simpler approach work?" (correctness check) to "is the cost of rolling our own commensurate with the cost of the dep?" (cost-benefit check). The cost of rolling our own is *not* the 30 lines; it's the bug surface every contributor pays, multiplied across the n future features that need the same primitive. The library cost is 25 KB once. The cost-benefit framing makes the spike short or even unnecessary — for *correctness* questions a spike is needed; for *ergonomics* questions the library wins by default once any future reuse is plausible.
+
+Umbrella rule: **the third-strike pattern this session has the same root**. L1 rules I have in memory don't fire at draft time because I'm not naming the deciding axis explicitly before recommending. The forcing function — paste candidates + name deciding axis + flip if axis is shortcut-shaped — is the same shape as the post-mortem prevention measure for [[draft-rfc-from-agent-summary-not-source]] (paste verbatim citations) and [[rule-26-misread-pr-per-phase-vs-per-issue]] (paste the rule wording before structural action). All three are *"slow down and write the explicit signal in-turn, before the decision lands."*

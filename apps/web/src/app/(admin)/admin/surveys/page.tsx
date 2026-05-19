@@ -7,7 +7,7 @@ import { useAuth } from '@clerk/nextjs'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { PaginatedTable, type Column } from '@/components/ui/paginated-table'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { FilterChips } from './components/FilterChips'
+import { FilterChipGroup } from '@/components/filters/FilterChipGroup'
 import { SurveyRowMenu, type SurveyState } from './components/SurveyRowMenu'
 import { STATUS_GROUP, TYPE_GROUP, TYPE_PILL, relTime } from './list-page.logic'
 
@@ -262,11 +262,20 @@ export default function SurveysPage() {
         </div>
       ) : (
         <>
-          <div className="mb-4">
-            <FilterChips
-              groups={[STATUS_GROUP, TYPE_GROUP]}
-              selected={filters}
-              onChange={handleFilterChange}
+          <div className="mb-4 flex flex-wrap items-center gap-4" data-testid="filter-chips">
+            <FilterChipGroup
+              groupKey={STATUS_GROUP.key}
+              label={STATUS_GROUP.label}
+              options={STATUS_GROUP.options}
+              selected={filters[STATUS_GROUP.key] ?? []}
+              onChange={(next) => handleFilterChange(STATUS_GROUP.key, next)}
+            />
+            <FilterChipGroup
+              groupKey={TYPE_GROUP.key}
+              label={TYPE_GROUP.label}
+              options={TYPE_GROUP.options}
+              selected={filters[TYPE_GROUP.key] ?? []}
+              onChange={(next) => handleFilterChange(TYPE_GROUP.key, next)}
             />
           </div>
 

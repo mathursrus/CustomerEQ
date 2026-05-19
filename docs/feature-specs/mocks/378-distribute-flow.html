@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CustomerEQ — Personalized Survey Links for BYO-Email (Issue #378) — Round 2 interactive mock</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --info: #0891b2; --info-soft: #cffafe;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; scroll-behavior: smooth; }
+
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 8px; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .org-switcher { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .admin-top .org-switcher .org-pill { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 14px; color: var(--text); font-weight: 500; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 560px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; cursor: pointer; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav a:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 28px 36px; background: var(--bg); }
+
+  .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .page-header p { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .pill.solid-active { background: var(--success-soft); color: var(--success); }
+  .pill.solid-draft { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.outline-type { background: white; border: 1px solid var(--border); color: var(--text); }
+  .pill.warn { background: var(--warning-soft); color: var(--warning-strong); }
+  .pill.danger { background: var(--danger-soft); color: var(--danger); }
+  .pill.info { background: var(--info-soft); color: var(--info); }
+
+  .section { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; cursor: pointer; user-select: none; }
+  .section-head h2 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .chevron { width: 14px; height: 14px; display: inline-block; transition: transform 0.15s; color: var(--text-muted); }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+  .section-body { padding: 0 18px 16px; border-top: 1px solid var(--border); }
+  .section.collapsed .section-body { display: none; }
+  .section.new-section { border: 2px dashed var(--primary); }
+  .section.new-section .section-head h2::after { content: "NEW (#378)"; font-size: 10px; color: var(--primary); background: var(--primary-soft); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600; letter-spacing: 0.3px; }
+
+  .dist-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .dist-tile { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: white; }
+  .dist-tile h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+  .dist-tile p { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; min-height: 48px; }
+  .dist-tile .tile-value { font-family: var(--mono); font-size: 11px; background: var(--surface-muted); padding: 6px 8px; border-radius: 4px; word-break: break-all; color: var(--text); }
+  .dist-tile .tile-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .dist-tile.cta { border: 1.5px solid var(--primary); background: var(--primary-soft); }
+  .dist-tile.cta h3 { color: var(--primary); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; user-select: none; text-decoration: none; }
+  .btn.primary { background: var(--primary); color: white; }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn.secondary { background: white; border-color: var(--border-strong); color: var(--text); }
+  .btn.secondary:hover { background: var(--surface-muted); }
+  .btn.ghost { background: transparent; color: var(--text-muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--surface-muted); }
+  .btn.danger { background: white; border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger-soft); }
+  .btn.tiny { padding: 4px 10px; font-size: 12px; }
+  .btn[disabled], .btn.disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+
+  /* Single-page configure layout */
+  .config-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 28px; max-width: 980px; }
+  .config-card .config-section { margin-bottom: 22px; }
+  .config-card h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
+  .config-card .section-help { font-size: 12px; color: var(--text-muted); margin: -8px 0 12px; }
+
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mode-card { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 16px; cursor: pointer; background: white; transition: all 0.12s; }
+  .mode-card:hover { border-color: var(--border-strong); }
+  .mode-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+  .mode-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .mode-card h3 .mode-count { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  .mode-card p { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+  .mode-card-body { display: none; }
+  .mode-card.selected .mode-card-body { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  /* For mock-review purposes, show both card bodies expanded so reviewer can see controls for each mode side-by-side. Production behavior is one-mode-selected-at-a-time per R4 / NFR-A2. */
+  body.review-show-both .mode-card-body { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  body.review-show-both .mode-card:not(.selected) { background: var(--surface-muted); }
+  body.review-show-both .mode-card.selected { background: var(--primary-soft); }
+
+  .toggle-row { display: inline-flex; background: white; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .toggle-row button { padding: 6px 14px; background: white; border: none; cursor: pointer; font-size: 13px; color: var(--text-muted); }
+  .toggle-row button.active { background: var(--primary); color: white; }
+
+  .field { margin-bottom: 14px; }
+  .field label { font-size: 13px; font-weight: 500; display: block; margin-bottom: 4px; }
+  .field .field-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .field input[type="text"], .field input[type="number"], .field select, .field textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; color: var(--text); background: white; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+  .field textarea { min-height: 90px; font-family: var(--mono); font-size: 12px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-narrow input, .field-narrow select { max-width: 220px; }
+  .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; }
+
+  .preview-block { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 18px; }
+  .preview-block .preview-summary { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .preview-block .preview-summary::before { content: "▸"; color: var(--text-subtle); font-size: 10px; }
+  .preview-block .preview-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+  .preview-block table { width: 100%; font-size: 12px; border-collapse: collapse; background: white; border-radius: 4px; overflow: hidden; }
+  .preview-block th { text-align: left; padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); background: var(--surface-muted); border-bottom: 1px solid var(--border); }
+  .preview-block td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .preview-block tr:last-child td { border-bottom: none; }
+  .preview-block .identifier { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+
+  .config-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* Success state */
+  .success-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 32px; max-width: 720px; }
+  .success-banner { background: var(--success-soft); color: var(--success); padding: 14px 16px; border-radius: var(--radius-sm); margin-bottom: 24px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .success-banner strong { font-weight: 700; }
+  .success-banner .check { font-size: 18px; }
+  .download-row { display: flex; align-items: end; gap: 12px; padding: 18px; background: var(--surface-muted); border-radius: var(--radius-sm); margin-bottom: 20px; }
+  .download-row .field { margin-bottom: 0; flex: 1; max-width: 280px; }
+  .csv-shape-info { font-size: 11px; color: var(--text-muted); margin-top: 16px; }
+  .csv-shape-info code { font-family: var(--mono); background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; }
+
+  /* Filter row */
+  .filter-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border: 1px solid var(--border); border-radius: var(--radius); }
+  .filter-row .filter-label { font-size: 13px; font-weight: 500; color: var(--text); margin-right: 4px; }
+  .filter-row select { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 13px; background: white; min-width: 380px; }
+  .filter-row .filter-link { font-size: 12px; color: var(--primary); text-decoration: none; }
+  .filter-row .filter-link:hover { text-decoration: underline; }
+
+  /* Batch detail */
+  .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .summary-card { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .summary-card .summary-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-card .summary-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .summary-card .summary-meta { font-size: 11px; color: var(--text-subtle); }
+
+  .info-block { background: var(--surface-muted); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 16px; }
+  .info-block dl { margin: 0; display: grid; grid-template-columns: 200px 1fr; gap: 8px 18px; font-size: 13px; }
+  .info-block dt { color: var(--text-muted); }
+  .info-block dd { margin: 0; }
+  .info-block .member-counts { display: flex; gap: 18px; align-items: baseline; }
+  .info-block .member-counts .mc { display: inline-flex; align-items: baseline; gap: 4px; }
+  .info-block .member-counts .mc strong { font-size: 16px; font-weight: 700; }
+  .info-block .member-counts .mc-label { color: var(--text-muted); font-size: 12px; }
+
+  .expiry-control { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 16px; }
+  .expiry-control .expiry-label { font-size: 13px; }
+  .expiry-control .expiry-label strong { font-weight: 600; }
+  .expiry-control .expiry-meta { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+
+  .tokens-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .tokens-table thead { background: var(--surface-muted); }
+  .tokens-table th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; }
+  .tokens-table td { padding: 9px 12px; border-top: 1px solid var(--border); }
+  .tokens-table .identifier { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+
+  .status-pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+  .status-pill.awaiting { background: var(--surface-muted); color: var(--text-muted); }
+  .status-pill.responded { background: var(--success-soft); color: var(--success); }
+  .status-pill.expired { background: var(--warning-soft); color: var(--warning-strong); }
+
+  /* Error states */
+  .error-states-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 1100px; margin: 0 auto; }
+  .error-card { background: white; padding: 28px; border-radius: var(--radius); border: 1px solid var(--border); }
+  .error-card .error-icon { font-size: 32px; margin-bottom: 8px; }
+  .error-card h3 { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+  .error-card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+  .error-card .url-bar { font-family: var(--mono); font-size: 11px; color: var(--text-subtle); background: var(--surface-muted); padding: 6px 10px; border-radius: 4px; margin-top: 14px; word-break: break-all; }
+  .error-card .state-meta { font-size: 11px; color: var(--text-subtle); margin-top: 8px; }
+  .error-card .state-meta code { font-family: var(--mono); }
+
+  .legend { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 22px; max-width: 1280px; margin: 0 auto 28px; }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .legend ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted); }
+  .legend ul li { margin-bottom: 4px; }
+
+  .ann-list { margin: 12px 0 0; padding: 0 0 0 18px; }
+  .ann-list li { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+  .ann-list li code { font-family: var(--mono); font-size: 10px; background: var(--surface-muted); padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body class="review-show-both">
+
+<div class="mock-header">
+  <h1>CustomerEQ — Personalized Survey Links for BYO-Email (Issue #378, Round 2 — single short page)</h1>
+  <div class="nav">
+    <a href="#scene-1">1. Entry</a>
+    <a href="#scene-2">2. Configure</a>
+    <a href="#scene-3">3. Success</a>
+    <a href="#scene-4">4. Filter row</a>
+    <a href="#scene-5">5. Batch detail</a>
+    <a href="#scene-6">6. Error states</a>
+  </div>
+</div>
+
+<div style="padding: 24px;">
+  <div class="legend">
+    <h3>About this mock (Round 2 — UX simplification)</h3>
+    <ul>
+      <li>The dashed-purple borders highlight what's <strong>new in #378</strong>; everything else is the existing #241 detail page.</li>
+      <li>Scenes 2 + 3 are <em>the same route</em> in two states (Configure → Success). No tabs, no step-rail, no Back/Continue, no separate Confirm screen.</li>
+      <li>Scene 4 shows the new <em>Distribution batches filter row</em> between Loop Monitor and Response on the survey detail page. Selecting a wave filters Response only; Loop Monitor stays lifetime-wide.</li>
+      <li>Scene 5 is the batch detail page. Audience Spec shows two member counts (at send time vs now). Edit Expiry replaces the prior Revoke action. No Re-run action in V0 — that's V1.</li>
+      <li>Scene 6 is the four token-error states. Copy says "contact the sender" — no brand support email column referenced.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- SCENE 1: Entry tile on Distribution section -->
+<div class="scene" id="scene-1">
+  <div class="scene-label"><strong>Scene 1</strong> · Survey detail page · Distribution section · new <em>Send via my email tool</em> tile copy (Comment 1)</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Programs</div>
+          <a>Members</a>
+          <a>Rewards</a>
+          <a>Campaigns</a>
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+          <a>Loop Monitor</a>
+          <div class="admin-nav-group">Settings</div>
+          <a>Organization</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; Q2 customer satisfaction</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 customer satisfaction <span class="pill outline-type">NPS</span> <span class="pill solid-active">Active</span></h1>
+              <p>Quarterly NPS · Acme Loyalty program</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn secondary">⋯ More</button>
+              <button class="btn primary">✎ Edit</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-head">
+              <h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Distribution</h2>
+              <span style="font-size:12px;color:var(--text-muted);">Live · 3 channels</span>
+            </div>
+            <div class="section-body">
+              <p style="font-size:13px;color:var(--text-muted);margin-top:12px;">Share link is for posting publicly. Embed is for your own site. Send via my email tool gives you per-recipient links to mail-merge.</p>
+              <div class="dist-tiles">
+                <div class="dist-tile">
+                  <h3>🔗 Share link</h3>
+                  <p>Post the URL on social, blog, signage, anywhere.</p>
+                  <div class="tile-value">https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2</div>
+                  <div class="tile-actions">
+                    <button class="btn tiny secondary">📋 Copy</button>
+                  </div>
+                </div>
+                <div class="dist-tile">
+                  <h3>🧩 Embed snippet</h3>
+                  <p>Paste this script onto your own page; CustomerEQ renders inline.</p>
+                  <div class="tile-value">&lt;script src=".../widget.js" data-survey="srv_q2nps_a1b2" data-prefill-email="{{MEMBER_EMAIL}}"&gt;&lt;/script&gt;</div>
+                  <div class="tile-actions">
+                    <button class="btn tiny secondary">📋 Copy</button>
+                  </div>
+                </div>
+                <div class="dist-tile cta">
+                  <h3>📧 Send via my email tool</h3>
+                  <p>Generate per-recipient links for mail-merge applications like Mailchimp, or use the links to send individual mails.</p>
+                  <div class="tile-actions">
+                    <a href="#scene-2" class="btn primary tiny">Send via my email tool →</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Loop Monitor</h2><span style="font-size:12px;color:var(--text-muted);">Live pipeline · 1,247 sent · 412 responses · 33%</span></div>
+            <div class="section-body"></div>
+          </div>
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Response</h2><span style="font-size:12px;color:var(--text-muted);">412 responses · NPS 38</span></div>
+            <div class="section-body"></div>
+          </div>
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Configuration summary</h2></div>
+            <div class="section-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 2: Distribute configure page — single short page -->
+<div class="scene" id="scene-2">
+  <div class="scene-label"><strong>Scene 2</strong> · Distribute page · Configure state · single short page (no tabs, no steps) · <code>/admin/surveys/srv_q2nps_a1b2/distribute</code></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 customer satisfaction</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header">
+            <div>
+              <h1>Distribute · Send via my email tool</h1>
+              <p>Generate per-recipient survey URLs. Tokens are single-use and contain no PII.</p>
+            </div>
+          </div>
+
+          <div class="config-card">
+            <div class="config-section">
+              <h2>Who gets this survey?</h2>
+              <div style="font-size:11px;color:var(--text-subtle);font-style:italic;margin: -6px 0 10px;">Mock note: both cards' bodies are shown expanded for review clarity. In production, only the selected card's body renders (R4 / NFR-A2).</div>
+              <div class="mode-grid">
+                <div class="mode-card">
+                  <h3>Existing Members <span class="mode-count">· 1,243 total</span></h3>
+                  <p>Random sample from your member roster. Hidden entirely when zero members are enrolled.</p>
+                  <div class="mode-card-body">
+                    <div class="toggle-row" style="margin-bottom:10px;">
+                      <button>Percent</button>
+                      <button class="active">Count</button>
+                    </div>
+                    <div class="field field-narrow" style="margin-bottom:0;">
+                      <input type="number" value="100" min="1" max="1243" />
+                      <div class="field-help">Max 1,243 (all eligible non-ERASED members)</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mode-card selected">
+                  <h3>Custom List</h3>
+                  <p>Paste identifiers (with optional names) or upload a CSV.</p>
+                  <div class="mode-card-body">
+                    <div class="toggle-row" style="margin-bottom:10px;">
+                      <button class="active">Paste</button>
+                      <button>⤓ Upload CSV</button>
+                    </div>
+                    <div class="field" style="margin-bottom:4px;">
+                      <textarea placeholder="One identifier per line — email, phone, external ID, or memberId. Optionally Name <email> format. Separators: newline, comma, or semicolon.">Jane Mitchell <jane.mitchell@acmecoffee.com>
+Carlos Rivera <crivera@example.com>, Priya Patel <priya.p@example.com>; marcus@example.com
+sofia.g@example.com
+Alex Chen <new.customer@unknown.com></textarea>
+                    </div>
+                    <div style="font-size:10px;color:var(--text-subtle);margin-bottom:8px;">Accepts <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">email</code>, <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">+15551234</code>, <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">usr_abc</code>, or <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">Name &lt;email&gt;</code>. Separate with newline, comma, or semicolon.</div>
+                    <div class="check-row">
+                      <input type="checkbox" id="auto-enroll" checked />
+                      <label for="auto-enroll" style="font-weight:400;font-size:13px;margin:0;">Auto-enroll members not in this brand</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--text-subtle);margin-top:10px;">ERASED members are excluded automatically (project rule R13). Filter-by-attribute targeting (tier / health score / sentiment) is V1.x.</div>
+            </div>
+
+            <div class="config-section">
+              <div class="field-row">
+                <div class="field">
+                  <label for="survey-name-mail">Survey name in mail *</label>
+                  <input type="text" id="survey-name-mail" value="Q2 customer satisfaction" />
+                  <div class="field-help">Default: the respondent-facing survey title. Flows into the CSV's <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">surveyName</code> column so your email template can reference it.</div>
+                </div>
+                <div class="field">
+                  <label for="expiry">Links expire in *</label>
+                  <select id="expiry">
+                    <option>24 hours</option>
+                    <option selected>7 days</option>
+                    <option>30 days</option>
+                    <option>90 days</option>
+                    <option>Custom date…</option>
+                  </select>
+                  <div class="field-help">Editable later from the batch detail page while the survey is open.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="preview-block">
+              <div class="preview-summary">5 members will receive this wave · 1 will be auto-enrolled</div>
+              <div class="preview-meta">First 5 rows shown · paginate to see all</div>
+              <table>
+                <thead>
+                  <tr><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Last response · all surveys</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Jane Mitchell</td><td class="identifier">jane.mitchell@acmecoffee.com</td><td>2026-02-15</td><td>2026-04-22</td></tr>
+                  <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td>2026-01-04</td><td>2026-01-04</td></tr>
+                  <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td>—</td><td>2025-11-30</td></tr>
+                  <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td>2025-12-18</td><td>2026-03-08</td></tr>
+                  <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td>—</td><td>—</td></tr>
+                  <tr><td colspan="4" style="background:var(--warning-soft);color:var(--warning-strong);font-size:11px;padding:6px 10px;">↓ Will be auto-enrolled (Custom List + checkbox on) · name extracted from <code style="font-family:var(--mono);">Name &lt;email&gt;</code> paste format</td></tr>
+                  <tr><td>Alex Chen <em style="color:var(--text-subtle);">(new)</em></td><td class="identifier">new.customer@unknown.com</td><td>—</td><td>—</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="config-foot">
+              <div style="font-size:12px;color:var(--text-subtle);">Updates live as you change inputs above.</div>
+              <a href="#scene-3" class="btn primary">⚡ Generate 5 links</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 3: Same route, Success state -->
+<div class="scene" id="scene-3">
+  <div class="scene-label"><strong>Scene 3</strong> · Same route as Scene 2 (no route change) · Success state after <em>Generate links</em> · single dropdown + Download (Comment 5)</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-1">Q2 customer satisfaction</a> &nbsp;›&nbsp; Distribute</div>
+          <div class="page-header">
+            <div>
+              <h1>Distribute · Send via my email tool</h1>
+            </div>
+          </div>
+
+          <div class="success-card">
+            <div class="success-banner">
+              <span class="check">✓</span>
+              <div><strong>Generated 5 links</strong> · "Q2 customer satisfaction · 2026-05-15" · Tokens expire 2026-05-22 17:24 UTC</div>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin: -10px 0 20px;padding: 10px 14px;background:var(--surface-muted);border-radius:var(--radius-sm);border-left:3px solid var(--info);">
+              ℹ Users will be able to respond <strong>only once</strong> in this wave. A leaked or re-clicked link gets the "already submitted" state.
+            </div>
+
+            <h2 style="font-size:16px;font-weight:600;margin:0 0 4px;">Download your links</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:0 0 18px;">Take these into your email tool. The CSV's <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">mergeTagUrl</code> column carries the per-recipient URL; map it to your template's link merge tag.</p>
+
+            <div class="download-row">
+              <div class="field">
+                <label for="csv-format">Format</label>
+                <select id="csv-format">
+                  <option selected>Generic</option>
+                  <option>Mailchimp</option>
+                  <option>HubSpot</option>
+                  <option>Klaviyo</option>
+                </select>
+              </div>
+              <a href="#" class="btn primary" style="margin-bottom:1px;">⬇ Download CSV</a>
+            </div>
+
+            <div class="csv-shape-info">
+              CSV columns (Generic): <code>memberId, identifier, firstName, lastName, surveyName, mergeTagUrl</code><br/>
+              For Mailchimp: <code>memberId, Email Address, FNAME, LNAME, SURVEY_NAME, SURVEY_URL</code> · for HubSpot: <code>member_id, email, firstname, lastname, survey_name, survey_url</code> · for Klaviyo: <code>Member ID, Email, First Name, Last Name, Survey Name, Survey URL</code>.
+            </div>
+
+            <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-size:12px;color:var(--text-muted);">Re-download is available later from the batch detail page (RBAC-gated).</div>
+              <a href="#scene-4" class="btn primary">Done — back to survey →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 4: Filter row between Loop Monitor and Response -->
+<div class="scene" id="scene-4">
+  <div class="scene-label"><strong>Scene 4</strong> · Survey detail page · new <em>Distribution batches filter row</em> between Loop Monitor and Response (Comment 9 + B1)</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; Q2 customer satisfaction</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 customer satisfaction <span class="pill outline-type">NPS</span> <span class="pill solid-active">Active</span></h1>
+              <p>Quarterly NPS · Acme Loyalty program</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn secondary">⋯ More</button>
+              <button class="btn primary">✎ Edit</button>
+            </div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Distribution</h2><span style="font-size:12px;color:var(--text-muted);">3 channels available</span></div>
+            <div class="section-body"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Loop Monitor</h2><span style="font-size:12px;color:var(--text-muted);">Lifetime pipeline · 1,247 sent · 412 responses · 33%</span></div>
+            <div class="section-body">
+              <p style="font-size:12px;color:var(--text-muted);padding:14px 0;font-style:italic;">Pipeline chart rendered here (issue #6 hero view) · stays lifetime-wide regardless of filter selection below</p>
+            </div>
+          </div>
+
+          <!-- The new filter row -->
+          <div style="margin-bottom:14px;border: 2px dashed var(--primary); border-radius: var(--radius); padding: 0;">
+            <div class="filter-row" style="border:none;background:var(--primary-soft);">
+              <span class="filter-label">Wave:</span>
+              <select>
+                <option value="all">All batches (lifetime)</option>
+                <option value="q2-2026" selected>Q2 customer satisfaction · 2026-05-15 · 3 / 100 responded</option>
+                <option value="q1-2026">Q1 NPS · 2026-02-15 · 34 / 100 responded</option>
+                <option value="onboarding">Onboarding cohort pulse · 2026-05-01 · 22 / 47 responded</option>
+              </select>
+              <a href="#scene-5" class="filter-link">Details →</a>
+              <span style="margin-left:auto;font-size:11px;color:var(--primary);font-weight:600;">NEW (#378)</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Response <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">· filtered to Q2 customer satisfaction · 2026-05-15</span></h2><span style="font-size:12px;color:var(--text-muted);">3 responses · NPS 42</span></div>
+            <div class="section-body">
+              <p style="font-size:12px;color:var(--text-muted);padding:14px 0;font-style:italic;">Response analytics rendered here · narrows to <code style="font-family:var(--mono);background:var(--surface-muted);padding:1px 4px;border-radius:3px;">distributionBatchId = 'btc_q2_2026'</code> based on filter above</p>
+            </div>
+          </div>
+
+          <div class="section collapsed">
+            <div class="section-head"><h2><svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg> Configuration summary</h2><span style="font-size:12px;color:var(--text-muted);">includes the survey-form preview operators see for the respondent (#241 R28)</span></div>
+            <div class="section-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 5: Batch detail page -->
+<div class="scene" id="scene-5">
+  <div class="scene-label"><strong>Scene 5</strong> · Batch detail · Audience Spec with two member counts · Edit Expiry control (Comments 10, 11, 12, 13)</div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Customer Experience</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a href="#">Surveys</a> &nbsp;›&nbsp; <a href="#scene-4">Q2 customer satisfaction</a> &nbsp;›&nbsp; Wave: Q2 customer satisfaction · 2026-05-15</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 customer satisfaction · 2026-05-15 <span class="pill solid-active">Active</span></h1>
+              <p>100 sent · 3 responded · expires in 7 days</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="display:flex;align-items:end;">
+                <select style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:13px;background:white;">
+                  <option selected>Generic</option>
+                  <option>Mailchimp</option>
+                  <option>HubSpot</option>
+                  <option>Klaviyo</option>
+                </select>
+              </div>
+              <button class="btn secondary">⬇ Re-download CSV</button>
+            </div>
+          </div>
+
+          <div class="summary-cards">
+            <div class="summary-card"><div class="summary-label">Sent</div><div class="summary-value">100</div></div>
+            <div class="summary-card"><div class="summary-label">Awaiting response</div><div class="summary-value">97</div></div>
+            <div class="summary-card"><div class="summary-label">Responded</div><div class="summary-value" style="color:var(--success);">3</div><div class="summary-meta">3% response rate</div></div>
+            <div class="summary-card"><div class="summary-label">Expired</div><div class="summary-value">0</div></div>
+          </div>
+
+          <h2 style="font-size:14px;font-weight:600;margin:18px 0 8px;">Audience spec <span style="font-size:11px;color:var(--text-muted);font-weight:400;">· read-only</span></h2>
+          <div class="info-block">
+            <dl>
+              <dt>Mode</dt>
+              <dd>Custom List · 100 identifiers (4 auto-enrolled at send time)</dd>
+              <dt>Members in audience</dt>
+              <dd>
+                <div class="member-counts">
+                  <div class="mc"><strong>100</strong> <span class="mc-label">at send time</span></div>
+                  <div style="color:var(--text-subtle);">·</div>
+                  <div class="mc"><strong>96</strong> <span class="mc-label">now</span></div>
+                </div>
+                <div style="font-size:11px;color:var(--text-subtle);margin-top:4px;">4 members have left the brand since send. Future "Generate new tokens for same audience" (V1) would hit 96, not 100.</div>
+              </dd>
+              <dt>Created</dt>
+              <dd>2026-05-15 17:24 UTC by manohar.madhira@outlook.com</dd>
+            </dl>
+          </div>
+
+          <h2 style="font-size:14px;font-weight:600;margin:18px 0 8px;">Expiry</h2>
+          <div class="expiry-control">
+            <span style="font-size:18px;">⏰</span>
+            <div class="expiry-label">Links expire on: <strong>2026-05-22 17:24 UTC</strong> · <a href="#" style="color:var(--primary);text-decoration:none;font-size:13px;">[Edit]</a></div>
+            <div class="expiry-meta">Editable while survey is ACTIVE · can be shortened or extended</div>
+          </div>
+
+          <h2 style="font-size:14px;font-weight:600;margin:18px 0 8px;">Tokens · 100 <span style="font-size:11px;color:var(--text-muted);font-weight:400;">· plaintext shown once at creation — only prefixes here</span></h2>
+          <table class="tokens-table">
+            <thead><tr><th>Member</th><th>Identifier</th><th>Token prefix</th><th>Status</th><th>Responded at</th></tr></thead>
+            <tbody>
+              <tr><td>Jane Mitchell</td><td class="identifier">jane.mitchell@acmecoffee.com</td><td class="identifier">8K3xPm…</td><td><span class="status-pill responded">Responded</span></td><td>2026-05-15 18:02 UTC</td></tr>
+              <tr><td>Carlos Rivera</td><td class="identifier">crivera@example.com</td><td class="identifier">2hN9bQ…</td><td><span class="status-pill responded">Responded</span></td><td>2026-05-15 19:11 UTC</td></tr>
+              <tr><td>Priya Patel</td><td class="identifier">priya.p@example.com</td><td class="identifier">L4mRtZ…</td><td><span class="status-pill responded">Responded</span></td><td>2026-05-15 22:34 UTC</td></tr>
+              <tr><td>Marcus Lee</td><td class="identifier">marcus@example.com</td><td class="identifier">VnA7Wj…</td><td><span class="status-pill awaiting">Awaiting response</span></td><td>—</td></tr>
+              <tr><td>Sofia García</td><td class="identifier">sofia.g@example.com</td><td class="identifier">f3Hk9C…</td><td><span class="status-pill awaiting">Awaiting response</span></td><td>—</td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--text-subtle);font-style:italic;padding:12px;">… 95 more rows</td></tr>
+            </tbody>
+          </table>
+
+          <div style="font-size:11px;color:var(--text-subtle);margin-top:12px;">
+            <strong>No Revoke action</strong> — use Edit Expiry above to shorten the window if you want to cut off responses.<br/>
+            <strong>No Re-run action in V0</strong> — "Generate new tokens for same audience" is a V1 feature requiring its own scoping.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 6: Error states -->
+<div class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6</strong> · Four token-error states · "contact the sender" copy (Comment 17) · no brand support email referenced</div>
+  <div class="error-states-grid">
+    <div class="error-card">
+      <div class="error-icon">⏰</div>
+      <h3>This survey link has expired</h3>
+      <p>If you still want to share feedback, please contact the sender.</p>
+      <div class="url-bar">https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2/r/Xk8…VnA7Wj-9</div>
+      <div class="state-meta">Token state: <code>expired</code> · HTTP 410 on submit</div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">✓</div>
+      <h3>This survey has already been submitted</h3>
+      <p>Thank you for your response — we have it on file.</p>
+      <div class="url-bar">https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2/r/8K3…xPm-1</div>
+      <div class="state-meta">Token state: <code>responded</code> · HTTP 409 on re-submit · no member id revealed</div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">🚪</div>
+      <h3>This survey is no longer open</h3>
+      <p>If you still want to share feedback, please contact the sender.</p>
+      <div class="url-bar">https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2/r/L4m…RtZ-3</div>
+      <div class="state-meta">Token state: <code>survey-not-open</code> · HTTP 410 · survey is PAUSED / STOPPED / DRAFT</div>
+    </div>
+    <div class="error-card">
+      <div class="error-icon">❓</div>
+      <h3>This link is not valid</h3>
+      <p>Please check that you copied the full link from your email, or contact the sender.</p>
+      <div class="url-bar">https://customereq.wellnessatwork.me/survey/srv_q2nps_a1b2/r/THIS_IS_NOT_VALID</div>
+      <div class="state-meta">Token state: <code>invalid</code> · HTTP 410 · constant-time validation per NFR-S5</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.section-head').forEach(head => {
+    head.addEventListener('click', () => {
+      head.parentElement.classList.toggle('collapsed');
+    });
+  });
+  document.querySelectorAll('#scene-2 .mode-card').forEach(card => {
+    card.addEventListener('click', () => {
+      card.parentElement.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+  document.querySelectorAll('.toggle-row').forEach(row => {
+    row.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

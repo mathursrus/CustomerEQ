@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint src/",
     "test": "vitest run --reporter=verbose",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --workers=1",
     "clean": "rm -rf .next"
   },
   "dependencies": {

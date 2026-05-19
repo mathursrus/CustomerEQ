@@ -68,8 +68,9 @@ export default function RewardsPage() {
       } else {
         const data = await res.json().catch(() => ({}))
         const msg: string = data?.message ?? data?.error ?? ''
+        const normalizedMessage = msg.toLowerCase()
         setError(
-          res.status === 422 || msg.toLowerCase().includes('insufficient')
+          normalizedMessage.includes('insufficient')
             ? 'Insufficient points balance'
             : msg || 'Redemption failed. Please try again.',
         )

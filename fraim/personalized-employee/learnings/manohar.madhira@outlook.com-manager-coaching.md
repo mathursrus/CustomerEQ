@@ -2,7 +2,7 @@
 
 Patterns observed in how this user coaches, intervenes, and adjusts agent behavior during sessions. Signals for predicting where and how the user will push back, approve, or escalate.
 
-**Last synthesized**: 2026-05-05
+**Last synthesized**: 2026-05-17
 
 ---
 
@@ -104,3 +104,33 @@ When the user asks something like *"I don't see where I should confirm the signI
 On 2026-05-03 PR #259 review (issue #231), the user wrote: *"This statement is incorrect. This is the second occurrence of not reading config file. Previously you mentioned you missed because fraim mentor guided you incorrectly."* The "second occurrence" framing is distinct from a one-off correction — it explicitly tracks pattern history and signals "this needs structural fix, not contextual fix." Useful predictor: when the user prefaces a correction with repeat-offense language ("again", "second time", "previously you...", "this is the Nth"), treat as elevated severity. Default response: (a) capture as L0 coaching moment immediately (don't just fix the surface issue), (b) check whether the underlying L1 entry needs broadening to cover the new instance, (c) acknowledge the repeat-offense framing explicitly in the reply rather than treating it as a single-instance correction. Sister-pattern to "Single-question pushback" — same coaching pedagogy, different signature signaling "I've seen this before, fix the pattern not the instance."
 
 ---
+
+#### [P-HIGH] *"Follow your mentor"* as a stop-and-realign directive
+
+**Score**: 8.0
+**Last seen**: 2026-05-17
+**Recurrences**: 2
+**First synthesized**: 2026-05-17
+
+The user uses the phrase *"Follow your mentor"* (sometimes followed by *"— what do they say?"*) as a single-directive coaching intervention that invokes the FRAIM `follow-your-mentor` job. The directive signals: (a) the agent is on the wrong path or has just been corrected; (b) the right next move is NOT ad-hoc recovery but the structured 4-phase coaching cycle (`analyze-gap` → `document-learnings` → `fix-it` → `submit`); (c) the user expects the agent to consult the L1 corpus, identify the rule that fired (or should have fired), capture an L0 coaching moment, and submit the recovery through the same channel as the original work.
+
+Observed twice in 2026-05:
+- **2026-05-15** (issue #378 spec Phase 5): user invoked *"Follow your mentor — what do they say?"* after agent over-gated push + PR open with a three-option ask. Agent read L1, surfaced the relevant rules (the *"Asked user to confirm deviation"* mistake-pattern + the *"Push + PR is the default flow"* manager-coaching), self-corrected, pushed + opened PR, captured raw L0 `over-gated-push-pr-as-asking-for-deviation.md`.
+- **2026-05-17** (issue #378 design phase, post-OD-2-reversal): user appended *"Follow your mentor"* to *"OK to proceed."* directing the agent to apply the coaching discipline alongside the RFC rewrite. Agent ran the full 4-phase cycle (`analyze-gap` for the OD-2 merit-over-ease misfire; `document-learnings` writing `merit-over-ease-misfired-on-od-2.md`; `fix-it` executing the RFC rewrite + spike + per-thread replies + AC additions; `submit` posting the round-complete summary on PR #385).
+
+**Predictor for the agent**: when the user says *"Follow your mentor"* or any close variant (*"What do they say?"*, *"Listen to your mentor"*, *"Check with FRAIM"*), the right immediate action is:
+1. Call `mcp__fraim__get_fraim_job({ job: "follow-your-mentor" })` to get the phased instructions.
+2. Call `seekMentoring(currentPhase: "starting", status: "starting")` to enter Phase 1.
+3. NOT proceed with the original work until the coaching cycle has identified the gap and captured the learning.
+
+The directive is itself a coaching signal — short, prescriptive, and points at a specific FRAIM job rather than asking for elaboration. Captured durably across two coaching moments. Sister-pattern to *"Single-question pushback, not a lecture"* (P-HIGH 8.0) — same short-form intervention, different signature: this one invokes a named FRAIM coaching job by reference rather than naming the underlying rule. Both work as drop-everything-and-reconsider signals.
+
+**Proactive use — STRONGEST trigger** (per user directive 2026-05-17 *"before approaching user for a question, check follow your mentor. Need not wait for user to prompt running Follow your mentor"*):
+
+**BEFORE approaching the user with any question, check `follow-your-mentor` first.** The agent should invoke `follow-your-mentor` proactively (without being prompted) when ANY of these triggers fire:
+
+1. **About to ask the user a question.** Many user-bound questions are actually agent-can-resolve-via-mentor questions in disguise — the coaching cycle's `analyze-gap` phase resolves them by surfacing the relevant L1 rule. The cost of the user resolving a question the corpus already answers is high (user time + erosion of trust); the cost of running the coaching cycle first is small (~5 min for the `analyze-gap` phase alone).
+2. **Self-diagnosed workflow violation.** The agent realizes mid-session that it just violated an L1 rule it had in memory (e.g., the moment after writing "← recommended" for a shortcut-shaped option; the moment after creating a new PR for a phase artifact; the moment after drafting from an agent summary instead of primary source). The 2026-05-17 OD-2 violation could have been caught proactively with this trigger.
+3. **Recommendation contradicts the agent's own prior arguments.** When the agent's `← recommended` choice contradicts a citation it just made (e.g., recommending `?t=<token>` after just citing query-string-as-credential leakage as the reason to retire `?email=`), the contradiction itself is the self-trigger.
+
+The user's *"Follow your mentor"* directive is the **reactive** entry point — the agent has already missed; the user is correcting. The proactive triggers above are the **preventive** entry points — the agent invokes the coaching cycle before the user has to. Both routes go through the same 4 phases; the difference is whether the user paid the time cost of having to invoke it.

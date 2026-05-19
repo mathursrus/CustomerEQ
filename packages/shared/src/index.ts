@@ -2,9 +2,10 @@ export * from './constants.js'
 export * from './queues.js'
 export * from './conditions.js'
 export * from './externalSignals.js'
-// Note: random.js is NOT re-exported here because it uses node:crypto
-// which is not available in browser/webpack. Import directly:
+// Note: random.js and distributionTokens.js are NOT re-exported here because
+// they use node:crypto which is not available in browser/webpack. Import directly:
 // import { selectWeightedRandom } from '@customerEQ/shared/random'
+// import { mintToken } from '@customerEQ/shared/distributionTokens'
 export * from './types/index.js'
 export * from './zod/program.schema.js'
 export * from './zod/member.schema.js'
@@ -30,3 +31,7 @@ export * from './utils/sentimentBucket.js'
 export * from './zod/webhooks.js'
 export * from './zod/onboarding.schema.js'
 export * from './kbChunking.js'
+export * from './zod/distributionBatch.schema.js'
+export * from './zod/responseFilters.schema.js'
+export * from './datetime.js'
+export * from './default-themes.js'

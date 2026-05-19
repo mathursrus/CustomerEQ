@@ -2,11 +2,13 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { DemoRequestSchema, NPS, evaluateSurveyRule } from '@customerEQ/shared'
+import { hashToken } from '@customerEQ/shared/distributionTokens'
 import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueCampaignTrigger } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
 import { getConsentTextForSurvey } from '../services/consentResolver.js'
 import { buildEnrollmentSignals } from '../services/enrollmentSignals.js'
+import { FALLBACK_RESPONDENT_THEME } from '../lib/default-themes.js'
 
 const API_BASE_URL =
   process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
@@ -43,13 +45,10 @@ const PublicSurveyResponseSchema = z.object({
   ),
   score: z.number().min(0, 'Score must be at least 0').max(10, 'Score must be at most 10').optional(),
   channel: z.enum(['email', 'in_app', 'link', 'sms']).default('link'),
-})
-
-// Schema for webhook-triggered survey distribution
-const SurveyTriggerSchema = z.object({
-  memberEmail: z.string().email('Valid email is required'),
-  surveyId: z.string().min(1),
-  source: z.string().optional(), // e.g. "zendesk", "intercom"
+  // Issue #378 — optional distribution token. When present, supersedes
+  // body memberId / memberEmail for member identification and binds the
+  // response to the originating DistributionBatch.
+  token: z.string().optional(),
 })
 
 const publicRoutes: FastifyPluginAsync = async (fastify) => {
@@ -127,10 +126,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /v1/admin/integrations — admin JWT required
   fastify.get('/admin/integrations', async (_request, reply) => {
+    // Issue #378 — surveyTrigger URL removed. The public trigger endpoint
+    // was deleted; brands send surveys via /v1/surveys/:id/distribution-batches.
     return reply.status(200).send({
       salesforce: `${API_BASE_URL}/v1/integrations/webhooks/salesforce`,
       hubspot: `${API_BASE_URL}/v1/integrations/webhooks/hubspot`,
-      surveyTrigger: `${API_BASE_URL}/v1/public/surveys/trigger`,
     })
   })
 
@@ -148,15 +148,48 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         select: {
           id: true,
           name: true,
+          // Issue #241 — title is respondent-facing chrome (R7) so the
+          // public renderer must read it.
+          title: true,
+          description: true,
           type: true,
+          status: true,
+          programId: true,
+          themeId: true,
           questions: true,
+          // Issue #241 — settings carries chromeMatrix (R18) that the
+          // respondent renderer reads at render time.
+          settings: true,
+          responsePolicy: true,
+          // Issue #241 — consent override (R12 / R14). When null the
+          // renderer inherits the brand default.
+          consentMode: true,
+          consentTextOverride: true,
           // Issue #291 — per-survey thank-you copy/routing moved from BrandTheme to Survey.
           // Issue #241 — `showIncentivePoints` and `incentivePoints` removed (D19/D40/D50):
           // points never appear on the form; earning is driven by EarningRule cx events.
           thankYouMessage: true,
           thankYouRedirectUrl: true,
-          // Issue #291 — brand.logoUrl exposed so renderer can rebind theme.logoUrl → survey.brand.logoUrl.
-          brand: { select: { name: true, logoUrl: true } },
+          // Issue #241 — brand carries the fields BrandLite expects for the
+          // SurveyFormRenderer: consentMode/text default, terms/privacy
+          // URLs, memberIdentifierKind. R15 / R17 depend on these.
+          // Issue #405 — also include `defaultTheme` (relation to BrandTheme
+          // via Brand.defaultThemeId) so the public renderer can fall back
+          // to the brand's chosen default when the survey itself has no
+          // theme picked.
+          brand: {
+            select: {
+              id: true,
+              name: true,
+              logoUrl: true,
+              consentMode: true,
+              consentTextDefault: true,
+              termsUrl: true,
+              privacyPolicyUrl: true,
+              memberIdentifierKind: true,
+              defaultTheme: true,
+            },
+          },
           theme: true,
           _count: { select: { surveyRules: true } },
         },
@@ -166,8 +199,61 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Survey not found or not active' })
       }
 
-      const { _count, ...surveyData } = survey
-      return reply.status(200).send({ ...surveyData, hasCxRules: _count.surveyRules > 0 })
+      // Issue #405 — three-tier theme resolution:
+      //   1. Survey.themeId (operator picked per-survey override)
+      //   2. Brand.defaultThemeId (brand-wide default)
+      //   3. FALLBACK_RESPONDENT_THEME (canonical CustomerEQ Indigo, built
+      //      from DEFAULT_THEMES[0])
+      //
+      // Pre-#405 the route only resolved tier 1 and returned `theme: null`
+      // when the survey had no themeId. The client at
+      // `apps/web/src/app/survey/[id]/page.tsx` then fell back to a
+      // *separate* hardcoded constant — a divergent second source of truth
+      // that silently masked themeless-brand bugs at the customer-facing
+      // surface for as long as the bug shape existed. This route now
+      // guarantees a non-null `theme` so the client can render it directly.
+      const { _count, brand, ...surveyData } = survey
+      const { defaultTheme: brandDefaultTheme, ...brandLite } = brand
+      const resolvedTheme = surveyData.theme ?? brandDefaultTheme ?? FALLBACK_RESPONDENT_THEME
+
+      return reply.status(200).send({
+        ...surveyData,
+        brand: brandLite,
+        theme: resolvedTheme,
+        hasCxRules: _count.surveyRules > 0,
+      })
+    },
+  )
+
+  // GET /v1/public/surveys/:id/token-status — uniform-body pre-render check
+  //
+  // Issue #378 — the standalone form at /survey/:surveyId/r/:token calls this
+  // on mount to decide whether to render the form (state=valid) or one of the
+  // four error states. Response body is uniform across states (per NFR-S5)
+  // so a token-existence-leak timing attack can't distinguish.
+  fastify.get(
+    '/public/surveys/:id/token-status',
+    { config: { public: true } },
+    async (request, reply) => {
+      const { id: surveyId } = request.params as { id: string }
+      const token = (request.query as { token?: string }).token
+      if (!token || token.length === 0) {
+        return reply.status(200).send({ state: 'invalid' })
+      }
+      const hash = hashToken(token)
+      const row = await fastify.prisma.surveyDistributionToken.findUnique({
+        where: { tokenHash: hash },
+        select: { expiresAt: true, consumedAt: true, batch: { select: { surveyId: true, survey: { select: { status: true } } } } },
+      })
+      if (!row) return reply.status(200).send({ state: 'invalid' })
+      if (row.batch.surveyId !== surveyId) {
+        // Token doesn't belong to the survey in the URL. Don't reveal existence.
+        return reply.status(200).send({ state: 'invalid' })
+      }
+      if (row.consumedAt) return reply.status(200).send({ state: 'responded' })
+      if (row.expiresAt < new Date()) return reply.status(200).send({ state: 'expired' })
+      if (row.batch.survey.status !== 'ACTIVE') return reply.status(200).send({ state: 'survey-not-open' })
+      return reply.status(200).send({ state: 'valid' })
     },
   )
 
@@ -213,16 +299,67 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       const data = parse.data
       const bodyMemberId = (data.memberId ?? data.memberEmail ?? '').trim()
 
+      // Issue #378 — token-authorized path. When body.token is present, the
+      // token resolves the member authoritatively (R20a) and the response is
+      // written with distributionBatchId + distributionTokenId. Token state
+      // failures map to: 410 expired / 410 survey-not-open / 410 invalid /
+      // 409 responded.
+      let tokenContext: {
+        tokenId: string
+        memberId: string
+        batchId: string
+        brandId: string
+        surveyId: string
+      } | null = null
+      if (data.token && data.token.length > 0) {
+        const hash = hashToken(data.token)
+        const tokenRow = await fastify.prisma.surveyDistributionToken.findUnique({
+          where: { tokenHash: hash },
+          select: {
+            id: true,
+            memberId: true,
+            batchId: true,
+            brandId: true,
+            expiresAt: true,
+            consumedAt: true,
+            batch: { select: { surveyId: true, survey: { select: { status: true, brandId: true } } } },
+          },
+        })
+        if (!tokenRow || tokenRow.batch.surveyId !== surveyId) {
+          return reply.status(410).send({ state: 'invalid' })
+        }
+        if (tokenRow.consumedAt) {
+          return reply.status(409).send({ state: 'responded' })
+        }
+        if (tokenRow.expiresAt < new Date()) {
+          return reply.status(410).send({ state: 'expired' })
+        }
+        if (tokenRow.batch.survey.status !== 'ACTIVE') {
+          return reply.status(410).send({ state: 'survey-not-open' })
+        }
+        tokenContext = {
+          tokenId: tokenRow.id,
+          memberId: tokenRow.memberId,
+          batchId: tokenRow.batchId,
+          brandId: tokenRow.brandId,
+          surveyId: tokenRow.batch.surveyId,
+        }
+        // Set request.brandId so the audit plugin's onResponse hook fires
+        // for the token-respond audit row (audit plugin short-circuits when
+        // brandId is unset on public routes).
+        request.brandId = tokenContext.brandId
+      }
+
       // Issue #241 Slice 2 (RFC clarification, PR #327) — channel attribution
       // now derives from the request body's `channel` field rather than the
       // URL-vs-body heuristic. The widget hardcodes `channel: 'in_app'`
       // (verified at public.ts widget JS template); standalone defaults to
       // `'link'`. The `?email=` / `?member_id=` URL plumbing is gone from the
       // page handler in Slice 5; this server endpoint stops reading those.
-      if (!bodyMemberId) {
+      if (!bodyMemberId && !tokenContext) {
         return reply.status(400).send({
           error: 'NO_IDENTIFIER',
-          message: 'Survey response requires an identifier — supply memberId or memberEmail in the body.',
+          message: 'Survey response requires an identifier — supply memberId, memberEmail, or token in the body.',
         })
       }
       const identifierValue = bodyMemberId
@@ -272,31 +409,66 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
         })
       }
 
-      // Auto-enroll or resolve existing member. The `consentGivenAt` is
-      // server-stamped to now() on first enrollment (R8 + Compliance §);
-      // existing members' consentGivenAt is preserved unless the integrator
-      // re-attests by sending an explicit consentGivenAt (not exposed on
-      // this public-form path).
-      const enrollResult = await resolveOrEnrollMember(fastify.prisma, brandId, {
-        memberId: identifierValue,
-        email: data.email,
-        phone: data.phone,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        consentVersion: data.consentVersion,
-        enrolledVia,
-      })
-
-      if (!enrollResult.ok) {
-        return reply.status(400).send({
-          error: enrollResult.error.code,
-          message: enrollResult.error.message,
-          expectedKind: enrollResult.error.expectedKind,
-        })
+      // Issue #378 — token-authorized path bypasses resolveOrEnrollMember.
+      // The token already binds (batch, member); we just load the member.
+      // If the body also supplies an identifier, it must match the
+      // token-resolved member (R20 IDENTIFIER_MISMATCH).
+      let member: { id: string; externalId: string; consentGivenAt: Date | null } & {
+        firstName: string | null
+        lastName: string | null
+        email: string | null
       }
+      let autoEnrolled = false
+      if (tokenContext) {
+        const tokenMember = await fastify.prisma.member.findUnique({
+          where: { id: tokenContext.memberId },
+          select: {
+            id: true,
+            externalId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            consentGivenAt: true,
+          },
+        })
+        if (!tokenMember) {
+          return reply.status(410).send({ state: 'invalid' })
+        }
+        if (bodyMemberId.length > 0 && bodyMemberId.toLowerCase() !== tokenMember.externalId) {
+          return reply.status(422).send({
+            error: 'IDENTIFIER_MISMATCH',
+            message: 'Body identifier does not match the token-resolved member.',
+            code: 'IDENTIFIER_MISMATCH',
+          })
+        }
+        member = tokenMember
+      } else {
+        // Auto-enroll or resolve existing member. The `consentGivenAt` is
+        // server-stamped to now() on first enrollment (R8 + Compliance §);
+        // existing members' consentGivenAt is preserved unless the integrator
+        // re-attests by sending an explicit consentGivenAt (not exposed on
+        // this public-form path).
+        const enrollResult = await resolveOrEnrollMember(fastify.prisma, brandId, {
+          memberId: identifierValue,
+          email: data.email,
+          phone: data.phone,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          consentVersion: data.consentVersion,
+          enrolledVia,
+        })
 
-      const member = enrollResult.member
-      const autoEnrolled = enrollResult.created
+        if (!enrollResult.ok) {
+          return reply.status(400).send({
+            error: enrollResult.error.code,
+            message: enrollResult.error.message,
+            expectedKind: enrollResult.error.expectedKind,
+          })
+        }
+
+        member = enrollResult.member
+        autoEnrolled = enrollResult.created
+      }
 
       // R3 — responsePolicy enforcement. Default is MULTIPLE for new surveys
       // (see migration 20260504000000); legacy unique constraint already
@@ -315,6 +487,11 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           // Issue #241 Slice 2 — error code per RFC §"Endpoint error contracts".
           error: 'You have already responded.',
           code: 'POLICY_ONCE_DUPLICATE',
+          // duplicate:true signals the respondent page to render the
+          // "Already responded" screen rather than a generic error banner.
+          // The P2002 race-condition path below sends the same flag so
+          // both routes look identical to the client.
+          duplicate: true,
           priorResponseId: priorResponse.id,
         })
       }
@@ -332,6 +509,10 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
       const openEndedText = extractOpenEndedText(answers)
 
       // Create or overwrite response, plus increment responsesCount on new rows.
+      // Issue #378: when token-authorized, the response carries
+      // distributionBatchId + distributionTokenId, and the token's consumedAt
+      // is set in the same transaction with a conditional update guarded by
+      // `consumedAt: null` so a concurrent submit's race resolves to a clean 409.
       let response: { id: string }
       if (policy === 'LATEST_OVERWRITES' && priorResponse) {
         // Update in place — single row per member-survey under this policy.
@@ -341,27 +522,80 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
             answers: answers as Prisma.InputJsonValue,
             score: score ?? null,
             channel,
+            distributionBatchId: tokenContext?.batchId ?? undefined,
+            distributionTokenId: tokenContext?.tokenId ?? undefined,
           },
           select: { id: true },
         })
+        // For LATEST_OVERWRITES + token, mark the new token as consumed.
+        if (tokenContext) {
+          await fastify.prisma.surveyDistributionToken.updateMany({
+            where: { id: tokenContext.tokenId, consumedAt: null },
+            data: { consumedAt: new Date() },
+          })
+        }
       } else {
-        const created = await fastify.prisma.$transaction([
-          fastify.prisma.surveyResponse.create({
-            data: {
-              surveyId,
-              memberId: member.id,
-              brandId,
-              answers: answers as Prisma.InputJsonValue,
-              score: score ?? null,
-              channel,
-            },
-          }),
-          fastify.prisma.survey.update({
-            where: { id: surveyId },
-            data: { responsesCount: { increment: 1 } },
-          }),
-        ])
-        response = created[0]
+        try {
+          const writes: Prisma.PrismaPromise<unknown>[] = [
+            fastify.prisma.surveyResponse.create({
+              data: {
+                surveyId,
+                memberId: member.id,
+                brandId,
+                answers: answers as Prisma.InputJsonValue,
+                score: score ?? null,
+                channel,
+                distributionBatchId: tokenContext?.batchId ?? undefined,
+                distributionTokenId: tokenContext?.tokenId ?? undefined,
+              },
+            }),
+            fastify.prisma.survey.update({
+              where: { id: surveyId },
+              data: { responsesCount: { increment: 1 } },
+            }),
+          ]
+          if (tokenContext) {
+            // Conditional UPDATE — if a concurrent submit already set
+            // consumedAt, this affects 0 rows; the response create above will
+            // still succeed (responsePolicy enforcement runs after this).
+            // For the second-submit-rejection path we rely on the prior
+            // tokenContext.consumedAt check at the top of the handler.
+            writes.push(
+              fastify.prisma.surveyDistributionToken.updateMany({
+                where: { id: tokenContext.tokenId, consumedAt: null },
+                data: { consumedAt: new Date() },
+              }),
+            )
+          }
+          const created = await fastify.prisma.$transaction(writes)
+          response = created[0] as { id: string }
+        } catch (err) {
+          // The partial unique index `survey_responses_live_dedup` (migration
+          // 20260505000000_survey_import_batch/migration.sql:36) enforces
+          // one live response per (surveyId, memberId) regardless of
+          // Survey.responsePolicy. Hitting it here means we raced with a
+          // prior submit (or the ONCE-policy priorResponse lookup missed
+          // because it happened between our SELECT and INSERT). Return a
+          // clean 409 with `duplicate: true` so the respondent page renders
+          // the "Already responded" screen instead of an opaque 500.
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            (err as { code?: string }).code === 'P2002'
+          ) {
+            const existing = await fastify.prisma.surveyResponse.findFirst({
+              where: { surveyId, memberId: member.id, importBatchId: null },
+              select: { id: true },
+            })
+            return reply.status(409).send({
+              error: 'You have already responded.',
+              code: 'POLICY_ONCE_DUPLICATE',
+              duplicate: true,
+              priorResponseId: existing?.id ?? null,
+            })
+          }
+          throw err
+        }
       }
 
       const ingestedAt = new Date().toISOString()
@@ -538,84 +772,16 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // POST /v1/public/surveys/trigger — webhook to trigger survey distribution
-  // External systems (Zendesk, Intercom) call this to send a survey to a member
-  fastify.post(
-    '/public/surveys/trigger',
-    { config: { public: true } },
-    async (request, reply) => {
-      const parse = SurveyTriggerSchema.safeParse(request.body)
-      if (!parse.success) {
-        return reply.status(422).send({
-          error: 'Validation failed',
-          message: parse.error.errors.map((e) => e.message).join(', '),
-        })
-      }
-
-      const { memberEmail, surveyId, source } = parse.data
-
-      // Find survey
-      const survey = await fastify.prisma.survey.findFirst({
-        where: { id: surveyId, status: 'ACTIVE' },
-        select: { id: true, name: true, brandId: true },
-      })
-      if (!survey) {
-        return reply.status(404).send({ error: 'Survey not found or not active' })
-      }
-
-      // Issue #231 PR2: lookup keyed on canonical externalId (R5
-      // case-insensitive). For EMAIL brands externalId mirrors lower(trim(email))
-      // per the migration backfill, so a webhook arriving with the email value
-      // resolves to the same member regardless of case.
-      const member = await fastify.prisma.member.findUnique({
-        where: {
-          brandId_externalId: {
-            brandId: survey.brandId,
-            externalId: memberEmail.trim().toLowerCase(),
-          },
-        },
-        select: { id: true, consentGivenAt: true, email: true, deletedAt: true },
-      })
-      if (!member || member.deletedAt) {
-        return reply.status(200).send({ skipped: true, reason: 'member_not_found' })
-      }
-      if (!member.consentGivenAt) {
-        return reply.status(200).send({ skipped: true, reason: 'no_consent' })
-      }
-
-      // Check if already responded — see #231 PR1 note above for findUnique→findFirst rationale.
-      const existing = await fastify.prisma.surveyResponse.findFirst({
-        where: { surveyId, memberId: member.id },
-      })
-      if (existing) {
-        return reply.status(200).send({ skipped: true, reason: 'already_responded' })
-      }
-
-      // Build survey link
-      const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000'
-      const surveyLink = `${frontendUrl}/survey/${surveyId}?email=${encodeURIComponent(memberEmail)}`
-
-      // Issue #241 — incentive points are no longer surfaced on the form (D19) and
-      // earning is driven by EarningRule cx events (D50). The trigger message
-      // therefore no longer advertises a points figure.
-
-      // Enqueue notification to send survey link
-      const { enqueueNotification } = await import('../queues/bullmq.js')
-      await enqueueNotification({
-        memberId: member.id,
-        brandId: survey.brandId,
-        message: `We'd love your feedback! Please take our survey "${survey.name}": ${surveyLink}`,
-        channel: 'email',
-        metadata: { surveyId, surveyLink, source: source ?? 'api' },
-      })
-
-      return reply.status(202).send({
-        triggered: true,
-        surveyLink,
-        message: 'Survey notification queued',
-      })
-    },
-  )
+  // Issue #378 — POST /v1/public/surveys/trigger DELETED.
+  //
+  // The endpoint previously built outbound URLs of shape
+  // `/survey/<surveyId>?email=<encoded>`, which conflicts with #378's
+  // no-PII-in-URL invariant (the page handler stopped reading the URL
+  // param in #241 Slice 5 — this endpoint was the last writer). Brands
+  // that need to send a survey to a specific recipient now POST to
+  // /v1/surveys/:id/distribution-batches (Clerk-authenticated; Custom
+  // List of one identifier; tokenized URL returned in the response
+  // body). External callers will receive HTTP 404 after merge.
 
   // GET /v1/public/surveys/:id/widget.js — embeddable JavaScript widget
   fastify.get(
@@ -806,5 +972,5 @@ function generateWidgetJs(
 })();`
 }
 
-export { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema }
+export { generateWidgetJs, PublicSurveyResponseSchema }
 export default publicRoutes

@@ -9,8 +9,12 @@ const SECONDARY_COLOR = process.env.NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR ?? '#
 
 export const metadata: Metadata = {
   title: BRAND_NAME,
-  description: `${BRAND_NAME} — Loyalty Rewards Demo`,
-  viewport: 'width=device-width, initial-scale=1',
+  description: `${BRAND_NAME} - Loyalty Rewards Demo`,
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -23,8 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StorefrontHeader />
         <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
         <footer className="max-w-5xl mx-auto px-4 py-6 mt-8 border-t border-gray-100 text-center text-xs text-gray-400">
-          {BRAND_NAME} · Powered by{' '}
-          <span className="font-semibold text-gray-500">CustomerEQ</span> · Demo environment
+          {BRAND_NAME} · Powered by <span className="font-semibold text-gray-500">CustomerEQ</span> · Demo environment
         </footer>
         <SupportChat />
       </body>

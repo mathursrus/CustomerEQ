@@ -40,7 +40,7 @@ test.describe('Program read-only view — step navigation', () => {
     await page.goto('/admin/programs/prog-view-1')
 
     // Should show view-only banner
-    await expect(page.getByText(/read.only mode/i)).toBeVisible()
+    await expect(page.getByText(/You are viewing this program/i)).toBeVisible()
 
     // Step 1 — click Next to reach Step 2
     await page.getByRole('button', { name: /Next: Basic Info/i }).click()
@@ -60,34 +60,37 @@ test.describe('Program read-only view — step navigation', () => {
 
     // Should navigate to Step 3 — validation error must NOT appear
     await expect(page.getByText('Start date is required.')).not.toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Earning Rules' })).toBeVisible()
+    await expect(page.getByText(/Rule 1/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Next: Tiers/i })).toBeVisible()
   })
 
   test('can navigate from Step 2 to Step 3 in read-only mode when startDate is set', async ({ page }) => {
     await setupMocks(page, MOCK_PROGRAM_WITH_START_DATE)
     await page.goto('/admin/programs/prog-view-1')
 
-    await expect(page.getByText(/read.only mode/i)).toBeVisible()
+    await expect(page.getByText(/You are viewing this program/i)).toBeVisible()
 
     await page.getByRole('button', { name: /Next: Basic Info/i }).click()
     await expect(page.getByRole('heading', { name: 'Basic Information' })).toBeVisible()
 
     await page.getByRole('button', { name: /Next: Earning Rules/i }).click()
-    await expect(page.getByRole('heading', { name: 'Earning Rules' })).toBeVisible()
+    await expect(page.getByText(/Rule 1/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Next: Tiers/i })).toBeVisible()
   })
 
   test('stepper allows clicking any step in read-only mode', async ({ page }) => {
     await setupMocks(page, MOCK_PROGRAM_WITH_START_DATE)
     await page.goto('/admin/programs/prog-view-1')
 
-    await expect(page.getByText(/read.only mode/i)).toBeVisible()
+    await expect(page.getByText(/You are viewing this program/i)).toBeVisible()
 
     // Advance to Step 2 via Next button
     await page.getByRole('button', { name: /Next: Basic Info/i }).click()
     await expect(page.getByRole('heading', { name: 'Basic Information' })).toBeVisible()
 
-    // In view-only mode, clicking forward stepper steps should work
-    await page.getByRole('button', { name: /Earning Rules/i }).click()
-    await expect(page.getByRole('heading', { name: 'Earning Rules' })).toBeVisible()
+    // In view-only mode, clicking forward stepper steps should work.
+    await page.getByText('Earning Rules', { exact: true }).click()
+    await expect(page.getByText(/Rule 1/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Next: Tiers/i })).toBeVisible()
   })
 })

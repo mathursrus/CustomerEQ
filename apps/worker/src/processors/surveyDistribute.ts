@@ -40,11 +40,13 @@ export async function processSurveyDistribute(job: Job<SurveyDistributePayload>)
     return { sent: false, reason: 'cooldown_active', surveyId, memberId }
   }
 
-  // Upsert distribution record — use upsert to guard against race conditions
-  await prisma.surveyDistribution.upsert({
-    where: { surveyId_memberId: { surveyId, memberId } },
-    update: { sentAt: new Date() },
-    create: { surveyId, memberId, brandId },
+  // Record the distribution. Issue #378 moved the unique constraint from
+  // (surveyId, memberId) to (batchId, memberId); rows written by this legacy
+  // #117 trigger flow have batchId IS NULL, and Postgres treats NULL as
+  // distinct in unique constraints, so each trigger creates a new row.
+  // The cooldown check above is the dedup gate for this flow.
+  await prisma.surveyDistribution.create({
+    data: { surveyId, memberId, brandId },
   })
 
   // Increment distributionCount on survey

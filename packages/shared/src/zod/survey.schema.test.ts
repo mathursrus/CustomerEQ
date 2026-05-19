@@ -282,9 +282,16 @@ describe('CreateSurveySchema', () => {
   // field is now equivalent to passing nothing. The prior "rejects negative
   // incentive points" test is removed for the same reason.
 
-  it('rejects survey with empty name', () => {
+  // Issue #336 Phase 12 — `name` was relaxed from `min(1)` to `max(200)`-only
+  // so the create flow can land a draft with an empty `Survey.name` and the
+  // BasicsTab can render its placeholder ("e.g. NPS Q3 launch") instead of
+  // a pre-filled "Untitled survey". The activation gate
+  // (`apps/api/src/routes/surveys.ts:179-203`) enforces non-empty name
+  // before the survey can flip to ACTIVE — that test lives in the api
+  // route suite, not the schema suite.
+  it('accepts survey with empty name (activation gate enforces non-empty)', () => {
     const result = CreateSurveySchema.safeParse({ ...validSurvey, name: '' })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects survey with no questions', () => {

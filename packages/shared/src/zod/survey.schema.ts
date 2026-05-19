@@ -99,7 +99,11 @@ function validateScoreFields(
 // ─── Survey CRUD ─────────────────────────────────────────────────────────────
 
 export const CreateSurveySchema = z.object({
-  name: z.string().min(1, 'Survey name is required').max(200),
+  // Issue #241 — name may be empty at draft creation so the operator sees
+  // a placeholder ("e.g. NPS Q3 launch") instead of an "Untitled survey"
+  // pre-fill. Activation (R23) requires non-empty name — enforced at the
+  // PATCH /:id/status gate, not here.
+  name: z.string().max(200).default(''),
   // Issue #241 — respondent-facing form heading (R7 / D16). Nullable; the
   // activation gate (R23) ensures a title is set before status flips to ACTIVE.
   title: z.string().min(1).max(200).nullable().optional(),
@@ -133,7 +137,10 @@ export const CreateSurveySchema = z.object({
 // by the strict() safety net — the dedicated PATCH /:id/consent-mode endpoint
 // is the only writer for those columns.
 export const UpdateSurveySchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  // Issue #241 — name may be set to empty mid-draft (operator clears the
+  // field while editing). Activation gate (R23) enforces non-empty before
+  // status flips to ACTIVE.
+  name: z.string().max(200).optional(),
   title: z.string().min(1).max(200).nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
   type: z.enum(['NPS', 'CSAT', 'CES', 'CUSTOM']).optional(),

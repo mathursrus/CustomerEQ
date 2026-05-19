@@ -87,9 +87,22 @@ export const SECTION_FIELDS: Record<SectionId, (keyof OrgFormValues)[]> = {
 }
 
 // Pending-banner row shape — produced from form values + brand state.
+//
+// `field` widens to accommodate rows that aren't tied to a single form
+// input — e.g. Issue #405's "themes" / "defaultTheme" rows are derived
+// from server-loaded brand state (themesCount, hasDefaultTheme) rather
+// than any one OrgFormValues key. The downstream consumer
+// (`AdminPendingBanner`) already types `field` as `string`.
 export interface PendingItem {
-  field: keyof OrgFormValues
+  field: keyof OrgFormValues | 'themes' | 'defaultTheme'
   label: string
   consequence: string
   jumpToSectionId: SectionId
+}
+
+// Server-loaded brand state surfaced into pending-item computation that
+// isn't represented in OrgFormValues (themes are not form-managed).
+export interface PendingItemContext {
+  themesCount: number
+  hasDefaultTheme: boolean
 }

@@ -102,12 +102,62 @@ async function findMemberByEmail(email: string): Promise<MemberRow | null> {
   return res?.data?.[0] ?? null
 }
 
+// ── Reset ─────────────────────────────────────────────────────────────────────
+// Closes open cases, pauses campaigns, deletes alert rules and surveys so the
+// following seed run starts from a clean visual state. Members are NOT deleted
+// (no API endpoint); remove them manually in Admin → Customers if needed.
+
+async function reset() {
+  console.log('🔄  Resetting StarBrew demo state…\n')
+
+  // Close all open cases (endpoint returns array directly, not { data: [] })
+  const casesRes = await api('GET', '/v1/cases?pageSize=100')
+  const caseList = Array.isArray(casesRes) ? casesRes as Array<{ id: string; status: string }> : []
+  const toClose = caseList.filter(c => c.status !== 'RESOLVED' && c.status !== 'CLOSED')
+  for (const c of toClose) {
+    await api('PATCH', `/v1/cases/${c.id}/status`, { status: 'RESOLVED' })
+  }
+  console.log(`  ✓ Closed ${toClose.length} open case(s)`)
+
+  // Pause all active campaigns
+  const campaignsRes = await api<{ data: Array<{ id: string; status: string }> }>('GET', '/v1/campaigns?pageSize=50')
+  const activeCampaigns = (campaignsRes?.data ?? []).filter(c => c.status === 'ACTIVE')
+  for (const c of activeCampaigns) {
+    await api('PATCH', `/v1/campaigns/${c.id}/status`, { status: 'PAUSED' })
+  }
+  console.log(`  ✓ Paused ${activeCampaigns.length} active campaign(s)`)
+
+  // Delete all alert rules (seed recreates them)
+  const rulesRes = await api<{ data: Array<{ id: string }> }>('GET', '/v1/alert-rules?pageSize=50')
+  const rules = rulesRes?.data ?? []
+  for (const r of rules) {
+    await api('DELETE', `/v1/alert-rules/${r.id}`)
+  }
+  console.log(`  ✓ Deleted ${rules.length} alert rule(s)`)
+
+  // Delete all surveys (seed recreates them)
+  const surveysRes = await api<{ data: Array<{ id: string }> }>('GET', '/v1/surveys?pageSize=50')
+  const surveys = surveysRes?.data ?? []
+  for (const s of surveys) {
+    await api('DELETE', `/v1/surveys/${s.id}`)
+  }
+  console.log(`  ✓ Deleted ${surveys.length} survey(s)`)
+
+  console.log('\n  ℹ️  Members are NOT reset via API — delete any accumulated members')
+  console.log('     (e.g. Jordan Lee from Act 3) in Admin → Customers, then re-run the seed.\n')
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  const isReset = process.argv.includes('--reset')
+
   console.log('☕  Seeding StarBrew Coffee demo data…\n')
   console.log(`    API:      ${API}`)
-  console.log(`    Brand ID: ${BRAND_ID}\n`)
+  console.log(`    Brand ID: ${BRAND_ID}`)
+  console.log(`    Mode:     ${isReset ? 'reset + seed' : 'seed (additive)'}\n`)
+
+  if (isReset) await reset()
 
   // ── 1. Program ──────────────────────────────────────────────────────────────
   console.log('1/10 Creating loyalty program…')

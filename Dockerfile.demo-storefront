@@ -23,7 +23,10 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/demo-storefront/package.json apps/demo-storefront/
 COPY packages/config/package.json packages/config/
 
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts skips the root `postinstall: pnpm db:generate` hook —
+# demo-storefront doesn't depend on @customerEQ/database, so prisma is
+# never needed in this image.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy source
 COPY packages/config/ packages/config/

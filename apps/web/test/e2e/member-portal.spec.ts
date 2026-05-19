@@ -254,8 +254,8 @@ test.describe('Member Portal — Rewards (/rewards)', () => {
 
     await page.getByTestId('reward-redeem-btn-rwd-2').click()
 
-    await expect(page.getByText('Confirm Redemption')).toBeVisible()
-    await expect(page.getByText('Free Coffee')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Confirm Redemption' })).toBeVisible()
+    await expect(page.getByText('Redeem Free Coffee for 500 points?')).toBeVisible()
     await expect(page.getByTestId('confirm-redeem-btn')).toBeVisible()
     await expect(page.getByTestId('cancel-redeem-btn')).toBeVisible()
   })
@@ -285,8 +285,8 @@ test.describe('Member Portal — Rewards (/rewards)', () => {
     await page.getByTestId('reward-redeem-btn-rwd-2').click()
     await page.getByTestId('confirm-redeem-btn').click()
 
-    await expect(page.getByText('Reward Redeemed!')).toBeVisible()
-    await expect(page.getByText('Free Coffee')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Reward Redeemed!' })).toBeVisible()
+    await expect(page.getByText('Digital delivery')).toBeVisible()
     await expect(page.getByText('500 points deducted')).toBeVisible()
   })
 

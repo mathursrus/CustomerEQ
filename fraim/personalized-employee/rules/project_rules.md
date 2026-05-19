@@ -191,3 +191,40 @@ This rule exists because in a single session of Slice 4a of #241 (PR #340) the a
 - ALSO RIGHT: `git show <base-branch>:<path>` if only reading.
 
 The success criterion for Rule 25 is not "the agent catches the mistake before the user flags it" — that is still after-the-fact apology. The success criterion is "the rule pre-empts the wrong action before it is taken."
+
+## 26. All Phase Artifacts Ship in One PR Per Issue (No "Chore-Issue" Splits)
+
+Rules 10 and 21 say *one issue per branch*. Rule 26 adds the orthogonal constraint: **all phase artifacts for that issue ship in one PR** (with multiple phase-aligned commits as needed), not one PR per "sub-thing the agent noticed" and not one PR per phase.
+
+The default for any FRAIM-tracked issue is:
+- One issue number `{N}` spans spec → RFC → impl → Phase 13 (retro + work-list cleanup) → coaching-moment capture.
+- One isolated worktree (`{REPO} - Issue {N}`, created by `~/.fraim/scripts/prep-issue.sh`).
+- One feature branch (`feature/{N}-{slug}`).
+- **One PR** for the whole issue, containing one commit per phase artifact as needed (spec, RFC, impl, evidence, retro, coaching-moment capture) plus any architecture / evidence / test updates surfaced along the way. Merge + cleanup runs via the `work-completion` job (`resolution-merge` → `resolution-verification` → `resolution-cleanup`). Additional commits within a single issue ride on the same feature branch in the **same worktree** — never in spawned chore worktrees, never on spawned chore-issues, never on sibling PRs.
+
+**How to read Rule 26.** The unit of shipping is the **issue**, not the phase. A FRAIM-tracked issue produces multiple artifacts as it moves through phases, but all of them share one branch and one PR — they appear in that PR's commit history, not in sibling PRs. If a Phase 13 retro lands two days after the impl commit, it lands as another commit on the same `feature/{N}-...` branch and pushes to the same open PR. The PR closes (via `work-completion`) only after every phase artifact for the issue has landed on it. The forbidden phrases below all share the same fabrication shape — "this phase / sub-thing deserves its own issue + branch + PR" — and the rule is silent on no phase deserving that.
+
+**Forbidden patterns:**
+- Filing a separate "chore-issue" for the Phase 13 retro of an already-shipped issue (e.g., issue #349 created solely to host the retro for #343, with its own worktree, branch, and PR #350).
+- Filing a separate issue for coaching-moment capture from a wrap-up session (e.g., issue #344 / PR #345 splitting Slice 3 coaching moments off the parent slice work).
+- Spawning a fresh worktree (`Issue {M}`) for a follow-up retrospective expansion that belongs on the original feature branch (e.g., issue #354 / PR #355 splitting Slice 4a retro expansion off #335).
+- Using the phrase *"chore-issue for #N"*, *"Phase 13 cleanup chore-issue for #N"*, *"chore-issue body"*, or *"Follows the convention used by [other chore PRs]"* as justification. These are the fabrication shape — they appear in no FRAIM job stub, skill, rule, or `seekMentoring` response. If you cannot quote the authorizing rule verbatim from `mcp__fraim__seekMentoring` or `get_fraim_file` *this turn*, the default in this rule applies.
+
+**Allowed exceptions (each requires a written reason in the PR body):**
+- **Post-merge regression discovered after `work-completion` finished** → legitimately a new issue. Rule 25 stay-on-PR only applies before merge. Cite the merge SHA and the failing CI run / production signal that surfaced it. (Example: post-#346 `workflow_run` failure → #347 was legitimate; the chain that grew on top — #349, #351 — compounded into a Rule 26 violation by adding three additional worktrees for one logical workstream.)
+- **Cross-cutting fix discovered mid-feature that is off-scope** → file a new issue per Rule 21. The trigger is "different acceptance criteria," not "I want a clean diff."
+- **Operational/ops artifact (e.g., DB recovery script) outside the original issue's ACs** → allowed only if the ops need would block merge of the bugfix and was not in scope of the original issue.
+
+**Cited authority (verbatim from FRAIM):**
+- `issue-preparation` Phases 1–2 — outcomes name *"an isolated issue worktree"* and *"feature branch exists, is checked out in the isolated worktree, and tracks origin."*
+- `issue-preparation` Phase 1 Step 5 — *"Do not fall back to manual in-place branch creation."*
+- `issue-preparation` Phase 2 Step 4 — *"Do not hand-roll git branch steps."*
+
+These specify the per-issue topology (one worktree, one branch) authoritatively. The single-PR-per-issue cadence (with phase artifacts arriving as additional commits on that PR's branch) and the work-completion merge+cleanup come from `work-completion` job phases (`resolution-merge` → `resolution-verification` → `resolution-cleanup`), which are scoped to the one parent issue, not to spawned chore-issues.
+
+**Why this rule exists:** between 2026-05-12 and 2026-05-15, four "chore-issue" PRs (#345, #350, #355, #373) and one regression chain (#343 → #347 → #349 → #351) shipped under fabricated FRAIM justifications — each created a redundant worktree and PR for what FRAIM's defaults specified ride on the parent issue. PR #350 confessed: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally"* — four worktrees for one CI/CD workstream. The cost was operational noise, erosion of the one-issue-one-PR mental model, and two on-disk retrospectives that encoded the fabrication as a "win" and would re-teach the wrong lesson to future agents (corrected by the same PR that landed this rule).
+
+**Priority order when this rule applies to your current turn:**
+1. **FRAIM-verified-this-turn** — a FRAIM rule fetched via `seekMentoring` or `get_fraim_file` *this conversational turn* and quoted verbatim wins.
+2. **Default-when-FRAIM-is-silent** — this rule's default (one issue / one branch / one PR for all phase artifacts, with multiple phase-aligned commits as needed) applies.
+3. **Unverified agent paraphrase of FRAIM** — never authoritative. Treat any "I'm pretty sure FRAIM says…" without a fresh fetch as Priority-3 instinct, not Priority-1 rule. This is the exact failure shape that produced the four fabrications named above.

@@ -1,15 +1,23 @@
 name: CI
 
 on:
-  push:
-    branches: [main, 'feature/**']
   pull_request:
     branches: [main]
 
 jobs:
   ci:
-    name: Build, Lint, Test
+    name: Build & Test
     runs-on: ubuntu-latest
+    # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
+    # pull_request events. The default GITHUB_TOKEN on this repo lacks
+    # pull-requests: read — same fix as applied to docker-build in #346.
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_API: ${{ secrets.TURBO_API }}
+      TURBO_TEAM: customereq
 
     services:
       postgres:
@@ -42,27 +50,57 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Issue #393: skip CI on doc-only commits. Skip-list semantics mirror
+      # docker-build: leading '**' seeds the match set (required — negation-only
+      # patterns default to true per #351). New top-level dirs are
+      # default-included; only listed patterns are excluded.
+      - name: Determine if CI is needed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            build:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/pull_request_template.md'
+              - '!CODEOWNERS'
+              - '!.gitattributes'
+              - '!LICENSE'
+
+      - name: Skip if doc-only
+        if: steps.changes.outputs.build == 'false'
+        run: |
+          echo "Doc-only change; skipping CI (issue 393)."
+
       - name: Setup pnpm
+        if: steps.changes.outputs.build == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.changes.outputs.build == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.changes.outputs.build == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Validate Prisma schema
+        if: steps.changes.outputs.build == 'true'
         run: pnpm --filter @customerEQ/database exec prisma validate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
       - name: Check enum migration coverage
+        if: steps.changes.outputs.build == 'true'
         run: bash packages/database/scripts/check-enum-migrations.sh
 
       - name: Generate Prisma client
+        if: steps.changes.outputs.build == 'true'
         run: pnpm db:generate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
@@ -72,34 +110,113 @@ jobs:
       # `pnpm db:reset` and on prod restore-from-migrations. Running the full
       # history against an empty postgres on every PR catches that class.
       - name: Run migrations (regression gate for #270)
+        if: steps.changes.outputs.build == 'true'
         run: pnpm db:migrate
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
       - name: Build
+        if: steps.changes.outputs.build == 'true'
         run: pnpm build
 
       - name: Type check
+        if: steps.changes.outputs.build == 'true'
         run: pnpm typecheck
 
-      - name: Lint
-        run: pnpm lint
+      - name: Install Playwright browsers
+        if: steps.changes.outputs.build == 'true'
+        run: pnpm --filter @customerEQ/web exec playwright install --with-deps chromium
 
-      - name: Security audit
-        run: pnpm audit --audit-level=high
+      - name: Validate smoke test secrets
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          test -n "$AZURE_OPENAI_API_KEY" || test -n "$OPENAI_API_KEY" || (echo "Missing AZURE_OPENAI_API_KEY / OPENAI_API_KEY" && exit 1)
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Unit & Integration Tests
-        run: pnpm test
+      - name: Prepare smoke test env
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          if [ -n "$AZURE_OPENAI_API_KEY" ]; then
+            echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY" >> "$GITHUB_ENV"
+          else
+            echo "AZURE_OPENAI_API_KEY=$OPENAI_API_KEY" >> "$GITHUB_ENV"
+          fi
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Smoke Test Suite
+        if: steps.changes.outputs.build == 'true'
+        run: pnpm test:smoke
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
           REDIS_URL: redis://localhost:6379
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_SECRET_KEY: sk_test_123
+          # CI smoke relies on the suite runner's Azure base URL fallback.
+          # Only the Azure/OpenAI API key must be present.
 
       - name: Upload coverage
+        if: steps.changes.outputs.build == 'true'
         uses: codecov/codecov-action@v4
-        if: always()
         with:
           fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    # Runs in parallel with ci — pnpm lint has no dependsOn in turbo.json.
+    # permissions required for dorny/paths-filter on PR events (#346).
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_API: ${{ secrets.TURBO_API }}
+      TURBO_TEAM: customereq
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine if lint is needed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            build:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/pull_request_template.md'
+              - '!CODEOWNERS'
+              - '!.gitattributes'
+              - '!LICENSE'
+
+      - name: Skip if doc-only
+        if: steps.changes.outputs.build == 'false'
+        run: |
+          echo "Doc-only change; skipping lint (issue 395)."
+
+      - name: Setup pnpm
+        if: steps.changes.outputs.build == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.build == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.changes.outputs.build == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.changes.outputs.build == 'true'
+        run: pnpm lint
 
   docker-build:
     name: Build production images

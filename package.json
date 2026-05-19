@@ -8,6 +8,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "postinstall": "pnpm db:generate",
     "generate": "pnpm generate:baml",
     "generate:baml": "pnpm --filter @customerEQ/ai generate",
     "dev": "turbo run dev --parallel",
@@ -19,9 +20,9 @@
     "test:e2e": "pnpm --filter @customerEQ/web test:e2e",
     "test:e2e:demo": "pnpm --filter @customerEQ/demo-storefront test:e2e",
     "demo": "pnpm --filter @customerEQ/demo-storefront dev",
-    "test:smoke": "turbo run test:smoke",
+    "test:smoke": "node scripts/test-suite-runner.mjs smoke",
     "test:baml": "pnpm --filter @customerEQ/ai test:baml",
-    "test:all": "turbo run test test:integration",
+    "test:all": "node scripts/test-suite-runner.mjs all",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:studio": "pnpm --filter @customerEQ/database studio",
     "db:push": "pnpm --filter @customerEQ/database exec prisma db push",
@@ -33,6 +34,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "onboard-org": "node scripts/onboard-org.mjs",
     "setup:dev-brand": "tsx --env-file=.env scripts/setup-dev-brand.ts",
+    "backfill:brand-default-themes": "tsx --env-file=.env scripts/backfill-brand-default-themes.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "run-scenario": "tsx scripts/run-scenario.ts"
   },

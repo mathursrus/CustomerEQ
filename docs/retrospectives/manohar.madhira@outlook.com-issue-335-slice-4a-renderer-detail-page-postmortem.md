@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-12
-synthesized:
+synthesized: 2026-05-14
 ---
 
 # Postmortem: Slice 4a — survey-form renderer family + RTL harness + detail page rewrite — Issue #335
@@ -262,3 +262,24 @@ Phase 12's audit trail was treated as optional. The user had to explicitly remin
 - **Time from first user item to merge**: roughly 5 hours of conversational session (across both calendar days).
 - **CI minutes consumed**: 6 PR-CI runs (~22 min each) + 1 main-CI run (~20 min) + 1 deploy (~14 min) ≈ ~150 runner-minutes per round. Could be cut roughly in half by the trigger-and-parallelization optimizations the user identified during this round; tracked as #343 follow-up.
 - **Number of mid-stream user interventions**: 3 — "Ensure you are following FRAIM phases", "Configuration section inside Configuration Summary does not match the mock", "current 50px border for each section seems too large". Each correctly surfaced before a bad pattern shipped further.
+
+---
+
+## Correction (2026-05-15, per Rule 26)
+
+Two passages in this retrospective treat the "chore-issue #354" framing as a normal phase artifact and would re-teach the wrong lesson:
+
+- §"What Went Right (Round 1)" item #4: *"The 'show artifact before publishing' rule fired correctly for the chore-issue body (this PR's parent issue #354) — drafted in chat, user approved, then filed."*
+- §"Agent Rule Updates Made to avoid recurrence (Round 1)" item #2: *"Existing memory [[feedback-show-artifact-before-publishing]] fired correctly for the chore-issue #354 body draft."*
+
+**The chore-issue #354 should not have existed.** The Phase 13 retro expansion + work-list cleanup for Slice 4a was a continuation of issue #335's lifecycle — it should have ridden on `feature/335-slice-4a-renderer-detail-page` (the impl branch) as one more commit on PR #353, or as a small sub-PR off that branch in the same worktree. Filing a new issue (#354), spawning a new worktree, and opening a separate PR (#355) was the same chore-issue fabrication pattern that Rule 26 extinguishes.
+
+The "show artifact before publishing" memory firing on the #354 issue body is **not invalidated** — it correctly fired for an external write. But the fact that an external write *was* being made (a new GitHub issue) was itself the underlying violation. The right outcome was: no #354 issue at all.
+
+**Future agents reading this retro:** §"What Went Right" item #4 and §"Agent Rule Updates" item #2 are preserved for historical record but are **superseded** by this correction with respect to the chore-issue framing. The fact that ancillary memories fired correctly on a violating action does not validate the action.
+
+Cross-references:
+- **Rule 26** in `fraim/personalized-employee/rules/project_rules.md` (added 2026-05-15 in PR #379).
+- Mistake-pattern entry "Fabricated 'chore-issue' framing to split phase artifacts across PRs" in `manohar.madhira@outlook.com-mistake-patterns.md`.
+- Rejected-proposal entry in `manohar.madhira@outlook.com-rejected-proposals.md`.
+- Auto-memory `[[one-pr-per-phase-artifact]]`.

@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { auth } from '@clerk/nextjs/server'
 import { getAuthorizedMcpBrands } from '@/lib/mcp-oauth'
+import { getServerUserId } from '@/lib/server-auth'
 
 type SelectBrandPageProps = {
   searchParams?: Promise<{
@@ -11,11 +11,11 @@ type SelectBrandPageProps = {
 export default async function SelectBrandPage({
   searchParams,
 }: SelectBrandPageProps) {
-  const session = await auth()
+  const userId = await getServerUserId()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const data = resolvedSearchParams?.data
 
-  if (!session.userId || !data) {
+  if (!userId || !data) {
     return (
       <main className="min-h-screen bg-white px-6 py-16 text-gray-900">
         <div className="mx-auto max-w-2xl">
@@ -28,7 +28,7 @@ export default async function SelectBrandPage({
     )
   }
 
-  const brands = await getAuthorizedMcpBrands(session.userId)
+  const brands = await getAuthorizedMcpBrands(userId)
 
   return (
     <main className="min-h-screen bg-white px-6 py-16 text-gray-900">

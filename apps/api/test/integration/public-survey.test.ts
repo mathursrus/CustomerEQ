@@ -40,6 +40,130 @@ describe('Public Survey Flow — POST /v1/public/surveys/:id/respond (Issue #231
     expect(res.body.incentivePoints).toBeUndefined()
   })
 
+  // ---------------------------------------------------------------------------
+  // Issue #405 — three-tier theme resolution
+  //   1. Survey.themeId        (per-survey override)
+  //   2. Brand.defaultThemeId  (brand-wide default)
+  //   3. DEFAULT_THEMES[0]     (canonical CustomerEQ Indigo fallback)
+  // The API must always return a non-null `theme` so the respondent renderer
+  // can drop its own divergent hardcoded fallback.
+  // ---------------------------------------------------------------------------
+
+  it('GET /v1/public/surveys/:id returns the survey-level theme when Survey.themeId is set (tier 1)', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey1Theme = await prisma.brandTheme.create({
+      data: {
+        brandId: brand.id,
+        name: 'Survey-Override',
+        primaryColor: '#aa0000',
+        secondaryColor: '#bb0000',
+        backgroundColor: '#ffffff',
+        textColor: '#111111',
+        buttonColor: '#aa0000',
+        buttonTextColor: '#ffffff',
+        accentColor: '#cc0000',
+      },
+    })
+    const brandDefault = await prisma.brandTheme.create({
+      data: {
+        brandId: brand.id,
+        name: 'Brand-Default',
+        primaryColor: '#0000aa',
+        secondaryColor: '#0000bb',
+        backgroundColor: '#ffffff',
+        textColor: '#111111',
+        buttonColor: '#0000aa',
+        buttonTextColor: '#ffffff',
+        accentColor: '#0000cc',
+      },
+    })
+    await prisma.brand.update({
+      where: { id: brand.id },
+      data: { defaultThemeId: brandDefault.id },
+    })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+    })
+    // createSurvey factory doesn't expose themeId; set it directly so the
+    // tier-1 path is exercised.
+    await prisma.survey.update({
+      where: { id: survey.id },
+      data: { themeId: survey1Theme.id },
+    })
+
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.theme).not.toBeNull()
+    expect(res.body.theme.id).toBe(survey1Theme.id)
+    expect(res.body.theme.primaryColor).toBe('#aa0000')
+    // Brand default is NOT leaked into the response when survey-level theme wins.
+    expect(res.body.brand.defaultTheme).toBeUndefined()
+  })
+
+  it("falls back to Brand.defaultThemeId when Survey.themeId is null (tier 2)", async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const brandDefault = await prisma.brandTheme.create({
+      data: {
+        brandId: brand.id,
+        name: 'Brand-Default-Tier2',
+        primaryColor: '#0000aa',
+        secondaryColor: '#0000bb',
+        backgroundColor: '#ffffff',
+        textColor: '#111111',
+        buttonColor: '#0000aa',
+        buttonTextColor: '#ffffff',
+        accentColor: '#0000cc',
+      },
+    })
+    await prisma.brand.update({
+      where: { id: brand.id },
+      data: { defaultThemeId: brandDefault.id },
+    })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+      // No themeId — tier-2 fallback should fire.
+    })
+
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.theme).not.toBeNull()
+    expect(res.body.theme.id).toBe(brandDefault.id)
+    expect(res.body.theme.primaryColor).toBe('#0000aa')
+  })
+
+  it('falls back to the canonical CustomerEQ Indigo when neither Survey.themeId nor Brand.defaultThemeId is set (tier 3)', async () => {
+    const brand = await createBrand()
+    // Brand has NO themes and NO defaultThemeId (createBrand factory does not
+    // seed BrandThemes — matches the ArtistOS pre-#307 reality).
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({
+      brandId: brand.id,
+      programId: program.id,
+      status: 'ACTIVE',
+    })
+
+    const res = await unauthenticatedRequest().get(`/v1/public/surveys/${survey.id}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.theme).not.toBeNull()
+    // Sentinel id makes the fallback origin obvious in logs / client analytics.
+    expect(res.body.theme.id).toBe('__customereq_default_indigo__')
+    // Colors match DEFAULT_THEMES[0] (canonical Indigo) — single source of
+    // truth shared with admin-brand-profile lazy-upsert seed.
+    expect(res.body.theme.primaryColor).toBe('#4f46e5')
+    expect(res.body.theme.name).toBe('Indigo')
+  })
+
   it('returns 404 for a DRAFT survey on the public endpoint', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })

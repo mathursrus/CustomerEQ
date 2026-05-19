@@ -13,7 +13,7 @@ It's intentionally tiny: ~600 lines of HTML/CSS/JS + a 200-line Express backend 
 | 3 | View account | `GET /v1/members/:id/360` + `/balance` | "My Account" section |
 | 4 | Redeem reward | `GET /v1/rewards` + `POST /v1/redemptions` | "Redeem Rewards" section |
 | 5 | Submit feedback | Embedded `<script src=".../widget.js">` | "Feedback" section |
-| 6 | Server-trigger CSAT survey after a ticket closes | `POST /v1/public/surveys/trigger` | "Feedback" → "Simulate ticket resolved" |
+| 6 | Server-trigger CSAT survey after a ticket closes | `POST /v1/surveys/:id/distribution-batches` (tokenized) | "Feedback" → "Simulate ticket resolved" |
 | 7 | Self-serve help (RAG over KB) | `POST /v1/kb/search` | "Help" section |
 | 8 | Internal CX ops dashboard | `GET /v1/analytics/cx` | "Ops Dashboard" section |
 
@@ -57,7 +57,7 @@ Open <http://localhost:5000> in a browser.
 3. **My Account → Refresh from CustomerEQ**. Points balance, recent events, surveys. This is `/v1/members/:id/360` rendered straight through — no Acme database involved.
 4. **Redeem Rewards → Load reward catalog**. Show that Acme is reading the catalog from CustomerEQ. Click Redeem on a reward; show the atomic ledger update on the member.
 5. **Feedback → embedded survey**. The widget is a single `<script>` tag — no SDK install. Submit a 9 score and a positive comment. Switch to admin → CX Analytics: NPS just moved.
-6. **Simulate "ticket resolved"** to fire `POST /v1/public/surveys/trigger`. Show the email-trigger flow that a real helpdesk would use.
+6. **Simulate "ticket resolved"** to fire `POST /v1/surveys/:id/distribution-batches` (Custom List of one identifier). The endpoint mints a tokenized URL and returns it once in the response body — show the URL shape `/survey/:surveyId/r/:token` and explain that the helpdesk would mail-merge that URL to the customer (no PII in the URL).
 7. **Help → search "How do I redeem points?"** Demonstrates KB RAG search.
 8. **Ops Dashboard → Pull analytics**. Acme's internal team sees live CX numbers from CustomerEQ.
 

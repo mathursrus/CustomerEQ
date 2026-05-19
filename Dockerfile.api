@@ -17,7 +17,10 @@ COPY packages/ui/package.json packages/ui/
 COPY packages/ai/package.json packages/ai/
 COPY packages/embed/package.json packages/embed/
 
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts skips the root `postinstall: pnpm db:generate` hook —
+# the schema isn't COPYed yet here. We run db:generate explicitly below
+# once the source is in place.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy source
 COPY . .
@@ -39,5 +42,5 @@ ENV NODE_ENV=production
 ENV API_PORT=4000
 ENV API_HOST=0.0.0.0
 
-RUN chmod +x /app/apps/api/docker-entrypoint.sh
+RUN chmod +x /app/apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint-migrate.sh
 CMD ["/app/apps/api/docker-entrypoint.sh"]

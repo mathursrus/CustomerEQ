@@ -1,6 +1,9 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { auth } from '@clerk/nextjs/server'
-import { API_URL } from '@/lib/config'
+import { useAuth } from '@clerk/nextjs'
+import { API_URL, getAuthToken } from '@/lib/config'
 import CampaignActions from './CampaignActions'
 
 interface Campaign {
@@ -14,22 +17,6 @@ interface Campaign {
   createdAt: string
   startDate: string | null
   endDate: string | null
-}
-
-async function getCampaigns(): Promise<Campaign[]> {
-  try {
-    const { getToken } = await auth()
-    const token = await getToken()
-    const res = await fetch(`${API_URL}/v1/campaigns`, {
-      cache: 'no-store',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.data ?? data.campaigns ?? (Array.isArray(data) ? data : [])
-  } catch {
-    return []
-  }
 }
 
 const statusColors: Record<string, string> = {
@@ -46,8 +33,54 @@ const actionTypeLabels: Record<string, string> = {
   award_reward: 'Award Reward',
 }
 
-export default async function CampaignsPage() {
-  const campaigns = await getCampaigns()
+export default function CampaignsPage() {
+  const { getToken } = useAuth()
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCampaigns() {
+      try {
+        const token = await getAuthToken(getToken)
+        const res = await fetch(`${API_URL}/v1/campaigns`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+
+        if (!res.ok) {
+          if (!cancelled) {
+            setCampaigns([])
+          }
+          return
+        }
+
+        const data = await res.json()
+        if (!cancelled) {
+          setCampaigns(data.data ?? data.campaigns ?? (Array.isArray(data) ? data : []))
+        }
+      } catch {
+        if (!cancelled) {
+          setCampaigns([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadCampaigns()
+
+    return () => {
+      cancelled = true
+    }
+  }, [getToken])
+
+  if (loading) {
+    return <div className="py-12 text-center text-gray-400">Loading campaigns...</div>
+  }
 
   return (
     <div>

@@ -13,6 +13,10 @@
     "./random": {
       "import": "./dist/random.js",
       "types": "./dist/random.d.ts"
+    },
+    "./distributionTokens": {
+      "import": "./dist/distributionTokens.js",
+      "types": "./dist/distributionTokens.d.ts"
     }
   },
   "scripts": {
@@ -23,6 +27,8 @@
     "test:smoke": "vitest run"
   },
   "dependencies": {
+    "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.2.0",
     "gpt-tokenizer": "^3.4.0",
     "zod": "^3.23.0"
   },

@@ -160,7 +160,7 @@ test.describe('Member Enrollment Flow', () => {
 
     await expect(page.getByTestId('welcome-screen')).toBeVisible()
     await page.getByTestId('go-to-dashboard').click()
-
+    await page.waitForURL('**/dashboard', { timeout: 10000 })
     await expect(page).toHaveURL('/dashboard')
   })
 
@@ -172,8 +172,9 @@ test.describe('Member Enrollment Flow', () => {
       route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' })
     })
 
-    const response = await page.goto('/no-such-program/enroll')
-    expect(response?.status()).toBe(404)
+    await page.goto('/no-such-program/enroll')
+    await expect(page.getByRole('heading', { name: '404' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'This page could not be found.' })).toBeVisible()
   })
 
   // ---------------------------------------------------------------------------

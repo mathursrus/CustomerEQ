@@ -1,31 +1,73 @@
-import { notFound } from 'next/navigation'
-import { auth } from '@clerk/nextjs/server'
-import { API_URL } from '@/lib/config'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
+import { API_URL, getAuthToken } from '@/lib/config'
 import { ProgramWizardLoader } from '../../_components/program-wizard-loader'
 
-async function getProgram(id: string) {
-  try {
-    const { getToken } = await auth()
-    const token = await getToken()
-    const res = await fetch(`${API_URL}/v1/programs/${id}`, {
-      cache: 'no-store',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
+export default function ProgramEditPage() {
+  const params = useParams()
+  const { getToken } = useAuth()
+  const programId = params.id as string
+  const [program, setProgram] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProgram() {
+      try {
+        const token = await getAuthToken(getToken)
+        const res = await fetch(`${API_URL}/v1/programs/${programId}`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+
+        if (!res.ok) {
+          if (!cancelled) {
+            setProgram(null)
+          }
+          return
+        }
+
+        const data = await res.json()
+        if (!cancelled) {
+          setProgram(data as Record<string, unknown>)
+        }
+      } catch {
+        if (!cancelled) {
+          setProgram(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadProgram()
+
+    return () => {
+      cancelled = true
+    }
+  }, [getToken, programId])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Loading program...</p>
+      </div>
+    )
   }
-}
 
-export default async function ProgramEditPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-  const program = await getProgram(id)
-  if (!program) notFound()
+  if (!program) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-red-500 text-sm">Program not found</p>
+      </div>
+    )
+  }
 
-  return <ProgramWizardLoader mode="edit" programId={id} program={program} />
+  return <ProgramWizardLoader mode="edit" programId={programId} program={program as never} />
 }

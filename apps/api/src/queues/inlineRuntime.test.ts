@@ -1,8 +1,16 @@
 /// <reference types="vitest" />
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { scheduleInline, drainInlineQueue, inlineQueueSize } from './inlineRuntime.js'
 
 describe('inlineRuntime', () => {
+  beforeEach(() => {
+    vi.useRealTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('runs the processor asynchronously and reports zero pending after drain', async () => {
     const processor = vi.fn().mockResolvedValue(undefined)
     scheduleInline('test-job', { foo: 1 }, processor)

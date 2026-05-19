@@ -120,7 +120,7 @@ async function mockApi(
 }
 
 test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
-  test('renders the 3 sections in spec order with breadcrumb + status pill (responsesCount=0)', async ({ page }) => {
+  test('renders the 4 sections in spec order with breadcrumb + status pill (responsesCount=0)', async ({ page }) => {
     await mockClerk(page)
     await mockApi(page, { responsesCount: 0 })
 
@@ -133,11 +133,18 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     // Status badge
     await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible()
 
-    // All three section headings in spec order
+    // All four section headings in spec order. Loop Monitor is a first-class
+    // section between Distribution and Response, keeping pipeline visibility
+    // above the default-collapsed Response section.
+    // All four section headings in spec order. Loop Monitor was promoted to its
+    // own first-class section between Distribution and Response in Slice 4a
+    // Round-2 (R32b) per LoopMonitorSection.tsx:5-8 — keeps hero pipeline (#80)
+    // visibility above the default-collapsed Response section.
     const sectionButtons = page.getByRole('button').filter({ has: page.locator('h2') })
     await expect(sectionButtons.nth(0)).toContainText('Distribution')
-    await expect(sectionButtons.nth(1)).toContainText('Response')
-    await expect(sectionButtons.nth(2)).toContainText('Configuration summary')
+    await expect(sectionButtons.nth(1)).toContainText('Loop Monitor')
+    await expect(sectionButtons.nth(2)).toContainText('Response')
+    await expect(sectionButtons.nth(3)).toContainText('Configuration summary')
   })
 
   test('responsesCount=0: Distribution + Configuration expanded, Response collapsed', async ({ page }) => {
@@ -147,7 +154,7 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     await page.goto(`/admin/surveys/${SURVEY_ID}`)
 
     // Distribution body visible (Share link tile)
-    await expect(page.getByText('Share link', { exact: false })).toBeVisible()
+    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
     // Configuration body visible (the embedded PreviewSurvey renders the survey title)
     await expect(page.getByRole('heading', { name: 'Quick NPS pulse' })).toBeVisible()
     // Response body hidden (placeholder copy not rendered)
@@ -167,7 +174,7 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     // Response body visible (deferral note above embedded LoopMonitor)
     await expect(page.getByText(/sibling sub-issue/i)).toBeVisible({ timeout: 10000 })
     // Distribution body hidden (no Share link tile rendered)
-    await expect(page.getByText('Share link', { exact: false })).toHaveCount(0)
+    await expect(page.getByText('Share link', { exact: true })).toHaveCount(0)
     // Configuration body hidden (the preview's survey-title heading is not rendered)
     await expect(page.getByRole('heading', { name: 'Quick NPS pulse' })).toHaveCount(0)
   })
@@ -180,12 +187,12 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
 
     // Distribution starts expanded — click toggles to collapsed
     const distributionToggle = page.getByRole('button', { name: /Distribution/i })
-    await expect(page.getByText('Share link', { exact: false })).toBeVisible()
+    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
     await distributionToggle.click()
-    await expect(page.getByText('Share link', { exact: false })).toHaveCount(0)
+    await expect(page.getByText('Share link', { exact: true })).toHaveCount(0)
     // Click again — back to expanded
     await distributionToggle.click()
-    await expect(page.getByText('Share link', { exact: false })).toBeVisible()
+    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
   })
 
   test('share link tile copies the canonical URL', async ({ page, context }) => {
