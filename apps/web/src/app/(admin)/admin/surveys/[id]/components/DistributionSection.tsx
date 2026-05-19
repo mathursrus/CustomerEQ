@@ -1,5 +1,8 @@
 // Issue #241 Slice 4a — Spec §7 Distribution section.
-// Two tiles: Share link (Copy), Embed snippet (Copy).
+// Three tiles, left → right: Send via my email tool (#378 primary CTA),
+// Embed snippet (Copy), Share link (Copy). Order is intentional — the
+// per-recipient flow is the preferred distribution mode for #378, so it
+// occupies the left slot to draw the operator's eye first.
 // R27 default-expanded when responsesCount === 0.
 //
 // Round-2 feedback (#335 post-merge testing):
@@ -20,7 +23,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { CollapsibleSection } from './CollapsibleSection'
 
@@ -36,13 +39,19 @@ export interface DistributionSectionProps {
 }
 
 function CopyTile({
-  label,
+  icon,
+  title,
+  description,
   value,
   copyAriaLabel,
+  footer,
 }: {
-  label: string
+  icon: ReactNode
+  title: string
+  description: string
   value: string
   copyAriaLabel: string
+  footer?: ReactNode
 }) {
   const [copied, setCopied] = useState(false)
   async function handleCopy() {
@@ -55,21 +64,26 @@ function CopyTile({
     }
   }
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <p className="text-sm font-medium text-gray-700 mb-2">{label}</p>
-      <div className="flex items-start gap-2">
-        <pre className="flex-1 overflow-x-auto rounded border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap break-all">
-          <code>{value}</code>
-        </pre>
+    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <span aria-hidden>{icon}</span>
+        {title}
+      </h3>
+      <p className="mt-1 text-xs text-gray-600">{description}</p>
+      <div className="mt-3 flex justify-end">
         <button
           type="button"
           onClick={handleCopy}
           aria-label={copyAriaLabel}
-          className="flex-shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
+      <pre className="mt-2 max-h-24 overflow-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 whitespace-pre-wrap break-all">
+        <code>{value}</code>
+      </pre>
+      {footer ? <div className="mt-3">{footer}</div> : null}
     </div>
   )
 }
@@ -85,6 +99,56 @@ function dataPrefillAttrFor(kind: MemberIdentifierKind): { attr: string; label: 
     case 'external_id':
       return { attr: 'data-prefill-external-id', label: 'MEMBER_EXTERNAL_ID' }
   }
+}
+
+// Issue #378 — primary action that routes to the per-recipient links page.
+// Rendered as the right-most tile in the 3-column dist-tiles grid (matches the
+// Round-2 mock at docs/feature-specs/mocks/378-distribute-flow.html scene 1).
+function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: SurveyStatus }) {
+  const isActive = status === 'ACTIVE'
+  const disabledTooltip =
+    status === 'DRAFT'
+      ? 'Activate the survey before distributing'
+      : status === 'PAUSED'
+        ? 'Resume the survey to distribute'
+        : status === 'STOPPED'
+          ? 'This survey is stopped — Restart to distribute'
+          : ''
+
+  return (
+    <div
+      className={`flex flex-col rounded-lg border-2 p-4 ${
+        isActive ? 'border-indigo-300 bg-white' : 'border-gray-200 bg-gray-50 opacity-60'
+      }`}
+    >
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
+        <span aria-hidden>📧</span>
+        Send via my email tool
+      </h3>
+      <p className="mt-1 text-xs text-gray-600">
+        Generate per-recipient links for mail-merge applications like Mailchimp, or send individual
+        mails.
+      </p>
+      <div className="mt-auto pt-4">
+        {isActive ? (
+          <a
+            href={`/admin/surveys/${surveyId}/distribute`}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            Send via my email tool →
+          </a>
+        ) : (
+          <span
+            aria-disabled
+            title={disabledTooltip}
+            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400"
+          >
+            Send via my email tool →
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function buildEmbedSnippet(apiUrl: string, surveyId: string, kind: MemberIdentifierKind): string {
@@ -122,17 +186,33 @@ export function DistributionSection({
           formats are stable, so you can stage integrations before activation.
         </div>
       ) : null}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <CopyTile label="Share link" value={shareLink} copyAriaLabel="Copy share link" />
-        <CopyTile label="Embed snippet" value={embedSnippet} copyAriaLabel="Copy embed snippet" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* Issue #378 — primary tile placed first (left) to drive operators toward
+            the per-recipient flow over the share link. State-aware: disabled for
+            non-ACTIVE surveys with a tooltip keyed to the state (R2). */}
+        <SendViaEmailToolTile surveyId={surveyId} status={status} />
+        <CopyTile
+          icon="🧩"
+          title="Embed snippet"
+          description="Paste this script into your own page; CustomerEQ renders inline."
+          value={embedSnippet}
+          copyAriaLabel="Copy embed snippet"
+          footer={
+            <span className="text-[11px] text-gray-500">
+              Replace <code className="rounded bg-gray-100 px-1">{`{{...}}`}</code> with values your
+              host page templates server-side (member identifier:{' '}
+              <code className="rounded bg-gray-100 px-1">{memberIdentifierKind}</code>).
+            </span>
+          }
+        />
+        <CopyTile
+          icon="🔗"
+          title="Share link"
+          description="Post the URL anywhere — social, blog, signage."
+          value={shareLink}
+          copyAriaLabel="Copy share link"
+        />
       </div>
-      <p className="mt-3 text-xs text-gray-500">
-        Replace the <code className="rounded bg-gray-100 px-1">{`{{...}}`}</code> placeholders in the
-        embed snippet with values templated server-side by your host page. The member identifier
-        attribute follows your brand&apos;s configured member-identifier kind
-        (<code className="rounded bg-gray-100 px-1">{memberIdentifierKind}</code>); first-name and
-        last-name are optional.
-      </p>
     </CollapsibleSection>
   )
 }

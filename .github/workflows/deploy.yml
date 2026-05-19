@@ -22,6 +22,7 @@ env:
   REGISTRY: customereqcr.azurecr.io
   RESOURCE_GROUP: customereq-prod
   ENVIRONMENT: customereq-env
+  DEPLOY_NODE_BASE_IMAGE: mcr.microsoft.com/devcontainers/javascript-node:22-bookworm
 
 jobs:
   build-and-deploy:
@@ -70,17 +71,30 @@ jobs:
         shell: bash
         run: |
           SKIP_PATTERN='^(.*\.md|docs/.*|\.github/ISSUE_TEMPLATE/.*|\.github/pull_request_template\.md|CODEOWNERS|\.gitattributes|LICENSE)$'
+          DEMO_PATTERN='^(apps/demo-storefront/|packages/config/|Dockerfile\.demo-storefront|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json)$'
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
           echo "Changed files between HEAD~1 and HEAD:"
           echo "$CHANGED" | sed 's/^/  /'
-          if [ -z "$CHANGED" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "demo_build=true" >> "$GITHUB_OUTPUT"
+            echo "Result: manual dispatch; building all deployable images."
+          elif [ -z "$CHANGED" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "demo_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: no diff; skipping deploy."
           elif echo "$CHANGED" | grep -qvE "$SKIP_PATTERN"; then
             echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "Result: at least one non-doc file changed; deploy required."
+            if echo "$CHANGED" | grep -qE "$DEMO_PATTERN"; then
+              echo "demo_build=true" >> "$GITHUB_OUTPUT"
+              echo "Result: at least one non-doc file changed; deploy required. Demo storefront inputs changed too."
+            else
+              echo "demo_build=false" >> "$GITHUB_OUTPUT"
+              echo "Result: at least one non-doc file changed; deploy required. Demo storefront unchanged."
+            fi
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "demo_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: all changes match the doc-only skip set; skipping deploy."
           fi
 
@@ -115,6 +129,7 @@ jobs:
           az acr build --registry customereqcr \
             --image customereq-api:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-api:latest \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --file Dockerfile.api .
 
       - name: Build and push Worker image
@@ -123,6 +138,7 @@ jobs:
           az acr build --registry customereqcr \
             --image customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-worker:latest \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --file Dockerfile.worker .
 
       - name: Build and push Web image
@@ -133,20 +149,85 @@ jobs:
             --image customereq-web:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-web:latest \
             --file Dockerfile.web \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --build-arg NEXT_PUBLIC_API_URL="https://$API_FQDN" \
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
             .
 
+      # Issue #427 (this fix): do not let an unrelated demo storefront rebuild
+      # block core prod deploys. The failed run on 2026-05-19 rebuilt the demo
+      # image even though the commit touched only API/web/shared code, and the
+      # fourth ACR task hit Docker Hub's unauthenticated `node:22-slim` pull
+      # limit. Only rebuild/redeploy the demo surface when its own inputs (or
+      # workspace files it depends on) change. Manual workflow_dispatch still
+      # forces a full rebuild for explicit recovery cases.
       - name: Build and push Demo Storefront image
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.demo_build == 'true'
         run: |
           API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
           az acr build --registry customereqcr \
             --image customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-demo:latest \
             --file Dockerfile.demo-storefront \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
             .
+
+      - name: Build and push Turbo Cache image
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az acr build --registry customereqcr \
+            --image customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }} \
+            --image customereq-turbo-cache:latest \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
+            --file Dockerfile.turbo-cache .
+
+      # Issue #386: run prisma migrate deploy in an ephemeral ACA Job before
+      # any container swap. If the job fails the pipeline stops here and the
+      # old containers remain live. Applies to both workflow_run and
+      # workflow_dispatch trigger paths (same job, same step sequence).
+      - name: Run database migrations
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+
+          # Point the migrate job at the image we just pushed
+          az containerapp job update \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-api:${IMAGE_TAG}
+
+          # Start an execution and capture its name for status polling
+          EXECUTION=$(az containerapp job start \
+            --name customereq-migrate \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query name -o tsv)
+          echo "Migration execution: $EXECUTION"
+
+          # Poll until Succeeded or Failed (5-minute timeout)
+          TIMEOUT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(az containerapp job execution show \
+              --name customereq-migrate \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --job-execution-name "$EXECUTION" \
+              --query "properties.status" -o tsv)
+            echo "  status: $STATUS (${ELAPSED}s elapsed)"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "Migration succeeded — proceeding to container swap."
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Stopped" ]; then
+              echo "Migration job failed ($STATUS) — containers will NOT be swapped."
+              exit 1
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+          if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+            echo "Migration job timed out after ${TIMEOUT}s — containers will NOT be swapped."
+            exit 1
+          fi
 
       - name: Deploy API
         if: steps.changes.outputs.build == 'true'
@@ -188,12 +269,51 @@ jobs:
             --image ${{ env.REGISTRY }}/customereq-web:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Deploy Demo Storefront
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.demo_build == 'true'
         run: |
           az containerapp update \
             --name customereq-demo \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Deploy Turbo Cache
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az containerapp update \
+            --name customereq-turbo-cache \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Issue #387: assert that each container app is running the expected
+      # image tag before treating the deploy as successful. Catches the
+      # failure class where az containerapp update returns 200 but the
+      # revision did not swap (ACR push failure, silent rollback, wrong-app
+      # update in a concurrent deploy race).
+      - name: Verify deployed image SHAs
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
+          APPS="customereq-api customereq-worker customereq-web"
+          if [ "${{ steps.changes.outputs.demo_build }}" = "true" ]; then
+            APPS="$APPS customereq-demo"
+          fi
+          FAILED=0
+          for APP in $APPS; do
+            DEPLOYED=$(az containerapp show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name "$APP" \
+              --query "properties.template.containers[0].image" -o tsv)
+            if [[ "$DEPLOYED" == *":${IMAGE_TAG}" ]]; then
+              echo "  ✓ $APP — image tag matches: $IMAGE_TAG"
+            else
+              echo "  ✗ $APP — expected :${IMAGE_TAG} but got: $DEPLOYED"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            echo "One or more container apps are running the wrong image. Failing deploy."
+            exit 1
+          fi
 
       - name: Verify API health
         if: steps.changes.outputs.build == 'true'
@@ -210,3 +330,39 @@ jobs:
           done
           echo "API health check failed"
           exit 1
+
+      # Issue #388: canary probes run after the startup health check confirms
+      # the container is up. Acceptable statuses prove the route is registered
+      # and auth middleware is wired — 401 is a pass for authenticated endpoints.
+      # 500 or connection errors are the failure signal. No canary credentials
+      # are required: the 401-as-pass strategy is sufficient for route-level
+      # health without needing Key Vault-stored test tokens.
+      - name: Canary API checks
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          API_FQDN=$(az containerapp show --name customereq-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          BASE="https://$API_FQDN"
+
+          check() {
+            local label=$1 url=$2 method=${3:-GET}
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" "$url")
+            if [[ "$STATUS" == "200" || "$STATUS" == "401" || "$STATUS" == "202" || "$STATUS" == "404" ]]; then
+              echo "  ✓ $label → $STATUS"
+            else
+              echo "  ✗ $label → $STATUS (unexpected)"
+              exit 1
+            fi
+          }
+
+          # P0 — container up, DB reachable, auth middleware wired, event pipeline alive
+          check "GET /healthz"        "$BASE/healthz"
+          check "GET /v1/programs"    "$BASE/v1/programs"
+          check "GET /v1/surveys"     "$BASE/v1/surveys"
+          check "POST /v1/events"     "$BASE/v1/events" POST
+
+          # P1 — schema-sensitive: confirms migration tables exist (catches #262-class failures)
+          check "GET /v1/surveys/:id/imports" "$BASE/v1/surveys/_canary_/imports"
+          check "GET /v1/members/me/balance"  "$BASE/v1/members/me/balance"
+          check "GET /v1/analytics/cx"        "$BASE/v1/analytics/cx"

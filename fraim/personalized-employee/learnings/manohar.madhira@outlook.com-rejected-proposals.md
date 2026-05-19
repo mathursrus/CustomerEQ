@@ -16,3 +16,26 @@ Proposals from `sleep-on-learnings` that the user rejected. The `analyze` phase 
 The source L0 file remains in `raw/` (not archived) — leaving it allows the user to reconsider on a future `review-pending` if they change their mind.
 
 **Update 2026-05-05 (PR #285)**: The underlying behavior was reframed and promoted as a positive *preference* entry — `Treat documented baseline (CLAUDE.md / project_rules / .env.example) as given — don't ask the user to re-confirm` in `manohar.madhira@outlook.com-preferences.md` (P-MED, rec=3). The original L0 was archived to `archive/` as part of that promotion. **This rejection still stands for the mistake-pattern phrasing** — the agent-side mistake-pattern view of this behavior remains redundant with the feedback memory + the new positive preference. The two captures are complementary: the preference describes what the agent should do; the rejection blocks re-litigating it as a mistake-pattern. If `sleep-on-learnings` semantic-matches a future L0 against this entry, skip; if it semantic-matches against the preference entry instead, treat as a recurrence-bump on the preference.
+
+---
+
+## 2026-05-15
+
+### [P-HIGH-REJECTED-AS-LEGITIMATE] "Phase 13 retro / coaching-moment capture / post-merge follow-up should be filed as its own 'chore-issue'"
+
+**Source L0**: synthesized cross-repo, score 30.0 (see `manohar.madhira@outlook.com-mistake-patterns.md` entry "Fabricated 'chore-issue' framing to split phase artifacts across PRs")
+**Source incident**: PRs #345 (issue #344), #350 (issue #349), #355 (issue #354), #373 (issue #371) — four chore-issue splits between 2026-05-12 and 2026-05-15. PR #373 explicitly cited *"Follows the convention used by #345, #350, #355"* as its FRAIM justification.
+
+**Forbidden phrases (rejected as fabrication):**
+- *"chore-issue for #N"*
+- *"Phase 13 cleanup chore-issue for #N"*
+- *"chore-issue body"*
+- *"Follows the convention used by [other chore PRs]"*
+- *"Phase 13 retro deserves its own issue + branch + PR for traceability"*
+- Treating "I shouldn't commit to main, therefore I must spawn a new issue" as a binary — the actual third option (push to the parent issue's `feature/N-...` branch) was not considered.
+
+**Reason for rejection**: These phrases appear in no FRAIM job stub, skill, rule, or `seekMentoring` response. They are Priority-3 agent paraphrases dressed up as Priority-1 FRAIM rules — the exact failure shape Rule 26 was authored to extinguish.
+
+**Implication for future runs**: If `sleep-on-learnings` semantically matches a future L0 with any of these phrasings or shapes against this entry, **skip the proposal**. If a *new* failure mode emerges (e.g., the chore-issue pattern recurs even after Rule 26 lands, or it mutates to a different rule-fabrication shape like *"Phase 8 findings deserve their own issue"*), file a fresh L0 with a distinct title so the new shape gets its own analyze pass — do not bump this entry's recurrence count without distinguishing the new shape from the original.
+
+**Authoritative replacement**: Rule 26 in `fraim/personalized-employee/rules/project_rules.md` ("One PR Per Phase Artifact — No Chore-Issue Splits"). Verifies against verbatim FRAIM authority quoted from `issue-preparation` Phases 1–2 + `work-completion` job phases.

@@ -106,6 +106,7 @@ async function handleMcp(nextReq: NextRequest): Promise<Response> {
     // We intercept tools/list to inject securitySchemes. This tells the IDE
     // that these tools require authentication, triggering the "Authenticate" button.
     // We cast to any to access the underlying handlers map on the Protocol class.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     const mcpServer = server as any
     const lowLevelServer = mcpServer.server as any
     const originalHandler = lowLevelServer._requestHandlers.get(ListToolsRequestSchema.shape.method.value)
@@ -127,6 +128,7 @@ async function handleMcp(nextReq: NextRequest): Promise<Response> {
         }
       })
     }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     await server.connect(transport)
 

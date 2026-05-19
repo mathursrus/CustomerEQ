@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { describe, it, expect } from 'vitest'
-import { generateWidgetJs, PublicSurveyResponseSchema, SurveyTriggerSchema } from './public.js'
+import { generateWidgetJs, PublicSurveyResponseSchema } from './public.js'
 
 // ---------------------------------------------------------------------------
 // PublicSurveyResponseSchema validation
@@ -75,42 +75,10 @@ describe('PublicSurveyResponseSchema', () => {
 })
 
 // ---------------------------------------------------------------------------
-// SurveyTriggerSchema validation
+// SurveyTriggerSchema removed in Issue #378 along with the
+// POST /v1/public/surveys/trigger endpoint — see public.ts. Brands now use
+// POST /v1/surveys/:id/distribution-batches instead.
 // ---------------------------------------------------------------------------
-
-describe('SurveyTriggerSchema', () => {
-  it('accepts valid trigger payload', () => {
-    const result = SurveyTriggerSchema.safeParse({
-      memberEmail: 'test@example.com',
-      surveyId: 'survey-123',
-      source: 'zendesk',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts without optional source', () => {
-    const result = SurveyTriggerSchema.safeParse({
-      memberEmail: 'test@example.com',
-      surveyId: 'survey-123',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects missing surveyId', () => {
-    const result = SurveyTriggerSchema.safeParse({
-      memberEmail: 'test@example.com',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects empty surveyId', () => {
-    const result = SurveyTriggerSchema.safeParse({
-      memberEmail: 'test@example.com',
-      surveyId: '',
-    })
-    expect(result.success).toBe(false)
-  })
-})
 
 // ---------------------------------------------------------------------------
 // generateWidgetJs

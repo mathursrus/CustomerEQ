@@ -79,3 +79,18 @@ select:disabled {
   color: #111827 !important;
   cursor: not-allowed;
 }
+
+/* Buttons get the pointer cursor by default — every clickable surface should
+ * feel clickable. Per-component classes that want a different cursor (e.g.,
+ * disabled state) still override via Tailwind's `cursor-*` utilities or the
+ * :disabled rule below. Addresses #378 walk-through feedback #14 (button
+ * styling consistency + missing hover pointer cursor across the #378 flow).
+ */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+a[href] {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}

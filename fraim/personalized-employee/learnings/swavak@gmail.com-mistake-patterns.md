@@ -1,8 +1,19 @@
 # Mistake Patterns — swavak@gmail.com
 
-**Last synthesized**: 2026-05-08
+**Last synthesized**: 2026-05-18 (10 proposals applied — 4 new entries, 4 updated entries in validated-patterns/manager-coaching)
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
+
+---
+
+#### [P-HIGH] Committing fixes directly to main without an issue or branch
+
+**Score**: 9.0
+**Last seen**: 2026-05-18
+**Recurrences**: 1
+**First synthesized**: 2026-05-18
+
+During the CI/CD Turbo cache epic (2026-05-18), multiple fixes were committed directly to `main` without creating GitHub issues or feature branches: the BAML eval flakiness fix, the migration verify script fix (`steps_count` column), the MCP route ESLint suppression, and the CI metrics doc update. All of these violated Rules 10, 21, and 24. The agent treated them as "small" or "urgent" and bypassed the workflow. Before making any code change — regardless of size or urgency — create a GitHub issue, branch off main, and follow FRAIM. There are no exceptions for small fixes.
 
 ---
 
@@ -168,5 +179,49 @@ When writing client components in `apps/web/`, local TypeScript interfaces were 
 **First synthesized**: 2026-05-08
 
 To bypass Clerk middleware in Playwright E2E tests, a placeholder publishable key using the `*.lcl.dev` TLD was used. Chromium has `lcl.dev` HSTS-preloaded, causing `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` and requiring multiple fix iterations. For Clerk E2E bypass, always use a `.fake` or `.invalid` TLD (RFC 2606 reserved — guaranteed not HSTS-preloaded): e.g., `pk_test_<base64url(host + '$')>` where host ends in `.fake`.
+
+---
+
+#### [P-HIGH] Jumping to implementation on external data features without a spec
+
+**Score**: 8.0
+**Last seen**: 2026-05-03
+**Recurrences**: 1
+**First synthesized**: 2026-05-18
+
+When a feature ingests data from an external system (CSV, third-party export, API), the data shape is a blocking unknown. In Issue #262, the agent assumed a fixed column schema (`email`, `score`, `verbatim`) and wrote ~600 lines across 10 files before the user caught it — the primary use case (Google Reviews) has no `email` field at all. The correct trigger: any feature with an external data source goes to `feature-specification` first, regardless of how the user framed the approval. Directional "yes" from the user is not scope approval for schema design.
+
+---
+
+#### [P-HIGH] Git Bash on Windows silently expands POSIX paths in CLI arguments
+
+**Score**: 8.0
+**Last seen**: 2026-05-18
+**Recurrences**: 1
+**First synthesized**: 2026-05-18
+
+When a bash provisioning script passes absolute POSIX paths (e.g., `/app/apps/api/docker-entrypoint-migrate.sh`) to CLI tools (Azure CLI, Docker) under Windows Git Bash, Git Bash silently translates them to `C:/Program Files/Git/app/...` before the command executes. In Issue #386, this stored the wrong entrypoint command in the ACA Job — it would have failed in production without the PATCH fix. Fix: add `export MSYS_NO_PATHCONV=1` as the first line after the shebang in any `.sh` script that passes POSIX-absolute paths to CLI tools and may be run on Windows Git Bash.
+
+---
+
+#### [P-MED] Stale worktrees for closed issues exhaust disk space during issue preparation
+
+**Score**: 7.9
+**Last seen**: 2026-05-18
+**Recurrences**: 2
+**First synthesized**: 2026-05-18
+
+Worktrees for merged and closed issues left on disk accumulate `node_modules` and build artifacts (4 GB+ per worktree), causing `prep-issue.sh` to fail mid-checkout when the drive is near capacity. This occurred in both Issue #386 (pnpm store overflow) and Issue #387 (stale worktrees for closed issues 120/121/175 caused disk-full at 33 MB free). Fix: during `work-completion`, always remove the worktree directory for the issue being closed — don't leave it to accumulate.
+
+---
+
+#### [P-MED] `az role assignment create` returns `MissingSubscription` — use `az rest` fallback
+
+**Score**: 5.0
+**Last seen**: 2026-05-18
+**Recurrences**: 1
+**First synthesized**: 2026-05-18
+
+In Issue #386, every variant of `az role assignment create` (with/without `--assignee-object-id`, explicit `--subscription`, at ACR or subscription scope) returned `MissingSubscription` despite the subscription being active and correct. `az role assignment list` at the same scope succeeded. The reliable fallback: use `az rest PUT https://management.azure.com/{scope}/providers/Microsoft.Authorization/roleAssignments/{guid}?api-version=2022-04-01` directly, bypassing the CLI wrapper.
 
 ---

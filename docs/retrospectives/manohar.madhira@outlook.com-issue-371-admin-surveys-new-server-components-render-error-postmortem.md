@@ -1,7 +1,7 @@
 ---
 author: manohar.madhira@outlook.com
 date: 2026-05-14
-synthesized:
+synthesized: 2026-05-14
 ---
 
 # Postmortem: /admin/surveys/new Server Components render error — Issue #371

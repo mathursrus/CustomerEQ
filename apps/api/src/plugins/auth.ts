@@ -115,13 +115,25 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return
     }
 
-    if (!authHeader) {
+    // Issue #423 — accept `?token=<jwt>` as an alternative to
+    // `Authorization: Bearer …` for browser-issued downloads (`<a href>`).
+    // The exports endpoint (`GET /v1/surveys/:id/responses.xlsx`) cannot
+    // inject a Bearer header from an anchor click; the same JWT scoping
+    // applies. Tokens MUST be short-lived (Clerk JWTs default to 60s) and
+    // are never logged — Fastify does not log query strings by default.
+    const queryToken =
+      typeof (request.query as { token?: unknown } | undefined)?.token === 'string'
+        ? ((request.query as { token: string }).token).trim()
+        : ''
+    const effectiveAuth = authHeader || (queryToken ? `Bearer ${queryToken}` : undefined)
+
+    if (!effectiveAuth) {
       return reply
         .status(401)
         .send({ error: 'Authorization header is required' })
     }
 
-    const token = authHeader.replace(/^Bearer\s+/i, '')
+    const token = effectiveAuth.replace(/^Bearer\s+/i, '')
 
     // Delegate to the IdentityProvider abstraction (Issue #170 OD-5). The
     // abstraction normalizes Clerk JWT v1 / v2 token shapes and returns a

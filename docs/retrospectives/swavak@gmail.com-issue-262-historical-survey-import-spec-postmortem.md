@@ -1,7 +1,7 @@
 ---
 author: swavak@gmail.com
 date: 2026-05-04
-synthesized:
+synthesized: 2026-05-18
 ---
 
 # Postmortem: Historical Survey Data Import Feature Specification — Issue #262

@@ -1,7 +1,7 @@
 # StarBrew Coffee — Demo Script
 
-**Duration:** 20–25 minutes  
-**Last Updated:** 2026-05-10  
+**Duration:** 22–27 minutes  
+**Last Updated:** 2026-05-15  
 **Format:** Two browser tabs side by side. **StarBrew storefront** (left), **CustomerEQ admin** (right). Every customer action on the storefront is immediately followed by switching to admin to show the data land in real time.
 
 > **The frame:** StarBrew Coffee is a fictional coffee-shop chain. They integrated CustomerEQ in a day — one API key, a few HTTP calls, and the survey embed. Everything you're about to see is live against a real database.
@@ -15,9 +15,9 @@
 | StarBrew storefront | https://customereq-demo.salmonsea-4eb14bdc.eastus.azurecontainerapps.io |
 | CustomerEQ admin | https://customereq.wellnessatwork.me/admin |
 
-- [ ] Sign in to the admin (Clerk — use the **CustomerEQ Demo** org)
+- [ ] Sign in to the admin (Clerk — use the **StarBrew** org)
 - [ ] Open the storefront in a second tab
-- [ ] Select **Alex Chen** from the Demo persona dropdown to pre-load Act 2
+- [ ] Select **Alex Chen** from the Demo persona dropdown to pre-load Act 3
 - [ ] Run a reset if needed (see [Reset](#reset-between-runs))
 
 ---
@@ -34,7 +34,7 @@
 
 **Admin tab.** Navigate: **Settings → Developer**.
 
-> Note: the org name shown is **CustomerEQ Demo** — that's this dev account. In a production account it would show the brand name.
+> Note: the org name shown is **StarBrew** — this is the dedicated demo org. Brand name and org name can be edited independently under Settings → Organization.
 
 Point at the page top to bottom:
 
@@ -48,7 +48,32 @@ Point at the page top to bottom:
 
 ---
 
-## Act 2 — Loyal regular earns points (3 min)
+## Act 2 — Self-serve survey creation (2 min)
+
+**Admin tab.**
+
+1. Navigate: **Surveys** → click **+ New survey**.
+
+A blank "Untitled survey" draft is immediately created and the 4-tab editor opens.
+
+2. **Basics tab** — fill in three fields:
+   - **Internal name**: type **"Post-Support CSAT"**
+   - **Survey type**: click the **CSAT** card
+   - **Program**: already set to **StarBrew Rewards**
+
+> "Four survey types — NPS, CSAT, CES, Custom. Picking one auto-populates the standard question set. StarBrew wants a satisfaction check after every support interaction."
+
+3. Click **Activate →** (top right).
+
+The survey goes live. The page switches to the detail view. Point at:
+- **Distribution** — click **Show** to expand. The embed snippet already has `data-survey`, `data-prefill-email`, `data-prefill-first-name`, `data-prefill-last-name` attributes. > "Drop this one `<script>` tag on any post-support confirmation page. CustomerEQ pre-fills the member's details automatically."
+- **Loop Monitor** — expanded by default. Shows live counts: Surveys Sent, Responses Received, Rules Matched, Campaigns Triggered, Loyalty Outcomes. All zeros until the first interaction fires.
+
+> "Survey live in under 2 minutes. One tag on a page, and the feedback loop — response → sentiment score → campaign trigger — runs automatically. Surveys created during the demo are cleaned up by `pnpm seed:demo -- --reset`."
+
+---
+
+## Act 3 — Loyal regular earns points (3 min)
 
 **Storefront tab.** Select **Alex Chen** from the Demo persona dropdown (Gold, 5 visits).
 
@@ -71,7 +96,7 @@ The header shows Alex's points balance and Gold badge immediately.
 
 ---
 
-## Act 3 — New customer joins live (2 min)
+## Act 4 — New customer joins live (2 min)
 
 **Storefront tab.** In the Demo persona dropdown, scroll to the bottom and select **New customer…**
 
@@ -96,7 +121,7 @@ An inline sign-up form appears in the header area.
 
 ---
 
-## Act 4 — At-risk high-value customer (2 min)
+## Act 5 — At-risk high-value customer (2 min)
 
 **Storefront tab.** Switch to **James Park** (Platinum, 12 visits).
 
@@ -119,7 +144,7 @@ The header shows a high points balance and Platinum badge.
 
 ---
 
-## Act 5 — NPS detractor + closed-loop recovery (5 min)
+## Act 6 — NPS detractor + closed-loop recovery (5 min)
 
 This is the hero scene.
 
@@ -128,8 +153,8 @@ This is the hero scene.
 1. Click **Surveys** in the storefront nav.
 2. Click **Take survey** next to **Post-Visit NPS** (Sara's email is pre-filled).
 3. Click **3** on the NPS scale — a clear detractor.
-4. Skip the radio-button follow-up question (any selection or skip is fine).
-5. In the open-text field (**"Tell us more"** or similar label), type: **"Coffee was cold and the staff was rude."**
+4. In the text field (**"What stood out most about your visit?"**), type: **"Coffee was cold and the staff was rude."**
+5. Skip the radio-button follow-up question (**"Which area could we improve?"**) — any selection or skip is fine.
 6. Click **Submit Feedback**.
 7. Confirm: "+50 StarPoints earned!"
 
@@ -156,7 +181,7 @@ This is the hero scene.
 
 ---
 
-## Act 6 — AI support chat + live triage (2 min)
+## Act 7 — AI support chat + live triage (2 min)
 
 **Storefront tab.** Sara Kim is still selected as the active persona.
 
@@ -180,7 +205,7 @@ Point at the green chat bubble in the bottom-right corner of the storefront.
 
 ---
 
-## Act 7 — CX Intelligence (2 min)
+## Act 8 — CX Intelligence (2 min)
 
 **Admin tab.** Navigate: **CX Insights**.
 
@@ -197,7 +222,7 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 
 ---
 
-## Act 8 — AI-Agent Native (1 min)
+## Act 9 — AI-Agent Native (1 min)
 
 > "One more thing. Every endpoint we just showed is also exposed as a native MCP tool. So if StarBrew's CX team uses Claude or any AI assistant, they can ask:
 >
@@ -214,12 +239,13 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 > "What you just saw, end to end:
 >
 > 1. **Integration in a day** — API key, one embed tag, one webhook endpoint
-> 2. **Loyal member earns points** — one `purchase` event, NPS captured inline, Customer 360 updated automatically
-> 3. **New member enrolled live** — one HTTP call, GDPR consent tracked, loyalty account active immediately
-> 4. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
-> 5. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
-> 6. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
-> 7. **Cross-channel CX intelligence** — survey responses + Google reviews in one AI-scored view
+> 2. **Survey live in 2 minutes** — triggered CSAT, rule builder, embed snippet — no engineer required
+> 3. **Loyal member earns points** — one `purchase` event, NPS captured inline, Customer 360 updated automatically
+> 4. **New member enrolled live** — one HTTP call, GDPR consent tracked, loyalty account active immediately
+> 5. **At-risk Platinum identified** — win-back campaign ready to fire the moment they re-engage
+> 6. **Detractor triggers cascade** — case opened, SLA started, recovery points awarded, all in 2 seconds
+> 7. **AI chat on the storefront** — complaint triaged instantly, full context linked to the member profile
+> 8. **Cross-channel CX intelligence** — survey responses + Google reviews in one AI-scored view
 >
 > Compare that to Qualtrics + Salesforce Loyalty + Zendesk + a custom alert layer + a BI pipeline. That's 6 months and $500k. StarBrew had this running in a day. **One platform. One API.**"
 
@@ -230,16 +256,20 @@ Navigate to the **External Signals** section (scroll down on the CX Insights pag
 **Partial reset** (quick — just switch personas, cart clears automatically):
 - Use the Demo persona dropdown. No other action needed.
 
-**Full reset** (wipes all demo data and restores original balances):
+**Standard reset** (closes open cases, pauses campaigns, recreates alert rules and surveys):
 
 ```powershell
 # Run from repo root
 $env:DEMO_API_URL = "https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io"
-$env:DEMO_API_KEY = $(az keyvault secret show --vault-name customereq-kv --name mcp-api-key --query value -o tsv)
-pnpm seed:demo
+$env:DEMO_API_KEY = $(az keyvault secret show --vault-name customereq-kv --name demo-starbrew-api-key --query value -o tsv)
+pnpm seed:demo -- --reset
 ```
 
-> **Note:** `seed:demo` is additive — it skips existing members and deduplicates purchases. For a completely clean slate (clear extra purchases, survey responses, and alert cases), delete the five demo personas from **Admin → Customers** first, then re-run the seed. Any "New customer" persona added during the demo (e.g. Jordan Lee) should also be deleted. Sara Kim may accumulate open cases across demo runs — delete them from **Alerts** or do a full reset before each run.
+**Full reset** (completely clean slate — use when member state has drifted):
+1. In **Admin → Customers** (StarBrew org), delete all members — every row in this org is demo data, so bulk-delete is safe.
+2. Re-run the standard reset command above (without `--reset` flag since there's nothing to close).
+
+> **Note:** The StarBrew org is isolated — it contains only demo data. You can delete any or all of its members, cases, and surveys without risk of touching other orgs.
 
 ---
 
@@ -249,10 +279,10 @@ pnpm seed:demo
 
 | Persona | Tier | Story | Scene |
 |---|---|---|---|
-| Alex Chen | Gold | Happy regular, 5 visits | Act 2 |
-| Jordan Lee (live) | Bronze | Enrolled fresh during the demo | Act 3 |
-| James Park | Platinum | High-value, at-risk | Act 4 |
-| Sara Kim | Bronze | NPS detractor, recovery target | Act 5 |
+| Alex Chen | Gold | Happy regular, 5 visits | Act 3 |
+| Jordan Lee (live) | Bronze | Enrolled fresh during the demo | Act 4 |
+| James Park | Platinum | High-value, at-risk | Act 5 |
+| Sara Kim | Bronze | NPS detractor, recovery target | Acts 6–7 |
 | Maria Lopez | Bronze | New member, 1 visit | Optional |
 | David Wu | Gold | Active redeemer, 4 visits | Optional |
 
@@ -261,6 +291,7 @@ pnpm seed:demo
 | What to show | Path |
 |---|---|
 | Integration setup | Settings → Developer |
+| Survey creation (Act 2) | Surveys → New Survey → triggered → CX Risk → After Support |
 | Member profile + Recent Activity | Customers → search (partial name) → View → profile |
 | Alert cases | Alerts (sidebar) |
 | Alert rules | Alerts → "Manage Rules" button (top right) |

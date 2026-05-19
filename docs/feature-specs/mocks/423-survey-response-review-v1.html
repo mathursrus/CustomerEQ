@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CustomerEQ — Survey Response Review v1 (Issue #423) — interactive mock</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --info: #0891b2; --info-soft: #cffafe;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; scroll-behavior: smooth; }
+
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 8px; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-top .ctx { font-size: 13px; color: var(--text-muted); }
+  .admin-top .ctx code { font-family: var(--mono); font-size: 11px; background: white; border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+  .admin-main { padding: 28px 36px; }
+
+  .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .page-header p { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .pill.solid-active { background: var(--success-soft); color: var(--success); }
+  .pill.solid-draft { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.outline-type { background: white; border: 1px solid var(--border); color: var(--text); }
+
+  .section { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; cursor: pointer; user-select: none; }
+  .section-head h2 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .section-head .count-badge { background: var(--primary-soft); color: var(--primary); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .section-head .head-actions { display: flex; align-items: center; gap: 8px; }
+  .chevron { width: 14px; height: 14px; display: inline-block; color: var(--text-muted); }
+  .section-body { padding: 0 18px 16px; border-top: 1px solid var(--border); }
+  .section.collapsed .section-body { display: none; }
+  .section.new-section { border: 2px dashed var(--primary); }
+  .section.new-section .section-head h2::after { content: "PHASE 1 OF #235 (#423)"; font-size: 10px; color: var(--primary); background: var(--primary-soft); padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 600; letter-spacing: 0.3px; }
+
+  /* Wave filter row (#378, already shipped) */
+  .wave-filter { border: 1px solid var(--border); background: white; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .wave-filter .wave-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .wave-filter select { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px; background: white; color: var(--text); min-width: 420px; }
+  .wave-filter .source-note { font-size: 11px; color: var(--text-subtle); margin-left: auto; }
+  .wave-filter .source-note code { font-family: var(--mono); }
+  .wave-filter .source-note.shipped { color: var(--success); }
+
+  /* Filters row inside Response section */
+  .filter-row { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0 8px; border-bottom: 1px dashed var(--border); margin-bottom: 14px; }
+  .filter-group { display: flex; align-items: center; gap: 8px; }
+  .filter-group .group-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-right: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: white; color: var(--text-muted); font-size: 12px; font-weight: 500; cursor: pointer; user-select: none; }
+  .chip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+  .chip:hover:not(.active) { background: var(--surface-muted); color: var(--text); }
+  .date-range-display { font-size: 11px; color: var(--text-subtle); margin-left: 4px; font-family: var(--mono); }
+
+  /* Action buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-strong); background: white; color: var(--text); }
+  .btn:hover { background: var(--surface-muted); }
+  .btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* Response table */
+  .resp-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  table.resp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.resp-table th, table.resp-table td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+  table.resp-table thead th { background: var(--surface-muted); font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; position: sticky; top: 0; }
+  table.resp-table thead th[title] { cursor: help; border-bottom: 1px dotted var(--text-muted); }
+  table.resp-table tbody tr:hover { background: var(--surface-muted); }
+  table.resp-table tbody tr.expanded { background: var(--primary-soft); }
+  table.resp-table tbody tr.anonymous td.col-member { color: var(--text-subtle); font-style: italic; }
+  .truncated { display: inline; }
+  .more-link { color: var(--primary); font-size: 11px; cursor: pointer; margin-left: 4px; font-weight: 500; }
+  .less-link { color: var(--primary); font-size: 11px; cursor: pointer; margin-left: 4px; font-weight: 500; }
+  .expanded-body { padding: 12px; background: var(--primary-soft); border-radius: var(--radius-sm); margin-top: 6px; font-size: 13px; color: var(--text); line-height: 1.55; border: 1px solid #c7d2fe; }
+  .expanded-body strong { color: var(--primary); }
+  td.col-member .member-name { font-weight: 500; color: var(--text); }
+  td.col-member .member-id { color: var(--text-muted); font-size: 12px; font-family: var(--mono); }
+  td.col-channel { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+  td.col-submitted { font-size: 12px; color: var(--text); white-space: nowrap; }
+  td.col-submitted .sub-sub { color: var(--text-subtle); font-size: 11px; display: block; }
+  td.col-score .score-cell { display: inline-flex; align-items: center; gap: 4px; }
+  td.col-score .score-cell .scale { color: var(--text-subtle); font-size: 11px; }
+  td.col-score.detractor { background: rgba(220, 38, 38, 0.07); }
+  td.col-score.passive { background: rgba(217, 119, 6, 0.07); }
+  td.col-score.promoter { background: rgba(22, 163, 74, 0.07); }
+  td.col-score.detractor .score-cell { color: var(--danger); font-weight: 600; }
+  td.col-score.passive .score-cell { color: var(--warning); font-weight: 600; }
+  td.col-score.promoter .score-cell { color: var(--success); font-weight: 600; }
+
+  /* AI-derived columns */
+  td.col-sentiment .sent-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.4; }
+  td.col-sentiment .sent-chip.positive { background: var(--success-soft); color: var(--success); }
+  td.col-sentiment .sent-chip.neutral { background: var(--surface-muted); color: var(--text-muted); }
+  td.col-sentiment .sent-chip.negative { background: var(--danger-soft); color: var(--danger); }
+  td.col-topics .topic-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; line-height: 1.4; background: var(--info-soft); color: var(--info); border: 1px solid #a5f3fc; margin: 1px 3px 1px 0; }
+  td.col-topics .topic-overflow { display: inline-block; padding: 2px 6px; background: white; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; border-radius: 999px; cursor: help; margin-left: 2px; }
+  td.col-summary { font-size: 12px; color: var(--text-muted); font-style: italic; max-width: 240px; }
+  td.col-summary .truncated { display: inline; }
+
+  th.ai-group { background: linear-gradient(180deg, #f5f3ff, var(--surface-muted)) !important; }
+  th.ai-group-last { background: linear-gradient(180deg, #f5f3ff, var(--surface-muted)) !important; position: relative; }
+  .ai-caveat-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; font-weight: 700; font-style: normal; margin-left: 6px; cursor: help; vertical-align: middle; }
+
+  /* More-filters popover */
+  .more-filters-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--border-strong); background: white; color: var(--text-muted); font-size: 12px; font-weight: 500; cursor: pointer; }
+  .more-filters-pill:hover { background: var(--surface-muted); color: var(--text); }
+  .more-filters-popover { position: absolute; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; box-shadow: var(--shadow-md); z-index: 60; }
+  .more-filters-popover h4 { margin: 0 0 6px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+
+  /* Export-cap banner */
+  .export-cap-banner { background: var(--warning-soft); color: var(--warning-strong); border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; font-size: 12px; margin-bottom: 10px; }
+  .export-cap-banner strong { font-weight: 700; }
+
+  /* Header tooltip (hover full question text) */
+  .header-tooltip { position: absolute; background: var(--text); color: white; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 400; max-width: 320px; line-height: 1.4; box-shadow: var(--shadow-md); z-index: 50; text-transform: none; letter-spacing: normal; }
+  .header-tooltip::before { content: ''; position: absolute; top: -4px; left: 18px; width: 8px; height: 8px; background: var(--text); transform: rotate(45deg); }
+
+  /* Pagination */
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 4px 4px; font-size: 13px; }
+  .pagination-left { display: flex; align-items: center; gap: 10px; color: var(--text-muted); }
+  .pagination-left select { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; background: white; }
+  .pagination-right { display: flex; align-items: center; gap: 6px; }
+  .page-btn { border: 1px solid var(--border-strong); background: white; color: var(--text-muted); padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; }
+  .page-btn:hover:not([disabled]) { background: var(--surface-muted); color: var(--text); }
+  .page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .page-info { font-size: 12px; color: var(--text); padding: 0 8px; }
+
+  /* Empty states */
+  .empty-state { padding: 56px 24px; text-align: center; color: var(--text-muted); }
+  .empty-state .empty-icon { width: 48px; height: 48px; margin: 0 auto 12px; opacity: 0.4; }
+  .empty-state h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); font-weight: 600; }
+  .empty-state p { margin: 0 0 12px; font-size: 13px; }
+  .empty-state .empty-clear { color: var(--primary); font-size: 12px; cursor: pointer; }
+
+  /* Excel preview scene */
+  .xlsx-window { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .xlsx-titlebar { background: #1d6f42; color: white; padding: 10px 18px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .xlsx-titlebar .xlsx-icon { width: 16px; height: 16px; background: white; color: #1d6f42; border-radius: 2px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; }
+  .xlsx-filename { font-family: var(--mono); font-size: 11px; opacity: 0.9; }
+  .xlsx-sheet-tabs { background: #f3f4f6; padding: 6px 18px; border-bottom: 1px solid var(--border); display: flex; gap: 2px; }
+  .xlsx-sheet-tab { padding: 4px 12px; background: white; border: 1px solid var(--border); border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; font-size: 11px; color: var(--text-muted); }
+  .xlsx-sheet-tab.active { color: var(--text); font-weight: 500; }
+  .xlsx-grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .xlsx-grid th, .xlsx-grid td { border: 1px solid #d4d4d8; padding: 6px 10px; vertical-align: top; }
+  .xlsx-grid thead th { background: #f9fafb; font-weight: 600; color: var(--text-muted); font-size: 11px; }
+  .xlsx-grid .row-num { background: #f3f4f6; color: var(--text-subtle); font-family: var(--mono); font-size: 11px; text-align: center; width: 36px; padding: 2px 6px; }
+  .xlsx-cover-key { background: #fef3c7; font-weight: 600; color: #92400e; width: 180px; font-family: var(--font); font-size: 12px; }
+  .xlsx-cover-val { font-family: var(--mono); font-size: 11px; color: var(--text); }
+  .xlsx-blank { background: #fafafa; height: 18px; }
+  .xlsx-data-header { background: #4338ca; color: white; font-weight: 600; font-size: 11px; padding: 6px 10px; }
+  .xlsx-data-row td { background: white; }
+
+  /* nav */
+  .scene-nav { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; max-width: 1280px; margin: 18px auto 0; }
+  .scene-nav h2 { margin: 0 0 8px; font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .scene-nav ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .scene-nav a { color: var(--primary); text-decoration: none; font-size: 13px; }
+  .scene-nav a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>CustomerEQ — Survey Response Review v1 · Issue <a href="https://github.com/mathursrus/CustomerEQ/issues/423" style="color:white">#423</a> · Phase 1 of <a href="https://github.com/mathursrus/CustomerEQ/issues/235" style="color:white">#235</a></h1>
+  <div class="nav">
+    <a href="#scene-1">1 · Default</a>
+    <a href="#scene-2">2 · Wave</a>
+    <a href="#scene-3">3 · Date + channel</a>
+    <a href="#scene-4">4 · Expand row</a>
+    <a href="#scene-5">5 · Header tooltip</a>
+    <a href="#scene-6">6 · Page size</a>
+    <a href="#scene-7">7 · Excel export</a>
+    <a href="#scene-8">8 · Empty: zero</a>
+    <a href="#scene-9">9 · Empty: filters</a>
+    <a href="#scene-10">10 · Anonymous</a>
+    <a href="#scene-11">11 · Filter overflow</a>
+    <a href="#scene-12">12 · Export cap</a>
+    <a href="#scene-13">13 · Custom-type survey</a>
+  </div>
+</div>
+
+<div class="scene-nav">
+  <h2>About this mock</h2>
+  <p style="font-size:13px;color:var(--text);margin:0 0 8px;">
+    Each scene shows a state of the <strong>Response section</strong> on <code>/admin/surveys/[id]</code>. The wave-filter row above the section is the already-shipped #378 <code>DistributionBatchesFilter</code> — this issue does not rebuild it, only wires its selection into the table. Brand timezone: <code>America/Los_Angeles</code>, locale <code>en-US</code> throughout (per <code>Brand.timezone</code> / <code>Brand.locale</code> from #277). Survey type: NPS (single-type — no survey-type chip).
+  </p>
+</div>
+
+<!-- SCENE 1 — DEFAULT STATE -->
+<div class="scene" id="scene-1">
+  <div class="scene-label"><strong>Scene 1</strong> — Default state. Response section expanded (responsesCount &gt; 0 per #241 R32). Wave: "All waves and direct responses". Submitted: All time. All channels selected. Page size 25 (default), page 1 of 17, 412 responses total.</div>
+  <div class="container">
+  <div class="admin-shell">
+    <div class="admin-top">
+      <div class="logo"><span class="logo-mark">EQ</span> CustomerEQ</div>
+      <div class="ctx">Brand: <code>Acme Inc</code> · TZ: <code>America/Los_Angeles</code> · Identifier kind: <code>EMAIL</code></div>
+    </div>
+    <div class="admin-main">
+      <div class="breadcrumb">/ admin / surveys / Q2 2026 Customer Pulse</div>
+      <div class="page-header">
+        <div>
+          <h1>Q2 2026 Customer Pulse <span class="pill solid-active">ACTIVE</span> <span class="pill outline-type">NPS</span></h1>
+          <p>Created Apr 1 · 412 responses across 3 distribution waves</p>
+        </div>
+      </div>
+
+      <!-- Distribution & Loop monitor placeholders (#241) -->
+      <div class="section collapsed">
+        <div class="section-head"><h2><span class="chevron">▾</span> Distribution</h2></div>
+      </div>
+      <div class="section collapsed">
+        <div class="section-head"><h2><span class="chevron">▾</span> Loop monitor</h2></div>
+      </div>
+
+      <!-- Wave filter (#378 — already shipped). Placed BETWEEN Loop Monitor
+           and Response per apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx:181–188.
+           This sub-issue does NOT relocate it; only consumes its onChange. -->
+      <div class="wave-filter">
+        <span class="wave-label">Wave:</span>
+        <select>
+          <option>All waves and direct responses</option>
+          <option>Q2 NPS Gold-tier wave · Apr 15, 2026 · 87 / 100</option>
+          <option>Q2 NPS Silver-tier wave · Apr 22, 2026 · 154 / 200</option>
+          <option>Q2 NPS All-members wave · May 1, 2026 · 168 / 250</option>
+          <option>Direct responses (share link / embed)</option>
+        </select>
+        <span class="source-note shipped">Shipped by <code>#378</code> · <code>DistributionBatchesFilter.tsx</code> · between Loop Monitor and Response</span>
+      </div>
+
+      <!-- THE RESPONSE SECTION — THIS ISSUE -->
+      <div class="section new-section">
+        <div class="section-head">
+          <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+          <div class="head-actions">
+            <button class="btn">Export to Excel</button>
+          </div>
+        </div>
+        <div class="section-body">
+
+          <div class="filter-row">
+            <div class="filter-group">
+              <span class="group-label">Score band:</span>
+              <span class="chip active">Promoter</span>
+              <span class="chip active">Passive</span>
+              <span class="chip active">Detractor</span>
+            </div>
+            <div class="filter-group">
+              <span class="group-label">Sentiment band: <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response. Correct for single-text-question surveys (standard NPS/CSAT/CES). Later phases will continue refining these AI-derived values to improve accuracy.">i</span></span>
+              <span class="chip active">Positive</span>
+              <span class="chip active">Neutral</span>
+              <span class="chip active">Negative</span>
+            </div>
+            <div class="filter-group">
+              <span class="group-label">Submitted:</span>
+              <span class="chip">Last 7 days</span>
+              <span class="chip">Last 30 days</span>
+              <span class="chip">Last 90 days</span>
+              <span class="chip active">All time</span>
+              <span class="chip">Custom…</span>
+            </div>
+            <div class="filter-group">
+              <span class="group-label">Channel:</span>
+              <span class="chip active">email</span>
+              <span class="chip active">in_app</span>
+              <span class="chip active">link</span>
+              <span class="chip active">sms</span>
+              <span class="chip active">review</span>
+            </div>
+          </div>
+
+          <div class="resp-table-wrap">
+            <table class="resp-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Channel</th>
+                  <th>Submitted</th>
+                  <th>Score</th>
+                  <th class="ai-group">AI · Sentiment</th>
+                  <th class="ai-group">AI · Topics</th>
+                  <th class="ai-group-last">AI · Summary <span class="ai-caveat-icon" title="AI-derived columns (AI · Sentiment, AI · Topics, AI · Summary) are computed across all open-ended answers on each response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, interpret with caution — later phases of this product surface will continue refining these AI-derived values to improve accuracy.">i</span></th>
+                  <th title="How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)">Recommend? <span style="color:var(--text-subtle)">…</span></th>
+                  <th title="What's the main reason for the score you gave?">Reason for score</th>
+                  <th title="What's one thing we could do better?">One thing to improve</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="col-member"><span class="member-name">Jane Cooper</span> <span class="member-id">(jane@cooper.com)</span></td>
+                  <td class="col-channel">email</td>
+                  <td class="col-submitted">May 18, 2026<span class="sub-sub">11:24 AM PDT</span></td>
+                  <td class="col-score promoter"><span class="score-cell">9 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip positive" title="+0.62">Positive</span></td>
+                  <td class="col-topics"><span class="topic-chip">support</span><span class="topic-chip">response time</span></td>
+                  <td class="col-summary">Mostly satisfied with support outcome but frustrated with response time.</td>
+                  <td>9</td>
+                  <td><span class="truncated">Their support team replied within minutes when our integration broke. The reps were polite but I waited 40 minutes for…</span><span class="more-link">more</span></td>
+                  <td>Faster invoicing would be nice.</td>
+                </tr>
+                <tr>
+                  <td class="col-member"><span class="member-name">Marcus Lee</span> <span class="member-id">(marcus@orbit.io)</span></td>
+                  <td class="col-channel">in_app</td>
+                  <td class="col-submitted">May 18, 2026<span class="sub-sub">09:02 AM PDT</span></td>
+                  <td class="col-score detractor"><span class="score-cell">3 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip negative" title="-0.74">Negative</span></td>
+                  <td class="col-topics"><span class="topic-chip">outages</span><span class="topic-chip">reliability</span></td>
+                  <td class="col-summary">Frustrated with recurring outages affecting operations.</td>
+                  <td>3</td>
+                  <td>Outages have been frequent this month.</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td class="col-member"><span class="member-name">Priya Shah</span> <span class="member-id">(priya@shah.studio)</span></td>
+                  <td class="col-channel">link</td>
+                  <td class="col-submitted">May 17, 2026<span class="sub-sub">06:48 PM PDT</span></td>
+                  <td class="col-score passive"><span class="score-cell">7 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip neutral" title="+0.12">Neutral</span></td>
+                  <td class="col-topics"><span class="topic-chip">mobile app</span><span class="topic-chip">dark mode</span></td>
+                  <td class="col-summary">Generally positive with mobile app friction and feature request.</td>
+                  <td>7</td>
+                  <td>Mostly great, occasional friction with the mobile app.</td>
+                  <td>Dark mode on the dashboard.</td>
+                </tr>
+                <tr>
+                  <td class="col-member"><span class="member-name">Sam O'Connor</span> <span class="member-id">(sam@oconnor.net)</span></td>
+                  <td class="col-channel">email</td>
+                  <td class="col-submitted">May 17, 2026<span class="sub-sub">02:11 PM PDT</span></td>
+                  <td class="col-score promoter"><span class="score-cell">10 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip positive" title="+0.91">Positive</span></td>
+                  <td class="col-topics"><span class="topic-chip">ease of use</span><span class="topic-chip">pricing</span></td>
+                  <td class="col-summary">Strong advocate citing usability and value combo.</td>
+                  <td>10</td>
+                  <td>Easy to use, fair pricing, the rare combo.</td>
+                  <td>Nothing comes to mind.</td>
+                </tr>
+                <tr>
+                  <td class="col-member"><span class="member-name">Yuki Tanaka</span> <span class="member-id">(yuki@bento.shop)</span></td>
+                  <td class="col-channel">sms</td>
+                  <td class="col-submitted">May 16, 2026<span class="sub-sub">10:30 AM PDT</span></td>
+                  <td class="col-score detractor"><span class="score-cell">2 <span class="scale">/ 10</span></span></td>
+                  <td class="col-sentiment"><span class="sent-chip negative" title="-0.88">Negative</span></td>
+                  <td class="col-topics"><span class="topic-chip">billing</span><span class="topic-chip">double charge</span><span class="topic-chip">support</span></td>
+                  <td class="col-summary">Billing trust break: unexplained double charge + dropped support calls.</td>
+                  <td>2</td>
+                  <td><span class="truncated">Your billing system charged me for two months in advance without warning. When I called support no one could explain…</span><span class="more-link">more</span></td>
+                  <td>Stop double-charging customers and notify before any auto-renewal.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <div class="pagination-left">
+              <span>Page size:</span>
+              <select><option>25</option><option>50</option><option>100</option></select>
+            </div>
+            <div class="pagination-right">
+              <button class="page-btn" disabled>← Prev</button>
+              <span class="page-info">Page 1 of 17 · 412 responses</span>
+              <button class="page-btn">Next →</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="section collapsed"><div class="section-head"><h2><span class="chevron">▾</span> Configuration summary</h2></div></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- SCENE 2 — WAVE FILTER APPLIED -->
+<div class="scene" id="scene-2">
+  <div class="scene-label"><strong>Scene 2</strong> — Wave selector (#378) set to <em>Q2 NPS Gold-tier wave · Apr 15, 2026 · 87 / 100</em>. Response table refetches with batchId filter. Count badge drops from 412 → 87.</div>
+  <div class="container">
+    <div class="wave-filter">
+      <span class="wave-label">Wave:</span>
+      <select>
+        <option>All waves and direct responses</option>
+        <option selected>Q2 NPS Gold-tier wave · Apr 15, 2026 · 87 / 100</option>
+        <option>Q2 NPS Silver-tier wave · Apr 22, 2026 · 154 / 200</option>
+        <option>Q2 NPS All-members wave · May 1, 2026 · 168 / 250</option>
+        <option>Direct responses (share link / embed)</option>
+      </select>
+      <span class="source-note shipped">→ <code>onChange({ batchId: 'wbatch_q2_gold' })</code> — Response section refetches</span>
+    </div>
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge" style="background:var(--success-soft);color:var(--success)">87 responses · Q2 NPS Gold-tier wave</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip active">in_app</span>
+            <span class="chip active">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip active">review</span>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:6px 2px;">Showing 25 of 87 responses · Apr 15 – May 02, 2026 (brand TZ)</p>
+        <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Same table shape as Scene 1; rows narrowed to the 87 in this wave. ]</div>
+        <div class="pagination">
+          <div class="pagination-left">
+            <span>Page size:</span>
+            <select><option>25</option><option>50</option><option>100</option></select>
+          </div>
+          <div class="pagination-right">
+            <button class="page-btn" disabled>← Prev</button>
+            <span class="page-info">Page 1 of 4 · 87 responses</span>
+            <button class="page-btn">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 3 — DATE + CHANNEL -->
+<div class="scene" id="scene-3">
+  <div class="scene-label"><strong>Scene 3</strong> — Custom date range (Apr 15 → Apr 22, brand TZ) + Channel filter narrowed to email + sms. Wave still set to Gold-tier wave. Count: 54.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge" style="background:var(--success-soft);color:var(--success)">54 responses · filtered</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip">All time</span>
+            <span class="chip active">Custom… <span class="date-range-display">Apr 15 → Apr 22</span></span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip">in_app</span>
+            <span class="chip">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip">review</span>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--text-subtle);margin:2px 2px 14px;">All dates in <code>America/Los_Angeles</code>. <code>Apr 22</code> is inclusive through end-of-day in brand TZ (server-side).</p>
+        <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Table re-narrowed; only email + sms channels visible. ]</div>
+        <div class="pagination">
+          <div class="pagination-left">
+            <span>Page size:</span>
+            <select><option>25</option><option>50</option><option>100</option></select>
+          </div>
+          <div class="pagination-right">
+            <button class="page-btn" disabled>← Prev</button>
+            <span class="page-info">Page 1 of 3 · 54 responses</span>
+            <button class="page-btn">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 4 — EXPAND ROW -->
+<div class="scene" id="scene-4">
+  <div class="scene-label"><strong>Scene 4</strong> — Operator clicked <em>more</em> on Jane Cooper's <em>Reason for score</em>. The row expands in place; the rest of the table is unchanged.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="resp-table-wrap">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Channel</th>
+                <th>Submitted</th>
+                <th>Score</th>
+                <th>Recommend?</th>
+                <th>Reason for score</th>
+                <th>One thing to improve</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="expanded">
+                <td class="col-member"><span class="member-name">Jane Cooper</span> <span class="member-id">(jane@cooper.com)</span></td>
+                <td class="col-channel">email</td>
+                <td class="col-submitted">May 18, 2026<span class="sub-sub">11:24 AM PDT</span></td>
+                <td class="col-score promoter"><span class="score-cell">9 <span class="scale">/ 10</span></span></td>
+                <td>9</td>
+                <td colspan="2">
+                  <div class="expanded-body">
+                    <strong>Reason for score:</strong><br/>
+                    Their support team replied within minutes when our integration broke. The reps were polite but I waited 40 minutes for someone to acknowledge the SEV-1 we filed before anyone took ownership. Once it was assigned the resolution was actually very fast — about an hour — but that initial wait is hard to forgive when production is down. Still recommending because the underlying product is solid.<br/><br/>
+                    <strong>One thing to improve:</strong><br/>
+                    Faster invoicing would be nice.<br/><br/>
+                    <span class="less-link">less</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="col-member"><span class="member-name">Marcus Lee</span> <span class="member-id">(marcus@orbit.io)</span></td>
+                <td class="col-channel">in_app</td>
+                <td class="col-submitted">May 18, 2026<span class="sub-sub">09:02 AM PDT</span></td>
+                <td class="col-score detractor"><span class="score-cell">3 <span class="scale">/ 10</span></span></td>
+                <td>3</td>
+                <td>Outages have been frequent this month.</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 5 — HEADER TOOLTIP -->
+<div class="scene" id="scene-5">
+  <div class="scene-label"><strong>Scene 5</strong> — Operator hovered the <em>Recommend?</em> header. The header is truncated for column-width reasons; the full question text appears in a tooltip and is also <code>aria-describedby</code> the full text.</div>
+  <div class="container">
+    <div class="section new-section" style="position:relative">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="resp-table-wrap" style="position:relative">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Channel</th>
+                <th>Submitted</th>
+                <th>Score</th>
+                <th style="background:var(--primary-soft);color:var(--primary);border-bottom:1px dotted var(--primary)">Recommend? …</th>
+                <th>Reason for score</th>
+                <th>One thing to improve</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--text-subtle);padding:24px;font-style:italic">[ Rows omitted for clarity ]</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="header-tooltip" style="top:42px;left:480px">
+            How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 6 — PAGE SIZE -->
+<div class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6</strong> — Operator changed page size to 100. Pagination footer updates to Page 1 of 5. Choice persists for the session; full page reload returns to 25.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Table shows first 100 rows. ]</div>
+        <div class="pagination">
+          <div class="pagination-left">
+            <span>Page size:</span>
+            <select><option>25</option><option>50</option><option selected>100</option></select>
+            <span style="color:var(--text-subtle);font-size:11px;">(resets to 25 on full reload)</span>
+          </div>
+          <div class="pagination-right">
+            <button class="page-btn" disabled>← Prev</button>
+            <span class="page-info">Page 1 of 5 · 412 responses</span>
+            <button class="page-btn">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 7 — EXCEL EXPORT -->
+<div class="scene" id="scene-7">
+  <div class="scene-label"><strong>Scene 7</strong> — Operator clicked <em>Export to Excel</em>. Filename <code>survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</code>. Cover block (rows 1–11) names Survey / Survey type / Survey ID separately + all active filters + total rows. Row 12 blank, row 13 the AI-fields disclaimer, row 14 the <em>Powered by CustomerEQ</em> footer with the brand word linking to <code>https://customereq.wellnessatwork.me</code>, row 15 blank. Data sheet starts row 16 with column headers including the explicit <code>AI ·</code> prefix on AI-derived columns. Filter snapshot: Wave = "Q2 NPS Gold-tier wave", Submitted = "Apr 15 → Apr 22", Score band = "Detractor", Sentiment band = "Negative", Channels = "email, sms".</div>
+  <div class="container">
+    <div class="xlsx-window">
+      <div class="xlsx-titlebar">
+        <span class="xlsx-icon">X</span>
+        <span>Microsoft Excel —</span>
+        <span class="xlsx-filename">survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</span>
+      </div>
+      <div class="xlsx-sheet-tabs">
+        <div class="xlsx-sheet-tab active">Responses</div>
+      </div>
+      <table class="xlsx-grid">
+        <thead>
+          <tr>
+            <th class="row-num"></th>
+            <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="row-num">1</td><td class="xlsx-cover-key">Survey</td><td class="xlsx-cover-val" colspan="9">Q2 2026 Customer Pulse</td></tr>
+          <tr><td class="row-num">2</td><td class="xlsx-cover-key">Survey type</td><td class="xlsx-cover-val" colspan="9">NPS</td></tr>
+          <tr><td class="row-num">3</td><td class="xlsx-cover-key">Survey ID</td><td class="xlsx-cover-val" colspan="9">srv_aBc123xYz</td></tr>
+          <tr><td class="row-num">4</td><td class="xlsx-cover-key">Exported at</td><td class="xlsx-cover-val" colspan="9">May 19, 2026, 11:47 AM PDT</td></tr>
+          <tr><td class="row-num">5</td><td class="xlsx-cover-key">Exported by</td><td class="xlsx-cover-val" colspan="9">manohar.madhira@outlook.com</td></tr>
+          <tr><td class="row-num">6</td><td class="xlsx-cover-key">Wave</td><td class="xlsx-cover-val" colspan="9">Q2 NPS Gold-tier wave · Apr 15, 2026</td></tr>
+          <tr><td class="row-num">7</td><td class="xlsx-cover-key">Submitted range</td><td class="xlsx-cover-val" colspan="9">Apr 15, 2026 → Apr 22, 2026 (America/Los_Angeles)</td></tr>
+          <tr><td class="row-num">8</td><td class="xlsx-cover-key">Score band</td><td class="xlsx-cover-val" colspan="9">Detractor</td></tr>
+          <tr><td class="row-num">9</td><td class="xlsx-cover-key">Sentiment band</td><td class="xlsx-cover-val" colspan="9">Negative</td></tr>
+          <tr><td class="row-num">10</td><td class="xlsx-cover-key">Channels</td><td class="xlsx-cover-val" colspan="9">email, sms</td></tr>
+          <tr><td class="row-num">11</td><td class="xlsx-cover-key">Total rows</td><td class="xlsx-cover-val" colspan="9">23</td></tr>
+          <tr><td class="row-num">12</td><td class="xlsx-blank" colspan="10"></td></tr>
+          <tr><td class="row-num">13</td><td colspan="10" style="font-style:italic;color:var(--warning-strong);background:var(--warning-soft);font-size:11px;">AI-derived columns (AI · Sentiment, AI · Topics, AI · Summary) are computed across all open-ended answers per response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, interpret with caution — later phases of this product surface will continue refining these AI-derived values to improve accuracy.</td></tr>
+          <tr><td class="row-num">14</td><td colspan="10" style="font-size:11px;color:var(--text-muted);font-style:italic;">Powered by <a href="https://customereq.wellnessatwork.me" style="color:var(--primary);text-decoration:underline;">CustomerEQ</a></td></tr>
+          <tr><td class="row-num">15</td><td class="xlsx-blank" colspan="10"></td></tr>
+          <tr>
+            <td class="row-num">16</td>
+            <td class="xlsx-data-header">Member</td>
+            <td class="xlsx-data-header">Channel</td>
+            <td class="xlsx-data-header">Submitted</td>
+            <td class="xlsx-data-header">Score</td>
+            <td class="xlsx-data-header">AI · Sentiment</td>
+            <td class="xlsx-data-header">AI · Topics</td>
+            <td class="xlsx-data-header">AI · Summary</td>
+            <td class="xlsx-data-header">How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)</td>
+            <td class="xlsx-data-header">What's the main reason for the score you gave?</td>
+            <td class="xlsx-data-header">What's one thing we could do better?</td>
+          </tr>
+          <tr class="xlsx-data-row">
+            <td class="row-num">17</td>
+            <td>Yuki Tanaka (yuki@bento.shop)</td>
+            <td>sms</td>
+            <td>Apr 18, 2026, 10:30 AM PDT</td>
+            <td>2</td>
+            <td>Negative</td>
+            <td>billing, double charge, support</td>
+            <td>Billing trust break: unexplained double charge + dropped support calls.</td>
+            <td>2</td>
+            <td>Your billing system charged me for two months in advance without warning. When I called support no one could explain why and the call was disconnected twice before I got a manager.</td>
+            <td>Stop double-charging customers and notify before any auto-renewal.</td>
+          </tr>
+          <tr class="xlsx-data-row">
+            <td class="row-num">18</td>
+            <td>Marcus Lee (marcus@orbit.io)</td>
+            <td>email</td>
+            <td>Apr 17, 2026, 09:02 AM PDT</td>
+            <td>3</td>
+            <td>Negative</td>
+            <td>outages, reliability</td>
+            <td>Frustrated with recurring outages affecting operations.</td>
+            <td>3</td>
+            <td>Outages have been frequent this month. The status page doesn't always reflect what we're seeing.</td>
+            <td>Honest status page updates.</td>
+          </tr>
+          <tr><td class="row-num">…</td><td colspan="10" style="font-style:italic;color:var(--text-subtle)">23 data rows total</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 8 — EMPTY: ZERO RESPONSES -->
+<div class="scene" id="scene-8">
+  <div class="scene-label"><strong>Scene 8</strong> — Empty state: survey has zero responses. Section auto-collapsed per #241 R32, here shown expanded for review. Export button disabled with tooltip.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge" style="background:var(--surface-muted);color:var(--text-muted)">0 responses</span></h2>
+        <div class="head-actions"><button class="btn" disabled title="Nothing to export — this survey has no responses.">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="empty-state">
+          <h3>No responses yet</h3>
+          <p>Distribute the survey or run a historical import to populate this view.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 9 — EMPTY: FILTERS YIELD ZERO -->
+<div class="scene" id="scene-9">
+  <div class="scene-label"><strong>Scene 9</strong> — Survey has 412 responses but the current filter combination yields zero. Subtle <em>Clear filters</em> link offers a one-click reset. Export button disabled.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge" style="background:var(--surface-muted);color:var(--text-muted)">0 responses · filtered</span></h2>
+        <div class="head-actions"><button class="btn" disabled title="Nothing to export — current filters yield 0 responses.">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip">All time</span>
+            <span class="chip active">Custom… <span class="date-range-display">Jan 1 → Jan 8</span></span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip">email</span>
+            <span class="chip">in_app</span>
+            <span class="chip">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip">review</span>
+          </div>
+        </div>
+        <div class="empty-state">
+          <h3>No responses match the current filters</h3>
+          <p>Try widening the date range or selecting more channels.</p>
+          <span class="empty-clear">Clear filters</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 10 — ANONYMOUS ROW -->
+<div class="scene" id="scene-10">
+  <div class="scene-label"><strong>Scene 10</strong> — Anonymous response (Google Reviews import — <code>memberId IS NULL</code>). Member column renders <code>—</code>; the rest of the row renders normally.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="resp-table-wrap">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Channel</th>
+                <th>Submitted</th>
+                <th>Score</th>
+                <th>Recommend?</th>
+                <th>Reason for score</th>
+                <th>One thing to improve</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="anonymous">
+                <td class="col-member">—</td>
+                <td class="col-channel">review</td>
+                <td class="col-submitted">Mar 14, 2026<span class="sub-sub">Imported · originally posted Mar 14, 2026 (PST)</span></td>
+                <td class="col-score promoter"><span class="score-cell">8 <span class="scale">/ 10</span></span></td>
+                <td>8</td>
+                <td>Great product. Have been a customer for two years and have never had a billing issue.</td>
+                <td>Would love a Slack integration.</td>
+              </tr>
+              <tr>
+                <td class="col-member"><span class="member-name">Priya Shah</span> <span class="member-id">(priya@shah.studio)</span></td>
+                <td class="col-channel">link</td>
+                <td class="col-submitted">May 17, 2026<span class="sub-sub">06:48 PM PDT</span></td>
+                <td class="col-score passive"><span class="score-cell">7 <span class="scale">/ 10</span></span></td>
+                <td>7</td>
+                <td>Mostly great, occasional friction with the mobile app.</td>
+                <td>Dark mode on the dashboard.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--text-subtle);margin:8px 2px;">Anonymous rows export with an empty Member cell.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 11 — FILTER ROW OVERFLOW -->
+<div class="scene" id="scene-11">
+  <div class="scene-label"><strong>Scene 11</strong> — Viewport narrowed (or many chip groups). Filter bar would wrap past one row; <strong>Channel</strong> collapses behind a <em>More filters ↓</em> popover. Channel state is preserved across collapse/expand. Score band / Sentiment band / Submitted stay inline (in that order).</div>
+  <div class="container">
+    <div class="section new-section" style="position:relative">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">412 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row" style="position:relative">
+          <div class="filter-group">
+            <span class="group-label">Score band:</span>
+            <span class="chip active">Promoter</span>
+            <span class="chip active">Passive</span>
+            <span class="chip active">Detractor</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Sentiment band:</span>
+            <span class="chip active">Positive</span>
+            <span class="chip active">Neutral</span>
+            <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">7d</span>
+            <span class="chip">30d</span>
+            <span class="chip">90d</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="more-filters-pill">More filters ↓ <span style="background:var(--primary);color:white;font-size:9px;padding:1px 6px;border-radius:999px;margin-left:4px;">2/5</span></span>
+          </div>
+          <!-- Popover anchored under "More filters ↓" -->
+          <div class="more-filters-popover" style="top:48px;right:0;width:220px">
+            <h4>Channel</h4>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              <span class="chip active">email</span>
+              <span class="chip active">in_app</span>
+              <span class="chip">link</span>
+              <span class="chip">sms</span>
+              <span class="chip">review</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-style:italic;color:var(--text-subtle);padding:24px 2px;font-size:12px;">[ Table rows omitted — filtered by Channel = (email, in_app) only. ]</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 12 — EXPORT CAP EXCEEDED -->
+<div class="scene" id="scene-12">
+  <div class="scene-label"><strong>Scene 12</strong> — Filter set yields more than 50,000 responses. Server would return HTTP 413 on the export endpoint; the UI pre-emptively disables the Export button and surfaces an inline banner. The 50k cap matches platform-wide limits (#262 import) and stays well within Excel's 1,048,576-row sheet limit.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">1,247,033 responses</span></h2>
+        <div class="head-actions"><button class="btn" disabled title="Filtered set is 1,247,033 responses — narrow the filters to under 50,000 rows and try again.">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Score band:</span>
+            <span class="chip active">Promoter</span>
+            <span class="chip active">Passive</span>
+            <span class="chip active">Detractor</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Sentiment band:</span>
+            <span class="chip active">Positive</span>
+            <span class="chip active">Neutral</span>
+            <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip active">in_app</span>
+            <span class="chip active">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip active">review</span>
+          </div>
+        </div>
+        <div class="export-cap-banner">
+          <strong>Export cap reached.</strong> The filtered set has <strong>1,247,033 responses</strong>; exports are capped at <strong>50,000 rows</strong> per file (matches the platform-wide row limit). <em>Narrow the filters</em> — try a date range or a single wave — and the Export button will re-enable.
+        </div>
+        <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Table loads paginated 25 rows at a time as usual; the cap only applies to export. ]</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 13 — CUSTOM-TYPE SURVEY -->
+<div class="scene" id="scene-13">
+  <div class="scene-label"><strong>Scene 13</strong> — Survey with <code>Survey.type = 'CUSTOM'</code>. Score band and Sentiment band chip groups are hidden (band-style filters are reserved for NPS / CSAT / CES in Phase 1). The Score column also hides — custom surveys have no defined scoring scale. AI · Sentiment / AI · Topics / AI · Summary remain (sentiment is text-derived, not score-derived). Filter row shows only Submitted + Channel.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">87 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip active">in_app</span>
+            <span class="chip active">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip active">review</span>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--text-subtle);margin:2px 2px 14px;">Survey type is <code>CUSTOM</code> — Score band and Sentiment band filters are not available in Phase 1 for this type.</p>
+        <div class="resp-table-wrap">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Channel</th>
+                <th>Submitted</th>
+                <th class="ai-group">AI · Sentiment</th>
+                <th class="ai-group">AI · Topics</th>
+                <th class="ai-group-last">AI · Summary <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response.">i</span></th>
+                <th>What did you find most useful?</th>
+                <th>Anything missing?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="col-member"><span class="member-name">Aiden Ross</span> <span class="member-id">(aiden@maker.dev)</span></td>
+                <td class="col-channel">in_app</td>
+                <td class="col-submitted">May 18, 2026<span class="sub-sub">02:14 PM PDT</span></td>
+                <td class="col-sentiment"><span class="sent-chip positive" title="+0.48">Positive</span></td>
+                <td class="col-topics"><span class="topic-chip">documentation</span><span class="topic-chip">examples</span></td>
+                <td class="col-summary">Found docs and examples helpful but wants more advanced scenarios.</td>
+                <td>The walkthrough videos. Saved me an afternoon.</td>
+                <td>More advanced examples on the integration page.</td>
+              </tr>
+              <tr>
+                <td class="col-member"><span class="member-name">Beth Chau</span> <span class="member-id">(beth@studio42.co)</span></td>
+                <td class="col-channel">email</td>
+                <td class="col-submitted">May 17, 2026<span class="sub-sub">10:09 AM PDT</span></td>
+                <td class="col-sentiment"><span class="sent-chip neutral" title="+0.04">Neutral</span></td>
+                <td class="col-topics"><span class="topic-chip">onboarding</span></td>
+                <td class="col-summary">Neutral on onboarding — completed but doesn't recommend specific changes.</td>
+                <td>Onboarding got me started.</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

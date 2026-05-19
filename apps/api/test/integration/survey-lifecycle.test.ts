@@ -79,11 +79,19 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const request = authenticatedRequest(brand.id)
 
-    // Create survey in DRAFT status (factory defaults to ACTIVE, use createSurvey directly)
+    // Create survey in DRAFT status (factory defaults to ACTIVE, use createSurvey directly).
+    // Issue #414 — must supply a non-null `title` because the activation gate at
+    // `apps/api/src/routes/surveys.ts` (added in #241 Slice 4b, commit `4311aef`)
+    // rejects activation with 422 MISSING_TITLE when title is null. The factory
+    // default of `title: null` reflects the deliberate spec design (operators can
+    // scaffold an unnamed DRAFT and fill the title before activation), so we
+    // supply it explicitly here rather than changing the factory default and
+    // touching ~30 other test files that rely on it.
     const survey = await createSurvey({
       brandId: brand.id,
       programId: program.id,
       status: 'DRAFT',
+      title: 'Test survey',
     })
 
     const res = await request

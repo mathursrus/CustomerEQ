@@ -1,5 +1,5 @@
 {
-  "version": "2.0.124",
+  "version": "unknown",
   "mode": "integrated",
   "project": {
     "name": "CustomerEQ",
@@ -64,6 +64,16 @@
       "soc2": "target-month-12",
       "pci": "minimal-scope"
     },
+    "competitors": [
+      { "name": "SurveyMonkey",  "url": "https://www.surveymonkey.com",  "segment": "survey-platform",      "tier": "mid-market" },
+      { "name": "Qualtrics XM",  "url": "https://www.qualtrics.com",     "segment": "cx-platform",          "tier": "enterprise" },
+      { "name": "Delighted",     "url": "https://delighted.com",         "segment": "nps-focused",          "tier": "mid-market" },
+      { "name": "Medallia",      "url": "https://www.medallia.com",      "segment": "cx-platform",          "tier": "enterprise" },
+      { "name": "HubSpot Service Hub", "url": "https://www.hubspot.com/products/service", "segment": "cx-platform-bundle", "tier": "mid-market" },
+      { "name": "Typeform",      "url": "https://www.typeform.com",      "segment": "form-platform",        "tier": "mid-market" },
+      { "name": "AskNicely",     "url": "https://www.asknicely.com",     "segment": "nps-focused",          "tier": "mid-market" },
+      { "name": "GetFeedback",   "url": "https://www.getfeedback.com",   "segment": "cx-platform-salesforce-native", "tier": "enterprise" }
+    ],
     "stack": {
       "frontend": "next.js-15",
       "ui": "shadcn-tailwind-v4",
