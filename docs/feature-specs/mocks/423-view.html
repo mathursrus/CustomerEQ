@@ -201,7 +201,17 @@
         </div>
       </div>
 
-      <!-- Wave filter (#378 — already shipped, listed for context only) -->
+      <!-- Distribution & Loop monitor placeholders (#241) -->
+      <div class="section collapsed">
+        <div class="section-head"><h2><span class="chevron">▾</span> Distribution</h2></div>
+      </div>
+      <div class="section collapsed">
+        <div class="section-head"><h2><span class="chevron">▾</span> Loop monitor</h2></div>
+      </div>
+
+      <!-- Wave filter (#378 — already shipped). Placed BETWEEN Loop Monitor
+           and Response per apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx:181–188.
+           This sub-issue does NOT relocate it; only consumes its onChange. -->
       <div class="wave-filter">
         <span class="wave-label">Wave:</span>
         <select>
@@ -211,15 +221,7 @@
           <option>Q2 NPS All-members wave · May 1, 2026 · 168 / 250</option>
           <option>Direct responses (share link / embed)</option>
         </select>
-        <span class="source-note shipped">Shipped by <code>#378</code> · <code>DistributionBatchesFilter.tsx</code></span>
-      </div>
-
-      <!-- Distribution & Loop monitor placeholders (#241) -->
-      <div class="section collapsed">
-        <div class="section-head"><h2><span class="chevron">▾</span> Distribution</h2></div>
-      </div>
-      <div class="section collapsed">
-        <div class="section-head"><h2><span class="chevron">▾</span> Loop monitor</h2></div>
+        <span class="source-note shipped">Shipped by <code>#378</code> · <code>DistributionBatchesFilter.tsx</code> · between Loop Monitor and Response</span>
       </div>
 
       <!-- THE RESPONSE SECTION — THIS ISSUE -->
