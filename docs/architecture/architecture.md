@@ -221,7 +221,7 @@ All list endpoints return a standard pagination envelope: `{ data, total, page, 
 |---|---|---|---|
 | `loyalty-events` | `processLoyaltyEvent` | 5 | Idempotency check -> `evaluateRulesWithIds()` (priority ASC, first-match-wins, stackable opt-in, per-rule `budgetCapPoints` check) -> atomic transaction (LoyaltyEvent + pointsBalance increment) |
 | `campaign-triggers` | `processCampaignTrigger` | 10 | Redis dedup (SET NX) -> budget cap check -> atomic award (LoyaltyEvent + pointsBalance + CampaignEvent + budgetSpent) -> optional notification. For `spin_wheel` campaigns: weighted random selection (`crypto.randomInt`) -> result stored in `CampaignEvent.result` JSON -> points/redemption award -> notification with spin link. |
-| `notifications` | `processNotification` | 5 | MVP stub — routes to email/SMS provider when `EMAIL_PROVIDER` is configured |
+| `notifications` | `processNotification` | 5 | Resolves the recipient from `Member.email` (or `metadata.to`) and routes delivery through the configured provider. `EMAIL_PROVIDER=azure-communication-services` sends via Azure Communication Services using the linked custom domain. SMS remains unimplemented. |
 | `sentiment-analysis` | `createSentimentProcessor` | 5 | AI-powered sentiment analysis of survey response text via GPT-4o. Also called synchronously (not queued) from `POST /v1/members/:id/notes` on the CRM note write path so the auto-tagged bucket is returned to the admin UI in the same response — see §6 "Synchronous AI on note creation". |
 | `feedback-clustering` | `processFeedbackClustering` | 1 | AI-powered feedback clustering with anomaly detection |
 | `alert-evaluation` | `processAlertEvaluation` | 10 | Rule-based alert evaluation creating case follow-ups |
@@ -511,7 +511,9 @@ Located at `fraim/config.json`. Architecture doc pointer: `customizations.archit
 | `CEQ_SALESFORCE_BRAND_ID` | — | Brand ID for Salesforce webhook events |
 | `CEQ_HUBSPOT_WEBHOOK_SECRET` | — | HMAC secret for HubSpot webhook verification |
 | `CEQ_HUBSPOT_BRAND_ID` | — | Brand ID for HubSpot webhook events |
-| `EMAIL_PROVIDER` | `stub` | Email provider (`stub` for MVP, `sendgrid` or `resend` for production) |
+| `EMAIL_PROVIDER` | `stub` | Email provider (`stub`, `azure-communication-services`, `sendgrid`, or `resend`) |
+| `AZURE_COMMUNICATION_SERVICES_CONNECTION_STRING` | — | Connection string from the Azure Communication Services resource linked to the email domain |
+| `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` | — | Verified sender address (for example `no-reply@customereq.wellnessatwork.me`) |
 | `AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING` | — | Azure observability |
 | `NODE_ENV` | — | `test` enables header-based auth bypass for integration tests |
 | `LOG_LEVEL` | `info` | Fastify/Pino log level |

@@ -1,10 +1,24 @@
 /// <reference types="vitest" />
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockPrisma } from '@customerEQ/config/test-utils'
+
+vi.mock('@customerEQ/database', async () => {
+  const { databaseMockFactory } = await import('@customerEQ/config/test-utils')
+  return databaseMockFactory()
+})
+
+const { deliverNotification } = vi.hoisted(() => ({
+  deliverNotification: vi.fn(),
+}))
+
+vi.mock('@customerEQ/connectors', () => ({
+  deliverNotification,
+}))
+
+import { prisma } from '@customerEQ/database'
 import { processNotification } from './notifications.js'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const mockPrisma = prisma as unknown as MockPrisma
 
 function makeJob(overrides: Record<string, unknown> = {}) {
   return {
@@ -18,75 +32,96 @@ function makeJob(overrides: Record<string, unknown> = {}) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Tests: processNotification
-// ---------------------------------------------------------------------------
-
 describe('processNotification', () => {
-  const originalEnv = process.env.EMAIL_PROVIDER
-
   beforeEach(() => {
-    delete process.env.EMAIL_PROVIDER
+    vi.clearAllMocks()
+    mockPrisma.member.findUnique.mockResolvedValue({ email: 'member@example.com' })
   })
 
-  afterEach(() => {
-    if (originalEnv !== undefined) {
-      process.env.EMAIL_PROVIDER = originalEnv
-    } else {
-      delete process.env.EMAIL_PROVIDER
-    }
-  })
-
-  it('returns sent:false with reason stub_provider when EMAIL_PROVIDER is not set', async () => {
-    delete process.env.EMAIL_PROVIDER
+  it('returns the shared delivery result shape', async () => {
+    deliverNotification.mockResolvedValue({
+      sent: true,
+      provider: 'azure-communication-services',
+      memberId: 'member-001',
+      channel: 'email',
+      recipient: 'member@example.com',
+      operationId: 'operation-123',
+    })
 
     const result = await processNotification(makeJob() as never)
 
-    expect(result.sent).toBe(false)
-    expect(result.reason).toBe('stub_provider')
+    expect(result).toEqual({
+      sent: true,
+      reason: undefined,
+      memberId: 'member-001',
+      channel: 'email',
+    })
   })
 
-  it('returns sent:false with reason stub_provider when EMAIL_PROVIDER is "stub"', async () => {
-    process.env.EMAIL_PROVIDER = 'stub'
+  it('looks up the recipient email through Prisma before delivery', async () => {
+    deliverNotification.mockImplementation(async (payload, options) => {
+      const recipient = await options.resolveRecipientEmail(payload)
+      return {
+        sent: Boolean(recipient),
+        reason: recipient ? undefined : 'recipient_missing',
+        provider: 'azure-communication-services',
+        memberId: payload.memberId,
+        channel: payload.channel,
+        recipient: recipient ?? undefined,
+      }
+    })
+
+    await processNotification(makeJob() as never)
+
+    expect(mockPrisma.member.findUnique).toHaveBeenCalledWith({
+      where: { id: 'member-001' },
+      select: { email: true },
+    })
+  })
+
+  it('returns recipient_missing when the member record has no email', async () => {
+    mockPrisma.member.findUnique.mockResolvedValue({ email: null })
+    deliverNotification.mockImplementation(async (payload, options) => {
+      const recipient = await options.resolveRecipientEmail(payload)
+      return {
+        sent: false,
+        reason: recipient ? undefined : 'recipient_missing',
+        provider: 'azure-communication-services',
+        memberId: payload.memberId,
+        channel: payload.channel,
+      }
+    })
 
     const result = await processNotification(makeJob() as never)
 
-    expect(result.sent).toBe(false)
-    expect(result.reason).toBe('stub_provider')
+    expect(result).toEqual({
+      sent: false,
+      reason: 'recipient_missing',
+      memberId: 'member-001',
+      channel: 'email',
+    })
   })
 
-  it('returns the correct memberId from job data', async () => {
-    const result = await processNotification(makeJob({ memberId: 'member-abc' }) as never)
+  it('passes sms payloads through to the shared delivery helper', async () => {
+    deliverNotification.mockResolvedValue({
+      sent: false,
+      reason: 'channel_not_supported',
+      provider: 'stub',
+      memberId: 'member-001',
+      channel: 'sms',
+    })
 
-    expect(result.memberId).toBe('member-abc')
-  })
-
-  it('returns the correct channel from job data', async () => {
-    const result = await processNotification(makeJob({ channel: 'email' }) as never)
-
-    expect(result.channel).toBe('email')
-  })
-
-  it('handles email channel type', async () => {
-    const result = await processNotification(makeJob({ channel: 'email' }) as never)
-
-    expect(result.channel).toBe('email')
-    expect(result.memberId).toBe('member-001')
-  })
-
-  it('handles sms channel type', async () => {
     const result = await processNotification(makeJob({ channel: 'sms' }) as never)
 
-    expect(result.channel).toBe('sms')
-    expect(result.memberId).toBe('member-001')
-  })
-
-  it('returns sent:true when EMAIL_PROVIDER is a real provider', async () => {
-    process.env.EMAIL_PROVIDER = 'sendgrid'
-
-    const result = await processNotification(makeJob() as never)
-
-    expect(result.sent).toBe(true)
-    expect(result.reason).toBeUndefined()
+    expect(deliverNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'sms' }),
+      expect.objectContaining({ resolveRecipientEmail: expect.any(Function) }),
+    )
+    expect(result).toEqual({
+      sent: false,
+      reason: 'channel_not_supported',
+      memberId: 'member-001',
+      channel: 'sms',
+    })
   })
 })
