@@ -16,6 +16,10 @@ import { processExternalSignalIngestion } from './processors/externalSignalInges
 import { processWebhookDelivery } from './processors/webhookDelivery.js'
 import { createSlaBreachCheckProcessor } from './processors/slaBreachCheck.js'
 import { createSurveyImportProcessor } from './processors/surveyImport.js'
+import { createSupportOrchestrationProcessor } from './processors/supportOrchestration.js'
+import { createKbIngestionProcessor } from './processors/kbIngestion.js'
+import { createSupportTimeoutClassifierProcessor } from './processors/supportTimeoutClassifier.js'
+import { createSlackOutboundProcessor } from './processors/slackOutbound.js'
 
 const logger = pino({ name: 'worker' })
 
@@ -111,6 +115,18 @@ const surveyImportWorker = new Worker(
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
+const supportOrchestrationWorker = new Worker(
+  QUEUES.SUPPORT_ORCHESTRATION,
+  createSupportOrchestrationProcessor(connection),
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
+const kbIngestionWorker = new Worker(
+  QUEUES.KB_INGESTION,
+  createKbIngestionProcessor(connection),
+  { connection, concurrency: 3, drainDelay: IDLE_POLL_SECONDS },
+)
+
 // SLA breach check — repeating job every 5 minutes
 const SLA_BREACH_QUEUE = 'sla-breach-check'
 const slaBreachQueue = new Queue(SLA_BREACH_QUEUE, { connection })
@@ -127,11 +143,32 @@ void slaBreachQueue.add(
   { repeat: { every: 5 * 60 * 1000 }, jobId: 'sla-breach-check-repeating' },
 )
 
+const slackOutboundWorker = new Worker(
+  QUEUES.SLACK_OUTBOUND,
+  createSlackOutboundProcessor(connection),
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// Support timeout classifier — repeating job every 1 hour
+const supportTimeoutQueue = new Queue(QUEUES.SUPPORT_TIMEOUT_CHECK, { connection })
+const supportTimeoutClassifierWorker = new Worker(
+  QUEUES.SUPPORT_TIMEOUT_CHECK,
+  createSupportTimeoutClassifierProcessor(connection),
+  { connection, concurrency: 1, drainDelay: IDLE_POLL_SECONDS },
+)
+
+// Schedule the hourly scan (idempotent — BullMQ deduplicates by jobId)
+void supportTimeoutQueue.add(
+  'scan',
+  {},
+  { repeat: { every: 60 * 60 * 1000 }, jobId: 'support-timeout-check-repeating' },
+)
+
 // ---------------------------------------------------------------------------
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, supportOrchestrationWorker, kbIngestionWorker, slaBreachWorker, supportTimeoutClassifierWorker, slackOutboundWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -159,7 +196,11 @@ logger.info(
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
       QUEUES.WEBHOOK_DELIVERY,
       QUEUES.SURVEY_IMPORT,
+      QUEUES.SUPPORT_ORCHESTRATION,
+      QUEUES.KB_INGESTION,
       SLA_BREACH_QUEUE,
+      QUEUES.SUPPORT_TIMEOUT_CHECK,
+      QUEUES.SLACK_OUTBOUND,
     ],
   },
   'Workers started',
@@ -184,8 +225,13 @@ async function shutdown(signal: string): Promise<void> {
     externalSignalIngestionWorker.close(),
     webhookDeliveryWorker.close(),
     surveyImportWorker.close(),
+    supportOrchestrationWorker.close(),
+    kbIngestionWorker.close(),
     slaBreachWorker.close(),
     slaBreachQueue.close(),
+    supportTimeoutClassifierWorker.close(),
+    supportTimeoutQueue.close(),
+    slackOutboundWorker.close(),
   ])
   await prisma.$disconnect()
   logger.info('Workers closed cleanly')

@@ -16,6 +16,14 @@ export { generateEmbedding } from './analysis/embeddings.js'
 export { classifyIntent } from './analysis/classify-intent.js'
 export type { IntentClassification, KBArticleSummary } from './analysis/classify-intent.js'
 
+// Support orchestration
+export { resolveConversation } from './support/resolveConversation.js'
+export type {
+  ResolveInput,
+  ResolveResult,
+  ResolveConversationDeps,
+} from './support/resolveConversation.js'
+
 // Types
 export type {
   AiClient,

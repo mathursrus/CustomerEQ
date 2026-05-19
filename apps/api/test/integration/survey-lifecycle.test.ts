@@ -277,10 +277,10 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(survey.id)
     expect(res.body._count.responses).toBe(1)
-    expect(Array.isArray(res.body.responses)).toBe(true)
-    expect(res.body.responses.length).toBe(1)
-    expect(res.body.responses[0].score).toBe(8)
-    expect(res.body.responses[0].memberId).toBe(member.id)
+    // Issue #423 R21: the inline `responses` array was removed from this
+    // endpoint; the count badge reads `_count.responses` and the full list is
+    // fetched from `GET /v1/surveys/:id/responses`. Assert the field is absent.
+    expect(res.body.responses).toBeUndefined()
   })
 
   // ---------------------------------------------------------------------------

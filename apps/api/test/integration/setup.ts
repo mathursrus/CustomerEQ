@@ -1,6 +1,18 @@
 import { beforeAll, afterAll, vi } from 'vitest'
 import { InMemoryQueue } from '@customerEQ/config/test-utils'
 
+// Mock @customerEQ/database — route the prisma singleton to the test-schema DB
+// so any service/lib that imports prisma directly (e.g. resolveConversation.ts)
+// uses the same isolated DB as the Fastify plugin mock below.
+vi.mock('@customerEQ/database', async () => {
+  const { getTestPrisma } = await import('@customerEQ/config/test-utils')
+  return {
+    get prisma() {
+      return getTestPrisma()
+    },
+  }
+})
+
 // Mock BullMQ queues — route to InMemoryQueue
 vi.mock('../../src/queues/bullmq.js', () => ({
   initQueues: vi.fn(),
@@ -14,6 +26,8 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   enqueueExternalSignalIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('external-signal-ingestion', payload)),
   enqueueWebhookDelivery: vi.fn(async (payload: unknown) => InMemoryQueue.add('webhook-delivery', payload)),
   enqueueSurveyImportRow: vi.fn(async (payload: unknown) => InMemoryQueue.add('survey-import', payload)),
+  enqueueKbIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('kb-ingestion', payload)),
+  enqueueSupportOrchestration: vi.fn(async (payload: unknown) => InMemoryQueue.add('support-orchestration', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection
