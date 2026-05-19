@@ -33,9 +33,22 @@ export const UpdateSupportWidgetConfigSchema = z.object({
 })
 export type UpdateSupportWidgetConfigInput = z.infer<typeof UpdateSupportWidgetConfigSchema>
 
+/** Brand-level fields the widget needs at boot — consent + identifier kind. */
+export const PublicWidgetBootBrandSchema = z.object({
+  name: z.string(),
+  consentMode: z.enum(['EXPLICIT', 'IMPLIED_ON_SUBMIT']),
+  consentTextDefault: z.string().nullable(),
+  privacyPolicyUrl: z.string().nullable(),
+  termsUrl: z.string().nullable(),
+  memberIdentifierKind: z.enum(['EMAIL', 'PHONE', 'CUSTOMER_ID']),
+})
+export type PublicWidgetBootBrand = z.infer<typeof PublicWidgetBootBrandSchema>
+
 export const PublicWidgetBootSchema = z.object({
   brandId: z.string(),
+  /** @deprecated Use `brand.name` instead. Kept for backwards compat. */
   brandName: z.string(),
+  brand: PublicWidgetBootBrandSchema,
   theme: z.object({
     primaryColor: z.string(),
     accentColor: z.string(),

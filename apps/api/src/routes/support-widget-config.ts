@@ -42,6 +42,11 @@ const supportWidgetConfigRoutes: FastifyPluginAsync = async (fastify) => {
         select: {
           id: true,
           name: true,
+          consentMode: true,
+          consentTextDefault: true,
+          privacyPolicyUrl: true,
+          termsUrl: true,
+          memberIdentifierKind: true,
           defaultTheme: {
             select: {
               primaryColor: true,
@@ -81,7 +86,15 @@ const supportWidgetConfigRoutes: FastifyPluginAsync = async (fastify) => {
 
       const payload: PublicWidgetBoot = {
         brandId: brand.id,
-        brandName: brand.name,
+        brandName: brand.name, // @deprecated — prefer brand.name
+        brand: {
+          name: brand.name,
+          consentMode: brand.consentMode,
+          consentTextDefault: brand.consentTextDefault,
+          privacyPolicyUrl: brand.privacyPolicyUrl,
+          termsUrl: brand.termsUrl,
+          memberIdentifierKind: brand.memberIdentifierKind,
+        },
         theme,
         widget,
       }
