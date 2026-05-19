@@ -85,7 +85,9 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     const headings = screen.getAllByRole('heading').map((h) => h.textContent)
     const distributionIdx = headings.findIndex((t) => t?.includes('Distribution'))
     const loopMonitorIdx = headings.findIndex((t) => t?.toLowerCase().includes('loop monitor'))
-    const responseIdx = headings.findIndex((t) => t === 'Response')
+    // Issue #423: ResponseSection now renders an inline count badge inside
+    // the title node, so the title text is `Response <count> responses`.
+    const responseIdx = headings.findIndex((t) => t?.trim().startsWith('Response'))
     const configIdx = headings.findIndex((t) => t?.includes('Configuration summary'))
     expect(distributionIdx).toBeGreaterThanOrEqual(0)
     expect(loopMonitorIdx).toBeGreaterThan(distributionIdx)
@@ -103,8 +105,9 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     expect(await screen.findByTestId('loop-monitor-placeholder')).toBeInTheDocument()
     // Configuration body visible (survey title from the preview)
     expect(screen.getByRole('heading', { name: 'Quick check-in' })).toBeInTheDocument()
-    // Response body hidden — deferral note must not be visible
-    expect(screen.queryByText(/sibling sub-issue/i)).toBeNull()
+    // Response body hidden when responsesCount === 0 — the new empty-state
+    // body ("No responses yet") only renders once the section is expanded.
+    expect(screen.queryByText(/No responses yet/i)).toBeNull()
   })
 
   it('with responsesCount>0: Distribution collapsed, Loop Monitor expanded, Response expanded, Configuration collapsed', async () => {
@@ -113,8 +116,9 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     render(<Page />)
     // Loop Monitor stays expanded regardless of responsesCount (R32b)
     expect(await screen.findByTestId('loop-monitor-placeholder')).toBeInTheDocument()
-    // Response body visible — deferral note inside it
-    await waitFor(() => expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument())
+    // Response body visible — the count badge (Issue #423) renders inside the
+    // expanded section's header. Distribution + Configuration auto-collapse.
+    await waitFor(() => expect(screen.getByTestId('response-count-badge')).toBeInTheDocument())
     expect(screen.queryByText('Share link')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Quick check-in' })).toBeNull()
   })

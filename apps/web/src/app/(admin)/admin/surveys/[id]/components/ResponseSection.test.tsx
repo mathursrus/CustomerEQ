@@ -1,36 +1,58 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+
+// Issue #423 — `ResponseSection` is now a stateful client component that
+// fetches from `GET /v1/surveys/:id/responses`. The unit tests below cover
+// the shallow rendering paths only (empty state, count badge, export-button
+// disabled state); the full filter / fetch / pagination flow is exercised in
+// the E2E Playwright suite (`tests/e2e/423-response-review.spec.ts`).
+
+vi.mock('@clerk/nextjs', () => ({
+  useAuth: () => ({ getToken: async () => 'test-token' }),
+}))
+vi.mock('@/lib/config', () => ({
+  API_URL: 'http://localhost:8000',
+  getAuthToken: async () => 'test-token',
+}))
+
 import { ResponseSection } from './ResponseSection'
 
-// Issue #241 Slice 4a (round-2 / #335 feedback) — R32 inverse expand rule.
-// LoopMonitor is no longer embedded here (it lives in <LoopMonitorSection>
-// per R32b). The body is the deferred-analytics placeholder note only —
-// no async fetches, no stubbed fetch needed.
+const baseProps = {
+  surveyId: 'srv_test',
+  surveyType: 'NPS',
+  surveyName: 'Test NPS',
+  brandTimezone: 'America/Los_Angeles',
+  brandLocale: 'en-US',
+  questions: [
+    { id: 'q1', text: 'How likely are you to recommend us?', type: 'rating' as const },
+    { id: 'q2', text: 'What could we do better?', type: 'text' as const },
+  ],
+  wave: 'all' as const,
+}
 
-describe('<ResponseSection>', () => {
-  it('defaults collapsed when responsesCount === 0 (inverse of Distribution / Configuration)', () => {
-    render(<ResponseSection surveyId="srv_test" responsesCount={0} />)
-    // Section body must be hidden when collapsed; the deferral note lives in the body.
-    expect(screen.queryByText(/sibling sub-issue/i)).toBeNull()
+describe('<ResponseSection> — header, badge, and export state', () => {
+  beforeEach(() => {
+    // Stub global fetch so the effect doesn't actually hit the network.
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], total: 0, page: 1, pageSize: 25, totalPages: 1, filters: { scoreBandGate: { hidden: false }, sentimentBandGate: { hidden: false } } }),
+    } as unknown as Response)
   })
 
-  it('defaults expanded when responsesCount > 0', () => {
-    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
-    // Body visible — deferral note renders.
-    expect(screen.getByText(/sibling sub-issue/i)).toBeInTheDocument()
+  it('renders the count badge inside the title even when collapsed (responsesCount === 0)', () => {
+    render(<ResponseSection {...baseProps} responsesCount={0} />)
+    expect(screen.getByTestId('response-count-badge')).toBeInTheDocument()
   })
 
-  it('does not embed LoopMonitor (moved to its own section per R32b)', () => {
-    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
-    // LoopMonitor's placeholder testid must NOT appear inside Response.
-    expect(screen.queryByTestId('loop-monitor-placeholder')).toBeNull()
-    expect(screen.queryByTestId('loop-monitor')).toBeNull()
+  it('disables the Export button when responsesCount === 0', () => {
+    render(<ResponseSection {...baseProps} responsesCount={0} />)
+    const exportBtn = screen.getByTestId('response-export-button')
+    expect(exportBtn).toHaveAttribute('aria-disabled', 'true')
+    expect(exportBtn).toHaveAttribute('title', expect.stringMatching(/Nothing to export/i))
   })
 
-  it('shows the pre-response note only when responsesCount === 0 and section is expanded', () => {
-    // Force-expand path tested implicitly: render with responsesCount > 0 so the body shows,
-    // and confirm the pre-response copy ("populate once the survey starts receiving responses") is NOT shown.
-    render(<ResponseSection surveyId="srv_test" responsesCount={5} />)
-    expect(screen.queryByText(/populate once the survey/i)).toBeNull()
+  it('renders the count badge when responsesCount > 0 (section expanded by default)', () => {
+    render(<ResponseSection {...baseProps} responsesCount={5} />)
+    expect(screen.getByTestId('response-count-badge')).toBeInTheDocument()
   })
 })

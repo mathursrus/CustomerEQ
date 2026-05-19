@@ -92,8 +92,19 @@ function filterMetadata(
 
 const auditPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('onResponse', (request, reply, done) => {
-    // Only audit mutation methods
-    if (!MUTATION_METHODS.has(request.method)) {
+    // Audit gating:
+    //   - Mutation methods are audited by default (legacy behavior).
+    //   - Read methods (GET, HEAD) are audited ONLY when the route declares
+    //     `config.auditAction` — used by Issue #423 list + export endpoints
+    //     so survey-response reads land in the audit trail per R22 / GDPR
+    //     Art. 30 / SOC2 CC7.2. Read-method routes without `auditAction`
+    //     remain unaudited so the trail isn't flooded with health-check noise.
+    const routeConfig = request.routeOptions?.config as
+      | { auditAction?: string }
+      | undefined
+    const isMutation = MUTATION_METHODS.has(request.method)
+    const isAuditedRead = !isMutation && Boolean(routeConfig?.auditAction)
+    if (!isMutation && !isAuditedRead) {
       done()
       return
     }
@@ -112,7 +123,7 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     const routePath = request.routeOptions?.url ?? request.url
-    const routeConfig = request.routeOptions?.config as
+    const fullRouteConfig = request.routeOptions?.config as
       | {
           auditAction?: string
           auditResourceType?: string
@@ -125,9 +136,9 @@ const auditPlugin: FastifyPluginAsync = async (fastify) => {
     // `request.audit.metadata` filtered to the allowlist; otherwise fall
     // back to the legacy `{ method, path, statusCode }` shape that all
     // existing routes get for free.
-    const allowlist = routeConfig?.auditAllowlist
-    const action = routeConfig?.auditAction ?? inferAction(request.method, routePath)
-    const resourceType = routeConfig?.auditResourceType ?? action.split('.')[0] ?? 'unknown'
+    const allowlist = fullRouteConfig?.auditAllowlist
+    const action = fullRouteConfig?.auditAction ?? inferAction(request.method, routePath)
+    const resourceType = fullRouteConfig?.auditResourceType ?? action.split('.')[0] ?? 'unknown'
     const resourceId = extractResourceId(routePath, request.url)
 
     // Issue #241 / NFR-S5 — capture request IP into AuditEvent.metadata via

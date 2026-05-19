@@ -35,6 +35,21 @@ interface DistributionBatchesFilterProps {
   brandLocale: string
   hasDirectResponses: boolean
   onChange?: (selection: 'all' | 'direct' | { batchId: string }) => void
+  /**
+   * Issue #423 — when present, the component runs in controlled mode and the
+   * parent owns the selection state (used by the survey-detail page to lift
+   * wave state to feed both this selector and the Response section).
+   * Accepts the same shape as `onChange` so the parent can mirror onChange
+   * payloads directly. Falls back to uncontrolled local state when omitted.
+   */
+  value?: 'all' | 'direct' | { batchId: string }
+}
+
+/** Maps the controlled `value` prop into the `<select>` value string. */
+function normalizeValueToSelectKey(v: 'all' | 'direct' | { batchId: string }): string {
+  if (v === 'all') return 'all'
+  if (v === 'direct') return 'direct'
+  return v.batchId
 }
 
 function fmtDate(iso: string, tz: string, locale: string): string {
@@ -56,10 +71,12 @@ export function DistributionBatchesFilter({
   brandLocale,
   hasDirectResponses,
   onChange,
+  value,
 }: DistributionBatchesFilterProps) {
   const { getToken } = useAuth()
   const [batches, setBatches] = useState<BatchSummary[] | null>(null)
-  const [selection, setSelection] = useState<string>('all')
+  const [uncontrolledSelection, setUncontrolledSelection] = useState<string>('all')
+  const selection = value === undefined ? uncontrolledSelection : normalizeValueToSelectKey(value)
 
   useEffect(() => {
     let cancelled = false
@@ -87,14 +104,14 @@ export function DistributionBatchesFilter({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const value = e.target.value
-      setSelection(value)
+      const next = e.target.value
+      if (value === undefined) setUncontrolledSelection(next)
       if (!onChange) return
-      if (value === 'all') onChange('all')
-      else if (value === 'direct') onChange('direct')
-      else onChange({ batchId: value })
+      if (next === 'all') onChange('all')
+      else if (next === 'direct') onChange('direct')
+      else onChange({ batchId: next })
     },
-    [onChange],
+    [onChange, value],
   )
 
   if (batches === null) return null

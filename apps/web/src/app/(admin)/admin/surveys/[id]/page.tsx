@@ -61,6 +61,9 @@ export default function SurveyDetailPage() {
   const [programName, setProgramName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Issue #423 — wave selection state lifted from DistributionBatchesFilter
+  // to the detail page so ResponseSection can refetch when the wave changes.
+  const [wave, setWave] = useState<'all' | 'direct' | { batchId: string }>('all')
 
   const callApi = useCallback(
     async (path: string, init?: { method?: string; body?: unknown }) => {
@@ -179,16 +182,26 @@ export default function SurveyDetailPage() {
         getToken={getToken}
       />
       {/* Issue #378 — filter row between Loop Monitor and Response. Hidden
-          when no batches and no direct responses exist (component self-gates). */}
+          when no batches and no direct responses exist (component self-gates).
+          Issue #423: wave state lifts to this page; the filter is controlled
+          and the Response section refetches on wave change. */}
       <DistributionBatchesFilter
         surveyId={surveyId}
         brandTimezone={(effectiveBrand as { timezone?: string }).timezone ?? 'UTC'}
         brandLocale={(effectiveBrand as { locale?: string }).locale ?? 'en-US'}
         hasDirectResponses={responsesCount > 0}
+        value={wave}
+        onChange={setWave}
       />
       <ResponseSection
         surveyId={surveyId}
+        surveyType={survey.type}
+        surveyName={survey.name}
+        brandTimezone={(effectiveBrand as { timezone?: string }).timezone ?? 'UTC'}
+        brandLocale={(effectiveBrand as { locale?: string }).locale ?? 'en-US'}
         responsesCount={responsesCount}
+        questions={(survey.questions as Array<{ id: string; text: string; type?: string }>) ?? []}
+        wave={wave}
       />
       <ConfigurationSummarySection
         survey={survey}

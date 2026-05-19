@@ -1,13 +1,21 @@
 // Issue #241 Slice 3 — pure helpers for the surveys list page.
 // JSX-free so tests don't need a React/jsdom harness. The React shell
 // (page.tsx) imports from here.
+//
+// Issue #423 R9c — the chip-group primitive lives in
+// `apps/web/src/components/filters/FilterChipGroup.tsx`; this file holds the
+// surveys-list-specific group configuration only.
 
-import type { ChipGroup } from './components/FilterChips'
+export interface ChipGroupConfig {
+  key: string
+  label: string
+  options: Array<{ value: string; label: string }>
+}
 
 // Filter chip groups per spec §1.
 // Status: All / Draft / Active / Stopped — NO Paused (admins reach paused
 // surveys via the unfiltered "All" view, per spec §1).
-export const STATUS_GROUP: ChipGroup = {
+export const STATUS_GROUP: ChipGroupConfig = {
   key: 'status',
   label: 'Status',
   options: [
@@ -20,7 +28,7 @@ export const STATUS_GROUP: ChipGroup = {
 // Type: NPS / CSAT / CES / Custom — NO Trigger or Distribution chips per
 // spec §1 (CustomerEQ doesn't natively trigger surveys in V0; distribution
 // is multi-channel, not categorical).
-export const TYPE_GROUP: ChipGroup = {
+export const TYPE_GROUP: ChipGroupConfig = {
   key: 'type',
   label: 'Type',
   options: [

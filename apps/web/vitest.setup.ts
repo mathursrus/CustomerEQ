@@ -8,6 +8,18 @@ import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
+// Issue #423 — `ResizeObserver` is used by FilterBar (resize-observer-driven
+// overflow detection) but is not provided by jsdom. Polyfill with a no-op so
+// the component mounts cleanly under RTL; behavior-level overflow tests rely
+// on Playwright (E2E), not jsdom.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() { /* no-op */ }
+    unobserve() { /* no-op */ }
+    disconnect() { /* no-op */ }
+  } as unknown as typeof ResizeObserver
+}
+
 afterEach(() => {
   cleanup()
 })
