@@ -26,8 +26,8 @@ Scale: BV / TC / RR on 1–13 Fibonacci. WSJF = (BV + TC + RR) / Size.
 | C | Split `lint` into parallel job | 5 | 4 | 3 | 2 | 6.0 | ✅ Done 2026-05-19 |
 | G | Codecov coverage threshold | 5 | 3 | 6 | 1 | 14.0 | Parked — gap round |
 | B | Add `test:integration` to CI gate | 9 | 7 | 9 | 3 | 8.3 | Parked — gap round |
-| J | Move BAML LLM evals out of smoke path | 6 | 5 | 4 | 2 | 7.5 | Parked — gap round |
-| I | Nightly `test:baml` scheduled job | 5 | 3 | 5 | 5 | 2.6 | Parked — gap round |
+| J | Move BAML LLM evals out of smoke path | 6 | 5 | 4 | 2 | 7.5 | ✅ Done 2026-05-19 (combined with I — #428) |
+| I | Nightly `test:baml` scheduled job | 5 | 3 | 5 | 5 | 2.6 | ✅ Done 2026-05-19 (combined with J — #428) |
 | F | Parallel Docker builds (matrix) | 5 | 3 | 3 | 5 | 2.2 | Parked — gap round |
 | H | Nightly E2E job | 8 | 4 | 8 | 13 | 1.5 | Parked — gap round |
 
