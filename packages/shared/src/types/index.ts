@@ -46,12 +46,8 @@ export interface FeedbackClusteringPayload {
   triggeredBy?: string
 }
 
-export interface SupportOrchestrationPayload {
-  conversationId: string
-  brandId: string
-  memberId: string
-  messageContent: string
-}
+// SupportOrchestrationPayload is now defined in zod/support.schema.ts and re-exported from index.ts
+// Import it as: import { SupportOrchestrationPayload } from '@customerEQ/shared'
 
 export interface EmbeddingGenerationPayload {
   articleId: string
@@ -105,6 +101,15 @@ export interface WebhookDeliveryPayload {
   caseId: string
   data: Record<string, unknown>
 }
+
+export interface SlackOutboundPayload {
+  brandId: string
+  conversationId: string
+  kind: 'DRAFT_READY' | 'ESCALATED' | 'TIMEOUT_RESOLVED' | 'CSAT_NEGATIVE'
+  text: string
+}
+
+export type SupportTimeoutCheckPayload = Record<string, never>
 
 export type {
   HealthScoreComputationPayload,

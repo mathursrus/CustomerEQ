@@ -30,6 +30,9 @@ import campaignPlayRoutes from './routes/campaignPlay.js'
 import supportPublicRoutes from './routes/support-public.js'
 import supportAdminRoutes from './routes/support-admin.js'
 import kbRoutes from './routes/kb.js'
+import kbSourceRoutes from './routes/kb-sources.js'
+import supportWidgetConfigRoutes from './routes/support-widget-config.js'
+import supportCsatRoutes from './routes/support-csat.js'
 import intentRoutes from './routes/intent.js'
 import healthScoresRoutes from './routes/healthScores.js'
 import cxPlaybooksRoutes from './routes/cxPlaybooks.js'
@@ -39,6 +42,7 @@ import outboundWebhooksRoutes from './routes/outboundWebhooks.js'
 import authRoutes from './routes/auth.js'
 import identityProviderWebhookRoutes from './routes/identityProviderWebhook.js'
 import adminBrandProfileRoutes from './routes/admin-brand-profile.js'
+import webhooksSlackRoutes from './routes/webhooks-slack.js'
 import distributionBatchesRoutes from './routes/distributionBatches.js'
 
 export async function buildApp() {
@@ -137,6 +141,9 @@ export async function buildApp() {
   await fastify.register(supportPublicRoutes, { prefix: '/v1' })
   await fastify.register(supportAdminRoutes, { prefix: '/v1' })
   await fastify.register(kbRoutes, { prefix: '/v1' })
+  await fastify.register(kbSourceRoutes, { prefix: '/v1' })
+  await fastify.register(supportWidgetConfigRoutes, { prefix: '/v1' })
+  await fastify.register(supportCsatRoutes, { prefix: '/v1' })
   await fastify.register(intentRoutes, { prefix: '/v1' })
   await fastify.register(healthScoresRoutes, { prefix: '/v1' })
   await fastify.register(cxPlaybooksRoutes, { prefix: '/v1' })
@@ -144,6 +151,7 @@ export async function buildApp() {
   await fastify.register(developerRoutes, { prefix: '/v1' })
   await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
   await fastify.register(adminBrandProfileRoutes, { prefix: '/v1' })
+  await fastify.register(webhooksSlackRoutes)
   await fastify.register(distributionBatchesRoutes, { prefix: '/v1' })
 
   // Issue #170 PR 2 — Auth API + Clerk webhook handler. These routes have

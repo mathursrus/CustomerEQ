@@ -11,6 +11,9 @@ export async function createConversation(opts: {
   confidence?: number
   topic?: string
   assignee?: string
+  channel?: 'WIDGET' | 'SLACK'
+  anonId?: string | null
+  email?: string | null
 }) {
   const prisma = getTestPrisma()
   counter++
@@ -24,6 +27,9 @@ export async function createConversation(opts: {
       confidence: opts.confidence,
       topic: opts.topic,
       assignee: opts.assignee,
+      channel: opts.channel ?? 'WIDGET',
+      anonId: opts.anonId ?? null,
+      email: opts.email ?? null,
     },
   })
 }
@@ -33,6 +39,9 @@ export async function createMessage(opts: {
   role: 'CUSTOMER' | 'AI' | 'AGENT'
   content: string
   metadata?: Record<string, unknown>
+  aiConfidence?: number | null
+  aiSources?: Record<string, unknown> | null
+  draftedByAi?: boolean
 }) {
   const prisma = getTestPrisma()
 
@@ -42,6 +51,9 @@ export async function createMessage(opts: {
       role: opts.role,
       content: opts.content,
       metadata: opts.metadata as Prisma.InputJsonValue ?? undefined,
+      aiConfidence: opts.aiConfidence ?? null,
+      aiSources: opts.aiSources as Prisma.InputJsonValue ?? undefined,
+      draftedByAi: opts.draftedByAi ?? false,
     },
   })
 }
@@ -52,11 +64,13 @@ export async function createSupportRule(opts: {
   status?: string
   priority?: number
   intentFilters?: string[]
+  topicFilters?: string[]
   tierFilters?: string[]
   healthScoreMin?: number | null
   healthScoreMax?: number | null
-  topicFilters?: string[]
   conditions?: Record<string, unknown>
+  actionMode?: 'AUTO_REPLY' | 'DRAFT_FOR_AGENT' | 'ESCALATE'
+  confidenceThreshold?: number
   autoRespondArticleId?: string | null
   escalateToAssignee?: string | null
   awardPoints?: number | null
@@ -68,15 +82,17 @@ export async function createSupportRule(opts: {
   return prisma.supportRule.create({
     data: {
       brandId: opts.brandId,
-      name: opts.name ?? `Test Support Rule ${counter}`,
+      name: opts.name ?? `rule_${counter}`,
       status: opts.status ?? 'ACTIVE',
       priority: opts.priority ?? 0,
       intentFilters: opts.intentFilters ?? [],
+      topicFilters: opts.topicFilters ?? [],
       tierFilters: opts.tierFilters ?? [],
       healthScoreMin: opts.healthScoreMin ?? null,
       healthScoreMax: opts.healthScoreMax ?? null,
-      topicFilters: opts.topicFilters ?? [],
       conditions: (opts.conditions ?? {}) as Prisma.InputJsonValue,
+      actionMode: opts.actionMode ?? 'ESCALATE',
+      confidenceThreshold: opts.confidenceThreshold ?? 0.8,
       autoRespondArticleId: opts.autoRespondArticleId ?? null,
       escalateToAssignee: opts.escalateToAssignee ?? null,
       awardPoints: opts.awardPoints ?? null,
