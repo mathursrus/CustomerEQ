@@ -19,6 +19,15 @@ interface ChatMessage {
 
 interface BootConfig {
   brandName: string
+  /** Brand-level fields the widget needs at boot (consent + identifier kind). */
+  brand?: {
+    name: string
+    consentMode: 'EXPLICIT' | 'IMPLIED_ON_SUBMIT'
+    consentTextDefault: string | null
+    privacyPolicyUrl: string | null
+    termsUrl: string | null
+    memberIdentifierKind: 'EMAIL' | 'PHONE' | 'CUSTOMER_ID'
+  }
   theme: {
     primaryColor: string
     accentColor: string
@@ -216,6 +225,30 @@ const STYLES = `
   font-weight: 500;
 }
 .ceq-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.ceq-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px 0;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+.ceq-consent-row input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.ceq-consent-row label { cursor: pointer; }
+.ceq-disclosure {
+  padding: 8px 12px 10px;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.45;
+  border-top: 1px solid #f3f4f6;
+}
+.ceq-disclosure a { color: var(--primary); text-decoration: underline; }
 .ceq-error {
   padding: 12px 16px;
   background: #fef2f2;
@@ -248,6 +281,13 @@ class CeqSupportChat extends HTMLElement {
   private identity: CeqIdentity | null = null
   private bootReady = false
   private onReadyCallbacks: Array<() => void> = []
+  /**
+   * Per-brand consent acknowledgement state. For brands in EXPLICIT consent mode,
+   * Send is disabled until the visitor ticks the checkbox above the composer.
+   * Persisted in a per-brand cookie (`ceq_consent_<brandId>=1`) so the visitor
+   * doesn't re-tick on every page load.
+   */
+  private consentAcknowledged = false
 
   private get brandId(): string { return this.getAttribute('brand-id') ?? '' }
   private get token(): string { return this.getAttribute('token') ?? '' }
@@ -296,6 +336,7 @@ class CeqSupportChat extends HTMLElement {
         this.bootConfig = await res.json() as BootConfig
         this.applyTheme()
         this.applyWidgetCopy()
+        this.consentAcknowledged = this.loadConsentAck()
       }
     } catch {
       this.bootConfig = null
@@ -388,10 +429,19 @@ class CeqSupportChat extends HTMLElement {
         ${this.state === 'error' ? '<div class="ceq-error">Something went wrong. Please try again.</div>' : ''}
         ${this.isAnonBlocked
           ? `<div class="ceq-offline-msg">${this.escapeHtml(this.bootConfig?.widget.offlineMessage ?? "We're not online right now. Leave us a message and we'll get back to you.")}</div>`
-          : `<div class="ceq-input-area">
-              <input type="text" class="ceq-input" id="msg-input" placeholder="Type a message..." ${this.isLoading ? 'disabled' : ''}>
-              <button class="ceq-send" id="send-btn" ${this.isLoading ? 'disabled' : ''}>Send</button>
-            </div>`
+          : `${this.isBlockedByConsent()
+              ? `<div class="ceq-consent-row">
+                  <input type="checkbox" id="consent-checkbox" aria-describedby="consent-disclosure">
+                  <label for="consent-checkbox">${this.renderConsentText() || 'I agree to the privacy policy and terms.'}</label>
+                </div>`
+              : ''}
+            <div class="ceq-input-area">
+              <input type="text" class="ceq-input" id="msg-input" placeholder="Type a message..." ${this.isLoading || this.isBlockedByConsent() ? 'disabled' : ''}>
+              <button class="ceq-send" id="send-btn" ${this.isLoading || this.isBlockedByConsent() ? 'disabled' : ''}>Send</button>
+            </div>
+            ${!this.isBlockedByConsent() && this.bootConfig?.brand?.consentTextDefault
+              ? `<div class="ceq-disclosure" id="consent-disclosure">${this.renderConsentText()}</div>`
+              : ''}`
         }
       </div>
       <button class="ceq-launcher ${this.state !== 'closed' ? 'hidden' : ''}" id="launcher" aria-label="Open support chat" style="${this.state !== 'closed' ? 'display:none' : ''}">
@@ -406,6 +456,17 @@ class CeqSupportChat extends HTMLElement {
     this.shadow.getElementById('msg-input')?.addEventListener('keydown', (e: Event) => {
       if ((e as KeyboardEvent).key === 'Enter') this.handleSend()
       if ((e as KeyboardEvent).key === 'Escape') this.close()
+    })
+    this.shadow.getElementById('consent-checkbox')?.addEventListener('change', (e) => {
+      const checked = (e.currentTarget as HTMLInputElement).checked
+      if (checked) {
+        this.consentAcknowledged = true
+        this.saveConsentAck()
+        this.render()
+        setTimeout(() => {
+          (this.shadow.getElementById('msg-input') as HTMLInputElement)?.focus()
+        }, 0)
+      }
     })
 
     // Bind CSAT click handlers
@@ -560,6 +621,9 @@ class CeqSupportChat extends HTMLElement {
     } else {
       headers['X-Brand-Id'] = this.brandId
       body['anonId'] = this.getOrCreateAnonId()
+      if (this.consentAcknowledged) {
+        ;(body as Record<string, unknown>)['consent'] = true
+      }
     }
 
     const res = await fetch(`${this.apiBase}/v1/public/support/conversations`, {
@@ -715,6 +779,57 @@ class CeqSupportChat extends HTMLElement {
     const id = 'anon_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
     document.cookie = `${COOKIE}=${id}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
     return id
+  }
+
+  // ─── Consent (Brand.consentMode = EXPLICIT) ───────────────────────────────
+
+  private consentCookieKey(): string {
+    return `ceq_consent_${this.brandId}`
+  }
+
+  private loadConsentAck(): boolean {
+    if (!this.brandId) return false
+    const re = new RegExp('(?:^|; )' + this.consentCookieKey() + '=1(?:;|$)')
+    return re.test(document.cookie)
+  }
+
+  private saveConsentAck(): void {
+    if (!this.brandId) return
+    document.cookie = `${this.consentCookieKey()}=1; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+  }
+
+  /**
+   * Inline render of the brand's `consentTextDefault`. Replaces `{{privacy}}`
+   * and `{{terms}}` tokens with anchor links pointing to the brand's policy URLs.
+   * Mirrors the token grammar from packages/consent-text (the surveys module's
+   * helper) without pulling in that package as a runtime dep — keeps the
+   * widget bundle lean.
+   *
+   *   token format: {{privacy}} | {{privacy:"custom label"}}
+   */
+  private renderConsentText(): string {
+    const brand = this.bootConfig?.brand
+    const raw = brand?.consentTextDefault
+    if (!raw) return ''
+    const escaped = this.escapeHtml(raw)
+    return escaped.replace(
+      /\{\{(privacy|terms)(?::&quot;([^&<>]{1,80})&quot;)?\}\}/g,
+      (_match, kind: string, customLabel?: string) => {
+        const url = kind === 'privacy' ? brand?.privacyPolicyUrl : brand?.termsUrl
+        const fallback = kind === 'privacy' ? 'Privacy Policy' : 'Terms and Conditions'
+        const label = this.escapeHtml(customLabel ?? fallback)
+        if (!url) return label // no URL configured — render plain label
+        return `<a href="${this.escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+      },
+    )
+  }
+
+  /** True iff Send should be disabled pending an EXPLICIT consent click. */
+  private isBlockedByConsent(): boolean {
+    return (
+      this.bootConfig?.brand?.consentMode === 'EXPLICIT' &&
+      !this.consentAcknowledged
+    )
   }
 
   // ─── Agent escalation polling ─────────────────────────────────────────────
