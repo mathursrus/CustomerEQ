@@ -38,3 +38,30 @@ No blocking quality issues. No `QUALITY CHECK FAILURE` items.
 ## Resolution
 
 All quality items: **ADDRESSED** (no remediation required).
+
+---
+
+## Round 1 Feedback — Manual Verification (Phase 12)
+
+*Received: 2026-05-19, in-browser smoke test on local dev environment (web :3000 / api :4000 / docker postgres+redis)*
+
+### Comment 1 — Export to Excel returned `{"error":"Invalid or expired token"}` — **ADDRESSED**
+
+- **Author**: manohar.madhira@outlook.com (local manual verification)
+- **Type**: defect
+- **Files**: `apps/web/src/app/(admin)/admin/surveys/[id]/components/ResponseSection.tsx`
+- **Root cause**: Clerk JWTs are short-lived (`exp - iat = 60s` per the captured request log). The earlier implementation pre-fetched the export token once at mount via a `useEffect` and stored it in state; by the time the operator clicked Export, the token had often already expired. The auth plugin then returned 401 from `identityProvider.getSession(expiredJwt)`.
+- **Fix**: Removed the pre-fetch effect. `handleExportClick` now `e.preventDefault()`s the anchor, calls `getAuthToken(getTokenRef.current)` to fetch a JIT token, builds the `?token=…` URL, and triggers the download via a transient hidden anchor. The on-screen anchor `href` is `#` until click.
+- **Verification**: Re-tested in-browser; export downloads `.xlsx` cleanly.
+- **Status**: **ADDRESSED**
+
+### Comment 2 — AI-fields disclaimer wraps inside cell A13 — **ADDRESSED**
+
+- **Author**: manohar.madhira@outlook.com (local manual verification)
+- **Type**: UI polish
+- **Files**: `apps/api/src/utils/excelExport.ts`
+- **Root cause**: Row 13 (disclaimer) and row 14 (Powered-by) wrote the long string into A13 / A14 with `wrapText: true`. With column A's default width, the long copy wrapped into a tall single-cell block instead of reading as a banner.
+- **Fix**: Computed the data-area column count up front (`baseColumns.length + questionTexts.length`) and called `ws.mergeCells(rowNum, 1, rowNum, totalDataColumns)` for both row 13 (disclaimer) and row 14 (Powered-by). Wrap stays on inside the merged region, so very long disclaimers still wrap inside the banner rather than overflowing into row 14.
+- **Verification**: `pnpm typecheck` + `vitest run excelExport.test.ts` (8/8) green. Re-exported in browser; banner spans the full data width.
+- **Status**: **ADDRESSED**
+

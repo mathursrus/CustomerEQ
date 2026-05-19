@@ -83,26 +83,35 @@ export async function renderResponsesXlsx(input: RenderInput): Promise<Buffer> {
   // Row 12 — blank.
   ws.addRow([])
 
-  // Row 13 — AI-fields disclaimer (italic, merged across the visible header span).
+  // Compute the data-area column span up front so the disclaimer + Powered-by
+  // rows can be merged across the full data width rather than wrapping inside
+  // a single cell.
+  const showScoreColumn = shouldShowScoreBand(survey.type)
+  const baseColumns: string[] = ['Member', 'Channel', 'Submitted']
+  if (showScoreColumn) baseColumns.push('Score')
+  baseColumns.push('AI · Sentiment', 'AI · Topics', 'AI · Summary')
+  const questionTexts = survey.questions.map((q) => q.text ?? q.id)
+  const totalDataColumns = baseColumns.length + questionTexts.length
+
+  // Row 13 — AI-fields disclaimer (italic, merged across the data-area
+  // columns so the long caveat reads as a single banner instead of wrapping
+  // inside cell A13).
   const disclaimerRow = ws.addRow([AI_FIELDS_CAVEAT])
+  ws.mergeCells(disclaimerRow.number, 1, disclaimerRow.number, totalDataColumns)
   disclaimerRow.getCell(1).font = { italic: true, color: { argb: 'FF92400E' } }
   disclaimerRow.getCell(1).alignment = { wrapText: true, vertical: 'top' }
 
-  // Row 14 — Powered by CustomerEQ (hyperlinked).
+  // Row 14 — Powered by CustomerEQ (hyperlinked, merged across the same span).
   const poweredRow = ws.addRow([
     { text: 'Powered by CustomerEQ', hyperlink: EXPORTS_POWERED_BY_URL },
   ])
+  ws.mergeCells(poweredRow.number, 1, poweredRow.number, totalDataColumns)
   poweredRow.getCell(1).font = { color: { argb: 'FF4F46E5' }, underline: true }
 
   // Row 15 — blank.
   ws.addRow([])
 
   // Row 16 — data header.
-  const showScoreColumn = shouldShowScoreBand(survey.type)
-  const baseColumns: string[] = ['Member', 'Channel', 'Submitted']
-  if (showScoreColumn) baseColumns.push('Score')
-  baseColumns.push('AI · Sentiment', 'AI · Topics', 'AI · Summary')
-  const questionTexts = survey.questions.map((q) => q.text ?? q.id)
   const headerRow = ws.addRow([...baseColumns, ...questionTexts])
   headerRow.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }

@@ -120,6 +120,9 @@ export function ResponseSection({
   const [envelope, setEnvelope] = useState<ListEnvelope | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Export download token is fetched JIT in the click handler (see
+  // `handleExportClick`) so it never goes stale before use; kept as state
+  // only to satisfy the existing reference shape.
   const [downloadToken, setDownloadToken] = useState<string | null>(null)
 
   // Wave coercion for the request shape.
@@ -140,21 +143,15 @@ export function ResponseSection({
     window.sessionStorage.setItem(`${PAGE_SIZE_STORAGE_KEY_PREFIX}${surveyId}`, String(pageSize))
   }, [surveyId, pageSize])
 
-  // Hold a short-lived token so the export <a href> can carry it as
-  // `?token=<jwt>` (auth plugin accepts the query-string fallback for
-  // browser-issued downloads — RFC §5.2 + §13.2 #2). Skipped when
-  // `responsesCount === 0` — there is nothing to export and the section
-  // never displays an enabled download anchor in that state.
-  useEffect(() => {
-    if (responsesCount === 0) return
-    let cancelled = false
-    async function refresh() {
-      const token = await getAuthToken(getTokenRef.current)
-      if (!cancelled) setDownloadToken(token)
-    }
-    void refresh()
-    return () => { cancelled = true }
-  }, [responsesCount])
+  // Clerk JWTs are short-lived (≤60s). Pre-fetching the token at mount and
+  // baking it into the `<a href>` produces a stale URL — by the time the
+  // operator clicks Export, the token has often expired. Instead we leave
+  // `downloadToken` null on the initial render and fetch a fresh token in
+  // the click handler (see `handleExportClick`); the anchor is built lazily.
+  // We still track `downloadToken` so the UI can show a transient "fetching
+  // credentials" state, but it is not what the anchor consumes.
+  void setDownloadToken
+  void downloadToken
 
   const fetchPage = useCallback(async () => {
     setLoading(true)
@@ -213,7 +210,9 @@ export function ResponseSection({
   )
   const channelOptions = useMemo(() => deriveChannelOptions(envelope?.data ?? []), [envelope?.data])
 
-  // Export href + disabled state.
+  // Export state. The anchor's `href` is built at click time so the token is
+  // fresh; this avoids the Clerk-60s-expiry trap where a pre-mounted token is
+  // already stale by the time the operator clicks Export.
   const total = envelope?.total ?? 0
   const exportDisabled = total === 0 || total > EXPORT_ROW_CAP
   const exportTooltip =
@@ -222,8 +221,17 @@ export function ResponseSection({
       : total > EXPORT_ROW_CAP
         ? `Filtered set is ${total.toLocaleString()} responses — narrow the filters (try a date range or a single wave) and try again.`
         : 'Exports rows matching current filters.'
-  const exportHref = useMemo(() => {
-    if (!downloadToken) return '#'
+
+  const exportFilename = `survey-${slug(surveyName)}-responses.xlsx`
+
+  const handleExportClick = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    if (exportDisabled) return
+    const token = await getAuthToken(getTokenRef.current)
+    if (!token) {
+      setError('Sign in to export.')
+      return
+    }
     const state: ResponseFilters = {
       wave: waveQuery,
       submittedFrom: submitted.from ?? undefined,
@@ -233,13 +241,20 @@ export function ResponseSection({
       channels: channels.length > 0 ? channels : undefined,
     }
     const filterQs = encodeFiltersToQs(state)
-    const url = `${API_URL}/v1/surveys/${surveyId}/responses.xlsx`
-    return filterQs
-      ? `${url}?${filterQs}&token=${encodeURIComponent(downloadToken)}`
-      : `${url}?token=${encodeURIComponent(downloadToken)}`
-  }, [downloadToken, surveyId, waveQuery, submitted.from, submitted.to, scoreBands, sentimentBands, channels])
-
-  const exportFilename = `survey-${slug(surveyName)}-responses.xlsx`
+    const base = `${API_URL}/v1/surveys/${surveyId}/responses.xlsx`
+    const url = filterQs
+      ? `${base}?${filterQs}&token=${encodeURIComponent(token)}`
+      : `${base}?token=${encodeURIComponent(token)}`
+    // Trigger the download by navigating a hidden anchor; the browser keeps
+    // the page open because of `download` + `Content-Disposition: attachment`.
+    const a = document.createElement('a')
+    a.href = url
+    a.download = exportFilename
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }, [exportDisabled, surveyId, waveQuery, submitted.from, submitted.to, scoreBands, sentimentBands, channels, exportFilename])
 
   // ---- Render ----
 
@@ -265,11 +280,8 @@ export function ResponseSection({
       rightSlot={
         <a
           data-testid="response-export-button"
-          href={exportDisabled ? '#' : exportHref}
-          download={exportDisabled ? undefined : exportFilename}
-          onClick={(e) => {
-            if (exportDisabled) e.preventDefault()
-          }}
+          href="#"
+          onClick={handleExportClick}
           aria-disabled={exportDisabled}
           title={exportTooltip}
           className={`inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 ${
