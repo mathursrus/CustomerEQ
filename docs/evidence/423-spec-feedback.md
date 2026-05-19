@@ -147,3 +147,85 @@ Round 1 covers all comments left on commit `e26eaf1` plus two chat-thread design
 - Mock updated: 3 new columns (Sentiment chip / Topics chips / AI Summary), Score Band chip group, Sentiment Band chip group, caveat info-icon next to AI columns header group, overflow `More filters` chip-group state, 50k-row export-cap inline message.
 - Evidence doc reflects round-1 scope.
 - Re-pushed to feature branch; PR conversation thread will resolve each comment with a per-line reply.
+
+---
+
+## Round 2 Feedback
+*Received: 2026-05-19 (PR [#426](https://github.com/mathursrus/CustomerEQ/pull/426) further review by @rmadhira86 — 12 inline comments + chat-thread ask "Let us clearly mark the AI generated columns")*
+
+### Comment R2-1 — ADDRESSED · move Score Band first in filter row
+- **Type / location**: review_comment on `docs/feature-specs/mocks/423-survey-response-review-v1.html:275`
+- **Comment**: *"Move Score Band first"*
+- **Resolution**: Filter row default order is now **`Score band · Sentiment band · Submitted · Channel`** (R9d updated). Score Band is the leftmost chip group in §2's filter description, in the mock's Scene 1, Scene 11 (overflow), Scene 12 (export cap), and the §3 walkthrough.
+
+### Comment R2-2 — ADDRESSED · move Sentiment Band next
+- **Type / location**: review_comment on `docs/feature-specs/mocks/423-survey-response-review-v1.html:281`
+- **Comment**: *"Move Sentiment Band next"*
+- **Resolution**: Sentiment Band sits in slot 2 of the filter row (right after Score Band). See R2-1 resolution.
+
+### Comment R2-3 — ADDRESSED · Submitted moves to 3rd
+- **Type / location**: review_comment on `docs/feature-specs/mocks/423-survey-response-review-v1.html:267`
+- **Comment**: *"Move Date Filter to 3rd"*
+- **Resolution**: Submitted is slot 3 in the new order. See R2-1 resolution.
+
+### Comment R2-4 — ADDRESSED · NPS 1–5 future scale
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:68`
+- **Comment**: *"In future, we may allow a 1-5 scale with Promoter (5), Passive (4), Detractor (1-3)"*
+- **Resolution**: §2.2 Score band bullet now records the future NPS-1-5 scale (Promoter 5 / Passive 4 / Detractor 1-3) and the constant-design requirement that `NPS.bandsForScale(scale)` (or equivalent shape) accept multiple scale shapes data-drivenly. R9a captures the obligation in SHALL form. Unit-test scaffolding noted in §Validation Plan asserts the future 1-5 band tables are addressable via the constants API even if not yet wired into `Survey.scoreScale`.
+
+### Comment R2-5 — ADDRESSED · hide Score Band for non-NPS/CSAT/CES
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:67`
+- **Comment**: *"If Survey Type is Custom, Score Band should not be shown"*
+- **Resolution**: Score Band visibility rule added (§2.2 + R9a): *"Only when `Survey.type ∈ {NPS, CSAT, CES}`. For Custom and any non-standard survey types the chip group is hidden entirely — bands are not meaningful without a scoring scale."* Score column itself also hides for custom-type surveys (Scene 13 of the mock illustrates).
+
+### Comment R2-6 — ADDRESSED · CES 1–5 future scale
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:70`
+- **Comment**: *"In future we may offer 1-5 CES score - Easy (5), Neutral (4), Hard (1-3)"*
+- **Resolution**: §2.2 CES bullet now records the future CES-1-5 scale (Easy 5 / Neutral 4 / Hard 1-3) alongside the current CES-1-7 modern CES 2.0 mapping. Same data-driven constants design as R2-4.
+
+### Comment R2-7 — ADDRESSED · default order
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:74`
+- **Comment**: *"Change Default order to Score Band, Sentiment band, Submitted, Channel"*
+- **Resolution**: §2.2 default order changed to `Score band · Sentiment band · Submitted · Channel`. R9d updated. Mock scenes 1, 11, 12 reflect.
+
+### Comment R2-8 — ADDRESSED · no internal issue numbers in operator-facing copy
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:88`
+- **Comment**: *"We should not be exposing internal issue numbers to customers. Keep the statement generic that later phases will continue refining these values to improve accuracy, or something like that"*
+- **Resolution**: All operator-facing caveat copy now reads *"…later phases of this product surface will continue refining these AI-derived values to improve accuracy."* No `#235` reference in the UI tooltip, no `#235` reference in the export cover-block disclaimer, no `#235` reference in the §4 edge case note. Internal cross-references to #235 remain only in the spec's Non-goals / Successor-phases sections (engineering audience).
+
+### Comment R2-9 — ADDRESSED · Powered by CustomerEQ in export
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:102`
+- **Comment**: *"Export to Excel should also include: Powered by CustomerEQ with a CustomerEQ hyperlinked to the site. Site name is defined in the repo - don't make it up.."*
+- **Resolution**: Cover block extended to 14 rows. Row 14 = *"Powered by CustomerEQ"* with the brand word hyperlinked to `https://customereq.wellnessatwork.me` — the canonical production host I verified across `apps/demo-storefront/src/app/*.tsx`, `.github/workflows/deploy.yml`, and `docs/storefront-demo-script*.md`. R15 mandates the URL come from a single shared constant (one place to change if the host moves), not duplicated in the cover-block builder. Mock Scene 7 shows the rendered row.
+
+### Comment R2-10 — ADDRESSED · clearly mark AI columns + export disclaimer placement (also chat-thread ask)
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:88` + chat ask *"Let us clearly mark the AI generated columns"*
+- **Comment**: *"How is this warning exported to Excel? Suggest adding it in the Block and changing Header to indicate AI Generated"*
+- **Resolution**: Three changes:
+  - **Column headers carry an explicit `AI ·` prefix** — `AI · Sentiment`, `AI · Topics`, `AI · Summary`. The prefix appears in both the on-screen table (Scene 1 / Scene 13 of the mock) and the exported `.xlsx` (Scene 7 row 16). R2 / R6a / R16 codify this.
+  - **AI-group header background** carries a subtle tint so the three columns read as a logical group at a glance.
+  - **Export cover block carries the AI-fields disclaimer at row 13** (italicised, warning-tinted). This was already added in Round 1 but is now explicit in R15's row-by-row enumeration. Operators downloading the file see the warning AND the prefixed column headers.
+
+### Comment R2-11 — ADDRESSED · hide sentiment band for non-NPS/CSAT/CES
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:138`
+- **Comment**: *"Should not be shown if Survey Type is not one of NPS, CSAT or CES"*
+- **Resolution**: Sentiment Band visibility rule extended (§2.2 + R9b). The chip group now hides when **either** (a) the survey has zero open-ended text questions, **or** (b) `Survey.type ∉ {NPS, CSAT, CES}`. Same gating as Score Band per R2-5. AI columns (Sentiment chip / Topics / Summary) themselves remain in the table for custom-type surveys (sentiment is text-derived, not score-derived) — only the *band filter* hides. Scene 13 of the mock shows the custom-type case.
+
+### Comment R2-12 — ADDRESSED · cover block content (Survey Name + Powered by + disclaimer)
+- **Type / location**: review_comment on `docs/feature-specs/423-survey-response-review-v1.md:154`
+- **Comment**: *"It should include Survey Name, Powered by CustomerEQ. See previous comment about disclaimer"*
+- **Resolution**: R15 cover block restructured to 11 labelled key-value rows (rows 1–11), now naming Survey, Survey type, and Survey ID as **three separate rows** (was lumped as `name · type · id` in Round 1). Adds the Powered-by row (row 14, per R2-9) and the AI-fields disclaimer row (row 13, per R2-10). Survey name comes from `Survey.name` verbatim — no derived/slugified form in the cover block, only in the filename per R14.
+
+### Comment R2-13 — ADDRESSED (chat) · clearly mark AI columns
+- **Type / location**: chat thread, this session
+- **Comment**: *"Let us clearly mark the AI generated columns"*
+- **Resolution**: Same change as R2-10. Explicit `AI ·` column-header prefix + tinted AI-group header background + info-icon caveat. The marking now lives in three places: column header text, header background tint, and the export cover-block disclaimer.
+
+---
+
+## Round 2 — Re-validation evidence
+
+- All 13 items marked ADDRESSED above.
+- Spec edited (§2.2 filter row default order + Score Band + Sentiment Band visibility rules + future-scale notes, §2.3 AI column-header `AI ·` prefix + tinted AI-group + generic caveat copy, §3 walkthrough scenes 1/2/8/9 reflecting new order + scene 8 added for custom-type, §4 edge case updated for generic caveat, R2 / R6a / R9a / R9b / R9d / R15 / R16 updated, Validation Plan extended with score-band-scale tests + survey-type-gated visibility test + custom-type filter-visibility test + cover-block expanded shape).
+- Mock edited: Scene 1 filter chips reordered + AI column headers prefixed `AI ·` + caveat tooltip de-referenced from `#235`; Scene 7 Excel export cover block restructured to 14 rows with separate Survey / Survey type / Survey ID rows + Powered-by row + updated disclaimer + `AI ·` headers in data sheet; Scene 11 + Scene 12 filter rows reordered; new Scene 13 covers custom-type survey filter-visibility.
+- Re-pushed to feature branch; each of the 12 inline review comments will receive a per-line ADDRESSED reply.

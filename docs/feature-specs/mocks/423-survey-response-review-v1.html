@@ -202,6 +202,7 @@
     <a href="#scene-10">10 · Anonymous</a>
     <a href="#scene-11">11 · Filter overflow</a>
     <a href="#scene-12">12 · Export cap</a>
+    <a href="#scene-13">13 · Custom-type survey</a>
   </div>
 </div>
 
@@ -265,24 +266,24 @@
 
           <div class="filter-row">
             <div class="filter-group">
-              <span class="group-label">Submitted:</span>
-              <span class="chip">Last 7 days</span>
-              <span class="chip">Last 30 days</span>
-              <span class="chip">Last 90 days</span>
-              <span class="chip active">All time</span>
-              <span class="chip">Custom…</span>
-            </div>
-            <div class="filter-group">
               <span class="group-label">Score band:</span>
               <span class="chip active">Promoter</span>
               <span class="chip active">Passive</span>
               <span class="chip active">Detractor</span>
             </div>
             <div class="filter-group">
-              <span class="group-label">Sentiment band: <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response. Correct for single-text-question surveys (standard NPS/CSAT/CES). Per-question synthesis lands in a later phase of #235.">i</span></span>
+              <span class="group-label">Sentiment band: <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response. Correct for single-text-question surveys (standard NPS/CSAT/CES). Later phases will continue refining these AI-derived values to improve accuracy.">i</span></span>
               <span class="chip active">Positive</span>
               <span class="chip active">Neutral</span>
               <span class="chip active">Negative</span>
+            </div>
+            <div class="filter-group">
+              <span class="group-label">Submitted:</span>
+              <span class="chip">Last 7 days</span>
+              <span class="chip">Last 30 days</span>
+              <span class="chip">Last 90 days</span>
+              <span class="chip active">All time</span>
+              <span class="chip">Custom…</span>
             </div>
             <div class="filter-group">
               <span class="group-label">Channel:</span>
@@ -302,9 +303,9 @@
                   <th>Channel</th>
                   <th>Submitted</th>
                   <th>Score</th>
-                  <th class="ai-group">Sentiment</th>
-                  <th class="ai-group">Topics</th>
-                  <th class="ai-group-last">AI summary <span class="ai-caveat-icon" title="AI-derived columns are computed across all open-ended answers on each response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, per-question synthesis lands in a later phase of #235.">i</span></th>
+                  <th class="ai-group">AI · Sentiment</th>
+                  <th class="ai-group">AI · Topics</th>
+                  <th class="ai-group-last">AI · Summary <span class="ai-caveat-icon" title="AI-derived columns (AI · Sentiment, AI · Topics, AI · Summary) are computed across all open-ended answers on each response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, interpret with caution — later phases of this product surface will continue refining these AI-derived values to improve accuracy.">i</span></th>
                   <th title="How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)">Recommend? <span style="color:var(--text-subtle)">…</span></th>
                   <th title="What's the main reason for the score you gave?">Reason for score</th>
                   <th title="What's one thing we could do better?">One thing to improve</th>
@@ -624,7 +625,7 @@
 
 <!-- SCENE 7 — EXCEL EXPORT -->
 <div class="scene" id="scene-7">
-  <div class="scene-label"><strong>Scene 7</strong> — Operator clicked <em>Export to Excel</em>. Filename <code>survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</code>. Cover block (rows 1–9) states the filter set including the new Score band / Sentiment band slots. Row 10 blank, row 11 the AI-fields disclaimer, row 12 blank. Data sheet starts at row 13 with AI-derived columns + full question headers. Filter snapshot: Wave = "Q2 NPS Gold-tier wave", Submitted = "Apr 15 → Apr 22", Score band = "Detractor", Sentiment band = "Negative", Channels = "email, sms".</div>
+  <div class="scene-label"><strong>Scene 7</strong> — Operator clicked <em>Export to Excel</em>. Filename <code>survey-q2-2026-customer-pulse-responses-2026-05-19.xlsx</code>. Cover block (rows 1–11) names Survey / Survey type / Survey ID separately + all active filters + total rows. Row 12 blank, row 13 the AI-fields disclaimer, row 14 the <em>Powered by CustomerEQ</em> footer with the brand word linking to <code>https://customereq.wellnessatwork.me</code>, row 15 blank. Data sheet starts row 16 with column headers including the explicit <code>AI ·</code> prefix on AI-derived columns. Filter snapshot: Wave = "Q2 NPS Gold-tier wave", Submitted = "Apr 15 → Apr 22", Score band = "Detractor", Sentiment band = "Negative", Channels = "email, sms".</div>
   <div class="container">
     <div class="xlsx-window">
       <div class="xlsx-titlebar">
@@ -643,33 +644,36 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="row-num">1</td><td class="xlsx-cover-key">Survey</td><td class="xlsx-cover-val" colspan="9">Q2 2026 Customer Pulse · NPS · srv_aBc123xYz</td></tr>
-          <tr><td class="row-num">2</td><td class="xlsx-cover-key">Exported at</td><td class="xlsx-cover-val" colspan="9">May 19, 2026, 11:47 AM PDT</td></tr>
-          <tr><td class="row-num">3</td><td class="xlsx-cover-key">Exported by</td><td class="xlsx-cover-val" colspan="9">manohar.madhira@outlook.com</td></tr>
-          <tr><td class="row-num">4</td><td class="xlsx-cover-key">Wave</td><td class="xlsx-cover-val" colspan="9">Q2 NPS Gold-tier wave · Apr 15, 2026</td></tr>
-          <tr><td class="row-num">5</td><td class="xlsx-cover-key">Submitted range</td><td class="xlsx-cover-val" colspan="9">Apr 15, 2026 → Apr 22, 2026 (America/Los_Angeles)</td></tr>
-          <tr><td class="row-num">6</td><td class="xlsx-cover-key">Score band</td><td class="xlsx-cover-val" colspan="9">Detractor</td></tr>
-          <tr><td class="row-num">7</td><td class="xlsx-cover-key">Sentiment band</td><td class="xlsx-cover-val" colspan="9">Negative</td></tr>
-          <tr><td class="row-num">8</td><td class="xlsx-cover-key">Channels</td><td class="xlsx-cover-val" colspan="9">email, sms</td></tr>
-          <tr><td class="row-num">9</td><td class="xlsx-cover-key">Total rows</td><td class="xlsx-cover-val" colspan="9">23</td></tr>
-          <tr><td class="row-num">10</td><td class="xlsx-blank" colspan="10"></td></tr>
-          <tr><td class="row-num">11</td><td colspan="10" style="font-style:italic;color:var(--warning-strong);background:var(--warning-soft);font-size:11px;">AI-derived columns (Sentiment / Topics / AI summary) are computed across all open-ended answers per response. For multi-text-question surveys, per-question synthesis lands in a later phase of #235.</td></tr>
+          <tr><td class="row-num">1</td><td class="xlsx-cover-key">Survey</td><td class="xlsx-cover-val" colspan="9">Q2 2026 Customer Pulse</td></tr>
+          <tr><td class="row-num">2</td><td class="xlsx-cover-key">Survey type</td><td class="xlsx-cover-val" colspan="9">NPS</td></tr>
+          <tr><td class="row-num">3</td><td class="xlsx-cover-key">Survey ID</td><td class="xlsx-cover-val" colspan="9">srv_aBc123xYz</td></tr>
+          <tr><td class="row-num">4</td><td class="xlsx-cover-key">Exported at</td><td class="xlsx-cover-val" colspan="9">May 19, 2026, 11:47 AM PDT</td></tr>
+          <tr><td class="row-num">5</td><td class="xlsx-cover-key">Exported by</td><td class="xlsx-cover-val" colspan="9">manohar.madhira@outlook.com</td></tr>
+          <tr><td class="row-num">6</td><td class="xlsx-cover-key">Wave</td><td class="xlsx-cover-val" colspan="9">Q2 NPS Gold-tier wave · Apr 15, 2026</td></tr>
+          <tr><td class="row-num">7</td><td class="xlsx-cover-key">Submitted range</td><td class="xlsx-cover-val" colspan="9">Apr 15, 2026 → Apr 22, 2026 (America/Los_Angeles)</td></tr>
+          <tr><td class="row-num">8</td><td class="xlsx-cover-key">Score band</td><td class="xlsx-cover-val" colspan="9">Detractor</td></tr>
+          <tr><td class="row-num">9</td><td class="xlsx-cover-key">Sentiment band</td><td class="xlsx-cover-val" colspan="9">Negative</td></tr>
+          <tr><td class="row-num">10</td><td class="xlsx-cover-key">Channels</td><td class="xlsx-cover-val" colspan="9">email, sms</td></tr>
+          <tr><td class="row-num">11</td><td class="xlsx-cover-key">Total rows</td><td class="xlsx-cover-val" colspan="9">23</td></tr>
           <tr><td class="row-num">12</td><td class="xlsx-blank" colspan="10"></td></tr>
+          <tr><td class="row-num">13</td><td colspan="10" style="font-style:italic;color:var(--warning-strong);background:var(--warning-soft);font-size:11px;">AI-derived columns (AI · Sentiment, AI · Topics, AI · Summary) are computed across all open-ended answers per response. For standard NPS / CSAT / CES surveys with one open-ended question, the values are correct. For multi-text-question surveys, interpret with caution — later phases of this product surface will continue refining these AI-derived values to improve accuracy.</td></tr>
+          <tr><td class="row-num">14</td><td colspan="10" style="font-size:11px;color:var(--text-muted);font-style:italic;">Powered by <a href="https://customereq.wellnessatwork.me" style="color:var(--primary);text-decoration:underline;">CustomerEQ</a></td></tr>
+          <tr><td class="row-num">15</td><td class="xlsx-blank" colspan="10"></td></tr>
           <tr>
-            <td class="row-num">13</td>
+            <td class="row-num">16</td>
             <td class="xlsx-data-header">Member</td>
             <td class="xlsx-data-header">Channel</td>
             <td class="xlsx-data-header">Submitted</td>
             <td class="xlsx-data-header">Score</td>
-            <td class="xlsx-data-header">Sentiment</td>
-            <td class="xlsx-data-header">Topics</td>
-            <td class="xlsx-data-header">AI summary</td>
+            <td class="xlsx-data-header">AI · Sentiment</td>
+            <td class="xlsx-data-header">AI · Topics</td>
+            <td class="xlsx-data-header">AI · Summary</td>
             <td class="xlsx-data-header">How likely are you to recommend Acme to a friend or colleague? (0 = not at all, 10 = extremely)</td>
             <td class="xlsx-data-header">What's the main reason for the score you gave?</td>
             <td class="xlsx-data-header">What's one thing we could do better?</td>
           </tr>
           <tr class="xlsx-data-row">
-            <td class="row-num">14</td>
+            <td class="row-num">17</td>
             <td>Yuki Tanaka (yuki@bento.shop)</td>
             <td>sms</td>
             <td>Apr 18, 2026, 10:30 AM PDT</td>
@@ -682,7 +686,7 @@
             <td>Stop double-charging customers and notify before any auto-renewal.</td>
           </tr>
           <tr class="xlsx-data-row">
-            <td class="row-num">15</td>
+            <td class="row-num">18</td>
             <td>Marcus Lee (marcus@orbit.io)</td>
             <td>email</td>
             <td>Apr 17, 2026, 09:02 AM PDT</td>
@@ -811,7 +815,7 @@
 
 <!-- SCENE 11 — FILTER ROW OVERFLOW -->
 <div class="scene" id="scene-11">
-  <div class="scene-label"><strong>Scene 11</strong> — Viewport narrowed (or many chip groups). Filter bar would wrap past one row; <strong>Channel</strong> collapses behind a <em>More filters ↓</em> popover. Channel state is preserved across collapse/expand. Submitted / Score band / Sentiment band stay inline.</div>
+  <div class="scene-label"><strong>Scene 11</strong> — Viewport narrowed (or many chip groups). Filter bar would wrap past one row; <strong>Channel</strong> collapses behind a <em>More filters ↓</em> popover. Channel state is preserved across collapse/expand. Score band / Sentiment band / Submitted stay inline (in that order).</div>
   <div class="container">
     <div class="section new-section" style="position:relative">
       <div class="section-head">
@@ -820,14 +824,6 @@
       </div>
       <div class="section-body">
         <div class="filter-row" style="position:relative">
-          <div class="filter-group">
-            <span class="group-label">Submitted:</span>
-            <span class="chip">7d</span>
-            <span class="chip">30d</span>
-            <span class="chip">90d</span>
-            <span class="chip active">All time</span>
-            <span class="chip">Custom…</span>
-          </div>
           <div class="filter-group">
             <span class="group-label">Score band:</span>
             <span class="chip active">Promoter</span>
@@ -839,6 +835,14 @@
             <span class="chip active">Positive</span>
             <span class="chip active">Neutral</span>
             <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">7d</span>
+            <span class="chip">30d</span>
+            <span class="chip">90d</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
           </div>
           <div class="filter-group">
             <span class="more-filters-pill">More filters ↓ <span style="background:var(--primary);color:white;font-size:9px;padding:1px 6px;border-radius:999px;margin-left:4px;">2/5</span></span>
@@ -873,14 +877,6 @@
       <div class="section-body">
         <div class="filter-row">
           <div class="filter-group">
-            <span class="group-label">Submitted:</span>
-            <span class="chip">Last 7 days</span>
-            <span class="chip">Last 30 days</span>
-            <span class="chip">Last 90 days</span>
-            <span class="chip active">All time</span>
-            <span class="chip">Custom…</span>
-          </div>
-          <div class="filter-group">
             <span class="group-label">Score band:</span>
             <span class="chip active">Promoter</span>
             <span class="chip active">Passive</span>
@@ -891,6 +887,14 @@
             <span class="chip active">Positive</span>
             <span class="chip active">Neutral</span>
             <span class="chip active">Negative</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
           </div>
           <div class="filter-group">
             <span class="group-label">Channel:</span>
@@ -905,6 +909,78 @@
           <strong>Export cap reached.</strong> The filtered set has <strong>1,247,033 responses</strong>; exports are capped at <strong>50,000 rows</strong> per file (matches the platform-wide row limit). <em>Narrow the filters</em> — try a date range or a single wave — and the Export button will re-enable.
         </div>
         <div style="font-style:italic;color:var(--text-subtle);padding:10px 2px;font-size:12px;">[ Table loads paginated 25 rows at a time as usual; the cap only applies to export. ]</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 13 — CUSTOM-TYPE SURVEY -->
+<div class="scene" id="scene-13">
+  <div class="scene-label"><strong>Scene 13</strong> — Survey with <code>Survey.type = 'CUSTOM'</code>. Score band and Sentiment band chip groups are hidden (band-style filters are reserved for NPS / CSAT / CES in Phase 1). The Score column also hides — custom surveys have no defined scoring scale. AI · Sentiment / AI · Topics / AI · Summary remain (sentiment is text-derived, not score-derived). Filter row shows only Submitted + Channel.</div>
+  <div class="container">
+    <div class="section new-section">
+      <div class="section-head">
+        <h2><span class="chevron">▾</span> Response <span class="count-badge">87 responses</span></h2>
+        <div class="head-actions"><button class="btn">Export to Excel</button></div>
+      </div>
+      <div class="section-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="group-label">Submitted:</span>
+            <span class="chip">Last 7 days</span>
+            <span class="chip">Last 30 days</span>
+            <span class="chip">Last 90 days</span>
+            <span class="chip active">All time</span>
+            <span class="chip">Custom…</span>
+          </div>
+          <div class="filter-group">
+            <span class="group-label">Channel:</span>
+            <span class="chip active">email</span>
+            <span class="chip active">in_app</span>
+            <span class="chip active">link</span>
+            <span class="chip active">sms</span>
+            <span class="chip active">review</span>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--text-subtle);margin:2px 2px 14px;">Survey type is <code>CUSTOM</code> — Score band and Sentiment band filters are not available in Phase 1 for this type.</p>
+        <div class="resp-table-wrap">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Channel</th>
+                <th>Submitted</th>
+                <th class="ai-group">AI · Sentiment</th>
+                <th class="ai-group">AI · Topics</th>
+                <th class="ai-group-last">AI · Summary <span class="ai-caveat-icon" title="AI-derived. Computed across all open-ended answers per response.">i</span></th>
+                <th>What did you find most useful?</th>
+                <th>Anything missing?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="col-member"><span class="member-name">Aiden Ross</span> <span class="member-id">(aiden@maker.dev)</span></td>
+                <td class="col-channel">in_app</td>
+                <td class="col-submitted">May 18, 2026<span class="sub-sub">02:14 PM PDT</span></td>
+                <td class="col-sentiment"><span class="sent-chip positive" title="+0.48">Positive</span></td>
+                <td class="col-topics"><span class="topic-chip">documentation</span><span class="topic-chip">examples</span></td>
+                <td class="col-summary">Found docs and examples helpful but wants more advanced scenarios.</td>
+                <td>The walkthrough videos. Saved me an afternoon.</td>
+                <td>More advanced examples on the integration page.</td>
+              </tr>
+              <tr>
+                <td class="col-member"><span class="member-name">Beth Chau</span> <span class="member-id">(beth@studio42.co)</span></td>
+                <td class="col-channel">email</td>
+                <td class="col-submitted">May 17, 2026<span class="sub-sub">10:09 AM PDT</span></td>
+                <td class="col-sentiment"><span class="sent-chip neutral" title="+0.04">Neutral</span></td>
+                <td class="col-topics"><span class="topic-chip">onboarding</span></td>
+                <td class="col-summary">Neutral on onboarding — completed but doesn't recommend specific changes.</td>
+                <td>Onboarding got me started.</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
