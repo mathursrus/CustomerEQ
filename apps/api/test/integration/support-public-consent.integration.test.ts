@@ -137,6 +137,7 @@ describe('POST /v1/public/support/conversations — consent gate', () => {
     const res = await req
       .post('/v1/public/support/conversations')
       .set('Authorization', 'Bearer bearer-user@example.com')
+      .set('X-Brand-Id', brand.id)
       .send({
         memberEmail: 'bearer-user@example.com',
         initialMessage: 'Bearer flow bypasses widget consent gate',

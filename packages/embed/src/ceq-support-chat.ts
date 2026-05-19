@@ -531,6 +531,18 @@ class CeqSupportChat extends HTMLElement {
    * stays anon. Call identify() BEFORE the visitor sends their first message.
    */
   identify(identity: CeqIdentity): void {
+    // v1 only supports EMAIL brands on the identify path. For PHONE / CUSTOMER_ID
+    // brands the Bearer flow returns 422; rather than letting the request fail
+    // mid-conversation, refuse to set identity here so the widget falls through
+    // to the anonymous flow (which has no identifier-kind constraint).
+    const kind = this.bootConfig?.brand?.memberIdentifierKind
+    if (kind && kind !== 'EMAIL') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[ceq-support-chat] identify() not yet supported for brands with memberIdentifierKind=${kind}; falling through to anonymous flow.`,
+      )
+      return
+    }
     this.identity = { ...identity }
     if (this.conversationId) {
       // eslint-disable-next-line no-console
@@ -615,9 +627,13 @@ class CeqSupportChat extends HTMLElement {
 
     if (effectiveToken) {
       headers['Authorization'] = `Bearer ${effectiveToken}`
+      // Always include X-Brand-Id so the server can do the canonical
+      // brandId_externalId member lookup (no cross-brand email collisions).
+      headers['X-Brand-Id'] = this.brandId
       // body.email is captured on the conversation row even when Bearer is the
       // source of truth; harmless duplication that helps cross-checking in logs.
       body['email'] = effectiveToken
+      body['memberEmail'] = effectiveToken
     } else {
       headers['X-Brand-Id'] = this.brandId
       body['anonId'] = this.getOrCreateAnonId()

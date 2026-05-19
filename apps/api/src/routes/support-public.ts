@@ -101,12 +101,43 @@ const supportPublicRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { initialMessage } = parse.data
 
-      // Look up member by email
-      const member = await fastify.prisma.member.findFirst({
-        where: { email: memberEmail, deletedAt: null, erased: false },
-        select: { id: true, brandId: true },
+      // Bearer flow requires X-Brand-Id so we can do the canonical
+      // brandId_externalId lookup. The widget always knows its brandId.
+      const bearerBrandHeader = request.headers['x-brand-id']
+      if (!bearerBrandHeader || typeof bearerBrandHeader !== 'string') {
+        return reply.status(400).send({ error: 'X-Brand-Id header required for Bearer flow' })
+      }
+      const bearerBrand = await fastify.prisma.brand.findUnique({
+        where: { id: bearerBrandHeader },
+        select: { id: true, memberIdentifierKind: true },
       })
-      if (!member) {
+      if (!bearerBrand) {
+        return reply.status(404).send({ error: 'Brand not found' })
+      }
+
+      // v1 supports EMAIL brands only. Brands keyed by phone/customerId hit a
+      // 422 (vs 404) so the widget can fall through to the anonymous flow
+      // rather than failing silently.
+      if (bearerBrand.memberIdentifierKind !== 'EMAIL') {
+        return reply.status(422).send({
+          error: 'IDENTIFIER_KIND_UNSUPPORTED',
+          message: 'This brand uses a non-email member identifier. The Bearer/identify path supports EMAIL brands only in v1.',
+        })
+      }
+
+      // Canonical member lookup: brandId + externalId (lowercased+trimmed email).
+      // Replaces the older `findFirst({ where: { email, deletedAt: null, ... } })`
+      // pattern which was tenant-unsafe across brands sharing an email value.
+      const member = await fastify.prisma.member.findUnique({
+        where: {
+          brandId_externalId: {
+            brandId: bearerBrand.id,
+            externalId: memberEmail.toLowerCase().trim(),
+          },
+        },
+        select: { id: true, brandId: true, deletedAt: true, erased: true },
+      })
+      if (!member || member.deletedAt || member.erased) {
         return reply.status(404).send({ error: 'Member not found' })
       }
 
