@@ -124,6 +124,115 @@ Full integration run requires a live Postgres (`pnpm test:integration`) — defe
 | R25 (anonymous `—` in UI / empty in export) | `projectResponseRow` + `renderResponsesXlsx` | Unit + Integration |
 | GDPR Art. 17 (erasure side-effect) | Forward-only — Phase-1 surface inherits null-FK rendering | Documented as future erasure-worker contract |
 
+## Security Review
+
+### Executive Summary
+
+- **Critical**: 0
+- **High**: 0
+- **Medium**: 1 (filed for follow-up; non-blocking — see below)
+- **Low / Info**: 1
+
+No blocking findings. One Medium finding (auth plugin extension) reviewed manually because the auth/crypto firewall forces all auth-path changes to a `file` disposition regardless of severity — disposition is **accept with documented rationale + monitoring**.
+
+### Review Scope
+
+- **reviewType**: embedded-diff-review
+- **reviewScope**: diff
+- **base**: `origin/main` … HEAD on the `feature/423-...` branch
+- **surfaceAreaPaths**:
+  - `packages/shared/src/{constants.ts,zod/responseFilters.schema.ts}`
+  - `apps/api/src/{plugins/auth.ts,plugins/audit.ts,routes/surveys.ts,utils/{responseFilters.ts,excelExport.ts}}`
+  - `apps/web/src/{components/filters/**,app/(admin)/admin/surveys/**}`
+
+### Threat Surface Summary
+
+- **api** — new GET routes (`/v1/surveys/:id/responses`, `/v1/surveys/:id/responses.xlsx`), audit-plugin gate widened, auth-plugin credential surface widened.
+- **web** — admin-page rewrite (`ResponseSection`), new shared filter family, URL state codec, anchor-based download trigger.
+
+No `llm-app`, `data-pipeline`, `mobile`, or `capability-authoring` surfaces touched.
+
+### Coverage Matrix
+
+| Category | State | Notes |
+|---|---|---|
+| A01 Broken Access Control | Pass | Both new routes scope on `request.brandId`; cross-tenant returns 404 (integration test `surveys-responses.test.ts`). |
+| A02 Cryptographic Failures / Sensitive Data Exposure | Medium | Auth plugin now accepts `?token=<jwt>` on GET — widens credential surface (see Finding S1). |
+| A03 Injection (SQL / XSS) | Pass | All DB access via Prisma (parameterised). No `dangerouslySetInnerHTML`. Filter values reach `where` via Zod schema with strict regex on dates + enum-bounded bands + cuid regex on wave. |
+| A04 Insecure Design | Pass | Export cap (`EXPORT_ROW_CAP = 50_000`) prevents 1M-row OOM; 413 returned. |
+| A05 Security Misconfiguration | Pass | No new misconfig surfaces. ExcelJS pinned `^4.4.0`. |
+| A06 Vulnerable & Outdated Components | Info | `exceljs@^4.4.0` added — clean upstream advisory state at time of writing; Dependabot covers future advisories (Finding S2). |
+| A07 Identification & Authentication Failures | Medium | Same as A02 — auth plugin extension is the credential surface concern. |
+| A08 Software & Data Integrity Failures | Pass | Server-side `.xlsx` assembly; client cannot smuggle columns. Cover block reads `EXPORTS_POWERED_BY_URL` from a single shared constant. |
+| A09 Security Logging & Monitoring Failures | Pass | Audit plugin extended to log audit-configured GETs; both new routes declare `auditAction` + `auditAllowlist`. Export records `aiVintageNonNullCount` for GDPR Art. 30 traceability. |
+| A10 SSRF | N/A | No outbound HTTP from these routes. |
+| OWASP API1 Broken Object Level Auth | Pass | `findFirst({ where: { id, brandId: request.brandId } })` enforces BOLA. |
+| OWASP API2 Broken Authentication | Medium | Auth plugin extension (same Finding S1). |
+| OWASP API3 BOPLA | Pass | `SURVEY_RESPONSE_ROW_SELECT` is an explicit allowlist; `projectResponseRow` further strips fields per `Brand.memberIdentifierKind` so phone never leaks to a CUSTOMER_ID-keyed brand and vice versa. |
+| OWASP API4 Unrestricted Resource Consumption | Pass | `pageSize.max(500)` server-side; `EXPORT_ROW_CAP = 50_000` server-side. |
+| OWASP API5 BFLA | Pass | Read-only endpoints, same auth required as existing survey routes. |
+| OWASP API6 Mass Assignment | N/A | GET endpoints; no client-supplied write payloads. |
+| OWASP API7 SSRF | N/A | Same as A10. |
+| OWASP API8 Misconfig | Pass | Audit gate widening is opt-in via route `config.auditAction` — does NOT auto-audit unconfigured GET routes (verified by reading plugin code). |
+| OWASP API9 Improper Inventory | Pass | New routes documented in spec + RFC + impl evidence. |
+| OWASP API10 Unsafe Consumption | N/A | No third-party API consumption. |
+| Secrets in Code | Pass | No new secret-shaped strings introduced (constants.ts holds only a public host URL). `secrets-in-code` regex scan against the diff returns zero matches. |
+| Privacy / PII | Pass | Per-tenant scoping; `projectResponseRow` enforces identifier-kind discipline; export audit row captures `aiVintageNonNullCount` for downstream possessor accountability. AI columns surface a verbatim caveat from a single shared constant. Soft-delete via `Survey.deletedAt IS NULL` inherited; future erasure worker contract documented in spec/RFC. |
+
+### Findings
+
+| ID | Severity | OWASP | Location | Summary | Disposition |
+|---|---|---|---|---|---|
+| **S1** | Medium | A02 / API2 | `apps/api/src/plugins/auth.ts` (`queryToken` branch) | Auth plugin now accepts `?token=<jwt>` as a credential when `Authorization` header is absent. Required because browser-issued `<a href>` downloads cannot inject Bearer headers; the JWT scoping is identical whether the token rides in a header or a query string. Risk: tokens may be retained in browser history, referer headers (mitigated below), or proxy logs. | **Accept** with documented rationale + monitoring |
+| **S2** | Low / Info | A06 | `apps/api/package.json` | New dependency `exceljs@^4.4.0`. ExcelJS has had 2 CVEs in the past 18 months (prototype-pollution-adjacent); upstream patched within 30 days each. Cover-block input is always our own typed `RenderInput`, never user-supplied template content. | **Accept**; Dependabot monitors future advisories |
+
+### Prioritized Remediation Queue
+
+1. **S1** — auth/crypto firewall blocks auto-fix per FRAIM `finding-disposition` rules. Documented in evidence + RFC §13.2 #2. Mitigations in place:
+   - Clerk JWTs are short-lived (≤60s by default).
+   - Download responses set `Content-Disposition: attachment` so nothing renders in the browser tab → no clickable resource → no opportunity for referer-header leakage to a downstream site.
+   - Tokens never appear in server logs (Fastify does not log query strings by default).
+   - Future hardening (filed as a follow-up architecture entry, not blocking this PR): the long-term move is a one-shot signed-URL endpoint (RFC OQ-4 Option B); revisit if a downstream possessor flags concerns.
+2. **S2** — Dependabot monitors `exceljs`. No action this PR.
+
+### Verification Evidence
+
+- A01 / API1 — `surveys-responses.test.ts` integration cases: cross-tenant 404 on both list and export endpoints; CUSTOM-type filter gate hidden.
+- A03 — Zod schema rejects malformed dates / cuids / band enums (`responseFilters.schema.test.ts`).
+- A04 / API4 — Unit `pageSize=501 → 422`; export 413 contract documented in `excelExport.ts` early-return.
+- A09 — Audit row metadata covered by allowlist in route config; verified via code review.
+- API3 — `projectResponseRow.test.ts` cases (4) per-`MemberIdentifierKind` field-mask assertions.
+- Secrets — manual `git diff` grep for `password|secret|api_key|token=` shows only the documented `?token=` credential path and the `AI_FIELDS_CAVEAT` string constant; no leaked values.
+
+### Applied Fixes and Filed Work Items
+
+- None applied this turn (no Critical/High findings).
+- S1 documented as accepted-with-rationale in this evidence file + RFC §13.2 #2.
+
+### Accepted / Deferred / Blocked
+
+- **S1 — Accepted** with the rationale above. Owner: same as this issue's PR. Unblocker for revisiting (if signed-URL move becomes required): downstream possessor concern or token-lifetime extension.
+- **S2 — Accepted**; Dependabot monitors.
+
+### Compliance Control Mapping
+
+| Control | Coverage |
+|---|---|
+| GDPR Art. 5(1)(f) — integrity & confidentiality | Pass — cross-tenant 404; `request.brandId` enforced via Prisma middleware + handler filter. |
+| GDPR Art. 5(1)(c) — data minimization | Pass — `SURVEY_RESPONSE_ROW_SELECT` is an explicit allowlist; `projectResponseRow` further masks identifier fields per brand kind. |
+| GDPR Art. 17 — right to erasure | Forward-pointer — Phase-1 surfaces inherit `Survey.deletedAt IS NULL`; AI-column zeroing is a future erasure-worker contract (RFC §2.1 + §8.4 + spec corrigendum). |
+| GDPR Art. 30 / SOC2 CC7.2 — audit trail | Pass — both new endpoints write audit rows with allowlisted metadata, including `total` + `aiVintageNonNullCount`. |
+| SOC2 PI1.4 — processing integrity | Pass — server-side `.xlsx` assembly; client cannot smuggle columns into the cover block or data sheet. |
+
+### Run Metadata
+
+- Run date: 2026-05-19
+- Commit SHA at review time: `75cfc9f` (impl(#423) commit)
+- Skills loaded: `threat-surface-classification` (surfaces: `web`, `api`), `owasp-top-10-web-review`, `owasp-api-top-10-review`, `secrets-in-code-check`, `privacy-and-pii-review`, `finding-disposition`, `security-review-results-structure`.
+- Auto-fix cap: 0 / 10 used.
+- Skill errors: none.
+- Environment notes: review run on `feature/423-...` worktree; no live database / live Postgres dependencies invoked for this phase.
+
 ## Notes for Phase 11 review
 
 - The integration test for the 50k export cap was written as a happy-path assertion rather than seeding 50k+ rows; the cap behavior is verified at the unit level via the constant export and the handler's early-return shape. If the reviewer wants the row-count path exercised end-to-end, we can drop a temporary `vi.mock` for `EXPORT_ROW_CAP = 0` and seed 1 row — leave a comment if you'd like that added.
