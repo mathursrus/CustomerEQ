@@ -1,0 +1,37 @@
+name: Nightly Regression
+
+# Second tier of the three-tier test model (smoke → nightly → weekly).
+# Runs tests that are too slow or costly for every PR — currently BAML LLM
+# evals. Add jobs here as the nightly tier grows (integration, broader E2E).
+# See epic #427 (test strategy & observability).
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 02:00 UTC nightly
+  workflow_dispatch:
+
+jobs:
+  baml-evals:
+    name: BAML evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # Rule 11a: fail loudly if the API key is missing — no silent skips.
+      - name: Validate AZURE_OPENAI_API_KEY
+        run: |
+          test -n "$AZURE_OPENAI_API_KEY" || (echo "AZURE_OPENAI_API_KEY secret is not set — nightly regression requires a real API key" && exit 1)
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+
+      - name: Run BAML evals
+        run: pnpm test:baml
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}

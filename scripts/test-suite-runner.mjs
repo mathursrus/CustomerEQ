@@ -33,12 +33,7 @@ const smokeSuites = [
   { name: 'worker-unit', command: 'pnpm --filter @customerEQ/worker test -- src/processors/loyaltyEvents.test.ts' },
   { name: 'mcp-server-unit', command: 'pnpm --filter @customerEQ/mcp-server test -- src/api-client.test.ts' },
   { name: 'ai-unit', command: 'pnpm --filter @customerEQ/ai test -- src/analysis/sentiment.test.ts' },
-  {
-    name: 'ai-baml-evals',
-    command:
-      'pnpm --filter @customerEQ/ai exec vitest run --config vitest.eval.config.ts --reporter=verbose baml_src/evals/classify-intent.eval.ts',
-    env: { AZURE_OPENAI_BASE_URL: process.env.AZURE_OPENAI_BASE_URL || DEFAULT_AZURE_OPENAI_BASE_URL },
-  },
+  // ai-baml-evals moved to nightly-regression.yml (#428) — no LLM calls in smoke path.
   { name: 'connectors-unit', command: 'pnpm --filter @customerEQ/connectors test -- src/google.test.ts' },
   { name: 'consent-text-unit', command: 'pnpm --filter @customerEQ/consent-text test -- src/validator.test.ts' },
   { name: 'database-unit', command: 'pnpm --filter @customerEQ/database test -- src/middleware/tenantScope.test.ts' },
