@@ -1,0 +1,79 @@
+name: Demo Sanity
+
+on:
+  schedule:
+    # Mondays 09:00 UTC — weekly check that the demo storefront checkout flow works.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  demo-sanity:
+    name: Demo storefront checkout e2e
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: customerEQ
+          POSTGRES_PASSWORD: customerEQ
+          POSTGRES_DB: customerEQ_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+
+      - name: Run migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @customerEQ/demo-storefront exec playwright install --with-deps chromium
+
+      - name: Run demo storefront e2e
+        # playwright.config.ts webServer entries start the API (port 4010) and
+        # the storefront (port 3022) automatically when CI=true and
+        # PLAYWRIGHT_REUSE_DEMO_STOREFRONT_SERVER is not set.
+        run: pnpm --filter @customerEQ/demo-storefront exec playwright test test/e2e/checkout.spec.ts
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+          REDIS_URL: redis://localhost:6379
+          CLERK_SECRET_KEY: sk_test_123
+          NEXT_PUBLIC_DEMO_BRAND_NAME: StarBrew Coffee
+          NEXT_PUBLIC_DEMO_BRAND_PRIMARY_COLOR: '#00704A'
+          NEXT_PUBLIC_DEMO_BRAND_SECONDARY_COLOR: '#CBA258'
