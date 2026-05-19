@@ -70,17 +70,30 @@ jobs:
         shell: bash
         run: |
           SKIP_PATTERN='^(.*\.md|docs/.*|\.github/ISSUE_TEMPLATE/.*|\.github/pull_request_template\.md|CODEOWNERS|\.gitattributes|LICENSE)$'
+          DEMO_PATTERN='^(apps/demo-storefront/|packages/config/|Dockerfile\.demo-storefront|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json)$'
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
           echo "Changed files between HEAD~1 and HEAD:"
           echo "$CHANGED" | sed 's/^/  /'
-          if [ -z "$CHANGED" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "demo_build=true" >> "$GITHUB_OUTPUT"
+            echo "Result: manual dispatch; building all deployable images."
+          elif [ -z "$CHANGED" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "demo_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: no diff; skipping deploy."
           elif echo "$CHANGED" | grep -qvE "$SKIP_PATTERN"; then
             echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "Result: at least one non-doc file changed; deploy required."
+            if echo "$CHANGED" | grep -qE "$DEMO_PATTERN"; then
+              echo "demo_build=true" >> "$GITHUB_OUTPUT"
+              echo "Result: at least one non-doc file changed; deploy required. Demo storefront inputs changed too."
+            else
+              echo "demo_build=false" >> "$GITHUB_OUTPUT"
+              echo "Result: at least one non-doc file changed; deploy required. Demo storefront unchanged."
+            fi
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "demo_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: all changes match the doc-only skip set; skipping deploy."
           fi
 
@@ -137,8 +150,15 @@ jobs:
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
             .
 
+      # Issue #427 (this fix): do not let an unrelated demo storefront rebuild
+      # block core prod deploys. The failed run on 2026-05-19 rebuilt the demo
+      # image even though the commit touched only API/web/shared code, and the
+      # fourth ACR task hit Docker Hub's unauthenticated `node:22-slim` pull
+      # limit. Only rebuild/redeploy the demo surface when its own inputs (or
+      # workspace files it depends on) change. Manual workflow_dispatch still
+      # forces a full rebuild for explicit recovery cases.
       - name: Build and push Demo Storefront image
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.demo_build == 'true'
         run: |
           API_FQDN=$(az containerapp show --name customereq-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
           az acr build --registry customereqcr \
@@ -243,7 +263,7 @@ jobs:
             --image ${{ env.REGISTRY }}/customereq-web:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Deploy Demo Storefront
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.demo_build == 'true'
         run: |
           az containerapp update \
             --name customereq-demo \
