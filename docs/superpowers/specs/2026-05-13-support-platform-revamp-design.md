@@ -129,19 +129,21 @@ Three independently-reversible migrations:
 
 ## 5. Components (file layout)
 
+> **Note (post-implementation, Issue #442):** KB pages and routes were co-located with Sid Mathur's pre-existing `/admin/kb/` monolith rather than nested under `/admin/support/`. The original spec called for `/admin/support/knowledge/` and `routes/knowledge.ts`; what actually shipped lives at `/admin/kb/sources/` (UI) and `apps/api/src/routes/kb-sources.ts` (API). The file layout below reflects what was built.
+
 ### `apps/api/src/routes/`
 - `support-public.ts` — revamp; add channel handling, anonId cookie, CSAT submit, widget-config GET
 - `support-admin.ts` — revamp; add agent draft-vs-send flow
-- `knowledge.ts` — NEW; KB articles + sources CRUD
-- `widget-config.ts` — NEW; GET/PUT per-brand widget config
-- `webhooks/slack.ts` — NEW; Slack Events API (signature verify, inbound message routing)
+- `kb.ts` + `kb-sources.ts` — NEW; KB articles + sources CRUD (co-located with the existing `/admin/kb` monolith)
+- `support-widget-config.ts` — NEW; GET/PUT per-brand widget config
+- `webhooks-slack.ts` — NEW; Slack Events API (signature verify, inbound message routing)
 
-### `apps/web/src/app/(admin)/admin/support/`
-- `conversations/` — revamp; three-pane inbox (list / thread / context), AI-drafted-reply banner with send/edit/discard, agent claim button
-- `knowledge/` — NEW; list articles + sources, create (manual or URL/sitemap), edit, crawl status pages
-- `widget/` — NEW; live preview iframe + theming form
-- `rules/` — existing; add `actionMode` picker, `confidenceThreshold` slider
-- `analytics/` — existing; add KB hit-rate and CSAT charts
+### `apps/web/src/app/(admin)/admin/`
+- `support/conversations/` — revamp; three-pane inbox (list / thread / context), AI-drafted-reply banner with send/edit/discard, agent claim button
+- `kb/sources/` — NEW; list articles + sources, create (manual or URL/sitemap), edit, crawl status pages
+- `support/widget/` — NEW; live preview iframe + theming form
+- `support/rules/` — existing; add `actionMode` picker, `confidenceThreshold` slider
+- `support/analytics/` — existing; add KB hit-rate and CSAT charts
 
 ### `apps/worker/src/processors/`
 - `supportOrchestration.ts` — NEW. Pipeline: `ClassifySupportIntent` → pgvector retrieval (top-K, brandId filter) → load Customer360 if identified → evaluate `SupportRule`s → dispatch by `actionMode`:
