@@ -552,13 +552,13 @@ Smoke test (pre-deploy): `pnpm build && pnpm typecheck && pnpm test`
 
 This catches `ERR_MODULE_NOT_FOUND`, broken relative imports, and missing dist files at PR time, before the image reaches CD. Probe target is **deliberately narrow** to `@customerEQ/ai`'s dist — importing the full app entry would couple the gate to env-var reads and false-positive in CI. Complementary to the CD-side `Verify API health` step in `deploy.yml`, not a replacement.
 
-**CD pipeline shape (post Issues #386 / #451)**:
+**CD pipeline shape (post Issues #386 / #451 / #453)**:
 ```
-CI on `main` push → Deploy workflow (`workflow_run`) → Mirror `node:22-slim` into ACR → Build images → Push to ACR → [customereq-migrate ACA Job] → Deploy containers → Image SHA probe → Health check → Canary checks
-                                                                                             ↓ (on failure)
-                                                                                     Pipeline fails, old containers stay live
+CI on `main` push → Deploy workflow (`workflow_run`) → Build images against Microsoft-hosted `NODE_IMAGE` → Push to ACR → [customereq-migrate ACA Job] → Deploy containers → Image SHA probe (demo only if rebuilt) → Health check → Canary checks
+                                                                                                                    ↓ (on failure)
+                                                                                                            Pipeline fails, old containers stay live
 ```
-The deploy workflow mirrors `docker.io/library/node:22-slim` into `customereqcr.azurecr.io/base-images/node:22-slim` before any remote build and passes that mirrored image into every deploy-time Docker build via `NODE_IMAGE`. This avoids Docker Hub anonymous pull-rate failures across sequential Azure Container Registry tasks while preserving the local/CI default of `node:22-slim`. The migration job uses the just-pushed API image (`docker-entrypoint-migrate.sh`), runs `prisma migrate deploy`, and asserts `_prisma_migrations` completeness. If it exits non-zero, all subsequent `az containerapp update` steps are skipped. This applies to both `workflow_run` (CI-triggered) and `workflow_dispatch` (manual hotfix) paths.
+The deploy workflow passes a Microsoft-hosted Node image into every deploy-time Docker build via `NODE_IMAGE`, while local and PR builds keep the default `node:22-slim` baked into the Dockerfiles. This removes the deploy-time dependency on Docker Hub's anonymous pull quota without forcing private-registry auth into the local or PR path. The migration job uses the just-pushed API image (`docker-entrypoint-migrate.sh`), runs `prisma migrate deploy`, and asserts `_prisma_migrations` completeness. If it exits non-zero, all subsequent `az containerapp update` steps are skipped. When the demo storefront was not rebuilt, the image-SHA verification step skips `customereq-demo` as well so non-demo prod commits do not fail after a successful core rollout. This applies to both `workflow_run` (CI-triggered) and `workflow_dispatch` (manual hotfix) paths.
 
 ---
 

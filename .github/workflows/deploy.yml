@@ -22,7 +22,7 @@ env:
   REGISTRY: customereqcr.azurecr.io
   RESOURCE_GROUP: customereq-prod
   ENVIRONMENT: customereq-env
-  ACR_NODE_BASE_IMAGE: customereqcr.azurecr.io/base-images/node:22-slim
+  DEPLOY_NODE_BASE_IMAGE: mcr.microsoft.com/devcontainers/javascript-node:22-bookworm
 
 jobs:
   build-and-deploy:
@@ -123,28 +123,13 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         run: az acr login --name customereqcr
 
-      # Issue #451: ACR remote builds were pulling `node:22-slim`
-      # anonymously from Docker Hub once per image build, which caused
-      # sequential prod deploys to fail with `toomanyrequests` before
-      # rollout. Mirror the base image into our own registry first, then
-      # point all subsequent `az acr build` invocations at the mirrored
-      # image via a Docker build arg.
-      - name: Mirror Node base image into ACR
-        if: steps.changes.outputs.build == 'true'
-        run: |
-          az acr import \
-            --name customereqcr \
-            --source docker.io/library/node:22-slim \
-            --image base-images/node:22-slim \
-            --force
-
       - name: Build and push API image
         if: steps.changes.outputs.build == 'true'
         run: |
           az acr build --registry customereqcr \
             --image customereq-api:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-api:latest \
-            --build-arg NODE_IMAGE=${{ env.ACR_NODE_BASE_IMAGE }} \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --file Dockerfile.api .
 
       - name: Build and push Worker image
@@ -153,7 +138,7 @@ jobs:
           az acr build --registry customereqcr \
             --image customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-worker:latest \
-            --build-arg NODE_IMAGE=${{ env.ACR_NODE_BASE_IMAGE }} \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --file Dockerfile.worker .
 
       - name: Build and push Web image
@@ -164,7 +149,7 @@ jobs:
             --image customereq-web:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-web:latest \
             --file Dockerfile.web \
-            --build-arg NODE_IMAGE=${{ env.ACR_NODE_BASE_IMAGE }} \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --build-arg NEXT_PUBLIC_API_URL="https://$API_FQDN" \
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.CLERK_PUBLISHABLE_KEY }}" \
             .
@@ -184,7 +169,7 @@ jobs:
             --image customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-demo:latest \
             --file Dockerfile.demo-storefront \
-            --build-arg NODE_IMAGE=${{ env.ACR_NODE_BASE_IMAGE }} \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --build-arg NEXT_PUBLIC_DEMO_API_URL="https://$API_FQDN" \
             .
 
@@ -194,7 +179,7 @@ jobs:
           az acr build --registry customereqcr \
             --image customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }} \
             --image customereq-turbo-cache:latest \
-            --build-arg NODE_IMAGE=${{ env.ACR_NODE_BASE_IMAGE }} \
+            --build-arg NODE_IMAGE=${{ env.DEPLOY_NODE_BASE_IMAGE }} \
             --file Dockerfile.turbo-cache .
 
       # Issue #386: run prisma migrate deploy in an ephemeral ACA Job before
@@ -308,7 +293,10 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         run: |
           IMAGE_TAG="${{ github.event.workflow_run.head_sha || github.sha }}"
-          APPS="customereq-api customereq-worker customereq-web customereq-demo"
+          APPS="customereq-api customereq-worker customereq-web"
+          if [ "${{ steps.changes.outputs.demo_build }}" = "true" ]; then
+            APPS="$APPS customereq-demo"
+          fi
           FAILED=0
           for APP in $APPS; do
             DEPLOYED=$(az containerapp show \
