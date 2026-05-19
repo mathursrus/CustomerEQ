@@ -22,7 +22,11 @@
 import { useState, type ReactNode } from 'react'
 
 export interface CollapsibleSectionProps {
-  title: string
+  // Issue #423 — widened from `string` to `ReactNode` so sections can embed
+  // inline pills/badges next to the title (e.g., the Response section's
+  // `412 responses` count badge). Existing call sites pass plain strings;
+  // string ⊂ ReactNode so no breaking change.
+  title: ReactNode
   expandedDefault: boolean
   children: ReactNode
   rightSlot?: ReactNode

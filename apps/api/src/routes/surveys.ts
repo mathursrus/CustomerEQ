@@ -10,6 +10,10 @@ import {
   validateRuleOverlap,
   NPS,
   SOURCE_TYPES,
+  ResponseListQuerySchema,
+  ResponseExportQuerySchema,
+  EXPORT_ROW_CAP,
+  splitCsvArray,
 } from '@customerEQ/shared'
 import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueSurveyImportRow } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
@@ -17,6 +21,14 @@ import { computeLoopMonitorWarning } from '@customerEQ/shared'
 import { parseCsvRaw } from '../utils/csvParser.js'
 import { runAdapter } from '../utils/importAdapters/index.js'
 import type { ImportSourceType } from '../utils/importAdapters/index.js'
+import {
+  buildResponseWhere,
+  buildFiltersEcho,
+  hasOpenEndedQuestion,
+  projectResponseRow,
+  SURVEY_RESPONSE_ROW_SELECT,
+} from '../utils/responseFilters.js'
+import { renderResponsesXlsx, exportFilename } from '../utils/excelExport.js'
 
 // Issue #241 Slice 2 / R29 / R30 — per-state field editability table.
 // Each entry returns true if the field is editable in the given (state, ctx)
@@ -116,7 +128,13 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.status(200).send({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   })
 
-  // GET /v1/surveys/:id — get survey with response stats
+  // GET /v1/surveys/:id — get survey with response stats.
+  //
+  // Issue #423 R21: the vestigial inline `responses: { take: 20, … }` block
+  // was removed. No consumer in `apps/web/src` reads `survey.responses[]`
+  // from this payload; only `_count.responses` is used (the count badge).
+  // The Response section now fetches from `GET /v1/surveys/:id/responses`
+  // (paginated, filterable). Integration test asserts the field is absent.
   fastify.get('/surveys/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
 
@@ -126,22 +144,6 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       include: {
         _count: { select: { responses: true } },
         theme: true,
-        responses: {
-          orderBy: { completedAt: 'desc' },
-          take: 20,
-          select: {
-            id: true,
-            memberId: true,
-            score: true,
-            sentiment: true,
-            topics: true,
-            channel: true,
-            completedAt: true,
-            clusterId: true,
-            cluster: { select: { label: true } },
-            importBatchId: true,
-          },
-        },
       },
     })
 
@@ -150,6 +152,240 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     return reply.status(200).send(survey)
+  })
+
+  // Issue #423 — list survey responses with filter envelope + filter-echo.
+  // Tenant-scoped via `request.brandId`; cross-tenant returns 404 (Issue
+  // #332 pattern). Filter contract lives in `responseFilters.schema.ts`
+  // and is shared with the export endpoint and the web URL codec.
+  fastify.get('/surveys/:id/responses', {
+    config: {
+      auditAction: 'survey.responses.list',
+      auditResourceType: 'survey',
+      auditAllowlist: [
+        'wave', 'submittedFrom', 'submittedTo',
+        'scoreBands', 'sentimentBands', 'channels',
+        'page', 'pageSize', 'total', 'requestIp',
+      ],
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    // Normalize CSV-encoded array params (the URL codec emits
+    // `?scoreBands=detractor,passive` rather than `?scoreBands=detractor&scoreBands=passive`).
+    const rawQuery = request.query as Record<string, unknown>
+    const normalized = {
+      ...rawQuery,
+      scoreBands: splitCsvArray(rawQuery.scoreBands),
+      sentimentBands: splitCsvArray(rawQuery.sentimentBands),
+      channels: splitCsvArray(rawQuery.channels),
+    }
+    const parse = ResponseListQuerySchema.safeParse(normalized)
+    if (!parse.success) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: parse.error.errors.map((e: { message: string }) => e.message).join(', '),
+        details: parse.error.errors,
+      })
+    }
+    const query = parse.data
+
+    const survey = await fastify.prisma.survey.findFirst({
+      where: { id, brandId: request.brandId, deletedAt: null },
+      select: { id: true, type: true, brandId: true, questions: true },
+    })
+    if (!survey) return reply.status(404).send({ error: 'Survey not found' })
+
+    const brand = await fastify.prisma.brand.findUnique({
+      where: { id: request.brandId },
+      select: { timezone: true, locale: true, memberIdentifierKind: true },
+    })
+    if (!brand) {
+      // Auth plugin guarantees brandId; if Brand was deleted between auth and
+      // here, surface a 404 consistent with the Issue #332 pattern.
+      return reply.status(404).send({ error: 'Brand not found' })
+    }
+
+    const where = buildResponseWhere({
+      surveyId: id,
+      brandId: request.brandId,
+      filters: query,
+      survey,
+      brand: { timezone: brand.timezone },
+    })
+
+    const [total, rows] = await Promise.all([
+      fastify.prisma.surveyResponse.count({ where }),
+      fastify.prisma.surveyResponse.findMany({
+        where,
+        orderBy: { completedAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+        select: SURVEY_RESPONSE_ROW_SELECT,
+      }),
+    ])
+
+    const data = rows.map((r) => projectResponseRow(r, brand))
+    const filters = buildFiltersEcho(query, survey, hasOpenEndedQuestion(survey.questions))
+
+    request.audit = {
+      metadata: {
+        wave: query.wave,
+        submittedFrom: query.submittedFrom ?? null,
+        submittedTo: query.submittedTo ?? null,
+        scoreBands: query.scoreBands ?? null,
+        sentimentBands: query.sentimentBands ?? null,
+        channels: query.channels ?? null,
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+      },
+    }
+
+    return reply.status(200).send({
+      data,
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+      filters,
+    })
+  })
+
+  // Issue #423 — Excel export of the same filter set as the list endpoint.
+  // Returns HTTP 413 when the filtered set would exceed EXPORT_ROW_CAP rows
+  // (UI pre-emptively disables the button when count > cap so this is a
+  // safety net, not a steady-state code path).
+  fastify.get('/surveys/:id/responses.xlsx', {
+    config: {
+      auditAction: 'survey.responses.export',
+      auditResourceType: 'survey',
+      auditAllowlist: [
+        'wave', 'submittedFrom', 'submittedTo',
+        'scoreBands', 'sentimentBands', 'channels',
+        'total', 'aiVintageNonNullCount', 'requestIp',
+      ],
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const rawQuery = request.query as Record<string, unknown>
+    const normalized = {
+      ...rawQuery,
+      scoreBands: splitCsvArray(rawQuery.scoreBands),
+      sentimentBands: splitCsvArray(rawQuery.sentimentBands),
+      channels: splitCsvArray(rawQuery.channels),
+    }
+    const parse = ResponseExportQuerySchema.safeParse(normalized)
+    if (!parse.success) {
+      return reply.status(422).send({
+        error: 'Validation failed',
+        message: parse.error.errors.map((e: { message: string }) => e.message).join(', '),
+        details: parse.error.errors,
+      })
+    }
+    const query = parse.data
+
+    const survey = await fastify.prisma.survey.findFirst({
+      where: { id, brandId: request.brandId, deletedAt: null },
+      select: { id: true, name: true, type: true, brandId: true, questions: true },
+    })
+    if (!survey) return reply.status(404).send({ error: 'Survey not found' })
+
+    const brand = await fastify.prisma.brand.findUnique({
+      where: { id: request.brandId },
+      select: { timezone: true, locale: true, memberIdentifierKind: true },
+    })
+    if (!brand) return reply.status(404).send({ error: 'Brand not found' })
+
+    const where = buildResponseWhere({
+      surveyId: id,
+      brandId: request.brandId,
+      filters: query,
+      survey,
+      brand: { timezone: brand.timezone },
+    })
+
+    const total = await fastify.prisma.surveyResponse.count({ where })
+    if (total > EXPORT_ROW_CAP) {
+      return reply.status(413).send({
+        code: 'EXPORT_TOO_LARGE',
+        total,
+        capacity: EXPORT_ROW_CAP,
+        message:
+          `Filtered set is ${total} responses — narrow the filters ` +
+          `(try a date range or a single wave) and try again.`,
+      })
+    }
+
+    const rows = await fastify.prisma.surveyResponse.findMany({
+      where,
+      orderBy: { completedAt: 'desc' },
+      select: SURVEY_RESPONSE_ROW_SELECT,
+    })
+
+    // Resolve the wave label (display only — not used in DB filtering).
+    let waveLabel: string | null = null
+    if (query.wave !== 'all' && query.wave !== 'direct') {
+      const batch = await fastify.prisma.distributionBatch.findFirst({
+        where: { id: query.wave, surveyId: id, brandId: request.brandId },
+        select: { label: true },
+      })
+      waveLabel = batch?.label ?? null
+    }
+
+    // Operator email from the auth plugin's session; fall back to clerkUserId
+    // when the test bypass / DEV_BYPASS_AUTH path does not supply one.
+    const operatorEmail =
+      (request as { user?: { email?: string } }).user?.email
+      ?? `${request.clerkUserId ?? 'unknown'}@example.local`
+
+    const echo = buildFiltersEcho(query, survey, hasOpenEndedQuestion(survey.questions))
+    const buffer = await renderResponsesXlsx({
+      survey: {
+        ...survey,
+        questions: Array.isArray(survey.questions) ? (survey.questions as Array<{ id: string; text: string; type?: string }>) : [],
+      },
+      brand,
+      filters: {
+        wave: query.wave,
+        waveLabel,
+        submittedFrom: query.submittedFrom ?? null,
+        submittedTo: query.submittedTo ?? null,
+        scoreBands: query.scoreBands ?? [],
+        sentimentBands: query.sentimentBands ?? [],
+        channels: query.channels ?? [],
+        scoreBandGate: echo.scoreBandGate,
+        sentimentBandGate: echo.sentimentBandGate,
+      },
+      rows,
+      total,
+      operatorEmail,
+    })
+
+    const aiVintageNonNullCount = rows.reduce((n, r) => {
+      const hasAi = r.sentiment !== null || (r.topics?.length ?? 0) > 0 || r.summary != null
+      return n + (hasAi ? 1 : 0)
+    }, 0)
+
+    request.audit = {
+      metadata: {
+        wave: query.wave,
+        submittedFrom: query.submittedFrom ?? null,
+        submittedTo: query.submittedTo ?? null,
+        scoreBands: query.scoreBands ?? null,
+        sentimentBands: query.sentimentBands ?? null,
+        channels: query.channels ?? null,
+        total,
+        aiVintageNonNullCount,
+      },
+    }
+
+    return reply
+      .status(200)
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="${exportFilename(survey, brand)}"`)
+      .send(buffer)
   })
 
   // PATCH /v1/surveys/:id/status — activate, pause, or close a survey
