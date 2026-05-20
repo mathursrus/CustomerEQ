@@ -19,7 +19,25 @@ const P90_THRESHOLD_S    = 25 * 60; // 25m CD wall clock
 const TTL_THRESHOLD_S    = 30 * 60; // 30m merge-to-live
 
 function ghApi(path) {
-  return JSON.parse(execSync(`gh api --paginate "${path}"`, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 }));
+  const raw = execSync(`gh api --paginate "${path}"`, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+  // gh api --paginate emits one JSON blob per page (not merged). Handle both cases.
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const pages = [];
+    let depth = 0, start = -1;
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i];
+      if (c === '{' || c === '[') { if (depth++ === 0) start = i; }
+      else if (c === '}' || c === ']') {
+        if (--depth === 0 && start !== -1) { pages.push(JSON.parse(raw.slice(start, i + 1))); start = -1; }
+      }
+    }
+    if (!pages.length) throw new Error(`gh api returned unparseable output for: ${path}`);
+    if (Array.isArray(pages[0])) return pages.flat();
+    const arrayKey = Object.keys(pages[0]).find(k => Array.isArray(pages[0][k]));
+    return arrayKey ? { ...pages[0], [arrayKey]: pages.flatMap(p => p[arrayKey] ?? []) } : pages[0];
+  }
 }
 
 function durSec(startedAt, completedAt) {
