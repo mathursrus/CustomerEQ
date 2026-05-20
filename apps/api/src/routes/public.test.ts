@@ -162,17 +162,78 @@ describe('generateWidgetJs', () => {
 
       // Surface the actual size in test output so future PRs can update the
       // baseline intentionally if the no-op-delta band drifts.
-      // eslint-disable-next-line no-console
       console.log(`[widget bundle] gzipped size = ${gzippedSize} bytes (baseline ${PRE_413_BASELINE_GZIPPED_BYTES}, R10 budget ${R10_BUDGET_BYTES})`)
 
       expect(gzippedSize).toBeLessThanOrEqual(R10_BUDGET_BYTES)
     })
 
-    it.todo('R3 — footer HTML is present in the widget container AFTER the form append')
-    it.todo('R3 — footer HTML is present in the thank-you container.innerHTML swap (survives DOM replacement)')
-    it.todo('R4 — footer link href contains utm_source=survey_footer&utm_medium=embed&utm_campaign=powered_by')
-    it.todo('R4 — footer link href contains no respondent-specific data (no email, surveyId, brandId in querystring)')
-    it.todo('R7 — widget JS contains no toggle-shaped identifier (hideFooter/hideAttribution/showPoweredBy/etc.)')
-    it.todo('R8 — footer link has target="_blank" rel="noopener noreferrer" aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"')
+    it('R3 — footer HTML is present in the widget container AFTER the form append', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      // The widget appends form to container, then immediately appends the
+      // footer via insertAdjacentHTML('beforeend', ...). Both calls must
+      // appear, with the footer call positioned after the form append.
+      const formAppendIdx = js.indexOf('container.appendChild(form)')
+      const footerInsertIdx = js.indexOf("insertAdjacentHTML('beforeend',")
+      expect(formAppendIdx, 'form append must exist').toBeGreaterThan(-1)
+      expect(footerInsertIdx, 'footer insertAdjacentHTML must exist').toBeGreaterThan(-1)
+      expect(footerInsertIdx).toBeGreaterThan(formAppendIdx)
+      expect(js).toContain('data-survey-footer')
+      expect(js).toContain('ceq-powered-by--neutral')
+    })
+
+    it('R3 — footer HTML is present in the thank-you container.innerHTML swap (survives DOM replacement)', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      // Both the active-form path AND the thank-you swap reference the
+      // same data-survey-footer marker. The two occurrences guarantee the
+      // post-submit DOM replacement doesn't drop the footer (R3).
+      const matches = js.match(/data-survey-footer/g)
+      expect(matches).not.toBeNull()
+      expect(matches!.length).toBeGreaterThanOrEqual(2)
+
+      // The thank-you swap concatenates the existing innerHTML literal with
+      // the footer HTML — that concatenation is the load-bearing line.
+      expect(js).toMatch(/Your feedback has been recorded\.<\/p><\/div>'\s*\+\s*'<p class="ceq-powered-by/)
+    })
+
+    it('R4 — footer link href contains utm_source=survey_footer&utm_medium=embed&utm_campaign=powered_by', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      expect(js).toContain('utm_source=survey_footer')
+      expect(js).toContain('utm_medium=embed')
+      expect(js).toContain('utm_campaign=powered_by')
+    })
+
+    it('R4 — footer link href contains no respondent-specific data (no email, surveyId, brandId in querystring)', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      // Parse out the footer href to inspect it directly.
+      const hrefMatch = js.match(/href="(https:\/\/customereq\.com\/[^"]+)"/)
+      expect(hrefMatch, 'footer href must be present').not.toBeNull()
+      const url = new URL(hrefMatch![1])
+      const paramKeys = [...url.searchParams.keys()].sort()
+      // Exactly three params — no fourth carrying surveyId/brandId/email/etc.
+      expect(paramKeys).toEqual(['utm_campaign', 'utm_medium', 'utm_source'])
+      // Defense-in-depth — the href must not contain any obvious
+      // respondent-identifier shape.
+      const href = hrefMatch![1].toLowerCase()
+      expect(href).not.toContain('email')
+      expect(href).not.toContain('survey-001') // survey.id from the fixture above
+      expect(href).not.toContain('memberid')
+      expect(href).not.toContain('brandid')
+    })
+
+    it('R7 — widget JS contains no toggle-shaped identifier', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      // Defense-in-depth: the repo-level R7 grep gate
+      // (scripts/check-no-attribution-toggle.sh) catches these at the
+      // source-tree level; this assertion catches anyone who tries to
+      // smuggle a toggle into the generated-JS string at runtime.
+      expect(js).not.toMatch(/hideFooter|hideAttribution|showPoweredBy|disableFooter|attributionEnabled|poweredByEnabled/i)
+    })
+
+    it('R8 — footer link has target="_blank" rel="noopener noreferrer" aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      expect(js).toContain('target="_blank"')
+      expect(js).toContain('rel="noopener noreferrer"')
+      expect(js).toContain('aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"')
+    })
   })
 })

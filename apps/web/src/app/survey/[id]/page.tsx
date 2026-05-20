@@ -22,6 +22,7 @@
 import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
+import { PoweredByFooter } from '@/components/survey-form/PoweredByFooter'
 import { RendererErrorLine, SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
 import { useSurveyResponseForm } from '@/components/survey-form/useSurveyResponseForm'
 import type { BrandLite } from '@/components/survey-form/types'
@@ -121,8 +122,12 @@ export default function SurveyResponsePage() {
 
   if (form.loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
+        <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+          {/* Issue #413 — neutral footer on the standalone loading state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
+        </div>
       </div>
     )
   }
@@ -130,8 +135,10 @@ export default function SurveyResponsePage() {
   if (form.loadError && !form.survey) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-800">
-          {form.loadError}
+        <div className="w-full max-w-md overflow-hidden rounded-lg border border-red-200 bg-red-50 text-center text-sm text-red-800">
+          <div className="p-6">{form.loadError}</div>
+          {/* Issue #413 — neutral footer on the standalone load-error state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
         </div>
       </div>
     )
@@ -140,11 +147,15 @@ export default function SurveyResponsePage() {
   if (duplicate) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
-          <h2 className="text-lg font-semibold text-amber-900">Already responded</h2>
-          <p className="mt-2 text-sm text-amber-800">
-            You&apos;ve already submitted a response to this survey. Thank you for your feedback!
-          </p>
+        <div className="w-full max-w-md overflow-hidden rounded-lg border border-amber-200 bg-amber-50 text-center">
+          <div className="p-8">
+            <h2 className="text-lg font-semibold text-amber-900">Already responded</h2>
+            <p className="mt-2 text-sm text-amber-800">
+              You&apos;ve already submitted a response to this survey. Thank you for your feedback!
+            </p>
+          </div>
+          {/* Issue #413 — neutral footer on the standalone already-responded state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
         </div>
       </div>
     )
@@ -154,12 +165,16 @@ export default function SurveyResponsePage() {
     const thankYouMsg = form.survey?.thankYouMessage ?? 'Your feedback has been submitted.'
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Thank you!</h2>
-          <p className="mt-2 whitespace-pre-line text-sm text-gray-700">{thankYouMsg}</p>
-          {form.survey?.thankYouRedirectUrl && (
-            <p className="mt-4 text-xs text-gray-400">Redirecting you shortly…</p>
-          )}
+        <div className="w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white text-center shadow-sm">
+          <div className="p-8">
+            <h2 className="text-lg font-semibold text-gray-900">Thank you!</h2>
+            <p className="mt-2 whitespace-pre-line text-sm text-gray-700">{thankYouMsg}</p>
+            {form.survey?.thankYouRedirectUrl && (
+              <p className="mt-4 text-xs text-gray-400">Redirecting you shortly…</p>
+            )}
+          </div>
+          {/* Issue #413 — neutral footer on the standalone post-submit (thank-you) state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
         </div>
       </div>
     )

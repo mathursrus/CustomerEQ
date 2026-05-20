@@ -77,6 +77,11 @@ function run(command, label, extraEnv = {}) {
   }
 }
 
+// Issue #413 R7 — fail fast on attribution-toggle identifiers in the
+// repository BEFORE running expensive builds + test suites. The gate is
+// a pure-grep over the source tree and adds <1s to the smoke run.
+run('bash scripts/check-no-attribution-toggle.sh', 'check R7: no attribution-toggle identifier in source tree')
+
 for (const pkg of buildPrereqs) {
   run(`pnpm --filter ${pkg} build`, `build prerequisite: ${pkg}`)
 }

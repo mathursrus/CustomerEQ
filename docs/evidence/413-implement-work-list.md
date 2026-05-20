@@ -128,7 +128,7 @@ Add a "Powered by CustomerEQ" footer to every survey-bearing surface, with a the
 
 | # | Question | Default | Resolved? |
 |---|---|---|---|
-| OD-A | Where does `footer-tokens.ts` live: `apps/web/src/components/survey-form/` (co-located, web-only) or `packages/shared/src/`? | Co-located in `apps/web/src/components/survey-form/`. The constants are tiny + web-and-API-only, and the widget JS imports them via the API server bundle (which can resolve into `apps/web/`-adjacent files — but actually NO, `apps/api` cannot import from `apps/web`). **Revised default**: put the constants in `packages/shared/src/footer.ts` so both `apps/web` (React) and `apps/api` (widget JS string) can import without a cross-app dependency. Avoid the bundle-bloat concern by exporting only literal strings + a tiny URL builder (no React, no DOM). | Pending — confirm at top of Phase 4 before writing the new file |
+| OD-A | Where does `footer-tokens.ts` live: `apps/web/src/components/survey-form/` (co-located, web-only) or `packages/shared/src/`? | Co-located in `apps/web/src/components/survey-form/`. The constants are tiny + web-and-API-only, and the widget JS imports them via the API server bundle (which can resolve into `apps/web/`-adjacent files — but actually NO, `apps/api` cannot import from `apps/web`). **Revised default**: put the constants in `packages/shared/src/footer.ts` so both `apps/web` (React) and `apps/api` (widget JS string) can import without a cross-app dependency. Avoid the bundle-bloat concern by exporting only literal strings + a tiny URL builder (no React, no DOM). | **Resolved (Phase 4, user-confirmed)**: `packages/shared/src/footer.ts`. Subpath export `@customerEQ/shared/footer` added to `packages/shared/package.json`. Exports `POWERED_BY_PREFIX`, `POWERED_BY_LINK_TEXT`, `POWERED_BY_ARIA_LABEL`, `buildFooterHref(channel)`, and `PoweredByChannel` type. Both `apps/web/src/components/survey-form/PoweredByFooter.tsx` and `apps/api/src/routes/public.ts` import from this single source. |
 | OD-B | Should the `<PoweredByFooter>` component live in `packages/ui/` (shared) or `apps/web/src/components/survey-form/` (co-located with the other survey-form components)? | Co-located in `apps/web/src/components/survey-form/` — matches the location of `SurveyFormRenderer`, `ConsentDisclosure`, etc. `packages/ui` today only exports the `cn()` utility per architecture doc §3.6; promoting components there is a separate refactor. | Resolved |
 | OD-C | Snapshot test for the R12 byte-identity assertion — what's the right unit-test shape? | Vitest + `@testing-library/react` `render()` for each of the 4 token states in turn, query `container.querySelector('[data-survey-footer]')`, then `expect(footer1.outerHTML).toEqual(footer2.outerHTML)` for all pairs. Don't use snapshot files — inline assertion is more diff-readable. | Resolved |
 | OD-D | Widget bundle size baseline — what's the current size of `generateWidgetJs()` output? | Capture in Phase 3 (implement-tests) by running the existing widget endpoint in an integration test, gzipping the response, and recording the size. Bake the baseline as a constant in the test file with a comment ("Baseline captured 2026-05-20 pre-#413"). The R10 budget is +1 KB gzipped from this baseline. | **Resolved (Phase 3)**: 2193 bytes gzipped against the existing fixture survey (1 NPS question, `TestBrand` brand). R10 budget = 2193 + 1024 = **3217 bytes** for the post-#413 widget. Test: `apps/api/src/routes/public.test.ts` describe `'Issue #413 — widget footer'` > `'R10 — widget gzipped size stays within baseline + 1 KB budget'`. |
@@ -161,6 +161,46 @@ Per principle "Prototype-First" + "Orchestration":
 8. Add `pnpm check:no-attribution-toggle` to the smoke runner (`scripts/test-suite-runner.mjs` `smokeSuites` — script + grep gate already live in Phase 3).
 9. Browser-verify every Scene from the mock (per L1 mock-conformance sweep).
 10. Phase 5 onward.
+
+---
+
+## Phase 4 outcomes (implement-code, completed 2026-05-20)
+
+| Artifact | Path | Status |
+|---|---|---|
+| Shared footer primitives | `packages/shared/src/footer.ts` + subpath export `@customerEQ/shared/footer` in `packages/shared/package.json` | **Live.** Pure-data + pure-function module (no React, no DOM). 5 exports: `POWERED_BY_PREFIX`, `POWERED_BY_LINK_TEXT`, `POWERED_BY_ARIA_LABEL`, `buildFooterHref(channel)`, `PoweredByChannel` type. |
+| Themed + neutral footer CSS | `apps/web/src/app/globals.css` (`.ceq-powered-by` class family — 9 rules) | **Live.** Themed reads `--ceq-*` vars from parent; neutral uses hardcoded gray hex. Same rules duplicated inside the widget JS `<style>` injection per the documented scope-boundary with #476. |
+| `<PoweredByFooter>` React component | `apps/web/src/components/survey-form/PoweredByFooter.tsx` | **Live.** Two-prop API (`variant` + `channel`). Renders `<p data-survey-footer class="ceq-powered-by ceq-powered-by--{variant}">…</p>` with the link assembled from the shared constants. |
+| Themed footer in `<SurveyFormRenderer>` (R1, R9) | `apps/web/src/components/survey-form/SurveyFormRenderer.tsx` (after `</form>`, before `</div>`) | **Live.** Non-toggleable per R7; emits identical DOM in preview and live modes per R9. |
+| Neutral footer on standalone respondent page (R2) | `apps/web/src/app/survey/[id]/page.tsx` (4 branches: loading, load-error, duplicate, submitted) | **Live.** Footer sits inside each state-card via `overflow-hidden` wrapper + flex-column layout adjustment for the loading branch. |
+| Neutral footer on tokenized respondent page (R12) | `apps/web/src/app/survey/[id]/r/[token]/page.tsx` (5 branches: loading, 4 token-error states sharing one card, submitted, load-failure) | **Live.** The 4 token-error states share one render path → footer DOM is byte-identical across them by construction. |
+| Neutral footer in widget JS (R3, R10) | `apps/api/src/routes/public.ts` `generateWidgetJs()` (form-append path + thank-you `innerHTML` swap path) | **Live.** Footer styles injected into `document.head` once per page via `<style id="ceq-survey-widget-styles">`; footer HTML appended via `insertAdjacentHTML('beforeend', ...)` after form; re-included in the thank-you swap via string concatenation. |
+| Widget bundle size delta | `apps/api/src/routes/public.test.ts` R10 assertion | **Within budget.** Post-#413 gzipped size = **2945 bytes** (delta +752 bytes vs baseline 2193). R10 budget = baseline + 1024 = 3217 bytes. |
+| `<PoweredByFooter>` unit tests | `apps/web/src/components/survey-form/PoweredByFooter.test.tsx` | **15 passing.** Covers DOM contract, className mapping, link contract, UTM contract (R4), no-PII contract, R7 type-level no-toggle. Visual-token assertions (opacity/font-size/focus-ring) defer to Phase 5 Playwright. |
+| `<SurveyFormRenderer>` footer assertions | `apps/web/src/components/survey-form/SurveyFormRenderer.test.tsx` | **+4 new tests passing.** R1 footer-inside-card, R9 preview/live parity, R7 non-toggleable (chrome-matrix-irrelevant), R4 utm_medium=link. |
+| R12 byte-identity tests | `apps/web/src/app/survey/[id]/r/[token]/page.r12-byte-identity.test.tsx` | **6 passing.** User-mandated enforcement — all 4 token-error states emit byte-identical footer subtree HTML. |
+| Widget footer assertions | `apps/api/src/routes/public.test.ts` (describe `'Issue #413 — widget footer'`) | **6 passing.** R3 (form-append + thank-you-swap), R4 (UTM + no-PII), R7 (no toggle), R8 (a11y attrs). |
+| R7 gate wired into smoke runner | `scripts/test-suite-runner.mjs` (first step, before `buildPrereqs`) | **Live.** Runs `bash scripts/check-no-attribution-toggle.sh` before any expensive build/test step. |
+| R7 gate test-file exclusion | `scripts/check-no-attribution-toggle.sh` `EXCLUDES` array | **Updated.** Excludes `*.test.*` / `*.spec.*` so the defense-in-depth assertion in `public.test.ts` (which references the forbidden identifiers as a negative match) doesn't trigger the gate. |
+
+Total: ~14 file modifications (under the 15-file phase-splitting threshold from Phase 1 estimate).
+
+Verification commands (all green):
+
+| Command | Result |
+|---|---|
+| `pnpm --filter @customerEQ/api typecheck` | clean |
+| `pnpm --filter @customerEQ/web typecheck` | clean |
+| `pnpm --filter @customerEQ/api lint` | clean (no errors, no warnings introduced by #413) |
+| `pnpm --filter @customerEQ/web lint` | clean (4 pre-existing warnings in unrelated files; 0 introduced by #413) |
+| `pnpm --filter @customerEQ/shared build` | clean |
+| `pnpm --filter @customerEQ/api test -- src/routes/public.test.ts` | 23 passed |
+| `pnpm --filter @customerEQ/web test -- SurveyFormRenderer` | 21 passed |
+| `pnpm --filter @customerEQ/web test -- PoweredByFooter` | 15 passed |
+| `pnpm --filter @customerEQ/web test -- r12-byte` | 6 passed |
+| `pnpm check:no-attribution-toggle` | OK (R7 gate clean) |
+
+Phase 5 (`implement-validate`) will do the Playwright browser-walk across all 9 mock scenes + integration-level verification with a real dev server.
 
 ---
 

@@ -25,6 +25,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 
 import { API_URL } from '@/lib/config'
+import { PoweredByFooter } from '@/components/survey-form/PoweredByFooter'
 import { SurveyFormRenderer } from '@/components/survey-form/SurveyFormRenderer'
 import { useSurveyResponseForm } from '@/components/survey-form/useSurveyResponseForm'
 
@@ -127,7 +128,11 @@ export default function TokenizedSurveyPage() {
   if (tokenStatusLoading || (tokenState === 'valid' && form.loading)) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <p className="text-gray-500">Loading…</p>
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white text-center">
+          <p className="p-8 text-gray-500">Loading…</p>
+          {/* Issue #413 — neutral footer on the tokenized loading state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
+        </div>
       </main>
     )
   }
@@ -135,8 +140,17 @@ export default function TokenizedSurveyPage() {
   if (tokenState && tokenState !== 'valid') {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-base text-gray-900">{ERROR_COPY[tokenState]}</p>
+        {/* Issue #413 — R12: the four token-error states (expired / responded /
+         * survey-not-open / invalid) share one card chrome and produce
+         * byte-identical footer DOM. ERROR_COPY varies the inner <p> only;
+         * the surrounding <div> and the footer below are state-independent
+         * by construction. The R12 byte-identity assertion in
+         * apps/web/src/app/survey/[id]/r/[token]/page.r12-byte-identity.test.tsx
+         * locks this invariant. Sister-rule: #378 NFR-S5 timing-attack
+         * resistance against token enumeration. */}
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white text-center">
+          <p className="p-8 text-base text-gray-900">{ERROR_COPY[tokenState]}</p>
+          <PoweredByFooter variant="neutral" channel="link" />
         </div>
       </main>
     )
@@ -145,20 +159,27 @@ export default function TokenizedSurveyPage() {
   if (form.submitted) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-base text-gray-900">
-            {form.survey?.thankYouMessage ?? 'Thank you for your feedback!'}
-          </p>
-          {form.survey?.thankYouRedirectUrl ? (
-            <p className="mt-4">
-              <a
-                href={form.survey.thankYouRedirectUrl}
-                className="text-sm text-indigo-600 hover:underline"
-              >
-                Continue →
-              </a>
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white text-center">
+          <div className="p-8">
+            <p className="text-base text-gray-900">
+              {form.survey?.thankYouMessage ?? 'Thank you for your feedback!'}
             </p>
-          ) : null}
+            {form.survey?.thankYouRedirectUrl ? (
+              <p className="mt-4">
+                <a
+                  href={form.survey.thankYouRedirectUrl}
+                  className="text-sm text-indigo-600 hover:underline"
+                >
+                  Continue →
+                </a>
+              </p>
+            ) : null}
+          </div>
+          {/* Issue #413 — neutral footer on the tokenized post-submit state.
+           * Future consolidation onto the Scene-2 canonical h2+p treatment
+           * (with the standalone survey/[id]/page.tsx post-submit chrome)
+           * is tracked in #476. */}
+          <PoweredByFooter variant="neutral" channel="link" />
         </div>
       </main>
     )
@@ -167,7 +188,11 @@ export default function TokenizedSurveyPage() {
   if (!form.resolvedSurvey || !form.brandLite) {
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
-        <p className="text-red-600">{form.error ?? form.loadError ?? 'Failed to load survey.'}</p>
+        <div className="overflow-hidden rounded-lg border border-red-200 bg-red-50 text-center">
+          <p className="p-8 text-red-600">{form.error ?? form.loadError ?? 'Failed to load survey.'}</p>
+          {/* Issue #413 — neutral footer on the tokenized load-failure state. */}
+          <PoweredByFooter variant="neutral" channel="link" />
+        </div>
       </main>
     )
   }

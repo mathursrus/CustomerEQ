@@ -6,6 +6,7 @@
 import { useState } from 'react'
 
 import { ConsentDisclosure } from './ConsentDisclosure'
+import { PoweredByFooter } from './PoweredByFooter'
 import { QuestionRenderer } from './QuestionRenderer'
 import { shouldShowQuestion } from './skip-rules.logic'
 import { themeToCssVars } from './theme-to-css-vars'
@@ -210,6 +211,17 @@ export function SurveyFormRenderer(props: SurveyFormRendererProps) {
           </button>
         </div>
       </form>
+
+      {/* Issue #413 — "Powered by CustomerEQ" attribution footer.
+       *
+       * Themed variant sits inside the survey card so it inherits the brand
+       * theme via the --ceq-* CSS variables set on this container's inline
+       * style. Non-toggleable per R7 — no chrome-matrix gate, no
+       * conditional render. Same DOM emits in both preview and live modes
+       * per R9 (preview/live parity). UTM medium = 'link' for both the
+       * standalone and tokenized React-rendered respondent surfaces.
+       */}
+      <PoweredByFooter variant="themed" channel="link" />
     </div>
   )
 }

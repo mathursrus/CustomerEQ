@@ -50,6 +50,10 @@ PATTERNS=(
 #     toggle.
 #   - fraim/personalized-employee/learnings/ — past learnings catalog
 #     references to toggle patterns from prior reviews.
+#   - **/*.test.* and **/*.spec.* — test files reference the patterns
+#     as negative assertions (e.g., `expect(...).not.toMatch(/hideFooter|...)`)
+#     to enforce that production code never grows them. Treating the test
+#     as a violation would forbid its own enforcement.
 #   - node_modules/ — third-party code is out of scope.
 #   - .git/ — version control internals.
 
@@ -61,6 +65,12 @@ EXCLUDES=(
   "--exclude-dir=build"
   "--exclude-dir=coverage"
   "--exclude=check-no-attribution-toggle.sh"
+  "--exclude=*.test.ts"
+  "--exclude=*.test.tsx"
+  "--exclude=*.test.js"
+  "--exclude=*.test.jsx"
+  "--exclude=*.spec.ts"
+  "--exclude=*.spec.tsx"
 )
 
 FOUND=0
