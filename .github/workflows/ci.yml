@@ -224,6 +224,19 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         run: pnpm lint
 
+      # Issue #466: enforce no Docker Hub base image references in Dockerfiles.
+      # All Dockerfiles must use an MCR-hosted or ACR-mirrored image as the
+      # default NODE_IMAGE so that az acr build tasks don't hit Docker Hub's
+      # unauthenticated pull rate limit.
+      - name: Dockerfile base image lint
+        run: |
+          if grep -rE 'ARG NODE_IMAGE=node:|^FROM node:' Dockerfile.*; then
+            echo "ERROR: Dockerfile(s) reference Docker Hub 'node:' image directly."
+            echo "Use mcr.microsoft.com/devcontainers/javascript-node:22-bookworm as the default."
+            exit 1
+          fi
+          echo "Dockerfile base image lint passed — no Docker Hub node references."
+
   docker-build:
     name: Build production images
     runs-on: ubuntu-latest
