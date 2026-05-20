@@ -255,7 +255,7 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
   // 8. View survey detail with response stats
   // ---------------------------------------------------------------------------
 
-  it('returns survey detail with _count.responses and recent responses', async () => {
+  it('returns survey detail with _count.responses and no inline responses array', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
     const member = await createConsentedMember({ brandId: brand.id })
@@ -277,10 +277,7 @@ describe('Survey Lifecycle — admin CRUD + response pipeline', () => {
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(survey.id)
     expect(res.body._count.responses).toBe(1)
-    expect(Array.isArray(res.body.responses)).toBe(true)
-    expect(res.body.responses.length).toBe(1)
-    expect(res.body.responses[0].score).toBe(8)
-    expect(res.body.responses[0].memberId).toBe(member.id)
+    expect(res.body.responses).toBeUndefined()
   })
 
   // ---------------------------------------------------------------------------
