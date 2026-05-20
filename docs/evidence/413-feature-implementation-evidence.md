@@ -282,6 +282,112 @@ No regressions introduced by #413. All four pre-existing issues that surfaced we
 
 ---
 
-## Phase 9 (`implement-completeness-review`) — checklist
+## Completeness Review (Phase 9)
 
-*To be populated in Phase 9.*
+### Standing Work List audit
+
+Re-read [`413-implement-work-list.md`](./413-implement-work-list.md). All checklist items are either completed (Phase 4 outcomes table, Phase 3 outcomes table) or explicitly deferred to #476 / sibling deferred follow-ups per the "Out of scope" section. No checklist items remain UNADDRESSED.
+
+### Source of truth for commitments
+
+- **Feature requirements**: GitHub issue #413 body (5 ACs) + [`docs/feature-specs/413-survey-footer.md`](../feature-specs/413-survey-footer.md) (R1-R12, OD-1..OD-7, all 9 mock scenes).
+- **Technical design**: **No RFC exists for #413.** The feature spec serves as the design source per the spec's own scope statement ("the mock is the spec — every visible element should ship verbatim"). RFC-level architecture decisions referenced from the spec (notably RFC #241 L474's `--ceq-text-color` reservation for footer copy) are mapped explicitly below.
+
+---
+
+### Feature Requirement Traceability Matrix
+
+Issue #413 body decomposes into 5 ACs; the spec further enumerates them as R1-R12. The matrix maps each to a concrete implementation surface + a specific automated test or live-browser evidence point.
+
+| Requirement / AC | Implemented file/function | Proof (test name / browser path) | Status |
+|---|---|---|---|
+| **AC-1** "Saying 'Powered by CustomerEQ' with a link to the site" | `packages/shared/src/footer.ts` exports `POWERED_BY_PREFIX`, `POWERED_BY_LINK_TEXT`, `buildFooterHref()`; consumed by `PoweredByFooter.tsx` (React) and `generateWidgetJs()` (widget JS) | `PoweredByFooter.test.tsx > shared > renders the POWERED_BY_PREFIX text followed by the CustomerEQ link` ✓ | Met |
+| **AC-2** "All survey distribution surfaces — direct link" | `apps/web/src/app/survey/[id]/page.tsx` 4 branches + `r/[token]/page.tsx` 5 branches all render `<PoweredByFooter variant="neutral" channel="link" />`; themed footer also inside `SurveyFormRenderer.tsx` | `413-ui-polish-validation.md` Scenes 1, 2, 3, 4, 9 (live browser); `SurveyFormRenderer.test.tsx > Issue #413 attribution footer` (4 tests) ✓ | Met |
+| **AC-3** "All survey distribution surfaces — embedded" | `apps/api/src/routes/public.ts` `generateWidgetJs()` lines ~830-870 (footer HTML + CSS) + lines ~1000 (thank-you swap concat) + line ~1025 (`insertAdjacentHTML` after form append) | `public.test.ts > Issue #413 — widget footer > R3` (2 tests) + `413-ui-polish-validation.md` Scene 6 + Scene 6b (live browser; thank-you swap verified manually) ✓ | Met |
+| **AC-4** "All survey distribution surfaces — send via email" | R5 — contract only per spec. No code in this PR. Email-template renderer is a deferred follow-up (`apps/worker/src/processors/notifications.ts` is a stub). | Documented in spec § "Deferred follow-ups" ("Email template renderer + footer"); no current test surface | Met (deferred per spec contract) |
+| **AC-5** "All pages on the survey — Questions" | `SurveyFormRenderer.tsx` after `</form>`, before closing `</div>` of `.ceq-survey-card` | `SurveyFormRenderer.test.tsx > Issue #413 attribution footer > renders the themed PoweredByFooter inside the survey card (R1)` + `413-ui-polish-validation.md` Scene 1 ✓ | Met |
+| **AC-6** "All pages on the survey — Thank you" | Standalone: `survey/[id]/page.tsx` submitted branch (~L153-166). Tokenized: `r/[token]/page.tsx` submitted branch (~L145-165). Widget: `generateWidgetJs()` thank-you `innerHTML` swap path. | `413-ui-polish-validation.md` Scene 2 (standalone) + Scene 6b (widget thank-you swap); `public.test.ts > Issue #413 — widget footer > R3 — footer HTML is present in the thank-you container.innerHTML swap` ✓ | Met |
+| **AC-7** "All pages on the survey — Already responded" | Standalone: `survey/[id]/page.tsx` duplicate branch (~L140-151). Tokenized: `r/[token]/page.tsx` `responded` token-state share path (~L135-143). | `413-ui-polish-validation.md` Scene 3 (live browser amber chrome) + `page.r12-byte-identity.test.tsx` `responded` covered by all-four-states equality ✓ | Met |
+| **AC-8** "All pages on the survey — Expired" | Tokenized: `r/[token]/page.tsx` `expired` token-state share path (~L135-143). Direct-link: `survey/[id]/page.tsx` load-error branch handles equivalent (~L130-138). | `page.r12-byte-identity.test.tsx` `expired` covered by all-four-states equality (`renders the same footer subtree HTML across all four token-error states in a single equality assertion`) + `413-ui-polish-validation.md` Scene 4 (red error card) ✓ | Met |
+| **AC-9** "...should consistently have this footer" (consistency mandate) | Same `<PoweredByFooter>` React component is the single source for both direct-link branches; widget JS uses HTML mirroring the same constants from `@customerEQ/shared/footer`. No `hideFooter`/`hideAttribution`/`showPoweredBy` flag anywhere (R7 gate). | `scripts/check-no-attribution-toggle.sh` runs as first step of `pnpm test:smoke` and asserts the source tree is clean ✓ + `public.test.ts > R7 — widget JS contains no toggle-shaped identifier` ✓ | Met |
+
+**Result**: 9 / 9 ACs Met. 0 Partial. 0 Unmet.
+
+---
+
+### Technical Design Traceability Matrix
+
+The feature spec is the design source (no RFC). Material design commitments come from the spec's R1-R12 + OD-1..OD-7 + the explicit cross-references to RFC #241 (theme token contract) and `mocks/36-theme-editor.html` (canonical `.powered-by` CSS pattern).
+
+| Design commitment | Implemented file/function | Proof | Status |
+|---|---|---|---|
+| **R1** — Themed footer inside `SurveyFormRenderer` card | `apps/web/src/components/survey-form/SurveyFormRenderer.tsx` lines 215+ (after `</form>`, before `</div>`) | `SurveyFormRenderer.test.tsx > renders the themed PoweredByFooter inside the survey card (R1)` ✓ | Met |
+| **R2** — Neutral footer on every standalone state-card branch (loading, load-error, duplicate, submitted) | `apps/web/src/app/survey/[id]/page.tsx` all 4 branches | `413-ui-polish-validation.md` Scenes 2, 3, 4, 5 (live browser) ✓ | Met |
+| **R3** — Widget JS attaches footer in TWO places (form-append + thank-you `innerHTML` swap) | `apps/api/src/routes/public.ts` `generateWidgetJs()` + `<style>` injection + `insertAdjacentHTML` + concat in thank-you swap | `public.test.ts > R3 — footer HTML is present in the widget container AFTER the form append` ✓ + `public.test.ts > R3 — footer HTML is present in the thank-you container.innerHTML swap` ✓ + Scene 6b live-browser check ✓ | Met |
+| **R4** — UTM contract: `utm_source=survey_footer` + `utm_medium∈{link,embed,email}` + `utm_campaign=powered_by`; no PII | `packages/shared/src/footer.ts` `buildFooterHref(channel)` | `PoweredByFooter.test.tsx > UTM contract (R4)` (7 tests including no-PII assertions) + `public.test.ts > R4 — footer link href contains no respondent-specific data` ✓ | Met |
+| **R5** — Email body footer (contract-only) | N/A in #413 — email templates are stubs. Markup contract documented in spec + Scene 7 of the mock. | Deferred per spec — "Email template renderer + footer" follow-up. No code surface to test today. | Met (deferred per spec contract) |
+| **R6** — Anchor uses real `<a>` element with accessible name | `PoweredByFooter.tsx` + widget JS HTML string | `PoweredByFooter.test.tsx > shared > renders the CustomerEQ link with the canonical accessible name` ✓ | Met |
+| **R7** — Non-toggleable; no chrome-matrix gate, no env var, no settings field | `SurveyFormRenderer.tsx` (footer rendered unconditionally; chrome-matrix has no `footer` field); `PoweredByFooterProps` has only `variant` + `channel` (no `hidden` prop, enforced by `@ts-expect-error` in test); `scripts/check-no-attribution-toggle.sh` greps repo for forbidden identifier names | `SurveyFormRenderer.test.tsx > renders the footer regardless of chrome-matrix settings (R7 non-toggleable)` ✓ + `PoweredByFooter.test.tsx > R7 — non-toggleable > component accepts no hidden-shaped prop` ✓ + `public.test.ts > R7 — widget JS contains no toggle-shaped identifier` ✓ + R7 gate runs as first step of `pnpm test:smoke` ✓ | Met |
+| **R8** — A11y: `target="_blank"` + `rel="noopener noreferrer"` + `aria-label` + 2px `:focus-visible` outline (WCAG 2.4.7) | `PoweredByFooter.tsx` attributes + `globals.css` `:focus-visible` rule | `PoweredByFooter.test.tsx > shared > sets target="_blank" + rel="noopener noreferrer"` ✓ + `PoweredByFooter.test.tsx > shared > renders the CustomerEQ link with the canonical accessible name` ✓ + `public.test.ts > R8 — footer link has target="_blank" rel="noopener noreferrer" aria-label="..."` ✓ + `413-ui-polish-validation.md` Scene 8 (live-browser computed-style outline confirmation) ✓ | Met |
+| **R9** — Preview/live parity: editor preview MUST render identical footer DOM to the respondent's live view | `SurveyFormRenderer.tsx` has no `mode === 'preview'` branch around the footer; single render path for both | `SurveyFormRenderer.test.tsx > emits the same footer DOM in preview mode and live mode (R9 parity)` (asserts `outerHTML` equality across modes) ✓ | Met |
+| **R10** — Widget bundle size delta ≤ 1 KB gzipped vs pre-#413 baseline | Footer CSS + HTML inlined into widget JS string; size measured in test | `public.test.ts > R10 — widget gzipped size stays within baseline + 1 KB budget` — baseline 2193 bytes / post-#413 2945 bytes / delta +752 bytes (well under 1024 budget) ✓ | Met |
+| **R11** — Variant API: `<PoweredByFooter variant="themed" \| "neutral" channel="link" \| "embed" \| "email" />` | `PoweredByFooter.tsx` + `PoweredByFooterProps` interface | `PoweredByFooter.test.tsx > themed variant > applies .ceq-powered-by + .ceq-powered-by--themed classes` ✓ + `PoweredByFooter.test.tsx > neutral variant > applies .ceq-powered-by + .ceq-powered-by--neutral classes` ✓ + `PoweredByFooter.test.tsx > UTM contract > channel="link"/"embed"/"email" produces correct utm_medium` (3 tests) ✓ | Met |
+| **R12** — Tokenized route: footer DOM/bytes byte-identical across the 4 token-error states (`expired` / `responded` / `survey-not-open` / `invalid`) per timing-attack-resistance / #378 NFR-S5 | `r/[token]/page.tsx` single render path `if (tokenState && tokenState !== 'valid') { ... }` — the 4 states share one chrome + one `<PoweredByFooter />` line; only the inner `<p>{ERROR_COPY[tokenState]}</p>` text varies (NOT the footer) | `page.r12-byte-identity.test.tsx` — 6 passing assertions (user-mandated enforcement test), including the all-four-states equality assertion and the defensive negative-check that the footer subtree contains no per-state text ✓ | Met |
+
+**Named design callouts** (cross-spec references):
+
+| Callout | Source | Adopted in | Proof | Status |
+|---|---|---|---|---|
+| Reuse the `.powered-by` CSS pattern from `mocks/36-theme-editor.html` L148-149 | Feature spec §"Visual specification" + mock scene-meta | `apps/web/src/app/globals.css` lines 97-145 use the same pattern (text-align center, padding 12px, font-size 11px / calc(body * 0.75), border-top rgba(0,0,0,0.04)) | Live-browser computed styles in `413-ui-polish-validation.md` Scene 1 + Scene 2 match the mock CSS | Met |
+| Honor RFC #241 L474's `--ceq-text-color` reservation for footer copy | Feature spec Cross-refs + R1 | `globals.css` `.ceq-powered-by--themed { color: var(--ceq-text-color, #111827) }` + `.ceq-powered-by--themed a { color: var(--ceq-text-color, #111827); opacity: 0.85 }` | Live-browser confirmed `color: rgb(17, 24, 39)` inherited from theme `--ceq-text-color` in Scene 1 | Met |
+| Single render path through `SurveyFormRenderer` for both standalone + tokenized active-form (#241 Slice 4a / #378) | Surface coverage table | Both `survey/[id]/page.tsx` and `survey/[id]/r/[token]/page.tsx` render `<SurveyFormRenderer ... />` — same component instance, same footer attachment | One change in `SurveyFormRenderer.tsx` automatically applies to both surfaces; verified by Scene 1 + R12 implementation | Met |
+
+**Result**: 12 / 12 R-items Met. 3 / 3 named callouts Met. 0 Partial. 0 Unmet.
+
+---
+
+### Feedback verification
+
+- `docs/evidence/413-feature-implementation-feedback.md` (Phase 8 self-review) was authored with 0 `QUALITY CHECK FAILURE` items and 0 `UNADDRESSED` items.
+- No human-review feedback file exists yet (would be authored when the PR enters Phase 12 review).
+
+**Result**: 0 unaddressed feedback items.
+
+---
+
+### Validation-type completeness
+
+Cross-check `Validation Requirements` from the work list against actually-executed validation:
+
+| Required | Executed? | Evidence |
+|---|---|---|
+| `uiValidationRequired` | ✅ | `413-ui-polish-validation.md` walks all 8 active scenes (Scene 7 N/A per R5) |
+| Browser baseline (Chromium) | ✅ | Playwright MCP browser session for all UI validation |
+| Desktop 1280×900 + Mobile 375×812 | ✅ | Scene 1 captured at both breakpoints |
+| `pnpm build` / `typecheck` / `lint` / `test:smoke` (Rule 11) | ✅ | All four green; smoke chain runs 12 suites + R7 gate, 126 ✓, 0 FAIL (see Regression Test Run section above) |
+| `pnpm test:integration` | ✅ | `public-survey.test.ts` runs in the smoke chain as `api-integration` suite |
+| `pnpm test:e2e` | ✅ | `demo-request.spec.ts` runs in smoke as `web-e2e`, 3 passed in 29s |
+| R12 byte-identity assertion | ✅ | `page.r12-byte-identity.test.tsx`, 6 passing |
+| No-toggle gate (R7) | ✅ | Script live in `scripts/check-no-attribution-toggle.sh`; wired as first smoke step in `scripts/test-suite-runner.mjs`; OK on every smoke run |
+| Widget bundle size delta ≤ 1 KB | ✅ | `public.test.ts` R10 assertion, current delta +752 bytes |
+| Mock-conformance sweep | ✅ | Phase 8 feedback doc Round 1; 0 actionable drifts |
+
+**Result**: All required validation modes executed.
+
+### Design Standards Alignment (UI)
+
+- Canonical `.powered-by` pattern from `mocks/36-theme-editor.html` adopted verbatim (see Named callouts above).
+- Theme-token inheritance via `--ceq-text-color` + `--ceq-primary-color` confirmed live in browser.
+- No ad-hoc colors / no Tailwind utilities outside the existing convention.
+- A11y (WCAG 2.4.7 focus-visible, 1.4.3 contrast) confirmed via live computed-style check.
+
+**Result**: UI aligned with the resolved design standards source (the feature spec + canonical mock pattern).
+
+### Phase 9 outcome
+
+✅ PASS — proceeding to Phase 10 (`implement-architecture-update`).
+
+- 9/9 ACs Met, 12/12 R-items Met, 3/3 named callouts Met
+- 0 Partial / 0 Unmet
+- 0 unaddressed feedback items
+- All required validation modes executed
