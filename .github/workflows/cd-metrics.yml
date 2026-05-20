@@ -31,14 +31,20 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/cd-metrics.mjs
 
-      - name: Commit updated report
+      - name: Pull latest (ci-metrics may have committed since checkout)
+        run: git pull --rebase
+
+      - name: Generate HTML dashboard
+        run: node scripts/dashboard.mjs
+
+      - name: Commit updated reports and dashboard
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/cd-metrics.md
+          git add docs/cd-metrics.md docs/cd-metrics.json docs/index.html
           if git diff --cached --quiet; then
-            echo "No changes to docs/cd-metrics.md — skipping commit."
+            echo "No changes — skipping commit."
           else
-            git commit -m "chore(metrics): update CD metrics report [skip ci]"
+            git commit -m "chore(metrics): update CD metrics report and dashboard [skip ci]"
             git push
           fi

@@ -201,3 +201,18 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, reportLines.join('\n') + '\n');
 console.log(`Report written to ${OUT}`);
 console.log(`  P50: ${fmt(p50)}  P90: ${fmt(p90)}  Success rate (7d): ${successRate !== null ? (successRate * 100).toFixed(0) + '%' : '—'}`);
+
+// ── 5. Write JSON for dashboard ───────────────────────────────────────────────
+const OUT_JSON = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'ci-metrics.json');
+const jsonOut = {
+  generatedAt: new Date().toISOString(),
+  thresholdS: P90_THRESHOLD_S,
+  summary: { p50, p90, successRate7d: successRate, docOnlySkips7d: docOnlyCount7d, totalRuns30d: nonSkipped.length },
+  stepAvgs,
+  runs: [...runData].sort((a, b) => new Date(a.date) - new Date(b.date)).map(r => ({
+    date: r.date, btTotal: r.btTotal, lintTotal: r.lintTotal,
+    conclusion: r.conclusion, trigger: r.trigger, url: r.url, docOnly: r.docOnly,
+  })),
+};
+writeFileSync(OUT_JSON, JSON.stringify(jsonOut));
+console.log(`JSON written to ${OUT_JSON}`);
