@@ -131,7 +131,7 @@ Add a "Powered by CustomerEQ" footer to every survey-bearing surface, with a the
 | OD-A | Where does `footer-tokens.ts` live: `apps/web/src/components/survey-form/` (co-located, web-only) or `packages/shared/src/`? | Co-located in `apps/web/src/components/survey-form/`. The constants are tiny + web-and-API-only, and the widget JS imports them via the API server bundle (which can resolve into `apps/web/`-adjacent files — but actually NO, `apps/api` cannot import from `apps/web`). **Revised default**: put the constants in `packages/shared/src/footer.ts` so both `apps/web` (React) and `apps/api` (widget JS string) can import without a cross-app dependency. Avoid the bundle-bloat concern by exporting only literal strings + a tiny URL builder (no React, no DOM). | Pending — confirm at top of Phase 4 before writing the new file |
 | OD-B | Should the `<PoweredByFooter>` component live in `packages/ui/` (shared) or `apps/web/src/components/survey-form/` (co-located with the other survey-form components)? | Co-located in `apps/web/src/components/survey-form/` — matches the location of `SurveyFormRenderer`, `ConsentDisclosure`, etc. `packages/ui` today only exports the `cn()` utility per architecture doc §3.6; promoting components there is a separate refactor. | Resolved |
 | OD-C | Snapshot test for the R12 byte-identity assertion — what's the right unit-test shape? | Vitest + `@testing-library/react` `render()` for each of the 4 token states in turn, query `container.querySelector('[data-survey-footer]')`, then `expect(footer1.outerHTML).toEqual(footer2.outerHTML)` for all pairs. Don't use snapshot files — inline assertion is more diff-readable. | Resolved |
-| OD-D | Widget bundle size baseline — what's the current size of `generateWidgetJs()` output? | Capture in Phase 3 (implement-tests) by running the existing widget endpoint in an integration test, gzipping the response, and recording the size. Bake the baseline as a constant in the test file with a comment ("Baseline captured 2026-05-20 pre-#413"). The R10 budget is +1 KB gzipped from this baseline. | Pending — capture in Phase 3 |
+| OD-D | Widget bundle size baseline — what's the current size of `generateWidgetJs()` output? | Capture in Phase 3 (implement-tests) by running the existing widget endpoint in an integration test, gzipping the response, and recording the size. Bake the baseline as a constant in the test file with a comment ("Baseline captured 2026-05-20 pre-#413"). The R10 budget is +1 KB gzipped from this baseline. | **Resolved (Phase 3)**: 2193 bytes gzipped against the existing fixture survey (1 NPS question, `TestBrand` brand). R10 budget = 2193 + 1024 = **3217 bytes** for the post-#413 widget. Test: `apps/api/src/routes/public.test.ts` describe `'Issue #413 — widget footer'` > `'R10 — widget gzipped size stays within baseline + 1 KB budget'`. |
 | OD-E | Email footer markup — what HTML/CSS shape does R5 commit to, even though no email is rendered now? | The spec's "Surface-by-surface coverage" table + Scene 7 in the mock already define the email-safe inline-styled neutral footer markup. R5 is satisfied by the spec; no code lands in this PR. Add the N/A note in evidence doc and move on. | Resolved |
 
 ---
@@ -153,14 +153,30 @@ Per principle "Prototype-First" + "Orchestration":
 
 1. Land OD-A decision (constants file location) before any code.
 2. Create `packages/shared/src/footer.ts` (or revised location) with copy + URL builder.
-3. Create `PoweredByFooter.tsx` (themed + neutral variants) with co-located test.
+3. Create `PoweredByFooter.tsx` (themed + neutral variants) — fill in the test bodies in the Phase-3-authored `PoweredByFooter.test.tsx`.
 4. Wire into `SurveyFormRenderer.tsx` — themed footer. Visually verify in editor preview.
 5. Wire into `survey/[id]/page.tsx` 4 branches — neutral footer.
-6. Wire into `survey/[id]/r/[token]/page.tsx` 4+ branches — neutral footer + R12 byte-identity test.
-7. Wire into `generateWidgetJs()` — neutral footer in active + thank-you paths.
-8. Create + wire `scripts/check-no-attribution-toggle.sh`.
+6. Wire into `survey/[id]/r/[token]/page.tsx` 4+ branches — neutral footer + fill in the test bodies in the Phase-3-authored `page.r12-byte-identity.test.tsx`.
+7. Wire into `generateWidgetJs()` — neutral footer in active + thank-you paths. Fill in the 6 `it.todo` bodies in `public.test.ts` (footer presence in both paths + UTM + R7 + R8). Re-run the R10 baseline test and confirm new gzipped size ≤ 3217 bytes.
+8. Add `pnpm check:no-attribution-toggle` to the smoke runner (`scripts/test-suite-runner.mjs` `smokeSuites` — script + grep gate already live in Phase 3).
 9. Browser-verify every Scene from the mock (per L1 mock-conformance sweep).
 10. Phase 5 onward.
+
+---
+
+## Phase 3 outcomes (implement-tests, completed 2026-05-20)
+
+| Artifact | Path | Status |
+|---|---|---|
+| R7 no-toggle gate script | `scripts/check-no-attribution-toggle.sh` | **Live + passing.** Wrapped via `pnpm check:no-attribution-toggle`. Greps clean against current repo. |
+| Widget bundle baseline + R10 test + footer-presence todos | `apps/api/src/routes/public.test.ts` (describe `'Issue #413 — widget footer'`) | **Live + passing.** Baseline = 2193 bytes gzipped; budget = 3217 bytes. 1 passing + 6 todo. |
+| `<PoweredByFooter>` unit test scaffold | `apps/web/src/components/survey-form/PoweredByFooter.test.tsx` | **Live (24 todos).** Test strategy declared via `describe + it.todo`. Phase 4 fills in bodies. |
+| R12 byte-identity test scaffold | `apps/web/src/app/survey/[id]/r/[token]/page.r12-byte-identity.test.tsx` | **Live (6 todos).** Enforces the user-mandated timing-attack invariant; Phase 4 fills in bodies. |
+| `pnpm check:no-attribution-toggle` script in root `package.json` | `package.json` | **Live.** Standalone command; CI wiring deferred to Phase 4 step 8 above. |
+
+Typecheck: `pnpm --filter @customerEQ/api typecheck` ✓ ; `pnpm --filter @customerEQ/web typecheck` ✓.
+
+The Phase 3 commit captures all five artifacts together so Phase 4 starts with a known-good test bed.
 
 ---
 

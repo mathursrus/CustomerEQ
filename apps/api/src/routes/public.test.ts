@@ -1,4 +1,6 @@
 /// <reference types="vitest" />
+import { gzipSync } from 'node:zlib'
+
 import { describe, it, expect } from 'vitest'
 import { generateWidgetJs, PublicSurveyResponseSchema } from './public.js'
 
@@ -126,5 +128,51 @@ describe('generateWidgetJs', () => {
   it('does not render an incentive points badge', () => {
     const js = generateWidgetJs(survey, 'https://api.example.com')
     expect(js).not.toContain('incentivePoints')
+  })
+
+  // -------------------------------------------------------------------------
+  // Issue #413 — Phase 3 (implement-tests) baseline + footer scaffolds.
+  //
+  // The widget bundle size assertion (R10) guards the +1 KB gzipped budget
+  // for #413's footer addition. The baseline below is captured pre-#413 on
+  // 2026-05-20 and serves as the comparison point through Phase 4. Test
+  // runs in Phase 3 trivially pass (delta = 0). Post-Phase-4 runs must still
+  // fit within baseline + 1024 bytes.
+  //
+  // The `it.todo` declarations below define the footer-presence assertions
+  // Phase 4 (implement-code) must satisfy.
+  // -------------------------------------------------------------------------
+
+  describe('Issue #413 — widget footer', () => {
+    // Baseline captured 2026-05-20 against the `survey` fixture above
+    // (1 question, NPS, ~one-line brand name) — pre-#413 with no footer in
+    // the widget. Update this constant ONLY when intentionally widening
+    // the budget — never to mask a regression.
+    // To re-capture: run this suite with the `console.log` below visible
+    // and record the value here.
+    const PRE_413_BASELINE_GZIPPED_BYTES = 2193
+
+    // R10: the footer addition must not grow the gzipped widget by more
+    // than 1 KB above the pre-#413 baseline. 1 KB = 1024 bytes.
+    const R10_BUDGET_BYTES = PRE_413_BASELINE_GZIPPED_BYTES + 1024
+
+    it('R10 — widget gzipped size stays within baseline + 1 KB budget', () => {
+      const js = generateWidgetJs(survey, 'https://api.example.com')
+      const gzippedSize = gzipSync(js).byteLength
+
+      // Surface the actual size in test output so future PRs can update the
+      // baseline intentionally if the no-op-delta band drifts.
+      // eslint-disable-next-line no-console
+      console.log(`[widget bundle] gzipped size = ${gzippedSize} bytes (baseline ${PRE_413_BASELINE_GZIPPED_BYTES}, R10 budget ${R10_BUDGET_BYTES})`)
+
+      expect(gzippedSize).toBeLessThanOrEqual(R10_BUDGET_BYTES)
+    })
+
+    it.todo('R3 — footer HTML is present in the widget container AFTER the form append')
+    it.todo('R3 — footer HTML is present in the thank-you container.innerHTML swap (survives DOM replacement)')
+    it.todo('R4 — footer link href contains utm_source=survey_footer&utm_medium=embed&utm_campaign=powered_by')
+    it.todo('R4 — footer link href contains no respondent-specific data (no email, surveyId, brandId in querystring)')
+    it.todo('R7 — widget JS contains no toggle-shaped identifier (hideFooter/hideAttribution/showPoweredBy/etc.)')
+    it.todo('R8 — footer link has target="_blank" rel="noopener noreferrer" aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"')
   })
 })
