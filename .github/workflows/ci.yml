@@ -178,6 +178,14 @@ jobs:
         with:
           fail_ci_if_error: false
 
+      # Issue #469: write per-run step timing table to the Actions Summary tab.
+      # Runs always so failures are also captured in the summary.
+      - name: Write CI run summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-run-summary.mjs
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
