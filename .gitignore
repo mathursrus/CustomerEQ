@@ -53,3 +53,6 @@ docs/evidence/**/*.mp4
 npm-debug.log*
 coverage/
 packages/ai/src/generated/baml_client/
+
+# MCP server config (contains API keys)
+.mcp.json
