@@ -872,9 +872,9 @@ function generateWidgetJs(
   // once per page. Subsequent widget instances on the same page see the
   // existing <style> id and skip re-injection. Mirrors the .ceq-powered-by
   // class family in apps/web/src/app/globals.css.
-  if (!document.getElementById('ceq-survey-widget-styles')) {
+  if (!document.getElementById('ceq-attribution-footer-styles')) {
     var ceqStyleEl = document.createElement('style');
-    ceqStyleEl.id = 'ceq-survey-widget-styles';
+    ceqStyleEl.id = 'ceq-attribution-footer-styles';
     ceqStyleEl.textContent = '${footerCss}';
     document.head.appendChild(ceqStyleEl);
   }
