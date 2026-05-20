@@ -366,3 +366,12 @@ jobs:
           check "GET /v1/surveys/:id/imports" "$BASE/v1/surveys/_canary_/imports"
           check "GET /v1/members/me/balance"  "$BASE/v1/members/me/balance"
           check "GET /v1/analytics/cx"        "$BASE/v1/analytics/cx"
+
+      # Issue #470: write per-deploy phase timing table to the Actions Summary tab.
+      # Runs always so failed deploys are also captured in the summary.
+      - name: Write CD run summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/cd-run-summary.mjs
