@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
     # pull_request events. The default GITHUB_TOKEN on this repo lacks
-    # pull-requests: read — same fix as applied to docker-build in #346.
+    # pull-requests: read — required since #346.
     permissions:
       contents: read
       pull-requests: read
@@ -54,10 +54,9 @@ jobs:
         with:
           fetch-depth: 2
 
-      # Issue #393: skip CI on doc-only commits. Skip-list semantics mirror
-      # docker-build: leading '**' seeds the match set (required — negation-only
-      # patterns default to true per #351). New top-level dirs are
-      # default-included; only listed patterns are excluded.
+      # Issue #393: skip CI on doc-only commits. Leading '**' seeds the match
+      # set (required — negation-only patterns default to true per #351). New
+      # top-level dirs are default-included; only listed patterns are excluded.
       - name: Determine if CI is needed
         id: changes
         uses: dorny/paths-filter@v3
@@ -122,6 +121,18 @@ jobs:
       - name: Build
         if: steps.changes.outputs.build == 'true'
         run: pnpm build
+
+      # Issue #467: lightweight replacement for the removed docker-build job.
+      # pnpm build above has already compiled packages/ai/dist. This one-shot
+      # dynamic import verifies BAML-generated ESM modules resolve correctly in
+      # the workspace module graph — the same class of regression that broke
+      # prod in #273. Container-layout failures (pnpm hoisting vs /app layout)
+      # are now caught by the CD health check and canary probes instead.
+      - name: Verify BAML module resolution
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          node --input-type=module \
+            -e "await import('./packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
 
       - name: Type check
         if: steps.changes.outputs.build == 'true'
@@ -236,134 +247,3 @@ jobs:
             exit 1
           fi
           echo "Dockerfile base image lint passed — no Docker Hub node references."
-
-  docker-build:
-    name: Build production images
-    runs-on: ubuntu-latest
-    needs: ci
-    if: github.event_name == 'pull_request'
-    # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint to
-    # determine the changed file set on pull_request events (it uses local git
-    # diff on push events instead). The default GITHUB_TOKEN on this repo
-    # lacks pull-requests: read, so without this block the action fails with
-    # "Resource not accessible by integration" on the PR-event run that fires
-    # alongside the push-event run. Surfaced on PR #346 run 25763238161.
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      # Issue #343: skip image build on doc-only commits. Skip-list (negation)
-      # semantics: paths-filter starts with everything (the leading '**' pattern)
-      # and excludes anything matching a `!`-prefixed pattern. Returns true if
-      # any file remains after exclusion. Skip-list over whitelist because
-      # under-build (silent skip → stale-image deploy) is a real bug; over-build
-      # (spurious rebuild on a doc pattern we forgot to list) is recoverable
-      # wasted CI. New top-level dirs are default-included; only listed
-      # patterns are skipped.
-      #
-      # Issue #351 (this fix): the leading '**' positive pattern is REQUIRED.
-      # dorny/paths-filter uses last-match-wins semantics and needs a positive
-      # pattern to seed the match set. With only negation patterns, dorny had
-      # no baseline to subtract from and defaulted to true for every change,
-      # making the skip path unreachable. PR #350 (doc-only) exposed this:
-      # build steps ran while `Skip if doc-only` was skipped.
-      - name: Determine if build is needed
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            build:
-              - '**'
-              - '!**/*.md'
-              - '!docs/**'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.github/pull_request_template.md'
-              - '!CODEOWNERS'
-              - '!.gitattributes'
-              - '!LICENSE'
-
-      # Issue #351 (this fix): the previous `run: echo "...issue #343..."`
-      # single-line form was truncated by the YAML parser at the `#` (inline
-      # comment). Bash received an unterminated string and exited 2, failing
-      # the job. Literal block scalar (|) preserves the value verbatim. The
-      # `#` was also dropped from the message text (now "issue 343") as a
-      # defense against future single-line refactors reintroducing the bug.
-      - name: Skip if doc-only
-        if: steps.changes.outputs.build == 'false'
-        run: |
-          echo "Doc-only change; skipping image build (issue 343)."
-
-      - name: Set up Docker Buildx
-        if: steps.changes.outputs.build == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build api image
-        if: steps.changes.outputs.build == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.api
-          push: false
-          load: true
-          tags: ceq-api:${{ github.sha }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
-
-      # Module-resolution probe: catches BAML-class regressions (#273) at PR
-      # time by running the built image with a one-shot dynamic import of
-      # the @customerEQ/ai dist entry. Probe target is deliberately narrow —
-      # importing the full app entry would couple this gate to env-var reads
-      # and produce false positives in CI. We import the dist directly by
-      # path rather than by package name because pnpm doesn't hoist workspace
-      # packages to /app/node_modules; the dist path is stable across builds
-      # and exercises the exact module tree that crashed in #273. CI is
-      # complementary to the existing CD-side `Verify API health` gate.
-      - name: Verify API image module resolution
-        if: steps.changes.outputs.build == 'true'
-        run: |
-          docker run --rm --entrypoint node ceq-api:${{ github.sha }} \
-            --input-type=module \
-            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
-
-      - name: Build worker image
-        if: steps.changes.outputs.build == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.worker
-          push: false
-          load: true
-          tags: ceq-worker:${{ github.sha }}
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,scope=worker,mode=max
-
-      - name: Verify Worker image module resolution
-        if: steps.changes.outputs.build == 'true'
-        run: |
-          docker run --rm --entrypoint node ceq-worker:${{ github.sha }} \
-            --input-type=module \
-            -e "await import('/app/packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
-
-      - name: Build web image
-        if: steps.changes.outputs.build == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.web
-          push: false
-          tags: ceq-web:${{ github.sha }}
-          # The dummy Clerk publishable key must be a valid pk_test_<base64>
-          # because @clerk/nextjs decodes it at build time during page-data
-          # collection. This value decodes to "clerk.example.com$" — it is
-          # NOT a real key and produces no functional Clerk routes; it only
-          # satisfies the SDK's format check so `next build` completes.
-          build-args: |
-            NEXT_PUBLIC_API_URL=http://localhost:4000
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,scope=web,mode=max
