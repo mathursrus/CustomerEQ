@@ -1,0 +1,44 @@
+name: CD Metrics
+
+on:
+  schedule:
+    # Runs at 01:30 UTC daily — 30 minutes after ci-metrics.yml
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # to commit docs/cd-metrics.md
+  actions: read    # to read CD run history via GitHub API
+
+jobs:
+  generate-report:
+    name: Generate CD trend report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate CD metrics report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/cd-metrics.mjs
+
+      - name: Commit updated report
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/cd-metrics.md
+          if git diff --cached --quiet; then
+            echo "No changes to docs/cd-metrics.md — skipping commit."
+          else
+            git commit -m "chore(metrics): update CD metrics report [skip ci]"
+            git push
+          fi

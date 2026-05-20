@@ -1,5 +1,5 @@
 # ── Stage 1: Install & Build ──────────────────────────────────────────
-ARG NODE_IMAGE=node:22-slim
+ARG NODE_IMAGE=mcr.microsoft.com/devcontainers/javascript-node:22-bookworm
 FROM ${NODE_IMAGE} AS builder
 
 # NEXT_PUBLIC_* vars are inlined at build time by Next.js
