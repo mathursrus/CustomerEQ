@@ -18,8 +18,10 @@ This doc is the durable record of FRAIM phases 4-onwards. Phase 1 (scoping) live
 | 3 — `implement-tests` | ✅ Complete | `dc74e92` | Test scaffolds + R10 baseline + R7 gate |
 | 4 — `implement-code` | ✅ Complete | `7264d79` | PoweredByFooter + wiring across 4 surfaces |
 | 5 — `implement-validate` | ✅ Complete (this commit) | — | [`413-ui-polish-validation.md`](./413-ui-polish-validation.md) + this doc's Bug Bash section |
-| 6 — `implement-security-review` | Pending | — | Findings appended here |
-| 7 — `implement-regression` | Pending | — | — |
+| 6 — `implement-security-review` | ✅ Complete | `87b068a`* | Security Review section below |
+| 7 — `implement-regression` | ✅ Complete | this commit | Regression Test Run section below |
+
+\* Commit SHAs above re-numbered after the in-Phase-7 rebase onto current `origin/main` (the branch picked up 8 upstream commits since the original branch point — including PR #428 "BAML evals out of smoke" + PR #429 "demo-storefront out of smoke" + PR #420 "Azure Communication Services email delivery", all of which my smoke run depends on). Original pre-rebase SHAs: 1469205 / dc74e92 / 7264d79 / 9af65ba / 40b54fb. New SHAs visible via `git log`.
 | 8 — `implement-quality` | Pending | — | — |
 | 9 — `implement-completeness-review` | Pending | — | — |
 | 10 — `implement-architecture-update` | Pending | — | — |
@@ -208,6 +210,75 @@ None applied this phase (no actionable findings). #476 (shared SurveyStateCard c
 - **Auto-fix cap**: 10 (not hit — 0 auto-fixes applied)
 - **Auth/crypto firewall triggered**: No (no auth/crypto files touched)
 - **Notes**: Diff is small (4 production files modified + 2 new files + 1 new script + 1 stylesheet append) and contains no dynamic data flow into DOM-mutation APIs. Manual review sufficient; no scanner runs gated on this phase.
+
+---
+
+## Regression Test Run
+
+`pnpm test:smoke` against the post-rebase branch — full smoke chain green.
+
+### Run command + result
+
+```
+$ DATABASE_URL="postgresql://customerEQ:customerEQ@localhost:5432/customerEQ" pnpm test:smoke
+```
+
+- Exit code: 0
+- Suites run: 12 (in declared order — R7 gate + 12 unit/integration/e2e suites)
+- Individual `✓` checkmarks across all suites: 126
+- `FAIL` lines: 0
+
+### Suite-by-suite
+
+| # | Suite | Type | Result |
+|---|---|---|---|
+| pre | `check R7: no attribution-toggle identifier in source tree` | repo-wide grep gate | ✅ OK |
+| 1 | `api-unit` (healthz) | vitest unit | ✅ 3 passed |
+| 2 | `api-integration` (public-survey + widget) | vitest integration vs real Postgres | ✅ (includes all 7 new #413 widget-footer assertions + R10 budget) |
+| 3 | `web-unit` (SurveyFormRenderer) | vitest unit | ✅ 21 passed (17 pre-#413 + 4 new #413 footer assertions) |
+| 4 | `web-e2e` (demo-request) | Playwright (Chromium) | ✅ 3 passed (29s) |
+| 5 | `worker-unit` (loyaltyEvents) | vitest unit | ✅ |
+| 6 | `mcp-server-unit` (api-client) | vitest unit | ✅ 8 passed |
+| 7 | `ai-unit` (sentiment) | vitest unit | ✅ 6 passed |
+| 8 | `connectors-unit` (google) | vitest unit | ✅ |
+| 9 | `consent-text-unit` (validator) | vitest unit | ✅ 23 passed |
+| 10 | `database-unit` (tenantScope) | vitest unit | ✅ 2 passed |
+| 11 | `shared-unit` (random) | vitest unit | ✅ 9 passed |
+| 12 | `ui-unit` (utils) | vitest unit | ✅ 7 passed |
+
+### Rebase performed mid-Phase 7
+
+The first three smoke attempts failed on pre-existing fresh-worktree infrastructure issues that have already been fixed upstream since the branch was cut:
+
+| Attempt | Failure | Root cause | Resolution |
+|---|---|---|---|
+| 1 | `web-e2e` browser missing | Playwright Chromium binary not installed in fresh worktree | Ran `pnpm exec playwright install chromium` |
+| 2 | `demo-storefront-e2e` global-setup `Environment variable not found: DATABASE_URL` | `apps/demo-storefront/test/e2e/global-setup.cjs` invokes `tsx scripts/setup-dev-brand.ts` without `--env-file=.env` (pre-existing bug — root `package.json` script DOES use `--env-file`, but this caller doesn't). Issue #429 ("remove demo-storefront from CI smoke") already addressed it on `main`. | Rebased onto `origin/main` — PR #429 removed the failing suite from smoke. |
+| 3 | `connectors` build: `Cannot find module '@azure/communication-email'` | Post-rebase: PR #420 ("Azure Communication Services email delivery") added a new dep that wasn't in my pre-rebase `pnpm-lock.yaml` | Re-ran `pnpm install` after the rebase. |
+
+Also picked up via the rebase: PR #428 ("BAML evals out of smoke / nightly regression tier") — the BAML eval test fails without `AZURE_OPENAI_API_KEY` which isn't provisioned in any local `.env`. PR #428 moved it to the nightly tier where the key IS available; this kept smoke green for #413's run as well.
+
+The rebase ran cleanly with no conflicts. The R7 gate I added (`scripts/test-suite-runner.mjs` first step, before `buildPrereqs`) survived the merge intact.
+
+### Triage classification
+
+| Failure | Classification | Action |
+|---|---|---|
+| `web-e2e` Chromium missing | Environment | Standard fresh-worktree setup; `pnpm exec playwright install chromium` is the canonical fix |
+| `demo-storefront-e2e` DATABASE_URL | Pre-existing infra bug | Already fixed upstream by PR #429; rebase resolved |
+| `connectors` build missing dep | Stale lockfile post-rebase | Standard `pnpm install` |
+| `ai-baml-evals` API-key missing | Pre-existing infra config | Already fixed upstream by PR #428; rebase resolved |
+
+No regressions introduced by #413. All four pre-existing issues that surfaced were either upstream-fixed (picked up via rebase) or are standard fresh-worktree setup steps.
+
+### Test count touching #413's R-items
+
+- `PoweredByFooter.test.tsx`: 15 passing (DOM + className + UTM + a11y + R7 type-level)
+- `SurveyFormRenderer.test.tsx`: 4 new passing (R1 attachment, R9 preview/live parity, R7 chrome-matrix-irrelevant, R4 utm_medium=link)
+- `page.r12-byte-identity.test.tsx`: 6 passing (user-mandated timing-attack invariant for the 4 tokenized error states)
+- `public.test.ts`: 7 new passing (R3 form-append + thank-you-swap, R4 UTM + no-PII, R7 no-toggle in generated JS, R8 a11y attrs, R10 +1KB gzipped budget)
+
+**Total #413 test surface: 32 new tests, 0 todo, 0 skipped, 0 flaky.**
 
 ---
 
