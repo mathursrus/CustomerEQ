@@ -102,9 +102,112 @@ Per FRAIM Phase 5 step 7 (`systematic-browser-testing`): navigated the applicati
 
 ---
 
-## Phase 6 (`implement-security-review`) — findings
+## Security Review
 
-*To be populated in Phase 6.*
+### Executive Summary
+
+- **Total findings**: 0 Critical, 0 High, 0 Medium, 1 Low (Informational).
+- **Immediate escalations**: None.
+- **Disposition**: 1 informational note accepted (documented threat-model boundary with #476).
+- **Highest-priority next action**: proceed to `implement-regression`.
+
+### Review Scope
+
+- **Review type**: embedded-diff-review (per FRAIM Phase 6 spec).
+- **Review scope**: `diff` (this branch's added commits since branching from `main`).
+- **Target**: `feature/413-every-survey-should-have-a-footer` commits `7264d79` (Phase 4 impl) + `9af65ba` (Phase 5 style-id rename). Phase 1 + Phase 3 + Phase 5 evidence commits are docs-only.
+- **Surface area paths reviewed**:
+  - `packages/shared/src/footer.ts` (new — 67 lines, primitives + URL builder)
+  - `apps/web/src/components/survey-form/PoweredByFooter.tsx` (new — 51 lines, React component)
+  - `apps/web/src/components/survey-form/SurveyFormRenderer.tsx` (added import + 1 JSX line)
+  - `apps/web/src/app/survey/[id]/page.tsx` (added footer to 4 state-card branches)
+  - `apps/web/src/app/survey/[id]/r/[token]/page.tsx` (added footer to 5 branches)
+  - `apps/api/src/routes/public.ts` (added 4 imports + footer CSS string + footer HTML string + 2 widget-JS insertion sites + 1 style-injection block; renamed style id in Phase 5)
+  - `apps/web/src/app/globals.css` (added 9 CSS rules for `.ceq-powered-by` class family)
+  - `scripts/check-no-attribution-toggle.sh` (new — R7 grep gate)
+  - `scripts/test-suite-runner.mjs` (wired the R7 gate as first smoke step)
+
+### Threat Surface Summary
+
+| Surface | Evidence |
+|---|---|
+| `web` | `apps/web/src/**/*.tsx`, `apps/web/src/app/globals.css` — React components + global stylesheet |
+| `api` | `apps/api/src/routes/public.ts` — Fastify-routed endpoint that generates the widget JS string |
+| `llm-app` | None — no LLM imports |
+| `data-pipeline` | None |
+| `mobile` | None |
+| `capability-authoring` | None — no skill/job/rule files touched |
+| `docs-only` | N/A (non-docs files present) |
+
+### Coverage Matrix
+
+| Scan | Surface | Result |
+|---|---|---|
+| `owasp-top-10-web-review` | `web` | Pass |
+| `owasp-api-top-10-review` | `api` | Pass |
+| `secrets-in-code-check` | both | Pass (no secrets, tokens, or env-derived URLs introduced) |
+| `privacy-and-pii-review` | both | Pass (R4 + GDPR Art.5 §1(c) enforced by tests) |
+| `compliance-control-mapping-security` | both | See "Compliance Control Mapping" below |
+
+### Findings
+
+**SEC-413-LOW-1 (Informational)** — `apps/api/src/routes/public.ts` `generateWidgetJs()` lines 996-1001 + 1025
+
+- **Severity**: Low / Informational.
+- **OWASP**: A03 (Injection) — informational only; no actual injection vector present.
+- **Summary**: The widget JS string concatenates a hardcoded footer HTML string into the existing `container.innerHTML = '<div>…thank-you…</div>'` swap and uses `container.insertAdjacentHTML('beforeend', ...)` for the form-append path. These DOM-mutation APIs would be a Critical injection vector if any user-controlled data flowed into the string — they do not. The footer HTML is assembled at server-process startup time from literal constants (`POWERED_BY_PREFIX`, `POWERED_BY_LINK_TEXT`, `POWERED_BY_ARIA_LABEL`, `buildFooterHref('embed')`) defined in `packages/shared/src/footer.ts`. No respondent input, survey content, or brand data reaches the footer string.
+- **Existing XSS protection**: The pre-existing `surveyJson` injection (lines 825-830) already escapes `<`, `>`, `&`, `'`, U+2028, U+2029 before interpolation. My addition uses a separate static string that doesn't go through that path because it has no dynamic content to escape.
+- **Defense-in-depth**: The structural concatenation pattern in the thank-you swap is locked by the unit test `expect(js).toMatch(/Your feedback has been recorded\.<\/p><\/div>'\s*\+\s*'<p class="ceq-powered-by/)` so future PRs can't accidentally interpolate user data into this position.
+- **Disposition**: `accept`. Rationale: no exploitable surface; the static-string property is preserved by the test.
+
+### Prioritized Remediation Queue
+
+None. No actionable findings.
+
+### Verification Evidence
+
+| R-item | Surface | Test | Result |
+|---|---|---|---|
+| R4 — UTM contract / no PII in href | `packages/shared/src/footer.ts` `buildFooterHref()` | `PoweredByFooter.test.tsx` "UTM contract (R4)" (7 sub-tests, including "href contains exactly the three UTM params and nothing else (no respondent fingerprint)") | Pass |
+| R4 — widget href / no respondent data | `apps/api/src/routes/public.ts` widget JS | `public.test.ts` "R4 — footer link href contains no respondent-specific data" (parses href, asserts exactly 3 UTM keys, defense-in-depth checks for `email`/`memberid`/`brandid` substrings) | Pass |
+| R7 — no toggle in source tree | repo-wide grep | `scripts/check-no-attribution-toggle.sh` (run as smoke pre-step in `scripts/test-suite-runner.mjs`) | Pass |
+| R7 — no toggle in generated widget JS | `apps/api/src/routes/public.ts` | `public.test.ts` "R7 — widget JS contains no toggle-shaped identifier" (regex over generated string) | Pass |
+| R8 — `target="_blank"` + `rel="noopener noreferrer"` | All surfaces | `PoweredByFooter.test.tsx` "sets target=\"_blank\" + rel=\"noopener noreferrer\"" + `public.test.ts` R8 widget assertion | Pass |
+| R12 — byte-identical footer across 4 tokenized error states | `apps/web/src/app/survey/[id]/r/[token]/page.tsx` | `page.r12-byte-identity.test.tsx` (6 assertions, user-mandated) | Pass |
+| GDPR Art.5 §1(c) data minimisation | `buildFooterHref()` | `PoweredByFooter.test.tsx` "utm_source is always the literal 'survey_footer' (no surveyId / brandId / identifier)" | Pass |
+| WCAG 2.4.7 focus indicator | `globals.css` `:focus-visible` rules | `[413-ui-polish-validation.md](./413-ui-polish-validation.md)` Scene 8 — live browser confirmed 2px outline at theme primary color | Pass |
+
+### Applied Fixes and Filed Work Items
+
+None applied this phase (no actionable findings). #476 (shared SurveyStateCard component) was filed before this issue's implementation began — see "Accepted / Deferred / Blocked" below.
+
+### Accepted / Deferred / Blocked
+
+| Item | State | Rationale |
+|---|---|---|
+| Widget JS keeps duplicated footer HTML (not extracted to shared renderer) | Accepted | Intentional scope discipline. Cross-surface DOM consolidation is filed as [#476](https://github.com/mathursrus/CustomerEQ/issues/476). Duplicating ~5 lines of static HTML now does not introduce a security risk; consolidating it would expand the diff and tangle two issues per Rule 21. |
+| Email surface — footer markup is contract-only (no template renderer ships here) | Deferred | R5 per spec; email template renderer is a separate deferred follow-up. No security implication today (no email rendering code path is added or modified). |
+| Brand-level paid-tier attribution toggle | Deferred | Documented in `Deferred follow-ups` in the spec; would require its own design + RFC + issue. The R7 gate enforces that no such toggle slips in before the deliberate paid-tier work. |
+
+### Compliance Control Mapping
+
+| Regulation / Control | How #413 satisfies it |
+|---|---|
+| **GDPR Art.5 §1(c) — data minimisation** | The footer href carries exactly three UTM parameters with literal values. No respondent identifier (email, surveyId, brandId, memberId) is appended. Enforced by `PoweredByFooter.test.tsx` UTM-contract suite (7 assertions) + `public.test.ts` widget no-PII assertion. |
+| **GDPR Recital 47 — legitimate interest** | Attribution-only footer pointing to the platform's home page is the long-established viral-channel pattern (cf. Mailchimp, Typeform, SurveyMonkey). Does not process additional PII; uses no cookies; does not require respondent consent under the legitimate-interest basis. |
+| **CCPA §1798.135 — opt-out signal** | The footer does not collect, sell, or share consumer personal information. Not subject to the opt-out requirement. |
+| **SOC2 CC6.1 — logical access** | No change to access controls. The footer is a static, non-interactive surface that does not introduce a new authentication boundary. |
+| **WCAG 2.1 AA — 2.4.7 focus visible** | `:focus-visible` rule in `globals.css` paints a 2px outline at `var(--ceq-primary-color, #6366f1)` with 2px offset; visually verified in `413-ui-polish-validation.md` Scene 8. |
+| **WCAG 2.1 AA — 1.4.3 contrast** | Themed text uses `var(--ceq-text-color)` at 0.55 opacity for prefix and 0.85 for anchor; against the typical theme background (`#ffffff` or near-white), the contrast at 0.85 opacity meets AA for body text. Themes that override `--ceq-text-color` to a low-contrast value are flagged by the editor's contrast check (separate concern). Neutral variant uses `#6b7280` on white (4.66:1) and `#374151` on white (10.6:1) — both pass AA. |
+
+### Run Metadata
+
+- **Run date**: 2026-05-20
+- **Commit at review time**: `9af65ba`
+- **Skills loaded**: `threat-surface-classification`, `owasp-top-10-web-review` (heuristic walk, no scanner run), `owasp-api-top-10-review` (heuristic walk), `secrets-in-code-check`, `privacy-and-pii-review`, `finding-disposition`, `security-review-results-structure`
+- **Auto-fix cap**: 10 (not hit — 0 auto-fixes applied)
+- **Auth/crypto firewall triggered**: No (no auth/crypto files touched)
+- **Notes**: Diff is small (4 production files modified + 2 new files + 1 new script + 1 stylesheet append) and contains no dynamic data flow into DOM-mutation APIs. Manual review sufficient; no scanner runs gated on this phase.
 
 ---
 
