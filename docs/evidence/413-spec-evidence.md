@@ -31,9 +31,9 @@ PR: [#419](https://github.com/mathursrus/CustomerEQ/pull/419)
 | Phase | Outcome | Artifact |
 |---|---|---|
 | Phase 1 — context-gathering | Issue ACs extracted; surface inventory mapped (standalone + tokenized + widget + email); existing `.powered-by` CSS pattern + RFC #241 L474 token mapping identified as authoritative; compliance regulations resolved (GDPR/CCPA/SOC2/PCI-DSS/WCAG 2.1 AA); design standards resolved | `seekMentoring` evidence payload for `context-gathering` complete |
-| Phase 2 — spec-drafting | Spec authored at `docs/feature-specs/413-survey-footer.md`; HTML mock at `docs/feature-specs/mocks/413-view.html` (initially 8 scenes; updated to 9 after rebase) | Spec + mock files in this commit |
+| Phase 2 — spec-drafting | Spec authored at `docs/feature-specs/413-survey-footer.md`; HTML mock at `docs/feature-specs/mocks/413-survey-footer.html` (initially 8 scenes; updated to 9 after rebase) | Spec + mock files in this commit |
 | Phase 3 — competitor-analysis | 9 competitors researched (Medallia, Annex Cloud, Yotpo, Salesforce CDP, Typeform, SurveyMonkey, Tally, Google Forms, Qualtrics); pricing pages cited; differentiation pillars (theme-aware footer; consistency across surfaces; token-driven adaptation); FRAIM config gap captured as deferred follow-up (Rule 21 prevents bundling the config edit into this PR) | Competitive Analysis section of spec |
-| Phase 4 — spec-completeness-review | 9/9 issue ACs mapped to R-items + mock scenes + validation hooks (zero Unmet); R1-R12 mapped to implementation surfaces + tests; OD-1..OD-7 mapped to spec sections; mock structural verification — Playwright opened `http://127.0.0.1:8089/413-view.html`, all scenes rendered, accessible-tree markup verified (`Powered by CustomerEQ — opens customereq.com in a new tab` aria-label on each anchor) | `seekMentoring` evidence payload for `spec-completeness-review` complete |
+| Phase 4 — spec-completeness-review | 9/9 issue ACs mapped to R-items + mock scenes + validation hooks (zero Unmet); R1-R12 mapped to implementation surfaces + tests; OD-1..OD-7 mapped to spec sections; mock structural verification — Playwright opened `http://127.0.0.1:8089/413-survey-footer.html`, all scenes rendered, accessible-tree markup verified (`Powered by CustomerEQ — opens customereq.com in a new tab` aria-label on each anchor) | `seekMentoring` evidence payload for `spec-completeness-review` complete |
 | Phase 5 — spec-submission (this phase) | Rebase onto origin/main caught a critical gap: #378 added the tokenized route `/survey/[id]/r/[token]/page.tsx` with 4 new token-error states; spec was updated mid-Phase-5 to add R12, scene 9 in the mock, and the surface in the coverage table. Evidence doc authored. | Spec PR submitted; this doc; PR comment with evidence link; issue labels updated to `status:needs-review` |
 
 ### Feedback History
@@ -44,8 +44,8 @@ PR: [#419](https://github.com/mathursrus/CustomerEQ/pull/419)
 
 | Check | Result |
 |---|---|
-| File path matches FRAIM convention `docs/feature-specs/mocks/{issue_number}-view.html` | ✅ `docs/feature-specs/mocks/413-view.html` |
-| Live render (browser, Playwright) | ✅ Served via `python -m http.server` at `http://127.0.0.1:8089/413-view.html`; Playwright navigation OK; only console error is a benign favicon 404 |
+| File path matches FRAIM convention `docs/feature-specs/mocks/{issue_number}-{slug}.html` (slug mirrors the spec stem) | ✅ `docs/feature-specs/mocks/413-survey-footer.html` |
+| Live render (browser, Playwright) | ✅ Served via `python -m http.server` at `http://127.0.0.1:8089/413-survey-footer.html`; Playwright navigation OK; only console error is a benign favicon 404 |
 | Scenes covered (final count after rebase) | 9 — (1) Active questions themed, (2) Thank-you neutral, (3) Already responded amber/neutral, (4) Load error neutral, (5) Loading neutral, (6) Embedded widget neutral, (7) Email body neutral, (8) Focus state themed close-up, (9) Tokenized route — 4 token-error states |
 | Accessible markup | ✅ Every footer anchor carries `aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"`; `target="_blank"`; `rel="noopener noreferrer"` — verified via Playwright accessibility snapshot |
 | Theme-token usage | ✅ Themed footer uses `--ceq-text-color` at 0.55 opacity for prefix, 0.85 for anchor; neutral footer uses `#6b7280` / `#374151` per visual specification table |
@@ -59,7 +59,7 @@ PR: [#419](https://github.com/mathursrus/CustomerEQ/pull/419)
 | Customer's Desired Outcome | ✅ | Two-line statement separating respondent expectation from CustomerEQ's viral channel |
 | Customer Problem being solved | ✅ | Direct cause (footer-less today, inventoried across 4 surface types) + Root design gap (RFC #241 L474 reservation never landed) + Why now (3 reasons) |
 | User Experience | ✅ | Themed vs neutral contract; visual specification table (themed + neutral variants); accessibility section; surface-by-surface coverage table (12 rows) |
-| UI mocks link | ✅ | `docs/feature-specs/mocks/413-view.html` with 9 numbered scenes |
+| UI mocks link | ✅ | `docs/feature-specs/mocks/413-survey-footer.html` with 9 numbered scenes |
 | Design Standards Applied | ✅ | Architecture doc + RFC #241 L474 token contract + canonical mock CSS pattern cited |
 | Functional Requirements | ✅ | R1–R12 with `Given / When / Then` acceptance criteria |
 | Open Decisions | ✅ | OD-1..OD-7 with `← recommended` defaults + alternatives + rationale |
@@ -76,7 +76,7 @@ PR: [#419](https://github.com/mathursrus/CustomerEQ/pull/419)
 
 ```
 Tool:       Playwright (mcp__playwright)
-URL:        http://127.0.0.1:8089/413-view.html
+URL:        http://127.0.0.1:8089/413-survey-footer.html
 Page Title: Mock · #413 — "Powered by CustomerEQ" footer on every survey surface
 Console:    1 error, 0 warnings — favicon.ico 404 (benign)
 Snapshot:   accessible-tree confirms all 9 scenes structurally present,
@@ -100,7 +100,7 @@ Snapshot:   accessible-tree confirms all 9 scenes structurally present,
 | Phase | Status | Evidence |
 |---|---|---|
 | 1 — context-gathering | Complete | seekMentoring payload + spec §"Customer Problem being solved" |
-| 2 — spec-drafting | Complete | `docs/feature-specs/413-survey-footer.md` + `docs/feature-specs/mocks/413-view.html` |
+| 2 — spec-drafting | Complete | `docs/feature-specs/413-survey-footer.md` + `docs/feature-specs/mocks/413-survey-footer.html` |
 | 3 — competitor-analysis | Complete | Spec §"Competitive Analysis" |
 | 4 — spec-completeness-review | Complete | Mock browser validation + traceability matrix in spec |
 | 5 — spec-submission | In progress (this PR) | This evidence doc + PR + PR comment + label update |

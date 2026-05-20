@@ -78,7 +78,7 @@ The footer style adapts to the chrome it sits inside. Surfaces driven by `Survey
 
 Lifting the non-form state-cards into the theme-aware shell is a separate, larger refactor outside #413's scope — captured in Deferred follow-ups.
 
-**Visual specification** (canonical mock = [`./mocks/413-view.html`](./mocks/413-view.html)):
+**Visual specification** (canonical mock = [`./mocks/413-survey-footer.html`](./mocks/413-survey-footer.html)):
 
 | Property | **Themed** variant (active form via `SurveyFormRenderer`) | **Neutral** variant (page state-cards, tokenized state-cards, widget JS, email body, loading) |
 |---|---|---|
@@ -123,7 +123,7 @@ The CSS pattern is a direct adoption of `mocks/36-theme-editor.html` L148–149 
 
 ### UI mocks
 
-High-fidelity mocks at [`./mocks/413-view.html`](./mocks/413-view.html). Scenes:
+High-fidelity mocks at [`./mocks/413-survey-footer.html`](./mocks/413-survey-footer.html). Scenes:
 
 1. **Direct link · Active questions (standalone or tokenized)** — Indigo seed theme, **themed** footer inside the `SurveyFormRenderer` card. Same DOM for both `/survey/[id]` and `/survey/[id]/r/[token]` active-form branches.
 2. **Direct link · Thank you (standalone)** — neutral state-card chrome; **neutral** footer below the thank-you message.
@@ -133,7 +133,7 @@ High-fidelity mocks at [`./mocks/413-view.html`](./mocks/413-view.html). Scenes:
 6. **Embedded widget** — host-site context; **neutral** footer inside the widget container.
 7. **Email body** — text-only HTML email; **neutral** footer with email-safe inline styles.
 8. **Keyboard-focus state** — close-up of the focused anchor showing the 2px focus outline (themed variant).
-9. **Direct link · Tokenized route — 4 token-error states** — same neutral state-card chrome across `expired` / `responded` / `survey-not-open` / `invalid`; **neutral** footer byte-identical across all four (per R12 + #378 NFR-S5 timing-attack-resistance).
+9. **Direct link · Tokenized route — 4 token-error states** — `responded` uses the canonical "already responded" `h2 + p` treatment (mirrors Scene 3); the three true-error states (`expired` / `survey-not-open` / `invalid`) share the simpler single-`<p>` chrome. **Neutral** footer is byte-identical across all four (per R12 + #378 NFR-S5 timing-attack-resistance — the timing-attack constraint applies to footer bytes only, since the server returns the same uniform `{state}` payload regardless of which state and chrome differences are rendered client-side).
 
 ### Design Standards Applied
 
@@ -293,6 +293,7 @@ Tracking issues to file alongside this spec (per my L1 preference *Filing backlo
 | **Theme the widget JS** | Pipe `BrandTheme` tokens through `generateWidgetJs()` so the widget footer (and the rest of the widget chrome) inherits brand colors / typography, just like the React renderer does today | The widget JS today hardcodes colors (`#6366f1` indigo, `#374151` text, etc.) — this is a pre-existing inconsistency with the React renderer. The footer in this spec adopts the same hardcoded approach for consistency *with the widget*; once the widget gets themed, the footer naturally joins. Search `gh issue list --search "widget theme"` before filing |
 | **FRAIM config — `competitors` array** | Add the Medallia / Annex Cloud / Yotpo / Typeform / SurveyMonkey / Tally / Google Forms / Qualtrics set to `fraim/config.json` `customizations.competitors` (or wherever the FRAIM `competitor-analysis` skill expects it) so future `feature-specification` jobs auto-load the configured set | The FRAIM mentor flagged `competitors` as not configured during this spec's competitor-analysis phase. Editing `fraim/config.json` in this PR would violate project Rule 21 (one issue per branch) — the change is off-scope from #413's footer work. Search `gh issue list --search "fraim config competitors"` before filing |
 | **Theme the page state-cards (standalone + tokenized)** | Lift the standalone page's loading/load-error/duplicate/thank-you state-cards and the tokenized page's loading/token-error/thank-you/load-failure state-cards into a theme-aware shell (or pass `BrandTheme` tokens into them) so the surrounding chrome and the footer can both inherit brand colors / typography | Today these state-cards use Tailwind utility classes (`bg-amber-50`, `bg-red-50`, `bg-white p-8 text-center`) — not theme tokens. #413's footer matches the local chrome (neutral) because theming the footer alone would create visual inconsistency. Fixing the chrome itself is a separate refactor outside #413's "add the footer" scope. The footer's variant-prop API (`variant="themed" \| "neutral"`) is forward-compatible — once the chrome gets themed, those call sites flip to `variant="themed"` with no other change |
+| **Shared `SurveyStateCard` for post-submit / already-responded / token-error surfaces** ([#476](https://github.com/mathursrus/CustomerEQ/issues/476)) | Extract a single `SurveyStateCard` component consumed by `survey/[id]/page.tsx`, `survey/[id]/r/[token]/page.tsx`, and `generateWidgetJs()`. Variants: `submitted` (h2 + p, Scene 2 canonical), `already-responded` (h2 + p, Scene 3 / Scene 9 `responded` canonical), and `error / expired / invalid / survey-not-open` (single p, three Scene 9 variants) | Same logical state currently rendered by four hand-rolled copies that have visibly drifted (different headings, padding, copy, text colors). Surfaced during #413 mock review (Scene 2 vs Scene 9 `responded` diverged). #413 only adds the footer to each existing call site; the consolidation onto one component is a structural refactor with its own design + test surface and is filed separately as #476 |
 
 ## Alternatives
 

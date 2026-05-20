@@ -214,6 +214,12 @@
     Theme-aware on the React renderer (Indigo seed theme below); non-themed neutral on the widget JS, email body, and pre-theme states.
     The mock is the spec — every visible element should ship verbatim.
   </p>
+  <p class="scene-note" style="margin: 0 0 28px;">
+    <strong>Post-submit / already-responded surfaces:</strong> the mock shows <strong>one</strong> canonical treatment per state
+    (Scene 2 for post-submit, Scene 3 for already-responded). Current code has four hand-rolled copies that have drifted —
+    consolidation into a shared <code>SurveyStateCard</code> is tracked separately in <strong>#476</strong> and is out of scope for this PR.
+    Within this PR's footer work, each existing call site gets the footer; #476 will then collapse them onto a shared component.
+  </p>
 
   <!-- ============================================================== -->
   <!-- SCENE 1 — Direct link · Active questions (themed)               -->
@@ -277,6 +283,11 @@
     </div>
     <p class="scene-meta">
       <code>apps/web/src/app/survey/[id]/page.tsx</code> submitted branch (~L153-166) · neutral state-card chrome (Tailwind <code>bg-white</code>) · <strong>neutral</strong> footer.
+    </p>
+    <p class="scene-note">
+      <strong>Canonical post-submit treatment</strong> (h2 "Thank you!" + body p). The tokenized route's post-submit branch
+      (<code>survey/[id]/r/[token]/page.tsx</code> ~L145-165) and the embedded widget's thank-you swap
+      (<code>generateWidgetJs</code> ~L950) should render the same h2 + p structure — consolidation tracked in <strong>#476</strong>.
     </p>
     <p class="scene-note">
       <strong>Why neutral (not themed):</strong> the surrounding state-card uses Tailwind utility classes today, not theme tokens — theming the footer alone would create visual inconsistency. Lifting the state-card into the themed shell is a separate, larger refactor captured in Deferred follow-ups.
@@ -496,10 +507,18 @@
       <h2 class="scene-title">Tokenized route · 4 token-error states</h2>
     </div>
     <p class="scene-meta">
-      <code>apps/web/src/app/survey/[id]/r/[token]/page.tsx</code> error branch (~L135-143). All four states render the same card chrome with different copy. Footer is <strong>neutral</strong> and <strong>byte-identical</strong> across the four states (per R12 + #378 NFR-S5 timing-attack-resistance against token enumeration).
+      <code>apps/web/src/app/survey/[id]/r/[token]/page.tsx</code> error branch (~L135-143). <code>responded</code> uses the canonical
+      <strong>"already responded" h2 + p</strong> treatment (mirrors Scene 3); the three true-error states share the simpler
+      single-<code>&lt;p&gt;</code> chrome. Footer is <strong>neutral</strong> and <strong>byte-identical</strong> across all four states
+      (per R12 + #378 NFR-S5 timing-attack-resistance against token enumeration).
     </p>
     <p class="scene-note">
-      <strong>R12 + #378 implication:</strong> the footer DOM and bytes must be identical across <code>expired</code> / <code>responded</code> / <code>survey-not-open</code> / <code>invalid</code> — any per-state variation would leak the state to an attacker timing the response.
+      <strong>R12 + #378 implication:</strong> the <em>footer</em> DOM and bytes must be identical across <code>expired</code> / <code>responded</code> / <code>survey-not-open</code> / <code>invalid</code> — any per-state footer variation would leak the state to an attacker timing the response.
+      Card chrome above the footer can vary by state because the server returns the same uniform <code>{state}</code> payload for all four; chrome differences are rendered client-side and don't appear in the response bytes.
+    </p>
+    <p class="scene-note">
+      <strong>Convergence (per #476):</strong> the <code>responded</code> card here and Scene 3's amber "Already responded" card should both be the same
+      <code>SurveyStateCard variant="already-responded"</code> with chrome theming as the only difference (white here for timing-attack uniformity, amber for the direct-link path).
     </p>
     <div class="scene-stage" style="flex-direction: column; gap: 16px; align-items: stretch;">
       <!-- expired -->
@@ -524,10 +543,12 @@
       <div style="width: 100%; max-width: 540px; margin: 0 auto;">
         <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #6b7280;">
           <code style="background: #f3f4f6; padding: 1px 6px; border-radius: 3px;">state=responded</code>
+          <span style="color: #6b7280;">— h2 + p canonical (matches Scene 3); per #476</span>
         </div>
         <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
-          <div style="padding: 28px 24px; text-align: center;">
-            <p style="margin: 0; font-size: 14px; color: #111827;">This survey has already been submitted. Thank you for your response!</p>
+          <div style="padding: 32px 24px 16px; text-align: center;">
+            <h2 style="font-size: 18px; margin: 0 0 8px; color: #111827; font-weight: 600;">Already responded</h2>
+            <p style="margin: 0; font-size: 14px; color: #374151;">This survey has already been submitted. Thank you for your response!</p>
           </div>
           <p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>
             Powered by
