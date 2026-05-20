@@ -391,3 +391,25 @@ Cross-check `Validation Requirements` from the work list against actually-execut
 - 0 Partial / 0 Unmet
 - 0 unaddressed feedback items
 - All required validation modes executed
+
+---
+
+## Architecture Update (Phase 10)
+
+**Result: N/A — no architecture-doc updates required.**
+
+Walked each #413 change against `docs/architecture/architecture.md` to detect new patterns / layers / dependencies that need documenting. Every change in this PR follows an already-documented pattern:
+
+| Change | Existing pattern it follows | Where documented |
+|---|---|---|
+| `packages/shared/src/footer.ts` (pure-data + pure-function + subpath export) | `distributionTokens.ts` precedent — domain-narrow primitives in `packages/shared` exposed via subpath exports | architecture.md §3 ("domain-narrow runtime packages") + §3.5 (Shared Layer) |
+| `apps/web/src/components/survey-form/PoweredByFooter.tsx` (co-located with sibling components + co-located test) | `ConsentDisclosure.tsx`, `QuestionRenderer.tsx`, etc. — survey-form component family with co-located `*.test.tsx` | architecture.md §3.1 (Presentation Layer) |
+| `globals.css` `.ceq-powered-by` class family | `.ceq-survey-card`, `.ceq-survey-brand-name` etc. — existing `.ceq-` namespace for survey-form chrome (via inline styles) and a few global rules | Convention already in use across survey-form components |
+| `apps/api/src/routes/public.ts` widget JS `<style>` injection (deduped via id) | Widget JS is a self-contained generated string; mutating `document.head` once per page is a standard widget pattern | The widget itself is a domain-specific implementation detail; not architectural |
+| `scripts/check-no-attribution-toggle.sh` (R7 grep gate wired into smoke runner) | First repo-wide grep-based invariant gate. Single instance, not yet a "pattern." | Could become a documented pattern if other invariants get similar gates (e.g., a "no `console.log` in production code" gate). For now, the script + smoke-runner wiring is self-documenting. Not architecture-doc-worthy as a one-off. |
+
+No new tech-stack entries, no new architectural layers, no new package-boundary rules, no new ADR-worthy decisions, no new cross-package dependencies. The architecture doc remains accurate.
+
+### Phase 10 outcome
+
+✅ PASS (N/A) — proceeding to Phase 11 (`implement-submission`).
