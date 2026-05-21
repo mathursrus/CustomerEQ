@@ -54,12 +54,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         `}
       >
         <div className="px-4 py-4 border-b border-gray-200">
+          {/* Do not set `organizationProfileMode`/`organizationProfileUrl` here —
+           *  Clerk's default opens its hosted Organization Profile (rename + invite)
+           *  on Manage clicks. Overriding to "navigation" routes Manage to
+           *  /admin/settings/organization, where Organization name is read-only,
+           *  leaving no UI path to rename or invite (Issue #483). */}
           <OrganizationSwitcher
             hidePersonal
             afterCreateOrganizationUrl="/admin/settings/organization"
             afterSelectOrganizationUrl="/admin/members"
-            organizationProfileMode="navigation"
-            organizationProfileUrl="/admin/settings/organization"
             appearance={{
               elements: {
                 rootBox: 'w-full',
