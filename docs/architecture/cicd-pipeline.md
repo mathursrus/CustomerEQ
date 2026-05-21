@@ -71,9 +71,15 @@ See [test-plan.md](../project-management/test-plan.md) for the full test invento
 
 ### 4.1 Doc-only skip
 
-All jobs use `dorny/paths-filter@v3` to detect whether any non-documentation file changed. If only markdown, `docs/`, template files, `CODEOWNERS`, `.gitattributes`, or `LICENSE` changed, every job skips entirely.
+Doc-only changes use a two-layer approach — trigger-level filtering (primary) plus in-job path filtering (belt-and-braces).
 
-**Design note — skip-list semantics:** The filter uses a leading `'**'` pattern to seed the match set, then subtracts exclusions. This is intentional: negation-only patterns default to `true` in dorny (last-match-wins), making the skip path unreachable. The leading `'**'` is required (#351). New top-level directories are default-included; only explicitly listed patterns are skipped. Under-skipping (spurious CI run on a doc change) is acceptable waste; over-skipping (real change treated as doc-only) is a real bug.
+**Layer 1 — trigger-level `paths-ignore` (#488):** Both `on.push` and `on.pull_request` declare `paths-ignore` covering `*.md`, `docs/**`, template files, `CODEOWNERS`, `.gitattributes`, and `LICENSE`. When every changed file matches these patterns, GitHub never queues the workflow at all — no runner is allocated and no service containers start. This eliminates the ~29s postgres + redis startup cost that was previously paid on every doc-only run before the in-job filter could skip.
+
+**Why trigger-level is safe:** The `main` branch has no required status checks configured in branch protection. A CI check not appearing for doc-only PRs does not block merges.
+
+**Layer 2 — in-job `dorny/paths-filter@v3`:** Remains as belt-and-braces for any push that passes the trigger filter but is later determined to be doc-only (edge cases, mixed squash commits). Uses a leading `'**'` pattern to seed the match set, then subtracts exclusions. The leading `'**'` is required because negation-only patterns default to `true` in dorny (#351). New top-level directories are default-included.
+
+**Under-skipping vs over-skipping:** Under-skipping (spurious CI run on a doc change) is acceptable waste; over-skipping (real change treated as doc-only) is a real bug. The trigger-level filter is intentionally conservative — it only skips when *all* changed files match the ignore list.
 
 ### 4.2 Build & Test job
 
@@ -257,7 +263,7 @@ Build + typecheck together = **78% of the critical path**.
 | Wall clock to all-green | ~15m27s | ~12.1m | **−3.4m (−22%)** |
 | Time to first lint signal | ~15m27s | ~2m56s | **−12m31s** |
 | LLM calls per PR | 1 eval file | 0 | **Eliminated** |
-| Doc-only PR cost | ~15m27s | 0s | **−100%** |
+| Doc-only PR cost | ~15m27s | 0s (workflow skipped at trigger; #488) | **−100%** |
 | `pnpm audit` per PR | ~1m | 0 | **Moved to weekly** |
 
 ---
@@ -275,6 +281,7 @@ Build + typecheck together = **78% of the critical path**.
 | #431 | Fix missing `AZURE_OPENAI_BASE_URL` in nightly workflow | 2026-05-19 |
 | #449 | Selective demo-storefront rebuild in CD | 2026-05-19 |
 | #451 | Restore `push: main` CI trigger; add `fetch-depth: 2`; gate docker-build on PR only | 2026-05-19 |
+| #488 | Trigger-level `paths-ignore` to eliminate ~29s container startup on doc-only runs | 2026-05-20 |
 
 ---
 
