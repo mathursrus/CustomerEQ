@@ -33,6 +33,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read  # required by scripts/cd-run-summary.mjs to read job/step timings (#470)
 
     steps:
       - name: Checkout
