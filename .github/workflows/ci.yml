@@ -3,8 +3,27 @@ name: CI
 on:
   push:
     branches: [main]
+    # Issue #488: skip workflow entirely for doc-only pushes — no runner allocated,
+    # no containers started. Branch protection has no required status checks so this
+    # is safe. In-job dorny/paths-filter remains as belt-and-braces.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'CODEOWNERS'
+      - '.gitattributes'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'CODEOWNERS'
+      - '.gitattributes'
+      - 'LICENSE'
 
 jobs:
   ci:
@@ -13,9 +32,12 @@ jobs:
     # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
     # pull_request events. The default GITHUB_TOKEN on this repo lacks
     # pull-requests: read — required since #346.
+    # actions: read — required by scripts/ci-run-summary.mjs to call the
+    # Actions API and read job/step timings for the Summary tab (#469).
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_API: ${{ secrets.TURBO_API }}
@@ -177,6 +199,14 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
+
+      # Issue #469: write per-run step timing table to the Actions Summary tab.
+      # Runs always so failures are also captured in the summary.
+      - name: Write CI run summary
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci-run-summary.mjs
 
   lint:
     name: Lint
