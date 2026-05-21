@@ -2,7 +2,7 @@
 
 Issue: [#420](https://github.com/mathursrus/CustomerEQ/issues/420)
 Owner: manohar.madhira@outlook.com
-Status: **Round 1 — initial spec for reviewer signoff.**
+Status: **Round 2 — reframed around shared surface + mode-specific divergence per reviewer feedback.**
 Last touched: 2026-05-21
 
 ---
@@ -12,6 +12,7 @@ Last touched: 2026-05-21
 | Round | Date | Trigger | Outcome |
 |---|---|---|---|
 | R1 | 2026-05-21 | FRAIM `feature-specification` job phases 1–2 → first Draft PR commit | Two peer Send tiles (`Send via CustomerEQ` / `Send via my email tool`); shared **merged Existing + Custom audience builder** with wildcard search, per-row deselect, and 25/50 pagination; ACS composer page (sender name + alias + rich-text body with `{{survey_link}}` mustache); BullMQ per-recipient send queue; `DistributionBatch.sendMode` enum (`SELF_SERVE` / `MANAGED_ACS`); `Survey.sentCount` + the existing distribution batch listing tagged by mode. Reuses #378's `DistributionBatch` / `SurveyDistributionToken` / `SurveyDistribution` data model and the existing ACS connector in `packages/connectors/src/email.ts`. |
+| R2 | 2026-05-21 | Reviewer feedback on PR #497: *"The mock doesn't include how the Send via Email tool would change based on this. This issue should cover both send scenarios, because they must share the inputs. Survey Title and Link Expiry are not shown in the mocks. Think as a PM — how the two scenarios should overlap and where they diverge. Don't design / re-design in isolation."* (feedback file: `docs/evidence/420-feature-specification-feedback.md`; coaching moment captured at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-21T21-19-48-pm-design-paired-flows-with-shared-structure.md`) | Reframed entirely around **one shared structure with explicit divergence points**. New §0 lists every input/affordance tagged `Shared` / `Mode-specific (MANAGED_ACS)` / `Mode-specific (SELF_SERVE)`. New §2.2 *Common fields* (Survey name in mail + Links expire on) lifted from #378 §2.2 and applied identically in both modes. The §-numbered walk-through now interleaves both modes: §2.3 composer is the MANAGED_ACS-only block; §2.4a is the SELF_SERVE Generate-Links block; §2.5 Success state has SELF_SERVE (CSV download — preserved from #378) and MANAGED_ACS (sending/sent progress) subsections. §3 (#378 reshape) now explicitly enumerates the SELF_SERVE post-reshape surface as a `mode=SELF_SERVE` instance of the same React page component. Architectural note added: both paths render the same `<DistributePage mode={...}/>` component parameterized by `mode` URL param. Mock restructured to surface the symmetry: new Common-fields card in scene 2; new scene 3A (SELF_SERVE composer / Generate-Links) presented alongside renamed scene 3B (MANAGED_ACS composer); banner at top labels which scenes are shared vs divergent. The two tile buttons are visually equal-weight (both `outline-primary`) since the issue body presents them as peer choices, not primary/secondary. |
 
 ## Customer
 
@@ -43,32 +44,59 @@ Restating the issue body in persona language:
 4. **No "I want CustomerEQ as the sender alias" affordance.** The platform sends notification emails today (via `packages/connectors/src/email.ts`), but the sender is hard-pinned at platform startup from `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` — it isn't per-survey, per-wave, or per-brand. For #420, the brand needs to project a sender identity that *they* configure (display name + local-part), not the platform's notifications sender.
 5. **No sent-count surfacing.** The platform tracks `DistributionBatch.tokenCount` and `SurveyDistribution.sentAt` (which today marks "we minted a token for this member" — not "we actually dropped an email in their inbox"). For #420, the worker that performs the ACS send updates a true sent timestamp + sent mode, and a survey-level aggregator rolls them up. For #378 sends, the sent count is incremented atomically when the operator downloads the CSV (the moment of operator-side dispatch handoff — analogous to "we minted; you took it from here").
 
+## Shared surface vs path-specific divergence (the PM framing)
+
+The headline architectural commitment of #420: **both Send paths render the same React page component (`<DistributePage mode={...}/>`)**, parameterized by a `mode` URL query param (`mode=SELF_SERVE` for the `Send via my email tool` path; `mode=MANAGED_ACS` for the `Send via CustomerEQ` path). The shared component owns every input the two flows have in common; the small set of mode-specific affordances live in clearly-isolated subcomponents (`<SelfServeComposer/>` vs `<ManagedAcsComposer/>`). This is the architecture answer to *"the inputs must be shared"* — the alternative (two separate page components copying the audience builder + common fields) would produce drift the moment one path got a new input the other didn't.
+
+The table below enumerates every operator-facing input/affordance in the Distribute surface and tags each as `Shared` or `Mode-specific`:
+
+| Affordance | SELF_SERVE (`Send via my email tool`) | MANAGED_ACS (`Send via CustomerEQ`) |
+|---|---|---|
+| **Distribution tile button** (entry point in survey-detail Distribution section) | `Send via my email tool →` button (outline-primary) | `Send via CustomerEQ →` button (outline-primary, equal-weight peer) |
+| **Page URL** | `/admin/surveys/[id]/distribute?mode=self-serve` | `/admin/surveys/[id]/distribute?mode=managed-acs` |
+| **Page header / "switch mode" link** | *"Send via my email tool"* heading + *"Switch to Send via CustomerEQ →"* link in top-right | *"Send via CustomerEQ"* heading + *"Switch to Send via my email tool →"* link in top-right |
+| **Audience builder** (§2.1 — *Add from Existing Members* card with wildcard search + random sample · *Add from Custom List* card with paste/CSV + auto-enroll · unified deduped list with per-row deselect + 25/50 pagination) | **SHARED** — identical UI, identical semantics | **SHARED** — identical UI, identical semantics |
+| **Common fields** (§2.2 — `Survey name in mail` text input · `Links expire on` select with 24h / 7d / 30d / 90d / Custom presets + brand-TZ helper) | **SHARED** — identical UI, identical semantics. `surveyNameInMail` flows into the CSV's `surveyName` column. | **SHARED** — identical UI, identical semantics. `surveyNameInMail` flows into the email subject's default value and is available as the `{{survey_title}}` mustache variable. |
+| **Composer / generator section** (§2.3 / §2.4a) | **Mode-specific (SELF_SERVE)** — format dropdown (Generic / Mailchimp / HubSpot / Klaviyo) + `Generate N links →` CTA. Composer body is the CSV format choice; there is no email body to compose. | **Mode-specific (MANAGED_ACS)** — Sender name + Sender alias (local-part) + brand-pinned domain suffix · Subject · Body (rich-text editor with `{{survey_link}}` mustache palette and auto-appended unsubscribe footer) · live preview pane · `Send N emails →` CTA. |
+| **Confirmation modal** (§2.4) | **Mode-specific copy** — *"Generate N tokenized links and download the CSV?"* with the strong-warning *"⚠ The plaintext URLs are shown only once"* preserved from #378 | **Mode-specific copy** — *"Send N emails from `<sender>`?"* with the warning *"Emails will be sent in the next few minutes. You cannot cancel a send in progress."* |
+| **Success state** (§2.5) | **Mode-specific (SELF_SERVE)** — generated-success banner + format dropdown + `⬇ Download CSV` button (preserved from #378 §2.5) + `Done — back to survey →` link | **Mode-specific (MANAGED_ACS)** — Sending state (SSE-driven progress bar + per-recipient status table + Retry-failed CTA) transitioning to Sent state (summary banner — success/warn-styled by failed count) + `Done — back to survey →` link |
+| **DistributionBatch row written** | `sendMode = SELF_SERVE` · `composerSnapshot = null` · `Survey.sentCount += tokenCount` at transaction commit (operator-dispatch-handoff semantic, preserved from #378) | `sendMode = MANAGED_ACS` · `composerSnapshot = {senderName, senderAlias, senderDomain, subject, body, footerTemplate}` · `Survey.sentCount` incremented per-recipient by the worker as ACS confirms each send |
+| **Survey detail page (post-send)** | **SHARED surfacing** — Configuration Summary's Sent line shows the per-mode breakdown (e.g., *"5 total · 5 via my email tool · 0 via CustomerEQ"*). Distribution batches filter shows the batch with a `Self-serve` mode pill. | **SHARED surfacing** — same line, breakdown reflects MANAGED_ACS contribution. Distribution batches filter shows the batch with a `Managed (ACS)` mode pill. |
+
+**One thing the issue is silent on but is worth making explicit**: the *"switch mode"* link in the page header (top-right) lets the operator change their mind after building the audience. Switching modes preserves the audience list, common fields, and toggles only the composer / generator section. This is the affordance that pays off the architectural commitment — without it the *"shared component"* claim is just code-organization aesthetics. With it, the operator can run a `Send via my email tool` audience build, decide mid-flow *"actually let CustomerEQ deliver these"*, and switch without re-entering 200 paste-list emails.
+
+---
+
 ## User Experience that will solve the problem
 
 The interactive mock at [`mocks/420-send-via-customereq-acs.html`](mocks/420-send-via-customereq-acs.html) is the working artifact. Sections below describe the experience at the level of "specific steps the user takes"; the mock is the source of truth for visual layout, copy, and affordances.
 
 ### §1. Entry point — the Distribution tiles, reshaped
 
-The existing 3-tile Distribution section (`SendViaEmailToolTile` + `Embed snippet` + `Share link` per `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx`) becomes a **3-tile section with a redesigned leftmost tile**. The leftmost tile is no longer single-CTA "Send via my email tool →"; it's now a **"Send via Email" tile with two peer buttons** stacked vertically:
+The existing 3-tile Distribution section (`SendViaEmailToolTile` + `Embed snippet` + `Share link` per `apps/web/src/app/(admin)/admin/surveys/[id]/components/DistributionSection.tsx`) becomes a **3-tile section with a redesigned leftmost tile**. The leftmost tile is no longer single-CTA "Send via my email tool →"; it's now a **"Send via Email" tile with two equal-weight peer buttons** stacked vertically:
 
-- `Send via CustomerEQ →` (primary, indigo solid) — **NEW**
-- `Send via my email tool →` (secondary, indigo outline) — routes to the existing `/admin/surveys/[id]/distribute` page (#378's flow, preserved)
+- `Send via CustomerEQ →` — **NEW** — routes to `/admin/surveys/[id]/distribute?mode=managed-acs`
+- `Send via my email tool →` — routes to `/admin/surveys/[id]/distribute?mode=self-serve` (the existing #378 page, now parameterized by mode)
 
-The other two tiles (`Embed snippet` Copy, `Share link` Copy) are unchanged.
+Both buttons render with **equal visual weight** (both `outline-primary` styling, same size, same chevron). The issue body presents them as peer choices ("two button options"); making one primary-solid would imply the platform's preference, which it doesn't have — the right mode is whichever fits the operator's situation. The other two tiles (`Embed snippet` Copy, `Share link` Copy) are unchanged.
 
 **DRAFT/PAUSED/STOPPED states** are unchanged from #378 R2: both buttons are disabled with state-keyed tooltips ("Activate the survey before distributing" / "Resume the survey to distribute" / "This survey is stopped — Restart to distribute").
 
-**Why two buttons in one tile, not two separate tiles**: the audience builder is *the same* between the two paths. Surfacing them as one tile telegraphs "these share the audience step; they diverge after." Two separate tiles would imply two independent flows and invite the operator to wonder which one the audience-builder choices belong to.
+**Why two buttons in one tile, not two separate tiles**: the audience builder + common fields are *the same* between the two paths. Surfacing them as one tile telegraphs "these share the audience step and the common fields; they diverge after." Two separate tiles would imply two independent flows and invite the operator to wonder which one the audience-builder choices belong to.
 
-### §2. The Send page — single short page (mirrors #378's "single short page" principle)
+### §2. The Distribute page — single mode-parameterized page
 
-Clicking `Send via CustomerEQ →` routes to `/admin/surveys/[id]/send-via-customereq` (a new route). The page has **two visual states** on the same route, mirroring #378's Configure → Success structure:
+The page lives at `/admin/surveys/[id]/distribute?mode=<self-serve|managed-acs>` — a single React component (`<DistributePage mode={...}/>`) renders for both modes. This is the same route #378 used (`/admin/surveys/[id]/distribute`) — #420 adds the `?mode=` parameter and **preserves the existing route as a mode=self-serve alias** so any in-the-wild bookmarks of #378's URL still work (they land in SELF_SERVE mode by default).
 
-1. **Configure** — audience builder (merged, deduped, paginated) + composer (sender + body) + Send button
-2. **Sending** (transient — in-place transition) — per-recipient progress
-3. **Sent** — summary banner + per-recipient status table + `Done — back to survey →`
+The page has **two-to-four visual states** on the same route — the first two states are mode-invariant; the third state diverges per mode:
 
-Clicking `Send N emails` transitions State 1 → State 2 → State 3 in place. **Audience changes are not allowed during States 2/3** — the page is locked to the audience as confirmed at submit-time.
+1. **Configure** (shared shape, mode-specific composer) — audience builder + common fields + path-specific composer + Generate/Send CTA
+2. **Confirm modal** (mode-specific copy)
+3. **Terminal state**:
+   - SELF_SERVE → **Success** (single state) — generated-success banner + format dropdown + Download CSV button
+   - MANAGED_ACS → **Sending** → **Sent** (two-state) — per-recipient progress streaming via SSE, transitioning to summary banner when all sends terminal
+
+Clicking the path-specific CTA transitions Configure → Confirm modal → Terminal state in place. **Audience changes are not allowed past the Configure state** — the page is locked to the audience as confirmed at submit-time. A **"Switch to `<other-mode>`"** link in the page header is available throughout the Configure state and preserves the audience + common fields, swapping only the composer.
 
 #### §2.1 Configure state — Audience builder (shared with §3)
 
@@ -96,9 +124,23 @@ The audience builder is the headline UX innovation of #420 and is **shared with 
 - **Pagination**: default page size **25**, alternative **50** via a select control. Pagination preserves checkbox state across pages.
 - **Empty state**: *"No members added yet. Use the cards above to add members from your roster or paste a list."*
 
-#### §2.2 Configure state — Composer (only on the `Send via CustomerEQ` path)
+#### §2.2 Configure state — Common fields (**SHARED — both modes**)
 
-Below the audience list, the composer appears (only on the ACS-send path — on `Send via my email tool` this section is replaced by the existing §2.2 / §2.3 of #378: survey-name-in-mail + expiry + Generate-links button).
+Below the audience list, before any mode-specific composer, a **Common fields** card surfaces the two inputs that both flows need. Identical UI, identical semantics, identical persistence (both write to `DistributionBatch.surveyNameInMail` + `DistributionBatch.expiresAt`):
+
+- **Survey name in mail** — single text input. Default: `Survey.title` (respondent-facing title per #241 R7) falling back to `Survey.name`. Max 80 chars. The operator may edit before generating/sending.
+  - **SELF_SERVE path**: flows into the downloaded CSV's `surveyName` column so the brand's mail-merge template can reference it (e.g., `*|SURVEY_NAME|*` in Mailchimp). #378 §2.2 semantics, preserved.
+  - **MANAGED_ACS path**: provides the default value for the Subject input below (composer §2.3) and is exposed as the `{{survey_title}}` mustache variable in the Body editor.
+- **Links expire on** — a select with presets (24 hours / 7 days / 30 days / 90 days / Custom date+time). Default: 7 days from now, snapped to **end-of-day in `Brand.timezone`** (per #378 §2.2). Custom Date+Time opens a date-and-time picker; helper text directly below the picker reads *"All times in `<Brand.timezone>`"*. Stored on `DistributionBatch.expiresAt` as a UTC timestamp.
+  - **SELF_SERVE path**: every minted token in the batch expires at this timestamp. #378 §2.2 semantics, preserved.
+  - **MANAGED_ACS path**: same — the tokenized URL embedded in the ACS-sent email expires at this timestamp. The MANAGED_ACS confirm-modal copy (§2.4) surfaces the expiry alongside the recipient count so the operator sees both before clicking Send.
+- *(The `Auto-enroll members not in this brand` checkbox lives inside the Custom List card per §2.1; it's part of the audience builder, not a common field. Mentioned here only so reviewers don't think it's missing.)*
+
+A **wave label** is auto-derived from `<Survey.title> · <ISO date>` (e.g., *"Q2 customer satisfaction · 2026-05-21"*) and stored on `DistributionBatch.label`. Not surfaced as an editable input on the configure page in either mode — operators rename from the batch detail page (#378 §3.1) if needed.
+
+#### §2.3 Configure state — Composer (**Mode-specific: MANAGED_ACS only**)
+
+Below the common fields, the MANAGED_ACS composer appears. On SELF_SERVE this card is replaced by the §2.4a Generate-Links section (no email body to compose).
 
 **Sender block** (two side-by-side fields):
 - **Sender name** — free text. Default: `Brand.displayName` (from #277 Organization Settings) or the brand name fallback. Max 50 chars. Renders in the email as the friendly From-name.
@@ -131,60 +173,128 @@ Below the audience list, the composer appears (only on the ACS-send path — on 
 
 **Preview pane** (right column, sticky): renders the email as a recipient would see it, with merge variables resolved against a "sample recipient" (first selected member's name + identifier). Live-updates as the operator edits the body or sender fields.
 
-#### §2.3 Configure state — Send
+#### §2.4 Configure state — Action button (mode-branching)
 
-A single `Send N emails →` primary button at the bottom-right. Disabled until:
+A single primary button at the bottom-right of the configure area. The button label and validation gate vary by mode; the placement is identical.
+
+##### §2.4a SELF_SERVE — Generate links
+
+Label: `Generate N links →`. Disabled until:
 - Audience count (selected checkbox count) ≥ 1
-- Sender name is non-empty
+- Survey name in mail (§2.2) is non-empty
+- A format is chosen in the format dropdown shown directly above the button: **Generic** (default) / Mailchimp / HubSpot / Klaviyo. This controls the CSV's column-header shape (preserved from #378 §2.5 — `mergeTagUrl` column wrapping varies by format). Surfaced earlier (at the composer level) for SELF_SERVE because the format choice fundamentally shapes the CSV; the MANAGED_ACS path has no equivalent since CustomerEQ owns the dispatch.
+
+Clicking starts a Prisma transaction that creates the `DistributionBatch` (with `sendMode = SELF_SERVE` + null `composerSnapshot`), mints tokens, writes `SurveyDistribution` rows, and transitions the page to the Success state (§2.6a). Same atomic-write semantics as #378 §2.4.
+
+##### §2.4b MANAGED_ACS — Send
+
+Label: `Send N emails →`. Disabled until:
+- Audience count (selected checkbox count) ≥ 1
+- Survey name in mail (§2.2) is non-empty
+- Sender name (§2.3) is non-empty
 - Sender alias matches `[a-z0-9._-]+`
 - Subject is non-empty
 - Body contains at least one literal `{{survey_link}}` token
 
-Clicking the button opens a **confirmation modal** (mandated by Customer Desired Outcome #5):
+Clicking does NOT immediately enqueue; it opens the confirmation modal (§2.5) first.
 
-> ⚠ **You're about to send `N` emails.**
+#### §2.5 Confirmation modal (**mode-specific copy, shared shape**)
+
+The modal shape is identical across modes (same layout, same dismiss/confirm button placement); only the copy varies. The summary table inside the modal echoes back the audience count, common fields (`Survey name in mail`, `Links expire on`) and mode-specific fields so the operator gets a single-screen recap before committing.
+
+##### §2.5a SELF_SERVE confirmation copy
+
+> **Generate `N` tokenized links for `<wave label>`?**
+>
+> Survey name in mail: `<surveyNameInMail>`
+> Links expire: `<expires-at>` `<Brand.timezone>`
+> Format: `<Generic | Mailchimp | HubSpot | Klaviyo>`
+> Recipients: `N` selected members (auto-enrolling `K` new members)
+>
+> **⚠ The plaintext URLs are shown only once.** Save the CSV immediately. Re-downloading later requires regenerating all tokens (which invalidates the URLs in this batch).
+>
+> [Cancel] [Yes, generate `N` links]
+
+(Strong warning preserved from #378 §2.5 / §3.1 — Q1.1c semantics.)
+
+##### §2.5b MANAGED_ACS confirmation copy
+
+> **Send `N` emails for `<wave label>`?**
 >
 > From: `<sender-name>` `<sender-alias>@<acs-domain>`
 > Subject: `<subject>`
+> Survey name in mail: `<surveyNameInMail>`
+> Links expire: `<expires-at>` `<Brand.timezone>`
 > Recipients: `N` selected members (auto-enrolling `K` new members)
-> Links expire: `7 days from now`
 >
 > Emails will be sent in the next few minutes. You can monitor progress on the next screen but **you cannot cancel a send in progress**.
 >
 > [Cancel] [Yes, send `N` emails]
 
-On confirm, the page transitions in place to the Sending state.
+On confirm, the page transitions in place to the mode-appropriate Terminal state (§2.6a or §2.6b).
 
-#### §2.4 Sending state — per-recipient progress
+#### §2.6 Terminal state (mode-branching)
 
-The Configure-state UI is replaced by:
+##### §2.6a SELF_SERVE — Success: Download CSV
 
+(Inherits #378 §2.5 verbatim — same banner, same warning, same format dropdown, same download button. Briefly restated for completeness.)
+
+- **Success banner**: *"✓ Generated `N` links — `<wave label>`. Tokens expire `<absolute date+time>` `<Brand.timezone>`."*
+- **One-wave-one-response explanatory line**: *"Users will be able to respond only once in this wave. A leaked or re-clicked link gets the 'already submitted' state."*
+- **Strong warning banner** (amber-styled): *"⚠ Save this CSV now. The plaintext URLs are shown only once. Re-downloading later requires regenerating all tokens — which invalidates the URLs in this batch."*
+- **Format dropdown** (Generic default · Mailchimp · HubSpot · Klaviyo) + **`⬇ Download CSV`** button.
+- **`Done — back to survey →`** link.
+
+`Survey.sentCount += tokenCount` is incremented at transaction commit (operator-dispatch-handoff semantic).
+
+##### §2.6b MANAGED_ACS — Sending → Sent
+
+Two sub-states on the same surface:
+
+**Sending state**
 - **Progress banner** (info-styled): *"Sending `N` emails… `K` of `N` complete"* with a live progress bar. Updates via Server-Sent Events from a `GET /v1/surveys/:id/distribution-batches/:batchId/send-progress` endpoint that streams `progress` events.
-- **Per-recipient status table** (paginated 25/50): Name · Identifier · Status (`Queued` / `Sending` / `Sent` / `Failed: <reason>`).
-- **Send-failure handling**: if a per-recipient send fails (ACS returns non-success status or throws), the row shows `Failed: <short reason>` (`Failed: bounce`, `Failed: unsubscribed`, `Failed: invalid address`). A **`Retry failed →`** button at the top retries any rows in Failed status. Unsubscribed-suppression failures are **not retryable** — the row is permanently in Failed state with reason `Skipped: unsubscribed`.
+- **Per-recipient status table** (paginated 25/50): Name · Identifier · Status (`Queued` / `Sending` / `Sent` / `Failed: <reason>`) · Sent / failed at timestamp.
+- **Send-failure handling**: failed rows show `Failed: <short reason>` (`Failed: bounce`, `Failed: invalid address`); suppressed rows show `Skipped: unsubscribed` / `Skipped: no consent` and are **not retryable**. A `Retry failed →` button at the top retries any non-suppressed failed rows.
 
-The page DOES NOT auto-redirect to Sent state; the operator clicks `Done — back to survey →` when they're satisfied. This lets them watch the dispatch unfold and intervene if something looks wrong. Closing the browser is safe — the worker continues processing the queue.
+The page does NOT auto-redirect to Sent state; the operator clicks `Done — back to survey →` when they're satisfied. Closing the browser is safe — the worker continues processing the queue. `Survey.sentCount` is incremented per-recipient by the worker as ACS confirms each send.
 
-#### §2.5 Sent state (post-Done)
-
-When all per-recipient sends are terminal (Sent or Failed):
-
+**Sent state** (when all per-recipient sends are terminal):
 - Progress banner becomes a **summary banner** (success-styled if `failedCount === 0`, warn-styled otherwise): *"✓ Sent `K` of `N` emails. `M` failed."*
-- The same per-recipient status table remains visible (with the same Retry-failed affordance).
-- Footer link: `Done — back to survey →` returns to `/admin/surveys/[id]`.
+- The per-recipient status table remains visible (same Retry-failed affordance).
+- `Done — back to survey →` returns to `/admin/surveys/[id]`.
 
-Returning to the same `/admin/surveys/[id]/send-via-customereq` URL later opens it in **Configure state** with the audience reset (the previous wave is now a historical `DistributionBatch` accessible from the survey detail page's batch filter, per #378 §3).
+#### §2.7 Returning later
 
-### §3. Existing `/admin/surveys/[id]/distribute` page (#378) — reshaped to share the audience builder
+Re-opening either mode of `/admin/surveys/[id]/distribute?mode=...` after a terminal state opens the page in **Configure state** with the audience reset. The previous batch is now a historical `DistributionBatch` accessible from the survey detail page's batch filter (per #378 §3) — the mode pill on the batch list distinguishes Self-serve from Managed (ACS) batches.
 
-The current Configure-state of #378's distribute page is refactored so that the audience builder (§2.1) is identical to #420's. The rest of #378's flow is preserved:
+### §3. `Send via my email tool` page (#378) — now a `mode=self-serve` instance of the shared component
 
-- After the audience list, instead of #420's composer, the operator sees #378's existing fields (`Survey name in mail`, `Links expire on`, `Generate N links` button).
-- The Configure → Success → Download CSV flow is unchanged.
-- The `DistributionBatch.sendMode` is set to `SELF_SERVE` (vs `MANAGED_ACS` for the new path).
-- `Survey.sentCount` is incremented on Generate-links success (the operator-side dispatch handoff moment).
+There is no longer a "separate #378 page reshape" in #420 — the shared `<DistributePage mode={...}/>` component IS the #378 page at `mode=self-serve`, and IS the #420 page at `mode=managed-acs`. The page-level structure is whatever §2.1 → §2.2 → §2.3/§2.4a → §2.5 → §2.6 prescribes for the chosen mode.
 
-This is the deliberate breaking change to #378's UX (mutually-exclusive radio cards → merged deduped list) and is justified by Customer Problem #2 above.
+To make this concrete, the SELF_SERVE instance — what #378 operators see after #420 ships — consists of:
+
+1. **Audience builder** (§2.1, SHARED) — replaces #378's existing mutually-exclusive radio-card mode chooser. The new merged-and-deduped list with per-row deselect and wildcard search is a strict superset: an operator who wants today's #378 behavior simply leaves one of the two add-cards empty.
+2. **Common fields** (§2.2, SHARED) — `Survey name in mail` + `Links expire on`. Identical UI to today's #378 §2.2 (text input + select with the same presets); the only change is that the card is now visually a sibling of the audience builder rather than embedded inside a wizard step.
+3. **No composer card** (composer is MANAGED_ACS-only).
+4. **Format dropdown + `Generate N links →` CTA** (§2.4a) — preserved from #378 §2.4, repositioned to sit immediately below the common fields card.
+5. **Confirmation modal** (§2.5a) — preserved warning copy from #378 R3 about plaintext URLs being shown only once.
+6. **Success state** (§2.6a) — preserved from #378 §2.5 verbatim (banner + warning + format dropdown + Download CSV + Done link).
+
+What changes for the existing #378 operator (a marketing manager who's been using the distribute page) is enumerated in `Backward Compatibility & Migration` below. The deliberate breaking change (mutually-exclusive radio cards → merged deduped list) is justified by Customer Problem #2 above.
+
+#### §3.1 Backward Compatibility & Migration
+
+- **Bookmarked URL `/admin/surveys/[id]/distribute`** (no `?mode=` query param) → defaults to `mode=self-serve`. Existing bookmarks land on the SELF_SERVE flow that's their continuation; they're not greeted with a confusing managed-ACS composer.
+- **Existing `DistributionBatch` rows** → backfill `sendMode = SELF_SERVE` (every batch created before #420 was by definition a #378 self-serve batch). Migration is data-only; no code path differences.
+- **Existing API endpoints** (`POST /v1/surveys/:id/distribution-batches`, etc.) → preserve their bodies and semantics. The new `send-via-acs` endpoint is additive. The existing endpoint's response shape is unchanged when called from SELF_SERVE mode.
+- **The deprecated `Send via my email tool →` tile** (today's single-CTA primary tile per `DistributionSection.tsx:107-152`) → replaced by the two-button "Send via Email" tile in §1.
+
+#### §3.2 The mode-aware batch detail page (#378 §3.1)
+
+The existing batch detail page at `/admin/surveys/[id]/distribute/batches/[batchId]` gains a **mode pill** at the top (`Self-serve` / `Managed (ACS)`) and mode-conditional sections:
+
+- **SELF_SERVE batches**: today's affordances preserved — Audience Spec block, Expiry control (Edit Expiry per #378 §3.1), Tokens table, Regenerate-links + download CSV button.
+- **MANAGED_ACS batches**: same Audience Spec, Expiry, Tokens table — **plus** a new *Composer snapshot* block (read-only — shows the operator's saved sender + subject + body at send time) and a *Per-recipient send log* block (Sent/Failed timestamps + reason for failed rows). The Regenerate-links-and-download CSV button is **hidden** on managed-ACS batches — there's no CSV to re-download; the emails are the only artifact, and `Member.unsubscribedAt` semantics make re-sending a tricky operation deliberately outside V0. (V1.x candidate: *"Re-send to failed recipients only"* — see Non-goals.)
 
 ### §4. Survey detail page — Sent count surfacing
 

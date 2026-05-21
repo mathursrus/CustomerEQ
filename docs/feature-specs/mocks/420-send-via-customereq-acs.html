@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CustomerEQ — Send via CustomerEQ (Issue #420) — Round 1 interactive mock</title>
+<title>CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 2 interactive mock</title>
 <style>
   :root {
     --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
@@ -29,10 +29,27 @@
   .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
   .mock-header .nav a:hover { color: white; text-decoration: underline; }
 
+  /* PM-framing banner that introduces the shared-vs-divergent structure */
+  .pm-framing { background: linear-gradient(90deg, #ecfeff 0%, #eef2ff 100%); border-bottom: 1px solid var(--border); padding: 18px 24px; }
+  .pm-framing .container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .pm-framing h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--info); text-transform: uppercase; letter-spacing: 0.6px; }
+  .pm-framing p { margin: 0 0 8px; font-size: 13px; color: var(--text); }
+  .pm-framing ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); }
+  .pm-framing ul li { padding: 2px 0; }
+  .pm-framing .legend { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .pm-framing .legend .chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; margin-right: 6px; }
+  .pm-framing .legend .chip.shared { background: #dbeafe; color: #1e40af; }
+  .pm-framing .legend .chip.self-serve { background: #fef3c7; color: var(--warning-strong); }
+  .pm-framing .legend .chip.managed-acs { background: var(--primary-soft); color: var(--primary); }
+
   .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
   .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
   .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
   .scene-label .scene-note { display: block; margin-top: 4px; color: #b45309; font-size: 11px; }
+  .scene-label .mode-chip { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px; }
+  .scene-label .mode-chip.shared { background: #dbeafe; color: #1e40af; }
+  .scene-label .mode-chip.self-serve { background: #fef3c7; color: var(--warning-strong); }
+  .scene-label .mode-chip.managed-acs { background: var(--primary-soft); color: var(--primary); }
   .container { max-width: 1280px; margin: 0 auto; }
 
   .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
@@ -46,9 +63,11 @@
   .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
   .admin-main { padding: 28px 36px; background: var(--bg); }
 
-  .page-header { margin-bottom: 22px; }
+  .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .page-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
   .page-header p { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .page-header .switch-mode { font-size: 12px; color: var(--primary); text-decoration: none; padding: 6px 12px; border: 1px solid var(--primary); border-radius: 6px; background: white; }
+  .page-header .switch-mode:hover { background: var(--primary-soft); }
   .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
   .breadcrumb a { color: var(--text-muted); text-decoration: none; }
 
@@ -61,6 +80,8 @@
   .pill.source-existing { background: #e0e7ff; color: var(--primary); }
   .pill.source-new { background: #fef3c7; color: var(--warning-strong); }
   .pill.source-skipped { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.mode-self-serve { background: var(--warning-soft); color: var(--warning-strong); }
+  .pill.mode-managed-acs { background: var(--primary-soft); color: var(--primary); }
 
   .section { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
   .section-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; }
@@ -127,7 +148,16 @@
   .audience-list-card .identifier-mono { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
   .audience-list-card .pagination-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; font-size: 12px; color: var(--text-muted); }
 
-  /* Composer */
+  /* Common fields card — SHARED between modes (newly surfaced in Round 2 per reviewer feedback) */
+  .common-fields-card { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+  .common-fields-card .shared-label { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px; background: #dbeafe; color: #1e40af; margin-bottom: 8px; letter-spacing: 0.4px; }
+  .common-fields-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+  .common-fields-card .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .common-fields-card label { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 4px; }
+  .common-fields-card input[type="text"], .common-fields-card select { width: 100%; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: white; }
+  .common-fields-card .field-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* Composer + preview */
   .composer-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 16px; }
   .composer-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
   .composer-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
@@ -138,7 +168,7 @@
   .composer-card .alias-row { display: flex; align-items: stretch; }
   .composer-card .alias-row input { border-radius: 6px 0 0 6px; border-right: none; }
   .composer-card .alias-row .suffix { padding: 8px 10px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-left: none; border-radius: 0 6px 6px 0; color: var(--text-muted); font-family: var(--mono); font-size: 12px; display: flex; align-items: center; }
-  .composer-card .editor-toolbar { display: flex; gap: 4px; padding: 6px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-bottom: none; border-radius: 6px 6px 0 0; }
+  .composer-card .editor-toolbar { display: flex; gap: 4px; padding: 6px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-bottom: none; border-radius: 6px 6px 0 0; flex-wrap: wrap; }
   .composer-card .editor-toolbar button { padding: 4px 8px; font-size: 12px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-weight: 500; }
   .composer-card .editor-toolbar button.merge-tag { background: var(--primary-soft); color: var(--primary); font-family: var(--mono); }
   .composer-card .editor-body { width: 100%; border: 1px solid var(--border-strong); border-radius: 0 0 6px 6px; padding: 10px 12px; font-size: 13px; font-family: inherit; min-height: 180px; resize: vertical; }
@@ -156,17 +186,29 @@
   .preview-card .email-footer { font-size: 10px; color: var(--text-muted); margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
   .preview-card .email-footer a { color: var(--primary); text-decoration: underline; }
 
+  /* CSV preview card — SELF_SERVE counterpart of the email preview card */
+  .csv-preview-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 0; overflow: hidden; position: sticky; top: 20px; }
+  .csv-preview-card .preview-head { padding: 8px 14px; background: var(--surface-muted); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+  .csv-preview-card .csv-body { padding: 16px 18px; font-family: var(--mono); font-size: 11px; color: var(--text); white-space: pre; overflow-x: auto; }
+  .csv-preview-card .csv-foot { padding: 8px 14px; background: var(--surface-muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+
+  /* Generate / Send bottom action bar */
   .send-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 12px 16px; background: white; border: 1px solid var(--border); border-radius: var(--radius); }
   .send-bar .send-summary { font-size: 13px; color: var(--text-muted); }
   .send-bar .send-summary strong { color: var(--text); font-weight: 600; }
 
   .modal-backdrop { position: relative; background: rgba(15, 23, 42, 0.6); padding: 40px 24px; border-radius: var(--radius); }
+  .modal-backdrop.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .modal { max-width: 540px; margin: 0 auto; background: white; border-radius: var(--radius); padding: 22px 26px; box-shadow: var(--shadow-lg); }
   .modal h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--warning-strong); display: flex; align-items: center; gap: 8px; }
+  .modal .mode-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .modal .mode-tag.self-serve { background: var(--warning-soft); color: var(--warning-strong); }
+  .modal .mode-tag.managed-acs { background: var(--primary-soft); color: var(--primary); }
   .modal-summary { background: var(--surface-muted); border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
   .modal-summary div { padding: 3px 0; }
   .modal-summary strong { color: var(--text); font-weight: 600; }
   .modal-foot { display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-strong-warning { background: var(--warning-soft); border-left: 3px solid var(--warning); padding: 10px 12px; font-size: 12px; color: var(--warning-strong); border-radius: 4px; margin-bottom: 12px; }
 
   .progress-banner { background: var(--info-soft); border: 1px solid #99e2ec; border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .progress-banner .progress-text { font-size: 14px; font-weight: 600; color: var(--info); }
@@ -190,42 +232,72 @@
   .recipient-table .failure-reason { font-size: 11px; color: var(--danger); margin-left: 4px; }
 
   .help-text { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-  .toc { position: fixed; right: 16px; top: 80px; background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; font-size: 11px; box-shadow: var(--shadow-md); max-width: 220px; z-index: 90; }
+  .toc { position: fixed; right: 16px; top: 80px; background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; font-size: 11px; box-shadow: var(--shadow-md); max-width: 240px; z-index: 90; }
   .toc strong { display: block; margin-bottom: 6px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
   .toc a { display: block; padding: 2px 0; color: var(--primary); text-decoration: none; }
   .toc a:hover { text-decoration: underline; }
-  @media (max-width: 1100px) { .toc { display: none; } }
+  .toc .group-label { font-size: 10px; color: var(--text-subtle); margin-top: 8px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+  @media (max-width: 1200px) { .toc { display: none; } }
 </style>
 </head>
 <body>
 
 <div class="mock-header">
-  <h1>📨 CustomerEQ — Send via CustomerEQ — Issue #420 — Round 1 mock</h1>
+  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 2 mock</h1>
   <div class="nav">
-    <a href="#scene-1">1. Entry tile</a>
-    <a href="#scene-2">2. Audience builder</a>
-    <a href="#scene-3">3. Composer</a>
+    <a href="#scene-1">1. Tile</a>
+    <a href="#scene-2">2. SELF_SERVE</a>
+    <a href="#scene-3">3. MANAGED_ACS</a>
     <a href="#scene-4">4. Confirm</a>
-    <a href="#scene-5">5. Sending</a>
-    <a href="#scene-6">6. Sent</a>
-    <a href="#scene-7">7. Survey detail (sent count)</a>
+    <a href="#scene-5">5. Terminal</a>
+    <a href="#scene-6">6. Sent count</a>
+  </div>
+</div>
+
+<!-- Round-2 PM framing banner — surfaces the shared-vs-divergent structure up front -->
+<div class="pm-framing">
+  <div class="container">
+    <div>
+      <h2>🤝 Shared structure</h2>
+      <p>Both Send paths render the same React page component (<code>&lt;DistributePage mode=&quot;...&quot;/&gt;</code>) parameterized by URL <code>?mode=</code>. The full audience builder and the Common fields card are <strong>identical</strong> across modes; the operator can switch modes mid-flow without losing their audience or common-field values.</p>
+      <ul>
+        <li><strong>Shared</strong>: Distribution entry-point tile (two peer buttons); page header + "Switch mode" link; Audience builder (Existing-Members wildcard search + Random sample + Custom List paste/CSV + auto-enroll; unified deduped list with per-row deselect + 25/50 pagination); Common fields (<em>Survey name in mail</em> + <em>Links expire on</em>); Survey-detail Sent-count line; Distribution-batches mode pill.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>🔀 Mode-specific divergence</h2>
+      <p>Only the composer / generator section and the terminal-state surface diverge — three distinct subcomponents on each side of the split.</p>
+      <ul>
+        <li><strong>SELF_SERVE</strong> diverges: composer = format dropdown only · CTA = <em>Generate N links</em> · terminal = Success banner + Download CSV (preserved from #378).</li>
+        <li><strong>MANAGED_ACS</strong> diverges: composer = sender + subject + rich-text body with mustache palette + live email preview · CTA = <em>Send N emails</em> · terminal = Sending → Sent SSE progress with per-recipient table + Retry-failed.</li>
+      </ul>
+      <div class="legend">
+        <span class="chip shared">SHARED</span> appears in both modes
+        <span class="chip self-serve">SELF_SERVE</span> mode-specific
+        <span class="chip managed-acs">MANAGED_ACS</span> mode-specific
+      </div>
+    </div>
   </div>
 </div>
 
 <nav class="toc">
   <strong>Scenes</strong>
   <a href="#scene-1">1. Distribution tile</a>
-  <a href="#scene-2">2. Audience builder</a>
-  <a href="#scene-3">3. Composer + preview</a>
-  <a href="#scene-4">4. Confirm modal</a>
-  <a href="#scene-5">5. Sending state</a>
-  <a href="#scene-6">6. Sent state</a>
-  <a href="#scene-7">7. Sent-count surfacing</a>
+  <div class="group-label">Configure</div>
+  <a href="#scene-2">2. SELF_SERVE (full page)</a>
+  <a href="#scene-3">3. MANAGED_ACS (full page)</a>
+  <div class="group-label">Confirm + Terminal</div>
+  <a href="#scene-4">4. Confirm modals (both modes)</a>
+  <a href="#scene-5a">5A. SELF_SERVE Success (CSV)</a>
+  <a href="#scene-5b">5B. MANAGED_ACS Sending</a>
+  <a href="#scene-5c">5C. MANAGED_ACS Sent</a>
+  <div class="group-label">Survey-detail</div>
+  <a href="#scene-6">6. Sent-count surfacing</a>
 </nav>
 
 <!-- ─────────────────────────────── Scene 1 ───────────────────────────── -->
 <section class="scene" id="scene-1">
-  <div class="scene-label"><strong>Scene 1 · Distribution section — entry-point tile reshape</strong><span class="scene-note">Spec §1 · The leftmost "Send via Email" tile now has two peer buttons: Send via CustomerEQ (NEW) and Send via my email tool (existing #378 path).</span></div>
+  <div class="scene-label"><strong>Scene 1 · Distribution section — entry-point tile reshape</strong><span class="mode-chip shared">SHARED ENTRY POINT</span><span class="scene-note">Spec §1 · Leftmost tile has two equal-weight peer buttons (both outline-primary). Neither path is "primary" — the operator's situation determines which is right.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -240,15 +312,14 @@
           <a class="active">Surveys</a>
           <a>Loyalty</a>
           <a>Campaigns</a>
-          <div class="admin-nav-group">Settings</div>
-          <a>Organization</a>
-          <a>Integrations</a>
         </div>
         <div class="admin-main">
           <div class="breadcrumb"><a>Surveys</a> &nbsp;›&nbsp; Q2 2026 NPS</div>
           <div class="page-header">
-            <h1>Q2 2026 NPS &nbsp; <span class="pill solid-active">● ACTIVE</span></h1>
-            <p>Quarterly net promoter survey for Gold tier and managed accounts.</p>
+            <div>
+              <h1>Q2 2026 NPS &nbsp; <span class="pill solid-active">● ACTIVE</span></h1>
+              <p>Quarterly net promoter survey for Gold tier and managed accounts.</p>
+            </div>
           </div>
           <div class="section">
             <div class="section-head"><h2>Distribution</h2></div>
@@ -257,10 +328,10 @@
 
                 <div class="dist-tile cta">
                   <h3><span aria-hidden>📨</span> Send via Email</h3>
-                  <p>Reach members by email — either let CustomerEQ deliver, or download per-recipient links for your own email tool.</p>
+                  <p>Reach members by email — either let CustomerEQ deliver, or download per-recipient links for your own email tool. Both paths share the same audience builder and common fields.</p>
                   <div class="tile-actions">
-                    <a class="btn primary" href="#scene-2">Send via CustomerEQ →</a>
-                    <a class="btn outline-primary" href="#">Send via my email tool →</a>
+                    <a class="btn outline-primary" href="#scene-3">Send via CustomerEQ →</a>
+                    <a class="btn outline-primary" href="#scene-2">Send via my email tool →</a>
                   </div>
                 </div>
 
@@ -281,24 +352,20 @@
               </div>
             </div>
           </div>
-
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 12px;">
-            <em>Other survey-detail sections (Loop Monitor, Distribution batches filter, Response, Configuration Summary) omitted from this mock for focus — they appear as today.</em>
-          </div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 2 ───────────────────────────── -->
+<!-- ─────────────────────────────── Scene 2 — SELF_SERVE Configure ────────────── -->
 <section class="scene" id="scene-2">
-  <div class="scene-label"><strong>Scene 2 · Send via CustomerEQ — Configure: Audience builder</strong><span class="scene-note">Spec §2.1 · Two stacked add-members cards · shared with the Send via my email tool path · merged + deduped list · per-row deselect · pagination 25/50.</span></div>
+  <div class="scene-label"><strong>Scene 2 · Distribute page · SELF_SERVE mode</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.1 + §2.2 + §2.4a · URL: <code>/admin/surveys/[id]/distribute?mode=self-serve</code> · Audience builder + Common fields (SHARED) · Format dropdown + Generate Links CTA (mode-specific).</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/send-via-customereq</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve</div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -308,14 +375,17 @@
         <div class="admin-main">
           <div class="breadcrumb"><a>← Back to survey</a></div>
           <div class="page-header">
-            <h1>Send via CustomerEQ</h1>
-            <p>Build your audience, compose your email, and CustomerEQ will deliver it via our managed sender.</p>
+            <div>
+              <h1>Send via my email tool &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+              <p>Build your audience, set common fields, then download per-recipient links your email tool can mail-merge.</p>
+            </div>
+            <a class="switch-mode" href="#scene-3">Switch to Send via CustomerEQ →</a>
           </div>
 
+          <!-- AUDIENCE BUILDER — SHARED -->
           <div class="audience-cards">
-
             <div class="audience-card">
-              <h3>Add from Existing Members</h3>
+              <h3>Add from Existing Members <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
               <p class="card-help">Search the roster. Wildcards supported (<code>*@artistos.com</code>, <code>q2-*</code>, <code>*support*</code>).</p>
               <div class="secondary-tabs">
                 <button class="active">Search</button>
@@ -326,38 +396,18 @@
                 <button class="btn secondary tiny">Search</button>
               </div>
               <div class="search-results">
-                <div class="search-row-item">
-                  <span><span class="name">Alice Chen</span><span class="identifier">alice@artistos.com</span><span class="meta">last response: 2026-02-14</span></span>
-                  <button class="btn primary tiny">Add</button>
-                </div>
-                <div class="search-row-item">
-                  <span><span class="name">Bob Patel</span><span class="identifier">bob@artistos.com</span><span class="meta">last response: —</span></span>
-                  <button class="btn primary tiny">Add</button>
-                </div>
-                <div class="search-row-item">
-                  <span><span class="name">Carla Singh</span><span class="identifier">carla@artistos.com</span><span class="meta">last response: 2026-04-22</span></span>
-                  <button class="btn primary tiny">Add</button>
-                </div>
-                <div class="search-row-item">
-                  <span><span class="name">Dmitri Volkov</span><span class="identifier">dmitri@artistos.com</span><span class="meta">last response: —</span></span>
-                  <button class="btn primary tiny">Add</button>
-                </div>
-              </div>
-              <div class="pagination">
-                <span class="page-info">Page 1 of 3 · 4 of 11 matches</span>
-                <div>
-                  <button class="btn ghost tiny">‹ Prev</button>
-                  <button class="btn ghost tiny">Next ›</button>
-                </div>
+                <div class="search-row-item"><span><span class="name">Alice Chen</span><span class="identifier">alice@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Bob Patel</span><span class="identifier">bob@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Carla Singh</span><span class="identifier">carla@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
               </div>
               <div class="add-actions">
-                <button class="btn secondary tiny">Add all on this page (4)</button>
+                <button class="btn secondary tiny">Add all on page (3)</button>
                 <button class="btn primary tiny">Add all matching (11)</button>
               </div>
             </div>
 
             <div class="audience-card">
-              <h3>Add from Custom List</h3>
+              <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
               <p class="card-help">Paste identifiers or upload a CSV. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted.</p>
               <div class="secondary-tabs">
                 <button class="active">Paste</button>
@@ -365,109 +415,84 @@
               </div>
               <textarea>Eric Olsen &lt;eric@others.com&gt;
 fiona@others.com
-georgia@artistos.com
-hassan@another.io</textarea>
-              <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);">
-                <input type="checkbox" checked /> Auto-enroll members not in this brand
-              </label>
-              <div class="add-actions">
-                <button class="btn primary tiny">Add 4 to list</button>
-              </div>
+georgia@artistos.com</textarea>
+              <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
+              <div class="add-actions"><button class="btn primary tiny">Add 3 to list</button></div>
             </div>
-
           </div>
 
+          <!-- AUDIENCE LIST — SHARED -->
           <div class="audience-list-card">
             <div class="audience-list-head">
-              <div class="summary">7 members in this wave <span class="summary-aux">· 2 will be auto-enrolled · 1 deselected · 1 deduped silently</span></div>
+              <div class="summary">6 members in this wave <span class="summary-aux">· 2 will be auto-enrolled · 1 deselected</span></div>
               <div class="bulk-actions">
                 <select><option>25 per page</option><option>50 per page</option></select>
                 <button class="btn secondary tiny">Select all on page</button>
                 <button class="btn secondary tiny">Deselect all on page</button>
-                <button class="btn danger tiny">Remove all unchecked</button>
               </div>
             </div>
             <table>
-              <thead>
-                <tr>
-                  <th class="col-checkbox"><input type="checkbox" checked /></th>
-                  <th>Name</th>
-                  <th>Identifier</th>
-                  <th>Last response · this survey</th>
-                  <th>Last response · all surveys</th>
-                  <th>Source</th>
-                </tr>
-              </thead>
+              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Source</th></tr></thead>
               <tbody>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Alice Chen</td>
-                  <td class="identifier-mono">alice@artistos.com</td>
-                  <td>2026-02-14</td>
-                  <td>2026-02-14</td>
-                  <td><span class="pill source-existing">Existing</span></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Bob Patel</td>
-                  <td class="identifier-mono">bob@artistos.com</td>
-                  <td>—</td>
-                  <td>2025-12-03</td>
-                  <td><span class="pill source-existing">Existing</span></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Carla Singh</td>
-                  <td class="identifier-mono">carla@artistos.com</td>
-                  <td>2026-04-22</td>
-                  <td>2026-04-22</td>
-                  <td><span class="pill source-existing">Existing</span></td>
-                </tr>
-                <tr class="deselected">
-                  <td><input type="checkbox" /></td>
-                  <td>Dmitri Volkov</td>
-                  <td class="identifier-mono">dmitri@artistos.com</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td><span class="pill source-existing">Existing</span></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Eric Olsen</td>
-                  <td class="identifier-mono">eric@others.com</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td><span class="pill source-new">New (will auto-enroll)</span></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Fiona Castro</td>
-                  <td class="identifier-mono">fiona@others.com</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td><span class="pill source-new">New (will auto-enroll)</span></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked /></td>
-                  <td>Georgia Walters</td>
-                  <td class="identifier-mono">georgia@artistos.com</td>
-                  <td>—</td>
-                  <td>2025-09-10</td>
-                  <td><span class="pill source-existing">Existing</span></td>
-                </tr>
+                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td>2026-02-14</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td>2026-04-22</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr class="deselected"><td><input type="checkbox" /></td><td>Dmitri Volkov</td><td class="identifier-mono">dmitri@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
               </tbody>
             </table>
-            <div class="pagination-foot">
-              <span>Page 1 of 1 · 7 rows shown · 6 selected</span>
+          </div>
+
+          <!-- COMMON FIELDS — SHARED (highlighted to draw the eye after R2 feedback) -->
+          <div class="common-fields-card">
+            <span class="shared-label">SHARED · BOTH MODES</span>
+            <h3>Common fields</h3>
+            <div class="field-grid">
               <div>
-                <button class="btn ghost tiny" disabled>‹ Prev</button>
-                <button class="btn ghost tiny" disabled>Next ›</button>
+                <label>Survey name in mail</label>
+                <input type="text" value="Q2 2026 NPS" />
+                <div class="field-help">SELF_SERVE: flows into the CSV's <code>surveyName</code> column (Mailchimp <code>*|SURVEY_NAME|*</code> merge tag). MANAGED_ACS: provides the default Subject + the <code>{{survey_title}}</code> mustache variable.</div>
+              </div>
+              <div>
+                <label>Links expire on</label>
+                <select>
+                  <option>24 hours</option>
+                  <option selected>7 days · 2026-05-28 23:59 PT</option>
+                  <option>30 days</option>
+                  <option>90 days</option>
+                  <option>Custom date+time…</option>
+                </select>
+                <div class="field-help">All times in <code>America/Los_Angeles</code> (brand timezone). Tokens minted in this wave expire at this moment regardless of mode.</div>
               </div>
             </div>
           </div>
 
-          <div class="help-text" style="margin-top: 14px;">
-            Continue to <a href="#scene-3" style="color: var(--primary);">compose your email →</a>
+          <!-- MODE-SPECIFIC: SELF_SERVE Generate area -->
+          <div class="common-fields-card" style="background: var(--warning-soft); border-color: #fcd34d;">
+            <span class="shared-label" style="background: #fef3c7; color: var(--warning-strong);">MODE-SPECIFIC · SELF_SERVE</span>
+            <h3>Download format</h3>
+            <div class="field-grid">
+              <div>
+                <label>CSV column-header format</label>
+                <select>
+                  <option selected>Generic</option>
+                  <option>Mailchimp</option>
+                  <option>HubSpot</option>
+                  <option>Klaviyo</option>
+                </select>
+                <div class="field-help">The CSV's column headers + <code>mergeTagUrl</code> wrapping are tuned to the chosen format. Format dropdown is also surfaced on the Success state for re-download.</div>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); padding-top: 22px;">
+                On click, mints 6 tokens, writes a <code>DistributionBatch</code> row with <code>sendMode = SELF_SERVE</code>, and shows the Success state with one-shot CSV download. Preserves #378's atomic-write semantics.
+              </div>
+            </div>
+          </div>
+
+          <div class="send-bar">
+            <div class="send-summary">Ready to generate <strong>6 links</strong>. Survey name: <strong>Q2 2026 NPS</strong>. Expires <strong>2026-05-28 23:59 PT</strong>. Format: <strong>Generic</strong>.</div>
+            <a class="btn primary large" href="#scene-4">Generate 6 links →</a>
           </div>
         </div>
       </div>
@@ -475,14 +500,14 @@ hassan@another.io</textarea>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 3 ───────────────────────────── -->
+<!-- ─────────────────────────────── Scene 3 — MANAGED_ACS Configure ────────────── -->
 <section class="scene" id="scene-3">
-  <div class="scene-label"><strong>Scene 3 · Send via CustomerEQ — Configure: Composer + live preview</strong><span class="scene-note">Spec §2.2 · Sender block + Subject + Body (rich-text with {{survey_link}} mustache palette) + non-editable unsubscribe footer + sticky live preview pane.</span></div>
+  <div class="scene-label"><strong>Scene 3 · Distribute page · MANAGED_ACS mode</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.1 + §2.2 + §2.3 + §2.4b · URL: <code>/admin/surveys/[id]/distribute?mode=managed-acs</code> · Identical audience builder + identical common fields (compared to Scene 2) · then the ACS composer + live email preview.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/send-via-customereq · Compose</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs</div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -492,19 +517,53 @@ hassan@another.io</textarea>
         <div class="admin-main">
           <div class="breadcrumb"><a>← Back to survey</a></div>
           <div class="page-header">
-            <h1>Send via CustomerEQ</h1>
-            <p>Audience: <strong>6 members</strong> · Compose your email below.</p>
+            <div>
+              <h1>Send via CustomerEQ &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <p>Same audience + common fields as the self-serve path. Compose the email body — CustomerEQ delivers via Azure Communication Services.</p>
+            </div>
+            <a class="switch-mode" href="#scene-2">Switch to my email tool →</a>
           </div>
 
-          <div class="composer-grid">
+          <!-- AUDIENCE BUILDER — SHARED (rendered identically to Scene 2; collapsed to a compact summary for the side-by-side comparison) -->
+          <div class="audience-list-card" style="background: #f0f9ff; border-color: #bae6fd;">
+            <div class="audience-list-head">
+              <div class="summary">🤝 Audience builder (SHARED) <span class="summary-aux">· identical to Scene 2 · 6 members in this wave · 2 auto-enroll · 1 deselected</span></div>
+              <a class="btn secondary tiny" href="#scene-2">View full builder in Scene 2 ↗</a>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); padding: 4px 0 0;">Add-from-Existing-Members card + Add-from-Custom-List card + unified deduped list with checkboxes — rendered identically to the SELF_SERVE mode. The audience list, when the operator switches modes via the "Switch mode" link, is preserved in component state. (Collapsed here for visual brevity — see Scene 2 for the full rendering.)</p>
+          </div>
 
+          <!-- COMMON FIELDS — SHARED -->
+          <div class="common-fields-card">
+            <span class="shared-label">SHARED · BOTH MODES</span>
+            <h3>Common fields</h3>
+            <div class="field-grid">
+              <div>
+                <label>Survey name in mail</label>
+                <input type="text" value="Q2 2026 NPS" />
+                <div class="field-help">Provides the default Subject below and the <code>{{survey_title}}</code> mustache variable.</div>
+              </div>
+              <div>
+                <label>Links expire on</label>
+                <select><option selected>7 days · 2026-05-28 23:59 PT</option><option>24 hours</option><option>30 days</option><option>90 days</option><option>Custom date+time…</option></select>
+                <div class="field-help">Tokenized URL in each email expires at this timestamp.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODE-SPECIFIC: MANAGED_ACS Composer + live email preview -->
+          <div class="composer-grid">
             <div class="composer-card">
-              <h3>Sender</h3>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
+                <h3 style="margin: 0;">Composer</h3>
+              </div>
+
               <div class="sender-row">
                 <div class="field">
                   <label>Sender name</label>
                   <input type="text" value="Acme CX Team" />
-                  <div class="help-text">Friendly name your recipients see in From.</div>
+                  <div class="help-text">Friendly From-name your recipients see.</div>
                 </div>
                 <div class="field">
                   <label>Sender alias (local-part)</label>
@@ -512,11 +571,10 @@ hassan@another.io</textarea>
                     <input type="text" value="feedback" style="flex: 1;" />
                     <span class="suffix">@cx.acme-via-customereq.io</span>
                   </div>
-                  <div class="help-text">Domain is fixed to your brand's verified ACS sender.</div>
+                  <div class="help-text">Domain pinned to brand's verified ACS sender.</div>
                 </div>
               </div>
 
-              <h3 style="margin-top: 18px;">Email</h3>
               <div class="field">
                 <label>Subject</label>
                 <input type="text" value="Quick question: Q2 2026 NPS" />
@@ -529,7 +587,6 @@ hassan@another.io</textarea>
                   <button><em>I</em></button>
                   <button>🔗</button>
                   <button>• List</button>
-                  <span style="width: 1px; background: var(--border); margin: 0 4px;"></span>
                   <button class="merge-tag">{{survey_link}}</button>
                   <button class="merge-tag">{{first_name}}</button>
                   <button class="merge-tag">{{last_name}}</button>
@@ -545,13 +602,13 @@ We'd love your feedback on {{survey_title}}. It takes about 2 minutes.
 
 Thanks,
 {{sender_name}}</textarea>
-                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token. Required.</div>
+                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required).</div>
               </div>
 
               <div class="footer-preview">
                 — Auto-appended footer (not editable) —<br />
                 You received this survey because you're a member of {{brand_name}}'s loyalty program.<br />
-                <a href="#" style="color: var(--primary);">Unsubscribe</a> from future survey emails from {{brand_name}}.
+                <a href="#">Unsubscribe</a> from future survey emails from {{brand_name}}.
               </div>
             </div>
 
@@ -577,11 +634,10 @@ Acme CX Team</div>
                 </div>
               </div>
             </div>
-
           </div>
 
           <div class="send-bar">
-            <div class="send-summary">Ready to send <strong>6 emails</strong> from <strong>Acme CX Team &lt;feedback@cx.acme-via-customereq.io&gt;</strong>. Links expire <strong>2026-05-28 23:59 PT</strong>.</div>
+            <div class="send-summary">Ready to send <strong>6 emails</strong> from <strong>Acme CX Team &lt;feedback@cx.acme-via-customereq.io&gt;</strong>. Survey name: <strong>Q2 2026 NPS</strong>. Links expire <strong>2026-05-28 23:59 PT</strong>.</div>
             <a class="btn primary large" href="#scene-4">Send 6 emails →</a>
           </div>
         </div>
@@ -590,37 +646,57 @@ Acme CX Team</div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 4 ───────────────────────────── -->
+<!-- ─────────────────────────────── Scene 4 — Confirm modals (both modes) ───── -->
 <section class="scene" id="scene-4">
-  <div class="scene-label"><strong>Scene 4 · Confirmation modal</strong><span class="scene-note">Spec §2.3 · Surfaced before transitioning to Sending state. Operator must explicitly acknowledge before dispatch begins.</span></div>
+  <div class="scene-label"><strong>Scene 4 · Confirmation modals — both modes</strong><span class="mode-chip shared">SHARED SHAPE</span><span class="mode-chip self-serve">SELF_SERVE COPY</span><span class="mode-chip managed-acs">MANAGED_ACS COPY</span><span class="scene-note">Spec §2.5a + §2.5b · Identical modal shape (same layout, same dismiss/confirm placement). Only the copy and the embedded warning differ.</span></div>
   <div class="container">
-    <div class="modal-backdrop">
+    <div class="modal-backdrop modal-row">
+
       <div class="modal">
-        <h3>⚠ You're about to send 6 emails</h3>
+        <h3>⚠ Generate 6 tokenized links? <span class="mode-tag self-serve">SELF_SERVE</span></h3>
+        <div class="modal-summary">
+          <div><strong>Survey name in mail:</strong> Q2 2026 NPS</div>
+          <div><strong>Links expire:</strong> 2026-05-28 23:59 PT</div>
+          <div><strong>Format:</strong> Generic</div>
+          <div><strong>Recipients:</strong> 6 selected members <span style="color: var(--text-muted);">(2 auto-enroll)</span></div>
+        </div>
+        <div class="modal-strong-warning">
+          <strong>⚠ The plaintext URLs are shown only once.</strong> Save the CSV immediately. Re-downloading later requires regenerating all tokens (which invalidates the URLs in this batch).
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost">Cancel</button>
+          <a class="btn primary" href="#scene-5a">Yes, generate 6 links</a>
+        </div>
+      </div>
+
+      <div class="modal">
+        <h3>⚠ Send 6 emails? <span class="mode-tag managed-acs">MANAGED_ACS</span></h3>
         <div class="modal-summary">
           <div><strong>From:</strong> Acme CX Team &lt;feedback@cx.acme-via-customereq.io&gt;</div>
           <div><strong>Subject:</strong> Quick question: Q2 2026 NPS</div>
-          <div><strong>Recipients:</strong> 6 selected members <span style="color: var(--text-muted);">(auto-enrolling 2 new members)</span></div>
-          <div><strong>Links expire:</strong> 2026-05-28 23:59 PT (7 days from now)</div>
+          <div><strong>Survey name in mail:</strong> Q2 2026 NPS</div>
+          <div><strong>Links expire:</strong> 2026-05-28 23:59 PT</div>
+          <div><strong>Recipients:</strong> 6 selected members <span style="color: var(--text-muted);">(2 auto-enroll)</span></div>
         </div>
         <p style="font-size: 13px; color: var(--text-muted);">Emails will be sent in the next few minutes. You can monitor progress on the next screen but <strong>you cannot cancel a send in progress</strong>.</p>
         <div class="modal-foot">
           <button class="btn ghost">Cancel</button>
-          <a class="btn primary" href="#scene-5">Yes, send 6 emails</a>
+          <a class="btn primary" href="#scene-5b">Yes, send 6 emails</a>
         </div>
       </div>
+
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 5 ───────────────────────────── -->
-<section class="scene" id="scene-5">
-  <div class="scene-label"><strong>Scene 5 · Sending state — per-recipient progress</strong><span class="scene-note">Spec §2.4 · Live SSE-driven progress bar + per-recipient status table. Closing the browser is safe — the worker continues processing the queue.</span></div>
+<!-- ─────────────────────────────── Scene 5A — SELF_SERVE Success ──────────────── -->
+<section class="scene" id="scene-5a">
+  <div class="scene-label"><strong>Scene 5A · Terminal state · SELF_SERVE Success — Download CSV</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.6a · Preserved verbatim from #378 §2.5 (success banner + one-wave explanatory line + strong warning + format dropdown + Download CSV + Done link). Re-shown here to demonstrate the SELF_SERVE terminal is unchanged.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/send-via-customereq · Sending</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve · Generated</div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -629,8 +705,74 @@ Acme CX Team</div>
         </div>
         <div class="admin-main">
           <div class="page-header">
-            <h1>Sending Q2 2026 NPS</h1>
-            <p>Batch <code>btch_a1b2c3</code> · 6 recipients.</p>
+            <div>
+              <h1>Q2 2026 NPS — links generated &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+            </div>
+          </div>
+
+          <div class="progress-banner summary-success">
+            <div class="progress-text">✓ Generated 6 links — Q2 customer satisfaction · 2026-05-21. Tokens expire 2026-05-28 23:59 PT.</div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 10px;">Users will be able to respond only once in this wave. A leaked or re-clicked link gets the "already submitted" state.</p>
+
+          <div style="margin-top: 14px; padding: 14px; background: var(--warning-soft); border-radius: var(--radius); font-size: 13px; color: var(--warning-strong);">
+            <strong>⚠ Save this CSV now.</strong> The plaintext URLs are shown only once. Re-downloading later requires regenerating all tokens — which invalidates the URLs in this batch.
+          </div>
+
+          <div class="composer-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="composer-card">
+              <h3>Download</h3>
+              <div class="field">
+                <label>Format</label>
+                <select><option selected>Generic</option><option>Mailchimp</option><option>HubSpot</option><option>Klaviyo</option></select>
+              </div>
+              <a class="btn primary large" href="#scene-6">⬇ Download CSV</a>
+              <p style="font-size: 11px; color: var(--text-muted); margin-top: 14px;">Filename: <code>Q2-2026-NPS-2026-05-21-links.csv</code></p>
+            </div>
+            <div class="csv-preview-card">
+              <div class="preview-head">📄 CSV preview (Generic format)</div>
+              <div class="csv-body">Email,firstName,lastName,surveyName,mergeTagUrl
+alice@artistos.com,Alice,Chen,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Xk8mP…
+bob@artistos.com,Bob,Patel,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Pq3nT…
+carla@artistos.com,Carla,Singh,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Mt7vR…
+eric@others.com,Eric,Olsen,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Qa4kZ…
+fiona@others.com,Fiona,Castro,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Lb6cN…
+georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Jd2sB…
+</div>
+              <div class="csv-foot">6 rows · 1 batch · Survey.sentCount += 6</div>
+            </div>
+          </div>
+
+          <div class="send-bar">
+            <div class="send-summary">Batch <code>btch_a1b2c3</code> · view in <a href="#" style="color: var(--primary);">Distribution batches</a></div>
+            <a class="btn primary" href="#scene-6">Done — back to survey →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 5B — MANAGED_ACS Sending ──────────────── -->
+<section class="scene" id="scene-5b">
+  <div class="scene-label"><strong>Scene 5B · Terminal state · MANAGED_ACS Sending — per-recipient progress</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.6b · Live SSE-driven progress bar + per-recipient status table. Closing the browser is safe — the worker continues processing the queue.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs · Sending</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Sending Q2 2026 NPS &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 6 recipients.</p>
+            </div>
           </div>
 
           <div class="progress-banner">
@@ -640,57 +782,20 @@ Acme CX Team</div>
           </div>
 
           <table class="recipient-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Identifier</th>
-                <th>Status</th>
-                <th>Sent / failed at</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Name</th><th>Identifier</th><th>Status</th><th>Sent / failed at</th></tr></thead>
             <tbody>
-              <tr>
-                <td>Alice Chen</td>
-                <td class="identifier-mono">alice@artistos.com</td>
-                <td><span class="status-pill sent">✓ Sent</span></td>
-                <td>2026-05-21 14:02:11 PT</td>
-              </tr>
-              <tr>
-                <td>Bob Patel</td>
-                <td class="identifier-mono">bob@artistos.com</td>
-                <td><span class="status-pill sent">✓ Sent</span></td>
-                <td>2026-05-21 14:02:12 PT</td>
-              </tr>
-              <tr>
-                <td>Carla Singh</td>
-                <td class="identifier-mono">carla@artistos.com</td>
-                <td><span class="status-pill failed">✗ Failed</span><span class="failure-reason">bounce</span></td>
-                <td>2026-05-21 14:02:13 PT</td>
-              </tr>
-              <tr>
-                <td>Eric Olsen</td>
-                <td class="identifier-mono">eric@others.com</td>
-                <td><span class="status-pill sent">✓ Sent</span></td>
-                <td>2026-05-21 14:02:14 PT</td>
-              </tr>
-              <tr>
-                <td>Fiona Castro</td>
-                <td class="identifier-mono">fiona@others.com</td>
-                <td><span class="status-pill sending">⟳ Sending</span></td>
-                <td>—</td>
-              </tr>
-              <tr>
-                <td>Georgia Walters</td>
-                <td class="identifier-mono">georgia@artistos.com</td>
-                <td><span class="status-pill queued">⏳ Queued</span></td>
-                <td>—</td>
-              </tr>
+              <tr><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:11 PT</td></tr>
+              <tr><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:12 PT</td></tr>
+              <tr><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td><span class="status-pill failed">✗ Failed</span><span class="failure-reason">bounce</span></td><td>14:02:13 PT</td></tr>
+              <tr><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:14 PT</td></tr>
+              <tr><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td><span class="status-pill sending">⟳ Sending</span></td><td>—</td></tr>
+              <tr><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td><span class="status-pill queued">⏳ Queued</span></td><td>—</td></tr>
             </tbody>
           </table>
 
           <div class="send-bar">
-            <div class="send-summary">You can leave this page; sending continues in the background. <a href="#scene-7" style="color: var(--primary);">Open survey detail</a> while you wait.</div>
-            <a class="btn secondary" href="#scene-6">Done — back to survey →</a>
+            <div class="send-summary">You can leave this page; sending continues in the background.</div>
+            <a class="btn secondary" href="#scene-5c">Skip ahead to Sent state →</a>
           </div>
         </div>
       </div>
@@ -698,14 +803,14 @@ Acme CX Team</div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 6 ───────────────────────────── -->
-<section class="scene" id="scene-6">
-  <div class="scene-label"><strong>Scene 6 · Sent state — summary + retry-failed</strong><span class="scene-note">Spec §2.5 · All sends terminal. Failed rows have a Retry Failed affordance. Suppressed rows (unsubscribed) cannot be retried.</span></div>
+<!-- ─────────────────────────────── Scene 5C — MANAGED_ACS Sent ────────────────── -->
+<section class="scene" id="scene-5c">
+  <div class="scene-label"><strong>Scene 5C · Terminal state · MANAGED_ACS Sent — summary + retry-failed</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.6b · All sends terminal. Failed rows have Retry Failed; suppressed rows (unsubscribed / no-consent) cannot be retried.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
         <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
-        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/send-via-customereq · Sent</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs · Sent</div>
       </div>
       <div class="admin-body">
         <div class="admin-nav">
@@ -714,8 +819,10 @@ Acme CX Team</div>
         </div>
         <div class="admin-main">
           <div class="page-header">
-            <h1>Q2 2026 NPS — sent</h1>
-            <p>Batch <code>btch_a1b2c3</code> · 6 recipients · 5 sent · 1 failed.</p>
+            <div>
+              <h1>Q2 2026 NPS — sent &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 6 recipients · 5 sent · 1 failed.</p>
+            </div>
           </div>
 
           <div class="progress-banner summary-warn">
@@ -724,14 +831,7 @@ Acme CX Team</div>
           </div>
 
           <table class="recipient-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Identifier</th>
-                <th>Status</th>
-                <th>Sent / failed at</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Name</th><th>Identifier</th><th>Status</th><th>Sent / failed at</th></tr></thead>
             <tbody>
               <tr><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:11 PT</td></tr>
               <tr><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:12 PT</td></tr>
@@ -743,8 +843,8 @@ Acme CX Team</div>
           </table>
 
           <div class="send-bar">
-            <div class="send-summary">Batch <code>btch_a1b2c3</code> · view in <a href="#" style="color: var(--primary);">Distribution batches</a> · Survey Sent count is now <strong>5</strong>.</div>
-            <a class="btn primary" href="#scene-7">Done — back to survey →</a>
+            <div class="send-summary">Batch <code>btch_a1b2c3</code> · view in <a href="#" style="color: var(--primary);">Distribution batches</a> · Survey Sent count is now <strong>5 (managed) + previous</strong>.</div>
+            <a class="btn primary" href="#scene-6">Done — back to survey →</a>
           </div>
         </div>
       </div>
@@ -752,9 +852,9 @@ Acme CX Team</div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 7 ───────────────────────────── -->
-<section class="scene" id="scene-7">
-  <div class="scene-label"><strong>Scene 7 · Survey detail — Sent count surfacing</strong><span class="scene-note">Spec §4 · Configuration Summary section gains a new "Sent" line broken down by send mode (managed vs self-serve).</span></div>
+<!-- ─────────────────────────────── Scene 6 — Sent-count surfacing ──────────── -->
+<section class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6 · Survey detail — Sent count surfacing</strong><span class="mode-chip shared">SHARED SURFACING</span><span class="scene-note">Spec §4 · One line in Configuration Summary aggregates both modes with a per-mode breakdown. Distribution batches filter (not shown) carries a mode pill per batch.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -768,8 +868,10 @@ Acme CX Team</div>
         </div>
         <div class="admin-main">
           <div class="page-header">
-            <h1>Q2 2026 NPS</h1>
-            <p>Configuration summary.</p>
+            <div>
+              <h1>Q2 2026 NPS</h1>
+              <p>Configuration summary.</p>
+            </div>
           </div>
 
           <div class="section">
@@ -779,14 +881,10 @@ Acme CX Team</div>
                 <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Survey type</td><td>NPS — 0 to 10</td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Status</td><td><span class="pill solid-active">● ACTIVE</span></td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Response policy</td><td>MULTIPLE (one per wave via token)</td></tr>
-                <tr><td style="padding: 4px 0; color: var(--text-muted);"><strong>Sent</strong></td><td><strong>5 total</strong> · 5 via CustomerEQ · 0 via my email tool · 0 via share link <a href="#scene-1" style="color: var(--primary); font-size: 11px; margin-left: 8px;">View batches →</a></td></tr>
-                <tr><td style="padding: 4px 0; color: var(--text-muted);">Responses</td><td>2 of 5 (40%)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);"><strong>Sent</strong></td><td><strong>11 total</strong> · 5 via CustomerEQ <span class="pill mode-managed-acs">Managed (ACS)</span> · 6 via my email tool <span class="pill mode-self-serve">Self-serve</span> <a href="#scene-1" style="color: var(--primary); font-size: 11px; margin-left: 8px;">View batches →</a></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Responses</td><td>4 of 11 (36%)</td></tr>
               </table>
             </div>
-          </div>
-
-          <div style="margin-top: 16px; font-size: 11px; color: var(--text-muted);">
-            <em>Other sections (Distribution, Loop Monitor, Distribution batches filter, Response) omitted from this mock for focus — they appear as today plus the existing Distribution tile reshape shown in Scene 1.</em>
           </div>
         </div>
       </div>
