@@ -407,3 +407,4 @@ A single dashboard page should show:
 | Separate CI and CD Docker builds | CI images use dummy credentials and are verification-only; CD images use real credentials and are deployable. CI images cannot be promoted directly |
 | `fetch-depth: 2` on all checkouts | Required for `dorny/paths-filter` diff on push events and for `git diff HEAD~1 HEAD` in CD doc-only skip |
 | No skip logic in smoke path for missing secrets | Rule 11a — tests must fail loudly if dependencies are missing, never skip silently |
+
