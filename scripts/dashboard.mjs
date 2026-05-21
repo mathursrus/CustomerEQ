@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generates docs/index.html — the visual CI/CD metrics dashboard.
 // Reads docs/ci-metrics.json and docs/cd-metrics.json written by the nightly
-// metrics scripts, then produces a self-contained HTML page served via GitHub Pages.
+// metrics scripts, then produces a self-contained HTML page served via Azure Static Web Apps.
 //
 // Called by .github/workflows/cd-metrics.yml after both JSON files are committed.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -180,7 +180,7 @@ const html = `<!DOCTYPE html>
 <body>
 <header>
   <h1>CustomerEQ CI/CD Dashboard</h1>
-  <div class="sub">Updated ${ts} · <a href="https://github.com/mathursrus/CustomerEQ/actions" target="_blank">Actions</a> · <a href="ci-cd-metrics.md">CI report</a> · <a href="cd-metrics.md">CD report</a></div>
+  <div class="sub">Updated ${ts} · <a href="https://github.com/mathursrus/CustomerEQ/actions" target="_blank">Actions</a> · <a href="https://github.com/mathursrus/CustomerEQ/blob/main/docs/ci-cd-metrics.md" target="_blank">CI report</a> · <a href="https://github.com/mathursrus/CustomerEQ/blob/main/docs/cd-metrics.md" target="_blank">CD report</a></div>
 </header>
 
 <div class="panels">
