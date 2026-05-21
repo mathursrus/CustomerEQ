@@ -13,9 +13,12 @@ jobs:
     # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
     # pull_request events. The default GITHUB_TOKEN on this repo lacks
     # pull-requests: read — required since #346.
+    # actions: read — required by scripts/ci-run-summary.mjs to call the
+    # Actions API and read job/step timings for the Summary tab (#469).
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_API: ${{ secrets.TURBO_API }}
