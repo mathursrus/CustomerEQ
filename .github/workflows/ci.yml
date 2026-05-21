@@ -140,25 +140,24 @@ jobs:
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
-      - name: Build
+      # Issue #493: merged into a single Turbo invocation so Turbo can interleave
+      # per-package build and typecheck tasks (both depend on ^build, so once a
+      # package's deps are built Turbo schedules both concurrently). Expected
+      # saving: ~1–2 min wall clock vs two separate invocations.
+      - name: Build and type check
         if: steps.changes.outputs.build == 'true'
-        run: pnpm build
+        run: pnpm exec turbo run build typecheck
 
       # Issue #467: lightweight replacement for the removed docker-build job.
-      # pnpm build above has already compiled packages/ai/dist. This one-shot
-      # dynamic import verifies BAML-generated ESM modules resolve correctly in
-      # the workspace module graph — the same class of regression that broke
-      # prod in #273. Container-layout failures (pnpm hoisting vs /app layout)
-      # are now caught by the CD health check and canary probes instead.
+      # packages/ai/dist is guaranteed to exist after the combined build+typecheck
+      # step above. This one-shot dynamic import verifies BAML-generated ESM
+      # modules resolve correctly — the same class of regression that broke
+      # prod in #273.
       - name: Verify BAML module resolution
         if: steps.changes.outputs.build == 'true'
         run: |
           node --input-type=module \
             -e "await import('./packages/ai/dist/index.js').then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})"
-
-      - name: Type check
-        if: steps.changes.outputs.build == 'true'
-        run: pnpm typecheck
 
       - name: Install Playwright browsers
         if: steps.changes.outputs.build == 'true'

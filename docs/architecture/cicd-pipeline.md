@@ -94,8 +94,7 @@ Sequential steps within the job:
 | Check enum migration coverage | Ensures every new enum has a migration (#enum-coverage) | ~0s |
 | Generate Prisma client | `pnpm db:generate` — required before build (#383) | ~2s |
 | Run migrations | Full `prisma migrate deploy` against empty postgres (#270) | ~2s |
-| **Build** | `pnpm build` via Turbo remote cache | **~321s** |
-| **Type check** | `pnpm typecheck` via Turbo | **~221s** |
+| **Build and type check** | `pnpm exec turbo run build typecheck` — single Turbo invocation; Turbo interleaves per-package build+typecheck tasks (#493) | **~321s (cache miss) / near-zero typecheck on cache-warm runs** |
 | Install Playwright browsers | Chromium only | ~22s |
 | Smoke Test Suite | `pnpm test:smoke` | **~70s** |
 | Upload coverage | Codecov (non-blocking) | ~3s |
@@ -227,8 +226,7 @@ This is the most important architectural clarification in the current pipeline.
 |--------|-------|-------|
 | Average wall clock | **12.1m** (727s) | 10-run average post-sprint |
 | Range | 689–766s | Low variance — consistent |
-| Build step | ~321s (46%) | Turbo remote cache active |
-| Type check step | ~221s (32%) | |
+| Build + type check step | ~321s (46%) before #493; single combined step, typecheck near-zero on cache-warm runs after #493 | Turbo remote cache active; typecheck now cacheable via `outputs: []` |
 | Smoke Test Suite | ~70s (10%) | |
 | Infrastructure overhead | ~48s (7%) | Containers, checkout, node, install |
 | Prisma / migrations | ~6s (1%) | |
@@ -282,6 +280,7 @@ Build + typecheck together = **78% of the critical path**.
 | #449 | Selective demo-storefront rebuild in CD | 2026-05-19 |
 | #451 | Restore `push: main` CI trigger; add `fetch-depth: 2`; gate docker-build on PR only | 2026-05-19 |
 | #488 | Trigger-level `paths-ignore` to eliminate ~29s container startup on doc-only runs | 2026-05-20 |
+| #493 | Merge build+typecheck into single Turbo invocation + `outputs: []` on typecheck to enable remote cache hits (consolidates #457, #458) | in PR |
 
 ---
 
@@ -289,18 +288,16 @@ Build + typecheck together = **78% of the critical path**.
 
 ### 9.1 CI — build & typecheck speed
 
-Build (321s) and typecheck (221s) account for 78% of the critical path. Three options in effort order:
+Build (321s) and typecheck (221s) accounted for 78% of the critical path. #493 (merged) addressed the two low-effort wins. Remaining options:
 
 | Issue | Proposal | Effort | Expected saving |
 |-------|---------|--------|----------------|
-| #457 | Merge build + typecheck into single Turbo invocation | Low (2-line CI change) | ~1–2m — Turbo interleaves per-package |
-| #458 | Add `"outputs": []` to typecheck in `turbo.json` | Low (1-line) | Potentially large — enables remote cache hits for typecheck |
+| ~~#457~~ | ~~Merge build + typecheck into single Turbo invocation~~ | ~~Low~~ | _Implemented in #493_ |
+| ~~#458~~ | ~~Add `"outputs": []` to typecheck in `turbo.json`~~ | ~~Low~~ | _Implemented in #493_ |
 | #459 | TypeScript project references for incremental typechecking | High | ~30–50% typecheck reduction |
 | #468 | Affected-only builds: `turbo run build --filter=[HEAD^1]...` | Medium | ~200–260s on focused PRs; requires main cache seeding job |
 
-**#457 reliability note:** Merging into a single Turbo invocation carries no reliability risk — the dependency graph (`dependsOn: ["^build"]`) is already modeled in `turbo.json` and Turbo respects it regardless of how many CLI invocations you use. The only downside is reduced observability: build and typecheck output merges into one GHA step, losing separate step-level timing in the UI.
-
-**#458 reliability note:** Adding `"outputs": []` changes how Turbo writes and restores cache entries. If the input hash misses a relevant file (e.g., a generated file not tracked in the hash), Turbo would restore a stale "success" and skip typecheck incorrectly. Recommend monitoring cache-hit runs manually for the first week after deploying.
+**#493 post-ship note:** Monitor cache-hit CI runs for the first week after merge. Changing `outputs` on typecheck affects how Turbo writes/restores cache entries — a cache miss on the first post-merge run is expected (cold write); subsequent runs on unchanged source should hit cache.
 
 ### 9.2 CI — Docker build replacement
 
@@ -341,8 +338,7 @@ The pipeline currently produces no structured metrics. Step durations are visibl
 |--------|---------------|
 | Total CI wall clock (B&T job) | `job.completedAt - job.startedAt` |
 | Per-step durations | `step.completedAt - step.startedAt` for each step |
-| Build step duration | "Build" step in B&T job |
-| Typecheck step duration | "Type check" step in B&T job |
+| Build + type check step duration | "Build and type check" step in B&T job (#493) |
 | Smoke Test Suite duration | "Smoke Test Suite" step in B&T job |
 | Lint job duration | Lint job total |
 | docker-build job duration | docker-build job total |
