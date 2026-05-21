@@ -30,3 +30,34 @@
     - Added a header banner at the top of the mock explicitly labelling **"Shared scenes: 1, 2 · Divergent scenes: 3A vs 3B, 5/6 modes"** so reviewers see the symmetry at a glance.
   - **Coaching moment**: captured at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-21T21-19-48-pm-design-paired-flows-with-shared-structure.md`.
 - **Status**: ADDRESSED (Round 2)
+
+## Round 3 Feedback
+*Received: 2026-05-21 (in-conversation review of PR #497 after Round 2 mock update)*
+*Reviewer instruction: "Once we iterate on the mock then you can update the spec at one time." → mock-only iteration this round; spec update deferred until reviewer locks the mock.*
+
+### Comment 1 — UNADDRESSED → ADDRESSED (Round 3, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html`
+- **Comment**:
+  > In the Mock — please add capability to Insert Brand logo. In the default message, show Brand Logo and Brand Name as the header.
+- **Resolution (mock only)**:
+  - Added a new **Brand logo** field in the MANAGED_ACS Composer (Scene 3), placed in the "Sender & branding" block alongside Sender name and Sender alias. Affordance: a chip preview of the current logo (defaulting to `Brand.logoUrl` if set; otherwise *"No logo — upload one"* with an Upload control) plus a *"Use a different logo for this send"* link that opens a small upload panel. Saves to per-batch `composerSnapshot.brandLogoUrl` (and optionally back to `Brand.logoUrl` via a *"Save as brand default"* toggle).
+  - Updated the default Body editor textarea to include `{{brand_logo}}` and `{{brand_name}}` at the top, rendered as a header block. New mustache palette buttons added: `{{brand_logo}}` and `{{brand_name}}` (the latter was already present; now styled as part of the header convention).
+  - Updated the **Live preview** pane to render the logo image + brand name as an actual visual header above the greeting line.
+- **Status**: ADDRESSED (Round 3 — mock only; spec update deferred per reviewer instruction)
+
+### Comment 2 — UNADDRESSED → ADDRESSED (Round 3, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html`
+- **Comment**:
+  > In Add Custom List, we should allow emails to be pasted even if Brand is setup to use Member ID or phone number. If Email ID is pasted, or uploaded via CSV, member should be looked up based on email. If not found and the brand is set to Phone or Email as primary ID [reviewer transcription — interpreted as Phone or external_id as primary], then list below as "Emails not found, cannot be auto-enrolled because Brand Identifier is <>". Today the Paste expects only the brand identifier in a custom paste / CSV. Custom Paste or CSV could be used when Brands select the members to receive surveys based on their own logic.
+- **What was wrong**:
+  - The Round 1 / Round 2 spec inherited #378's parser rule that pasted identifiers must match the brand's primary identifier kind. This was overly restrictive: brands often supply lists of emails (their own segmentation logic outputs emails) even when their primary identifier in CustomerEQ is `phone` or `external_id`. The platform should still look up those members by email, and if no match exists, surface a clear *"can't auto-enroll because brand identifier is `<phone>`"* line — not silently drop them as unmatched.
+  - Coaching moment captured at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-21T22-50-13-parser-grammar-vs-brand-primary-identifier.md`.
+- **Resolution (mock only)**:
+  - Updated the Custom List card's help-text to read: *"Paste identifiers or upload a CSV. **Email format always accepted** (looked up by email regardless of brand identifier). Newline / comma / semicolon-separated. `Name <email>` form accepted."*
+  - Added a new mini-scene **Scene 2B · "Custom List with email paste against a non-email-keyed brand"** showing a brand whose primary identifier is `external_id`. The audience-list table gains a third subsection: *"Emails not found — cannot be auto-enrolled because Brand identifier is `external_id`"* with one example row + a one-line recovery hint (*"Add these members in Members → New with their `external_id` first; they'll match here on the next paste."*).
+  - The Live preview Source-chip vocabulary gains a new value: `Email — not found` (warning-styled) for these rows.
+- **Status**: ADDRESSED (Round 3 — mock only; spec update deferred per reviewer instruction)

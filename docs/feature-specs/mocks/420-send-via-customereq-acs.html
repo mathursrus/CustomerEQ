@@ -243,10 +243,11 @@
 <body>
 
 <div class="mock-header">
-  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 2 mock</h1>
+  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 3 mock</h1>
   <div class="nav">
     <a href="#scene-1">1. Tile</a>
     <a href="#scene-2">2. SELF_SERVE</a>
+    <a href="#scene-2b">2B. Mixed-id</a>
     <a href="#scene-3">3. MANAGED_ACS</a>
     <a href="#scene-4">4. Confirm</a>
     <a href="#scene-5">5. Terminal</a>
@@ -285,6 +286,7 @@
   <a href="#scene-1">1. Distribution tile</a>
   <div class="group-label">Configure</div>
   <a href="#scene-2">2. SELF_SERVE (full page)</a>
+  <a href="#scene-2b">2B. Mixed identifier kind</a>
   <a href="#scene-3">3. MANAGED_ACS (full page)</a>
   <div class="group-label">Confirm + Terminal</div>
   <a href="#scene-4">4. Confirm modals (both modes)</a>
@@ -408,7 +410,7 @@
 
             <div class="audience-card">
               <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
-              <p class="card-help">Paste identifiers or upload a CSV. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted.</p>
+              <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted. See <a href="#scene-2b" style="color: var(--primary);">Scene 2B</a> for what happens when the brand uses <code>phone</code> / <code>external_id</code> as primary.</p>
               <div class="secondary-tabs">
                 <button class="active">Paste</button>
                 <button>⤓ Upload CSV</button>
@@ -500,6 +502,83 @@ georgia@artistos.com</textarea>
   </div>
 </section>
 
+<!-- ─────────────────────────────── Scene 2B — Mixed identifier kind ───────────── -->
+<section class="scene" id="scene-2b">
+  <div class="scene-label"><strong>Scene 2B · Custom List paste against a non-email-keyed brand</strong><span class="mode-chip shared">SHARED PARSER</span><span class="scene-note">Brand setup here: <code>memberIdentifierKind = external_id</code>. Operator pastes a mix of external IDs <em>and</em> emails (their own segmentation logic gave them an email list). Demonstrates the parser relaxation: emails always accepted, looked up by <code>Member.email</code>, surfaced under a clear "cannot auto-enroll" section if unmatched.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve · Brand: Acme Coffee · identifier kind: <code>external_id</code></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Send via my email tool &nbsp; <span class="pill mode-self-serve">Self-serve</span> &nbsp; <span class="pill outline-type">Brand identifier: <code>external_id</code></span></h1>
+              <p>The Custom List paste accepts emails even though the brand's primary identifier isn't email. Emails route through a separate lookup (by <code>Member.email</code>); unmatched emails are surfaced explicitly with a recovery hint.</p>
+            </div>
+            <a class="switch-mode" href="#scene-2">Back to standard SELF_SERVE (email-keyed brand) →</a>
+          </div>
+
+          <div class="audience-card" style="max-width: 600px;">
+            <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+            <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind.</p>
+            <textarea>acme-cust-001
+acme-cust-002
+joe@example.com
+sandra@example.com
+acme-cust-003
+mystery@unknownbrand.com</textarea>
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
+            <div class="add-actions"><button class="btn primary tiny">Add 6 to list</button></div>
+          </div>
+
+          <div class="audience-list-card">
+            <div class="audience-list-head">
+              <div class="summary">5 of 6 entries resolved <span class="summary-aux">· 1 cannot be auto-enrolled (email-keyed input vs <code>external_id</code> brand)</span></div>
+              <div class="bulk-actions">
+                <select><option>25 per page</option><option>50 per page</option></select>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Matched via</th><th>Source</th></tr></thead>
+              <tbody>
+                <!-- Group 1: Existing matched on brand primary (external_id) -->
+                <tr><td colspan="5" style="background: var(--surface-muted); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">Existing — matched on <code>external_id</code></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">acme-cust-001</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">acme-cust-002</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">acme-cust-003</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+
+                <!-- Group 2: Existing matched on email (despite brand primary being external_id) -->
+                <tr><td colspan="5" style="background: var(--surface-muted); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">Existing — matched on email lookup</td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Joe Olsen</td><td class="identifier-mono">acme-cust-004 <span style="color: var(--text-subtle);">(via joe@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Sandra Khoury</td><td class="identifier-mono">acme-cust-007 <span style="color: var(--text-subtle);">(via sandra@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
+
+                <!-- Group 3: Emails not found — cannot auto-enroll -->
+                <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Emails not found — cannot be auto-enrolled because Brand identifier is <code>external_id</code></td></tr>
+                <tr><td>—</td><td>—</td><td class="identifier-mono">mystery@unknownbrand.com</td><td>email → no match</td><td><span class="pill source-skipped" style="background: var(--warning-soft); color: var(--warning-strong);">Email — not found</span></td></tr>
+              </tbody>
+            </table>
+            <div class="pagination-foot" style="border-top: 1px dashed var(--border); margin-top: 8px; padding-top: 10px;">
+              <span>5 selected · 1 cannot auto-enroll</span>
+              <span style="color: var(--warning-strong);">Recovery: add <code>mystery@unknownbrand.com</code> via <a href="#" style="color: var(--primary);">Members → New</a> with the corresponding <code>external_id</code> first; the next paste will match.</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text);">
+            <strong>Why this matters for the spec:</strong> #378's Round 1 parser rule (*pasted identifiers must match Brand.memberIdentifierKind*) is relaxed by #420. The parser now: (1) detects email format independent of brand setup; (2) looks up matches via <code>Member.email</code> regardless of brand primary; (3) surfaces unmatched emails under "cannot auto-enroll because Brand identifier is `&lt;non-email&gt;`" — never silently dropped. Same UX for SELF_SERVE and MANAGED_ACS modes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ─────────────────────────────── Scene 3 — MANAGED_ACS Configure ────────────── -->
 <section class="scene" id="scene-3">
   <div class="scene-label"><strong>Scene 3 · Distribute page · MANAGED_ACS mode</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.1 + §2.2 + §2.3 + §2.4b · URL: <code>/admin/surveys/[id]/distribute?mode=managed-acs</code> · Identical audience builder + identical common fields (compared to Scene 2) · then the ACS composer + live email preview.</span></div>
@@ -556,7 +635,7 @@ georgia@artistos.com</textarea>
             <div class="composer-card">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
                 <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
-                <h3 style="margin: 0;">Composer</h3>
+                <h3 style="margin: 0;">Sender &amp; branding</h3>
               </div>
 
               <div class="sender-row">
@@ -573,6 +652,31 @@ georgia@artistos.com</textarea>
                   </div>
                   <div class="help-text">Domain pinned to brand's verified ACS sender.</div>
                 </div>
+              </div>
+
+              <div class="field">
+                <label>Brand logo</label>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-radius: 6px;">
+                  <div style="width: 56px; height: 56px; background: white; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-muted); flex-shrink: 0;">
+                    <!-- inline SVG used as a visible placeholder for the brand mark; production renders the actual uploaded image -->
+                    <svg width="40" height="40" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
+                  </div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 13px; font-weight: 500;">acme-logo.png <span style="color: var(--text-muted); font-weight: 400;">· 56×56 · brand default</span></div>
+                    <div class="help-text">Inherited from <code>Brand.logoUrl</code> (Organization Settings). <a href="#" style="color: var(--primary);">Upload a different logo for this send</a> · <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" /> Save as brand default</label></div>
+                  </div>
+                  <button class="btn secondary tiny">Remove</button>
+                </div>
+                <div class="help-text">Rendered at the top of the email body via the <code>{{brand_logo}}</code> mustache. PNG / JPG / SVG up to 2 MB. Recommended 200×60 or square 80×80.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-grid" style="margin-top: 12px;">
+            <div class="composer-card">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
+                <h3 style="margin: 0;">Email</h3>
               </div>
 
               <div class="field">
@@ -593,8 +697,12 @@ georgia@artistos.com</textarea>
                   <button class="merge-tag">{{survey_title}}</button>
                   <button class="merge-tag">{{sender_name}}</button>
                   <button class="merge-tag">{{brand_name}}</button>
+                  <button class="merge-tag">{{brand_logo}}</button>
                 </div>
-                <textarea class="editor-body">Hi {{first_name}},
+                <textarea class="editor-body">{{brand_logo}}
+{{brand_name}}
+
+Hi {{first_name}},
 
 We'd love your feedback on {{survey_title}}. It takes about 2 minutes.
 
@@ -602,7 +710,7 @@ We'd love your feedback on {{survey_title}}. It takes about 2 minutes.
 
 Thanks,
 {{sender_name}}</textarea>
-                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required).</div>
+                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required). The default template puts <code>{{brand_logo}}</code> + <code>{{brand_name}}</code> at the top as a header block — both render visually in the recipient's email (see the live preview on the right). Operator may remove either to suppress the header.</div>
               </div>
 
               <div class="footer-preview">
@@ -620,6 +728,10 @@ Thanks,
                   <strong>To:</strong> Alice Chen &lt;alice@artistos.com&gt;<br />
                 </div>
                 <div class="email-subject">Quick question: Q2 2026 NPS</div>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+                  <svg width="56" height="56" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
+                  <div style="font-size: 18px; font-weight: 600; color: var(--text);">Acme Coffee</div>
+                </div>
                 <div class="email-body">Hi Alice,
 
 We'd love your feedback on Q2 2026 NPS. It takes about 2 minutes.
