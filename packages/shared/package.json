@@ -17,6 +17,10 @@
     "./distributionTokens": {
       "import": "./dist/distributionTokens.js",
       "types": "./dist/distributionTokens.d.ts"
+    },
+    "./footer": {
+      "import": "./dist/footer.js",
+      "types": "./dist/footer.d.ts"
     }
   },
   "scripts": {

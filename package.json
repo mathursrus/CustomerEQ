@@ -32,6 +32,7 @@
     "db:reset": "pnpm --filter @customerEQ/database exec prisma migrate reset",
     "healthz": "curl -s http://localhost:4000/healthz | python -m json.tool",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "check:no-attribution-toggle": "bash scripts/check-no-attribution-toggle.sh",
     "onboard-org": "node scripts/onboard-org.mjs",
     "setup:dev-brand": "tsx --env-file=.env scripts/setup-dev-brand.ts",
     "backfill:brand-default-themes": "tsx --env-file=.env scripts/backfill-brand-default-themes.ts",

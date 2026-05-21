@@ -3,6 +3,12 @@ import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { DemoRequestSchema, NPS, evaluateSurveyRule } from '@customerEQ/shared'
 import { hashToken } from '@customerEQ/shared/distributionTokens'
+import {
+  buildFooterHref,
+  POWERED_BY_ARIA_LABEL,
+  POWERED_BY_LINK_TEXT,
+  POWERED_BY_PREFIX,
+} from '@customerEQ/shared/footer'
 import { enqueueEvent, enqueueSentimentAnalysis, enqueueAlertEvaluation, enqueueCampaignTrigger } from '../queues/bullmq.js'
 import { extractOpenEndedText } from '../utils/survey.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
@@ -829,8 +835,49 @@ function generateWidgetJs(
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029')
 
+  // Issue #413 \u2014 "Powered by CustomerEQ" attribution footer for the embedded
+  // widget. Inlined into the generated JS string with hardcoded HTML + CSS
+  // because the widget runs on host pages that don't load apps/web's
+  // globals.css. Copy / aria-label / UTM href come from the shared
+  // @customerEQ/shared/footer module so this surface stays in lockstep with
+  // the React <PoweredByFooter> within #413's own scope. Cross-surface DOM
+  // consolidation onto a single helper is the subject of #476.
+  //
+  // The CSS rule set mirrors the neutral variant in apps/web/src/app/globals.css.
+  // Single quotes wrap the JS string; double quotes are safe inside.
+  const footerCss =
+    '.ceq-powered-by{text-align:center;padding:12px 16px;margin:0;border-top:1px solid rgba(0,0,0,0.04)}' +
+    '.ceq-powered-by--neutral{color:#6b7280;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:11px}' +
+    '.ceq-powered-by--neutral a{color:#374151;text-decoration:none}' +
+    '.ceq-powered-by a:hover,.ceq-powered-by a:focus-visible{text-decoration:underline}' +
+    '.ceq-powered-by--neutral a:focus-visible{outline:2px solid #6366f1;outline-offset:2px;border-radius:2px}'
+
+  // The footer HTML string. UTM medium = 'embed' for the widget channel
+  // per R4. Used in two places at runtime (R3): (1) appended to the widget
+  // container after the form, (2) re-included inside the thank-you
+  // container.innerHTML swap so the post-submit replacement doesn't drop
+  // the footer.
+  const footerHtml =
+    '<p class="ceq-powered-by ceq-powered-by--neutral" data-survey-footer>' +
+    POWERED_BY_PREFIX +
+    '<a href="' + buildFooterHref('embed') + '" target="_blank" rel="noopener noreferrer" ' +
+    'aria-label="' + POWERED_BY_ARIA_LABEL + '">' +
+    POWERED_BY_LINK_TEXT +
+    '</a></p>'
+
   return `(function() {
   if (document.getElementById('ceq-survey-widget-${survey.id}')) return;
+
+  // Issue #413 — inject the footer CSS rules into the host page's <head>
+  // once per page. Subsequent widget instances on the same page see the
+  // existing <style> id and skip re-injection. Mirrors the .ceq-powered-by
+  // class family in apps/web/src/app/globals.css.
+  if (!document.getElementById('ceq-attribution-footer-styles')) {
+    var ceqStyleEl = document.createElement('style');
+    ceqStyleEl.id = 'ceq-attribution-footer-styles';
+    ceqStyleEl.textContent = '${footerCss}';
+    document.head.appendChild(ceqStyleEl);
+  }
 
   var survey = ${surveyJson};
   var apiUrl = '${apiBaseUrl}/v1/public/surveys/${survey.id}/respond';
@@ -947,7 +994,11 @@ function generateWidgetJs(
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
     .then(function(res) {
       if (res.ok || res.data.duplicate) {
-        container.innerHTML = '<div style="text-align:center;padding:24px;"><div style="font-size:32px;margin-bottom:8px;">✓</div><h3 style="margin:0 0 8px;font-size:18px;color:#111827;">Thank you!</h3><p style="margin:0;font-size:14px;color:#6b7280;">Your feedback has been recorded.</p></div>';
+        // Issue #413 R3 — the thank-you DOM swap replaces container's
+        // innerHTML, which would otherwise drop the footer that was
+        // appended after the form. Re-include the footer markup so it
+        // persists on the post-submit surface.
+        container.innerHTML = '<div style="text-align:center;padding:24px;"><div style="font-size:32px;margin-bottom:8px;">✓</div><h3 style="margin:0 0 8px;font-size:18px;color:#111827;">Thank you!</h3><p style="margin:0;font-size:14px;color:#6b7280;">Your feedback has been recorded.</p></div>' + '${footerHtml}';
       } else {
         msgDiv.style.display = 'block';
         msgDiv.style.color = '#dc2626';
@@ -966,6 +1017,12 @@ function generateWidgetJs(
   };
 
   container.appendChild(form);
+
+  // Issue #413 R3 — append the attribution footer to the widget container
+  // after the form. insertAdjacentHTML keeps the form intact (unlike
+  // innerHTML which would wipe it) and lets the footer share the same
+  // hardcoded HTML string used by the thank-you swap above.
+  container.insertAdjacentHTML('beforeend', '${footerHtml}');
 
   var target = document.getElementById('customerEQ-survey') || document.body;
   target.appendChild(container);

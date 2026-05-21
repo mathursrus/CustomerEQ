@@ -148,3 +148,53 @@ describe('<SurveyFormRenderer> · CSS variable contract (R31)', () => {
     expect(card.style.getPropertyValue('--ceq-max-width')).toBe('800px')
   })
 })
+
+// Issue #413 — "Powered by CustomerEQ" footer is non-toggleable (R7),
+// rendered inside the themed card (R1), and emits identically in both
+// preview and live modes (R9 preview/live parity).
+describe('<SurveyFormRenderer> · Issue #413 attribution footer', () => {
+  it('renders the themed PoweredByFooter inside the survey card (R1)', () => {
+    const { container } = renderInPreviewMode()
+    const card = container.querySelector('.ceq-survey-card') as HTMLElement
+    expect(card).not.toBeNull()
+    const footer = card.querySelector('[data-survey-footer]')
+    expect(footer).not.toBeNull()
+    expect(footer?.classList.contains('ceq-powered-by--themed')).toBe(true)
+  })
+
+  it('emits the same footer DOM in preview mode and live mode (R9 parity)', () => {
+    const { container: previewContainer } = renderInPreviewMode({ mode: 'preview' })
+    const { container: liveContainer } = renderInPreviewMode({ mode: 'live' })
+
+    const previewFooter = previewContainer.querySelector('[data-survey-footer]')
+    const liveFooter = liveContainer.querySelector('[data-survey-footer]')
+
+    expect(previewFooter).not.toBeNull()
+    expect(liveFooter).not.toBeNull()
+    expect(liveFooter!.outerHTML).toBe(previewFooter!.outerHTML)
+  })
+
+  it('renders the footer regardless of chrome-matrix settings (R7 non-toggleable)', () => {
+    // chromeMatrix.standalone with everything off — footer must still render.
+    const { container } = renderInPreviewMode({
+      survey: {
+        ...SURVEY_ALL_TYPES,
+        settings: {
+          chromeMatrix: {
+            standalone: { logo: false, name: false, title: false },
+            embedded: { logo: false, name: false, title: false },
+          },
+        },
+      },
+    })
+    expect(container.querySelector('[data-survey-footer]')).not.toBeNull()
+  })
+
+  it('renders the footer link with utm_medium=link for standalone-channel rendering', () => {
+    const { container } = renderInPreviewMode()
+    const link = container.querySelector('[data-survey-footer] a') as HTMLAnchorElement
+    expect(link).not.toBeNull()
+    const url = new URL(link.href)
+    expect(url.searchParams.get('utm_medium')).toBe('link')
+  })
+})
