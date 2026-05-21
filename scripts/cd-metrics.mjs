@@ -214,3 +214,19 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, reportLines.join('\n') + '\n');
 console.log(`Report written to ${OUT}`);
 console.log(`  P50: ${fmt(p50)}  P90: ${fmt(p90)}  Merge→live P50: ${fmt(ttlP50)}`);
+
+// ── 5. Write JSON for dashboard ───────────────────────────────────────────────
+const OUT_JSON = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'cd-metrics.json');
+const jsonOut = {
+  generatedAt: new Date().toISOString(),
+  thresholdS: P90_THRESHOLD_S,
+  ttlThresholdS: TTL_THRESHOLD_S,
+  summary: { p50, p90, ttlP50, ttlP90, successRate7d: successRate, totalRuns30d: valid.length },
+  phaseAvgs,
+  runs: [...runData].sort((a, b) => new Date(a.date) - new Date(b.date)).map(r => ({
+    date: r.date, cdTotal: r.cdTotal, mergeToLive: r.mergeToLive,
+    conclusion: r.conclusion, trigger: r.trigger, url: r.url,
+  })),
+};
+writeFileSync(OUT_JSON, JSON.stringify(jsonOut));
+console.log(`JSON written to ${OUT_JSON}`);
