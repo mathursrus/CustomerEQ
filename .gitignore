@@ -43,6 +43,9 @@ Thumbs.db
 # Playwright MCP
 .playwright-mcp/
 
+# graphify knowledge-graph output (local tool, regenerated via /graphify)
+graphify-out/
+
 # Test evidence (binary artifacts only — markdown evidence files are committed)
 docs/evidence/**/*.png
 docs/evidence/**/*.jpg
