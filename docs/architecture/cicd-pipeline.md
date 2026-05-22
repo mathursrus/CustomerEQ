@@ -102,8 +102,7 @@ Sequential steps within the job:
 | Check enum migration coverage | Ensures every new enum has a migration (#enum-coverage) | ~0s |
 | Generate Prisma client | `pnpm db:generate` — required before build (#383) | ~2s |
 | Run migrations | Full `prisma migrate deploy` against empty postgres (#270) | ~2s |
-| **Build** | `pnpm build` via Turbo remote cache | **~321s** |
-| **Type check** | `pnpm typecheck` via Turbo | **~221s** |
+| **Build & type check** | `pnpm turbo run build typecheck` — single invocation interleaves per-package builds and typechecks (#457) | **~321s + ~221s (sequential barrier eliminated)** |
 | Install Playwright browsers | Chromium only | ~22s |
 | Smoke Test Suite | `pnpm test:smoke` | **~70s** |
 | Upload coverage | Codecov (non-blocking) | ~3s |
@@ -269,8 +268,7 @@ This is the most important architectural clarification in the current pipeline.
 |--------|-------|-------|
 | Average wall clock | **12.1m** (727s) | 10-run average post-sprint |
 | Range | 689–766s | Low variance — consistent |
-| Build step | ~321s (46%) | Turbo remote cache active |
-| Type check step | ~221s (32%) | |
+| Build & type check step | ~321s + ~221s (78%) | Single `turbo run build typecheck` invocation (#457); sequential barrier eliminated |
 | Smoke Test Suite | ~70s (10%) | |
 | Infrastructure overhead | ~48s (7%) | Containers, checkout, node, install |
 | Prisma / migrations | ~6s (1%) | |
