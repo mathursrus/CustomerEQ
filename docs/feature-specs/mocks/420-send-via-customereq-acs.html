@@ -713,27 +713,54 @@ Thanks,
 
             <div class="preview-card">
               <div class="preview-head">📬 Live preview · "Alice Chen"</div>
-              <div class="email-frame">
+              <!-- Theme resolution banner (Round 6.5): shows WHICH BrandTheme the worker renders against. -->
+              <div style="padding: 8px 14px; background: #fef3c7; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--warning-strong); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <strong>Theme:</strong>
+                <span style="background: white; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); font-weight: 500; color: var(--text);">Acme Q2 2026</span>
+                <span style="color: var(--text-muted);">·</span>
+                <span style="font-style: italic;">resolved from <code>Survey.themeId</code></span>
+                <span style="color: var(--text-muted);">·</span>
+                <a href="#scene-3-theme-legend" style="color: var(--primary); text-decoration: underline;">color mapping ↓</a>
+              </div>
+              <div class="email-frame" style="background: #fdfaf6;">
                 <div class="email-meta">
                   <strong>From:</strong> Acme CX Team &lt;feedback@customereq.wellnessatwork.me&gt;<br />
                   <strong>To:</strong> Alice Chen &lt;alice@artistos.com&gt;<br />
                 </div>
-                <div class="email-subject">Quick question: Q2 2026 NPS</div>
-                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+                <div class="email-subject" style="color: #6f2c1a;">Quick question: Q2 2026 NPS</div>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 14px; border-bottom: 1px solid #d6cfc6; margin-bottom: 12px;">
                   <svg width="56" height="56" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
-                  <div style="font-size: 18px; font-weight: 600; color: var(--text);">Acme Coffee</div>
+                  <div style="font-size: 18px; font-weight: 600; color: #6f2c1a;">Acme Coffee</div>
                 </div>
-                <div class="email-body">Hi Alice,
+                <div class="email-body" style="color: #2d2218;">Hi Alice,
 
 We'd love your feedback on Q2 2026 NPS. It takes about 2 minutes.
 
-<a class="email-link" href="#">https://customereq.../survey/srv_q2nps/r/Xk8mP3qB…</a>
+<a href="#" style="color: #c2410c; text-decoration: underline;">https://customereq.../survey/srv_q2nps/r/Xk8mP3qB…</a>
 
 Thanks,
 Acme CX Team</div>
-                <div class="email-footer">
+                <div class="email-footer" style="border-top: 1px solid #d6cfc6;">
                   You received this survey because you're a customer or partner of Acme Coffee.<br />
-                  <a href="#">Unsubscribe</a> from future survey emails from Acme Coffee.
+                  <a href="#" style="color: #c2410c;">Unsubscribe</a> from future survey emails from Acme Coffee.
+                </div>
+              </div>
+              <!-- Theme color-mapping legend — shown directly below the email-frame so reviewer sees which BrandTheme column drives which rendered element. -->
+              <div id="scene-3-theme-legend" style="padding: 12px 14px; background: var(--surface-muted); border-top: 1px solid var(--border); font-size: 11px;">
+                <div style="font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px; margin-bottom: 6px;">Theme mapping — Acme Q2 2026 (resolved from <code>Survey.themeId</code>)</div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                  <thead><tr><th style="padding: 3px 0; text-align: left; color: var(--text-muted);">Element</th><th style="padding: 3px 6px; text-align: left; color: var(--text-muted);">BrandTheme column</th><th style="padding: 3px 0; text-align: left; color: var(--text-muted);">Hex</th></tr></thead>
+                  <tbody>
+                    <tr><td style="padding: 3px 0;">Brand-name + Subject text</td><td style="padding: 3px 6px;"><code>primaryColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #6f2c1a; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#6f2c1a</td></tr>
+                    <tr><td style="padding: 3px 0;">Survey link + Unsubscribe link</td><td style="padding: 3px 6px;"><code>accentColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #c2410c; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#c2410c</td></tr>
+                    <tr><td style="padding: 3px 0;">Email background</td><td style="padding: 3px 6px;"><code>backgroundColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #fdfaf6; border: 1px solid var(--border); border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#fdfaf6</td></tr>
+                    <tr><td style="padding: 3px 0;">Body text</td><td style="padding: 3px 6px;"><code>textColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #2d2218; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#2d2218</td></tr>
+                    <tr><td style="padding: 3px 0;">Header rule / dividers</td><td style="padding: 3px 6px;"><code>secondaryColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #d6cfc6; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#d6cfc6</td></tr>
+                    <tr><td style="padding: 3px 0; color: var(--text-subtle); font-style: italic;">(V1 CTA button — out of V0 scope)</td><td style="padding: 3px 6px; color: var(--text-subtle); font-style: italic;"><code>buttonColor</code> / <code>buttonTextColor</code></td><td style="padding: 3px 0; font-family: var(--mono); color: var(--text-subtle);">—</td></tr>
+                  </tbody>
+                </table>
+                <div style="margin-top: 8px; font-size: 10px; color: var(--text-muted);">
+                  <strong>Resolution order</strong> (spec §2.3.1 / R29): <code>Survey.themeId</code> (if set — this case) → <code>Brand.defaultThemeId</code> (if set) → CustomerEQ default palette (<code>#6366f1</code> / <code>#818cf8</code> / <code>#ffffff</code> / <code>#111827</code>). Resolved theme is snapshotted into <code>DistributionBatch.composerSnapshot.themeSnapshot</code> at send time so the Wave Detail page (Scene 7B) shows exactly which palette was used.
                 </div>
               </div>
             </div>

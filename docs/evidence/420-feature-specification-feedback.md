@@ -226,3 +226,18 @@
 - Mock: sender suffix updated to `@customereq.wellnessatwork.me`; footer copy updated to *"customer or partner of"*. Remaining mock changes (visual reorder of Common Fields above Audience cards in Scenes 2/3; Random Sample Add button; Suppressed-member row demonstration) deferred to a Round-6.5 mock iteration if reviewer wants them now.
 
 - **Status**: ADDRESSED (Round 6 — spec + partial mock; remaining mock visual updates deferred to Round 6.5 if requested)
+
+### Comment 25 (Round 6.5) — UNADDRESSED → ADDRESSED — Theme resolution clarification + mock visualization
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational follow-up after Round 6)
+- **File**: spec §2.3.1 + mock Scene 3
+- **Comment**:
+  > For 2.3.1 do you use theme selected in Survey or default Brand theme? Update the mock based on the comment.
+- **Resolution**:
+  - **Spec already specified Survey-first resolution order** (§2.3.1): *"Survey.themeId (if set) → Brand.defaultThemeId (if set) → CustomerEQ default palette."* No spec change needed — the answer is **Survey-selected theme first**, then Brand default, then platform defaults. R29 codifies.
+  - **Mock updated** to make the resolution visible: Scene 3's Live preview pane now has:
+    - A **Theme banner** above the email frame: *"Theme: Acme Q2 2026 · resolved from `Survey.themeId` · color mapping ↓"* — operator sees which theme is being applied and where it came from.
+    - The email-frame's colors are now driven by realistic palette values (warm brown `#6f2c1a` for `primaryColor` + Subject; rust orange `#c2410c` for `accentColor` + survey link; cream `#fdfaf6` for `backgroundColor`; dark brown `#2d2218` for `textColor`; warm grey `#d6cfc6` for `secondaryColor` / dividers). Reviewer sees what brand-themed rendering looks like, not generic indigo.
+    - A **Theme-mapping legend** below the email frame: a 5-row table listing each rendered element → corresponding `BrandTheme` column → resolved hex with a color swatch. Includes the V1-deferred CTA-button row (greyed out with *"out of V0 scope"*).
+    - Resolution-order note at the bottom of the legend: *"Survey.themeId (if set — this case) → Brand.defaultThemeId (if set) → CustomerEQ default palette. Resolved theme is snapshotted into `DistributionBatch.composerSnapshot.themeSnapshot` at send time so the Wave Detail page (Scene 7B) shows exactly which palette was used."*
+- **Status**: ADDRESSED (Round 6.5 — mock only)
