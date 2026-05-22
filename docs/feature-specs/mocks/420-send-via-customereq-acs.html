@@ -390,72 +390,9 @@
             <a class="switch-mode" href="#scene-3">Switch to Send via CustomerEQ →</a>
           </div>
 
-          <!-- AUDIENCE BUILDER — SHARED -->
-          <div class="audience-cards">
-            <div class="audience-card">
-              <h3>Add from Existing Members <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
-              <p class="card-help">Search the roster. Wildcards supported (<code>*@artistos.com</code>, <code>q2-*</code>, <code>*support*</code>).</p>
-              <div class="secondary-tabs">
-                <button class="active">Search</button>
-                <button>Random sample</button>
-              </div>
-              <div class="search-row">
-                <input type="search" placeholder="email · name · external id …" value="*@artistos.com" />
-                <button class="btn secondary tiny">Search</button>
-              </div>
-              <div class="search-results">
-                <div class="search-row-item"><span><span class="name">Alice Chen</span><span class="identifier">alice@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
-                <div class="search-row-item"><span><span class="name">Bob Patel</span><span class="identifier">bob@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
-                <div class="search-row-item"><span><span class="name">Carla Singh</span><span class="identifier">carla@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
-              </div>
-              <div class="add-actions">
-                <button class="btn secondary tiny">Add all on page (3)</button>
-                <button class="btn primary tiny">Add all matching (11)</button>
-              </div>
-            </div>
-
-            <div class="audience-card">
-              <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
-              <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted. See <a href="#scene-2b" style="color: var(--primary);">Scene 2B</a> for what happens when the brand uses <code>phone</code> / <code>external_id</code> as primary.</p>
-              <div class="secondary-tabs">
-                <button class="active">Paste</button>
-                <button>⤓ Upload CSV</button>
-              </div>
-              <textarea>Eric Olsen &lt;eric@others.com&gt;
-fiona@others.com
-georgia@artistos.com</textarea>
-              <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
-              <div class="add-actions"><button class="btn primary tiny">Add 3 to list</button></div>
-            </div>
-          </div>
-
-          <!-- AUDIENCE LIST — SHARED -->
-          <div class="audience-list-card">
-            <div class="audience-list-head">
-              <div class="summary">6 members in this wave <span class="summary-aux">· 2 will be auto-enrolled · 1 deselected</span></div>
-              <div class="bulk-actions">
-                <select><option>25 per page</option><option>50 per page</option></select>
-                <button class="btn secondary tiny">Select all on page</button>
-                <button class="btn secondary tiny">Deselect all on page</button>
-              </div>
-            </div>
-            <table>
-              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Source</th></tr></thead>
-              <tbody>
-                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td>2026-02-14</td><td><span class="pill source-existing">Existing</span></td></tr>
-                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
-                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td>2026-04-22</td><td><span class="pill source-existing">Existing</span></td></tr>
-                <tr class="deselected"><td><input type="checkbox" /></td><td>Dmitri Volkov</td><td class="identifier-mono">dmitri@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
-                <tr><td><input type="checkbox" checked /></td><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td></tr>
-                <tr><td><input type="checkbox" checked /></td><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td></tr>
-                <tr><td><input type="checkbox" checked /></td><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- COMMON FIELDS — SHARED (highlighted to draw the eye after R2 feedback) -->
+          <!-- COMMON FIELDS — SHARED, FIRST (Round-6 reorder: "Define batch attributes → Select members → Send") -->
           <div class="common-fields-card">
-            <span class="shared-label">SHARED · BOTH MODES</span>
+            <span class="shared-label">STEP 1 · SHARED · BOTH MODES — Define batch attributes</span>
             <h3>Common fields</h3>
             <div class="field-grid">
               <div>
@@ -474,6 +411,97 @@ georgia@artistos.com</textarea>
                 </select>
                 <div class="field-help">All times in <code>America/Los_Angeles</code> (brand timezone). Tokens minted in this wave expire at this moment regardless of mode.</div>
               </div>
+            </div>
+          </div>
+
+          <!-- AUDIENCE BUILDER — SHARED, SECOND (Round-6 reorder: now beneath Common fields) -->
+          <div style="margin-top: 16px; padding: 6px 12px; background: var(--surface-muted); border-radius: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;">Step 2 · Select members</div>
+          <div class="audience-cards" style="margin-top: 8px;">
+            <div class="audience-card">
+              <h3>Add from Existing Members <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+              <p class="card-help">Search the roster. Wildcards supported (<code>*@artistos.com</code>, <code>q2-*</code>, <code>*support*</code>).</p>
+              <div class="secondary-tabs">
+                <button class="active">Search</button>
+                <button>Random sample</button>
+              </div>
+              <div class="search-row">
+                <input type="search" placeholder="email · name · external id …" value="*@artistos.com" />
+                <button class="btn secondary tiny">Search</button>
+              </div>
+              <div class="search-results">
+                <div class="search-row-item"><span><span class="name">Alice Chen</span><span class="identifier">alice@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Bob Patel</span><span class="identifier">bob@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Carla Singh</span><span class="identifier">carla@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <!-- Round-6 — surface suppressed-state existing members in the search results themselves so the operator sees them before adding -->
+                <div class="search-row-item" style="opacity: 0.75;"><span><span class="name">Hannah Mehta</span><span class="identifier">hannah@artistos.com</span> <span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; padding: 1px 6px;">⚠ unsubscribed 2026-04-12</span></span><button class="btn primary tiny" disabled>Add</button></div>
+                <div class="search-row-item" style="opacity: 0.75;"><span><span class="name">Ivan Rao</span><span class="identifier">ivan@artistos.com</span> <span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; padding: 1px 6px;">⚠ no consent</span></span><button class="btn primary tiny" disabled>Add</button></div>
+              </div>
+              <div class="add-actions">
+                <button class="btn secondary tiny">Add all on page (3 eligible)</button>
+                <button class="btn primary tiny">Add all matching (11 eligible · 2 suppressed)</button>
+              </div>
+              <div style="margin-top: 8px; padding: 6px 8px; background: var(--warning-soft); border-radius: 4px; font-size: 10px; color: var(--warning-strong);">
+                <strong>2 matching members are suppressed</strong> and excluded from the bulk add (unsubscribed / no consent). They will appear in the audience list below with disabled checkboxes so you can see who can't be reached.
+              </div>
+            </div>
+
+            <div class="audience-card">
+              <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+              <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted. See <a href="#scene-2b" style="color: var(--primary);">Scene 2B</a> for what happens when the brand uses <code>phone</code> / <code>external_id</code> as primary.</p>
+              <div class="secondary-tabs">
+                <button class="active">Paste</button>
+                <button>⤓ Upload CSV</button>
+              </div>
+              <textarea>Eric Olsen &lt;eric@others.com&gt;
+fiona@others.com
+georgia@artistos.com
+hannah@artistos.com</textarea>
+              <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
+              <div class="add-actions"><button class="btn primary tiny">Add 4 to list</button></div>
+            </div>
+          </div>
+
+          <!-- AUDIENCE LIST — SHARED -->
+          <div class="audience-list-card">
+            <div class="audience-list-head">
+              <div class="summary">8 members in this wave <span class="summary-aux">· 6 selected · 2 will be auto-enrolled · 1 deselected · 2 suppressed (excluded)</span></div>
+              <div class="bulk-actions">
+                <select><option>25 per page</option><option>50 per page</option></select>
+                <button class="btn secondary tiny">Select all on page</button>
+                <button class="btn secondary tiny">Deselect all on page</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Source</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td>2026-02-14</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td>2026-04-22</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr class="deselected"><td><input type="checkbox" /></td><td>Dmitri Volkov</td><td class="identifier-mono">dmitri@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <!-- Round-6 — suppressed members shown disabled (R22): unsubscribed + no-consent rows -->
+                <tr style="opacity: 0.65;" title="Hannah Mehta unsubscribed on 2026-04-12. Cannot receive survey emails until she resubscribes.">
+                  <td><input type="checkbox" disabled /></td>
+                  <td style="color: var(--text-muted);">Hannah Mehta</td>
+                  <td class="identifier-mono">hannah@artistos.com</td>
+                  <td>2026-01-08</td>
+                  <td><span class="pill source-existing">Existing</span></td>
+                  <td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-04-12</span></td>
+                </tr>
+                <tr style="opacity: 0.65;" title="Ivan Rao has not given consent to receive marketing/survey emails (Member.consentGivenAt IS NULL or Member.emailOptIn = false).">
+                  <td><input type="checkbox" disabled /></td>
+                  <td style="color: var(--text-muted);">Ivan Rao</td>
+                  <td class="identifier-mono">ivan@artistos.com</td>
+                  <td>—</td>
+                  <td><span class="pill source-existing">Existing</span></td>
+                  <td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ No consent</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top: 10px; padding: 8px 10px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+              <strong>Why suppressed members are shown but disabled (spec R22):</strong> the audience-builder surfaces them so the operator understands why the audience count differs from the search-result count (e.g., search returned 11; 2 are suppressed; 9 can actually be sent to). The dispatcher runs a <strong>second consent/suppression check at send time</strong> (spec §13.7 / R44) in case anyone unsubscribed in the seconds between selection and dispatch.
             </div>
           </div>
 
@@ -565,14 +593,19 @@ mystery@unknownbrand.com</textarea>
                 <tr><td><input type="checkbox" checked /></td><td>Joe Olsen</td><td class="identifier-mono">acme-cust-004 <span style="color: var(--text-subtle);">(via joe@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
                 <tr><td><input type="checkbox" checked /></td><td>Sandra Khoury</td><td class="identifier-mono">acme-cust-007 <span style="color: var(--text-subtle);">(via sandra@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
 
-                <!-- Group 3: Emails not found — cannot auto-enroll -->
+                <!-- Group 3: Suppressed (Round-6 — Existing members who matched but are unsubscribed / no-consent) -->
+                <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Suppressed — existing members matched but cannot be sent to</td></tr>
+                <tr style="opacity: 0.65;" title="Penny Liu unsubscribed on 2026-03-02. Cannot receive survey emails until she resubscribes."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Penny Liu</td><td class="identifier-mono">acme-cust-009 <span style="color: var(--text-subtle);">(via penny@others.com)</span></td><td>email → Member.email</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-03-02</span></td></tr>
+                <tr style="opacity: 0.65;" title="Quinn Park has Member.emailOptIn = false (channel preference: emails not opted in)."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Quinn Park</td><td class="identifier-mono">acme-cust-012</td><td>external_id (brand primary)</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Email opt-out</span></td></tr>
+
+                <!-- Group 4: Emails not found — cannot auto-enroll -->
                 <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Emails not found — cannot be auto-enrolled because Brand identifier is <code>external_id</code></td></tr>
                 <tr><td>—</td><td>—</td><td class="identifier-mono">mystery@unknownbrand.com</td><td>email → no match</td><td><span class="pill source-skipped" style="background: var(--warning-soft); color: var(--warning-strong);">Email — not found</span></td></tr>
               </tbody>
             </table>
             <div class="pagination-foot" style="border-top: 1px dashed var(--border); margin-top: 8px; padding-top: 10px;">
-              <span>5 selected · 1 cannot auto-enroll</span>
-              <span style="color: var(--warning-strong);">Recovery: add <code>mystery@unknownbrand.com</code> via <a href="#" style="color: var(--primary);">Members → New</a> with the corresponding <code>external_id</code> first; the next paste will match.</span>
+              <span>5 selected · 2 suppressed · 1 cannot auto-enroll</span>
+              <span style="color: var(--warning-strong);">Recovery for unmatched: add <code>mystery@unknownbrand.com</code> via <a href="#" style="color: var(--primary);">Members → New</a> with the corresponding <code>external_id</code> first.</span>
             </div>
           </div>
 
