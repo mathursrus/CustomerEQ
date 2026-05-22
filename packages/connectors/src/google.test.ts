@@ -211,6 +211,32 @@ describe('fetchGoogleBusinessProfileReviews', () => {
     delete process.env.CEQ_GOOGLE_CLIENT_SECRET
   })
 
+  it('calls the real API even when CEQ_MOCK_GOOGLE_REVIEWS is set', async () => {
+    // Regression guard: once mock mode is removed, this env var must have no effect.
+    // If the env var still short-circuits to mock data, fetch is never called and
+    // the test fails — proving the mock bypass is not gone.
+    const original = process.env.CEQ_MOCK_GOOGLE_REVIEWS
+    try {
+      process.env.CEQ_MOCK_GOOGLE_REVIEWS = 'true'
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ reviews: [] }),
+        headers: new Map(),
+      })
+
+      await fetchGoogleBusinessProfileReviews(baseCtx)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    } finally {
+      if (original === undefined) {
+        delete process.env.CEQ_MOCK_GOOGLE_REVIEWS
+      } else {
+        process.env.CEQ_MOCK_GOOGLE_REVIEWS = original
+      }
+    }
+  })
+
   it('maps all star rating values correctly', async () => {
     const reviews = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE'].map((star, i) => ({
       reviewId: `review-${i}`,

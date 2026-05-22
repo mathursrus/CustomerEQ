@@ -40,51 +40,6 @@ interface GoogleReviewsResponse {
   averageRating?: number
 }
 
-// Mock reviews returned when CEQ_MOCK_GOOGLE_REVIEWS=true (used while waiting for
-// Google Business Profile API quota approval — remove this block once approved).
-const MOCK_REVIEWS: GoogleReview[] = [
-  {
-    reviewId: 'mock-review-1',
-    reviewer: { displayName: 'Sarah K.' },
-    starRating: 'FIVE',
-    comment: 'Best meal we have had in Bellevue! The chef came out to greet us and the service was impeccable.',
-    createTime: '2026-04-09T18:30:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-1',
-  },
-  {
-    reviewId: 'mock-review-2',
-    reviewer: { displayName: 'Michael R.' },
-    starRating: 'FOUR',
-    comment: 'Great food and ambience. Slightly long wait for the table even with a reservation, but worth it.',
-    createTime: '2026-04-08T20:15:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-2',
-  },
-  {
-    reviewId: 'mock-review-3',
-    reviewer: { displayName: 'Anonymous' },
-    starRating: 'THREE',
-    comment: 'Food was good but the noise level made it hard to have a conversation. Loud kitchen sounds.',
-    createTime: '2026-04-07T19:00:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-3',
-  },
-  {
-    reviewId: 'mock-review-4',
-    reviewer: { displayName: 'Jennifer L.' },
-    starRating: 'FIVE',
-    comment: 'Absolutely loved the tasting menu. Will definitely be back for our anniversary!',
-    createTime: '2026-04-06T21:45:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-4',
-  },
-  {
-    reviewId: 'mock-review-5',
-    reviewer: { displayName: 'David T.' },
-    starRating: 'TWO',
-    comment: 'Disappointing experience. Order was wrong twice and the manager was not helpful in resolving it.',
-    createTime: '2026-04-05T19:30:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-5',
-  },
-]
-
 export async function fetchGoogleBusinessProfileReviews(
   ctx: ConnectorContext,
 ): Promise<ConnectorResult> {
@@ -97,27 +52,6 @@ export async function fetchGoogleBusinessProfileReviews(
   const locationId = ctx.scopeConfig.locationId as string | undefined
   if (!accountId || !locationId) {
     throw new Error('[Google] Missing accountId or locationId in scopeConfig')
-  }
-
-  // Mock mode: return sample reviews instead of calling Google API
-  // Used while waiting for Google Business Profile API quota approval
-  if (process.env.CEQ_MOCK_GOOGLE_REVIEWS === 'true') {
-    logger.info({ sourceId: ctx.sourceId, mock: true }, 'google.mock_mode')
-    const deliveries = MOCK_REVIEWS.map((review) => ({
-      externalId: review.reviewId,
-      body: review.comment ?? '',
-      rating: STAR_RATING_MAP[review.starRating] ?? null,
-      externalAuthorLabel: review.reviewer?.displayName ?? null,
-      canonicalUrl: `https://search.google.com/local/reviews?placeid=${encodeURIComponent(locationId)}`,
-      postedAt: review.createTime,
-      subjectType: 'location',
-      subjectKey: locationId,
-      subjectLabel: (ctx.scopeConfig.locationLabel as string) ?? locationId,
-      providerStatus: 'visible',
-      providerMetadata: { reviewReply: null, name: review.name, mock: true },
-      rawPayload: review as unknown as Record<string, unknown>,
-    }))
-    return { deliveries, nextCursor: null }
   }
 
   let updatedCredentials: Record<string, unknown> | undefined

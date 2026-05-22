@@ -83,7 +83,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
       const clientId = process.env[config.clientIdEnv]
       if (!clientId) {
-        return reply.status(500).send({
+        return reply.status(503).send({
           error: `${config.clientIdEnv} not configured on the platform`,
         })
       }
@@ -281,22 +281,6 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
       const credentials = scopeConfig.credentials as Record<string, unknown> | undefined
       if (!credentials?.accessToken) {
         return reply.status(400).send({ error: 'Source not connected — complete OAuth first' })
-      }
-
-      // Mock mode: return sample locations while waiting for Google API quota approval
-      if (process.env.CEQ_MOCK_GOOGLE_REVIEWS === 'true') {
-        return reply.status(200).send({
-          accounts: [{ name: 'accounts/mock-account', accountName: 'SKB Bellevue (Mock)', type: 'PERSONAL' }],
-          locations: [
-            {
-              accountId: 'accounts/mock-account',
-              accountName: 'SKB Bellevue (Mock)',
-              locationId: 'locations/skb-bellevue',
-              locationName: 'SKB Bellevue',
-              address: '123 Main St, Bellevue, WA',
-            },
-          ],
-        })
       }
 
       try {
