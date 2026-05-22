@@ -243,15 +243,18 @@
 <body>
 
 <div class="mock-header">
-  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 3 mock</h1>
+  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 4 mock</h1>
   <div class="nav">
     <a href="#scene-1">1. Tile</a>
     <a href="#scene-2">2. SELF_SERVE</a>
     <a href="#scene-2b">2B. Mixed-id</a>
     <a href="#scene-3">3. MANAGED_ACS</a>
     <a href="#scene-4">4. Confirm</a>
-    <a href="#scene-5">5. Terminal</a>
-    <a href="#scene-6">6. Sent count</a>
+    <a href="#scene-5a">5A. CSV</a>
+    <a href="#scene-5b">5B. Sending</a>
+    <a href="#scene-5c">5C. Sent</a>
+    <a href="#scene-6">6. Loop Monitor</a>
+    <a href="#scene-7">7. Batch detail</a>
   </div>
 </div>
 
@@ -293,8 +296,9 @@
   <a href="#scene-5a">5A. SELF_SERVE Success (CSV)</a>
   <a href="#scene-5b">5B. MANAGED_ACS Sending</a>
   <a href="#scene-5c">5C. MANAGED_ACS Sent</a>
-  <div class="group-label">Survey-detail</div>
-  <a href="#scene-6">6. Sent-count surfacing</a>
+  <div class="group-label">Survey-detail surfacing</div>
+  <a href="#scene-6">6. Loop Monitor + Response header</a>
+  <a href="#scene-7">7. Batch detail · Sent counter</a>
 </nav>
 
 <!-- ─────────────────────────────── Scene 1 ───────────────────────────── -->
@@ -635,7 +639,7 @@ mystery@unknownbrand.com</textarea>
             <div class="composer-card">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
                 <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
-                <h3 style="margin: 0;">Sender &amp; branding</h3>
+                <h3 style="margin: 0;">Sender</h3>
               </div>
 
               <div class="sender-row">
@@ -654,21 +658,6 @@ mystery@unknownbrand.com</textarea>
                 </div>
               </div>
 
-              <div class="field">
-                <label>Brand logo</label>
-                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-radius: 6px;">
-                  <div style="width: 56px; height: 56px; background: white; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-muted); flex-shrink: 0;">
-                    <!-- inline SVG used as a visible placeholder for the brand mark; production renders the actual uploaded image -->
-                    <svg width="40" height="40" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
-                  </div>
-                  <div style="flex: 1;">
-                    <div style="font-size: 13px; font-weight: 500;">acme-logo.png <span style="color: var(--text-muted); font-weight: 400;">· 56×56 · brand default</span></div>
-                    <div class="help-text">Inherited from <code>Brand.logoUrl</code> (Organization Settings). <a href="#" style="color: var(--primary);">Upload a different logo for this send</a> · <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" /> Save as brand default</label></div>
-                  </div>
-                  <button class="btn secondary tiny">Remove</button>
-                </div>
-                <div class="help-text">Rendered at the top of the email body via the <code>{{brand_logo}}</code> mustache. PNG / JPG / SVG up to 2 MB. Recommended 200×60 or square 80×80.</div>
-              </div>
             </div>
           </div>
 
@@ -710,7 +699,7 @@ We'd love your feedback on {{survey_title}}. It takes about 2 minutes.
 
 Thanks,
 {{sender_name}}</textarea>
-                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required). The default template puts <code>{{brand_logo}}</code> + <code>{{brand_name}}</code> at the top as a header block — both render visually in the recipient's email (see the live preview on the right). Operator may remove either to suppress the header.</div>
+                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required). The default template puts <code>{{brand_logo}}</code> + <code>{{brand_name}}</code> at the top as a header block — both render visually in the recipient's email (see the live preview on the right). The logo is pulled from <code>Brand.logoUrl</code> (set in Organization Settings — no upload affordance in this view); if the brand has no logo configured, <code>{{brand_logo}}</code> renders as empty and the header collapses to brand name only. Operator may remove either token to suppress the header.</div>
               </div>
 
               <div class="footer-preview">
@@ -826,6 +815,11 @@ Acme CX Team</div>
             <div class="progress-text">✓ Generated 6 links — Q2 customer satisfaction · 2026-05-21. Tokens expire 2026-05-28 23:59 PT.</div>
           </div>
           <p style="font-size: 13px; color: var(--text-muted); margin-top: 10px;">Users will be able to respond only once in this wave. A leaked or re-clicked link gets the "already submitted" state.</p>
+
+          <div style="margin-top: 14px; padding: 12px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 13px; color: var(--text);">
+            <strong>📤 Sent semantics for this mode:</strong> Self-serve hands the operator a CSV they paste into their own email tool — the platform marks each member's <code>SurveyDistribution.sentAt</code> at the moment of <strong>CSV download</strong> (i.e., downloading the CSV is the operator-side dispatch-handoff moment). The Survey's <code>sentCount</code> is incremented by the 6 rows here, and these 6 members show as <strong>Sent</strong> in the Loop Monitor (Scene 6) and in the Batch Details Sent counter (Scene 7).
+            <div style="margin-top: 6px; font-size: 12px;"><strong>If you Regenerate later</strong> (Batch Details → Regenerate links): the regeneration replaces the tokens but <strong>updates the <code>sentAt</code> timestamp on each row</strong> — so the Sent count reflects the most recent dispatch handoff, not the original. Members already responded keep their <code>respondedAt</code> independently.</div>
+          </div>
 
           <div style="margin-top: 14px; padding: 14px; background: var(--warning-soft); border-radius: var(--radius); font-size: 13px; color: var(--warning-strong);">
             <strong>⚠ Save this CSV now.</strong> The plaintext URLs are shown only once. Re-downloading later requires regenerating all tokens — which invalidates the URLs in this batch.
@@ -964,9 +958,9 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 6 — Sent-count surfacing ──────────── -->
+<!-- ─────────────────────────────── Scene 6 — Loop Monitor + Response header ───── -->
 <section class="scene" id="scene-6">
-  <div class="scene-label"><strong>Scene 6 · Survey detail — Sent count surfacing</strong><span class="mode-chip shared">SHARED SURFACING</span><span class="scene-note">Spec §4 · One line in Configuration Summary aggregates both modes with a per-mode breakdown. Distribution batches filter (not shown) carries a mode pill per batch.</span></div>
+  <div class="scene-label"><strong>Scene 6 · Survey detail — Loop Monitor &amp; Response section header (sent-count surfacing)</strong><span class="mode-chip shared">SHARED SURFACING</span><span class="scene-note">Sent surfacing belongs in <strong>Loop Monitor</strong> (the lifetime sent-to-received pipeline view, #241 R32b) and the <strong>Response section header</strong> (above the wave-filterable response count). Configuration Summary is for what was <em>configured</em> on the survey — it does <strong>not</strong> show stat counters in this design.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -982,22 +976,185 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
           <div class="page-header">
             <div>
               <h1>Q2 2026 NPS</h1>
-              <p>Configuration summary.</p>
+              <p>Sent-count surfacing across the survey detail page.</p>
             </div>
           </div>
 
+          <!-- Loop Monitor — the lifetime pipeline view -->
           <div class="section">
-            <div class="section-head"><h2>Configuration summary</h2></div>
-            <div class="section-body" style="padding: 14px 18px;">
+            <div class="section-head"><h2>📈 Loop Monitor <span style="font-weight: 400; font-size: 12px; color: var(--text-muted); margin-left: 8px;">lifetime pipeline · #241 R32b</span></h2></div>
+            <div class="section-body" style="padding: 16px 20px;">
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Survey Sent</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">11</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">5 via CustomerEQ <span class="pill mode-managed-acs">Managed</span> · 6 via my email tool <span class="pill mode-self-serve">Self-serve</span></div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responses Received</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">4</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">36% response rate · last response 2h ago</div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Closed-loop Actions</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">2</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">1 alert resolved · 1 follow-up in-flight</div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">P75 Time-to-Action</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">11m</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">SLA target: 15m · ✓ within target</div>
+                </div>
+              </div>
+              <div style="margin-top: 10px; padding: 10px 12px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+                <strong>Note:</strong> Loop Monitor stays <strong>lifetime-wide</strong> regardless of Wave filter (per #378 §3 design — the per-batch slicing belongs to the Response section, not the lifetime pipeline view).
+              </div>
+            </div>
+          </div>
+
+          <!-- Response section header showing Sent count BEFORE the filterable response count -->
+          <div class="section">
+            <div class="section-head">
+              <h2>📊 Responses</h2>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <!-- Response section header strip: Sent count + filter + filtered response count -->
+              <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface-muted); border-radius: var(--radius-sm); margin-bottom: 12px;">
+                <div style="font-size: 13px;">
+                  <strong style="color: var(--text);">Survey Sent:</strong> <span style="font-weight: 600; color: var(--text);">11</span>
+                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(lifetime · not affected by Wave filter)</span>
+                </div>
+                <div style="height: 18px; width: 1px; background: var(--border);"></div>
+                <div style="font-size: 13px;">
+                  <strong style="color: var(--text);">Responses:</strong> <span style="font-weight: 600; color: var(--text);">4 of 11</span>
+                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(36% · changes with the Wave filter on the right)</span>
+                </div>
+                <div style="flex: 1;"></div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Wave:</span>
+                  <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px;">
+                    <option>All waves &amp; direct responses</option>
+                    <option>Q2 2026 NPS · 2026-05-21 · 5 sent · 2 responded (Managed ACS)</option>
+                    <option>Q2 2026 NPS · 2026-05-20 · 6 sent · 2 responded (Self-serve)</option>
+                    <option>Direct responses (share link / embed)</option>
+                  </select>
+                </div>
+              </div>
+
+              <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Member</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Wave</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">NPS</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px;"><span class="pill mode-managed-acs">Managed</span></td><td style="padding: 6px; font-weight: 600;">9</td><td style="padding: 6px;">14:08 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px;"><span class="pill mode-managed-acs">Managed</span></td><td style="padding: 6px; font-weight: 600;">7</td><td style="padding: 6px;">14:11 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Joe Olsen</td><td style="padding: 6px;"><span class="pill mode-self-serve">Self-serve</span></td><td style="padding: 6px; font-weight: 600;">8</td><td style="padding: 6px;">2026-05-20 11:42 PT</td></tr>
+                  <tr><td style="padding: 6px;">Sandra Khoury</td><td style="padding: 6px;"><span class="pill mode-self-serve">Self-serve</span></td><td style="padding: 6px; font-weight: 600;">10</td><td style="padding: 6px;">2026-05-20 14:30 PT</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Configuration Summary — UNCHANGED from today; stat counters intentionally NOT here -->
+          <div class="section">
+            <div class="section-head"><h2>⚙ Configuration summary</h2></div>
+            <div class="section-body" style="padding: 14px 20px;">
               <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
                 <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Survey type</td><td>NPS — 0 to 10</td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Status</td><td><span class="pill solid-active">● ACTIVE</span></td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Response policy</td><td>MULTIPLE (one per wave via token)</td></tr>
-                <tr><td style="padding: 4px 0; color: var(--text-muted);"><strong>Sent</strong></td><td><strong>11 total</strong> · 5 via CustomerEQ <span class="pill mode-managed-acs">Managed (ACS)</span> · 6 via my email tool <span class="pill mode-self-serve">Self-serve</span> <a href="#scene-1" style="color: var(--primary); font-size: 11px; margin-left: 8px;">View batches →</a></td></tr>
-                <tr><td style="padding: 4px 0; color: var(--text-muted);">Responses</td><td>4 of 11 (36%)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Member identifier</td><td><code>email</code> (Acme Coffee)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-12 by manohar.madhira@outlook.com</td></tr>
+              </table>
+              <p style="margin-top: 10px; padding: 8px 10px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+                <strong>Note:</strong> Configuration Summary is what was <em>configured</em> on this survey. Stat counters (Sent / Responses / Closed-loop Actions) live in the Loop Monitor and Response section above — not here.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 7 — Batch Detail · Sent counter ──── -->
+<section class="scene" id="scene-7">
+  <div class="scene-label"><strong>Scene 7 · Batch detail page — Sent counter</strong><span class="mode-chip shared">SHARED · per-batch</span><span class="scene-note">Spec §3.2 / #378 §3.1 · The batch detail page (existing surface from #378) gets a Sent counter alongside the existing Awaiting / Responded / Expired counters. Sent semantics differ by send mode (see Scene 5A note): Self-serve increments on CSV download; Managed-ACS increments per-recipient as the worker confirms each ACS send.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute/batches/btch_a1b2c3</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a> &nbsp;›&nbsp; Distribution batches &nbsp;›&nbsp; Q2 2026 NPS · 2026-05-21</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS · 2026-05-21 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 5 recipients · created 2026-05-21 14:02 PT.</p>
+            </div>
+          </div>
+
+          <!-- Counters strip (existing #378 §3.1 plus the new Sent counter) -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Sent</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--success); margin: 4px 0;">5</div>
+              <div style="font-size: 10px; color: var(--text-muted);">via ACS confirmed delivery</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Awaiting response</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">3</div>
+              <div style="font-size: 10px; color: var(--text-muted);">tokens unconsumed · expires 2026-05-28</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responded</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--info); margin: 4px 0;">2</div>
+              <div style="font-size: 10px; color: var(--text-muted);">40% of sent · last 2h ago</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Failed</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--danger); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">no bounces / suppressions</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Expired</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">window: 7 days · 6 days remain</div>
+            </div>
+          </div>
+
+          <!-- For SELF_SERVE batches: Sent semantic note -->
+          <div style="padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text); margin-bottom: 14px;">
+            <strong>Sent semantics on this batch (Managed ACS):</strong> incremented per-recipient as the worker confirms ACS delivery (status=succeeded). For Self-serve batches, Sent increments at CSV download time and re-increments if Regenerate links is used.
+          </div>
+
+          <!-- Audience spec block (unchanged from #378) -->
+          <div class="section">
+            <div class="section-head"><h2>Audience spec</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Mode</td><td>Custom List · 5 identifiers (1 auto-enrolled)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience at send time</td><td>5</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience now</td><td>5 <span style="color: var(--text-muted); font-size: 11px;">(no erased / deleted since send)</span></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Survey name in mail</td><td>Q2 2026 NPS</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Links expire on</td><td>2026-05-28 23:59 PT · <a href="#" style="color: var(--primary);">[Edit]</a></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-21 14:02 PT by manohar.madhira@outlook.com</td></tr>
               </table>
             </div>
           </div>
+
         </div>
       </div>
     </div>

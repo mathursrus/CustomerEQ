@@ -61,3 +61,46 @@
   - Added a new mini-scene **Scene 2B · "Custom List with email paste against a non-email-keyed brand"** showing a brand whose primary identifier is `external_id`. The audience-list table gains a third subsection: *"Emails not found — cannot be auto-enrolled because Brand identifier is `external_id`"* with one example row + a one-line recovery hint (*"Add these members in Members → New with their `external_id` first; they'll match here on the next paste."*).
   - The Live preview Source-chip vocabulary gains a new value: `Email — not found` (warning-styled) for these rows.
 - **Status**: ADDRESSED (Round 3 — mock only; spec update deferred per reviewer instruction)
+
+## Round 4 Feedback
+*Received: 2026-05-21 (in-conversation review of PR #497 after Round 3 mock update)*
+*Reviewer instruction continues: mock-only iteration; spec update happens in one pass once the mock is locked.*
+
+### Comment 1 — UNADDRESSED → ADDRESSED (Round 4, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html`
+- **Comment**:
+  > Show preview for Brand Logo, but need not allow for updating the logo in this view — we don't have capability to upload Logos yet. So the Brand Logo block in Scene 3 is not required.
+- **Resolution**:
+  - Removed the Brand-logo field (chip preview + upload + "Save as brand default" toggle) from Scene 3's first composer card. Renamed the card from "Sender & branding" → "Sender" since branding affordances no longer live there.
+  - **Preserved** the `{{brand_logo}}` + `{{brand_name}}` mustache tokens in the default Body editor template, the new `{{brand_logo}}` button in the mustache palette, and the rendered logo + name visual header in the Live preview pane. The body editor's helper text now explicitly says: *"The logo is pulled from `Brand.logoUrl` (set in Organization Settings — no upload affordance in this view); if the brand has no logo configured, `{{brand_logo}}` renders as empty and the header collapses to brand name only."*
+  - Effect: operator sees the preview render and understands the logo will appear in recipient emails, without an upload control that the platform doesn't yet support. Future issue scope (a separate Organization Settings update) will add the upload flow; this issue scopes only the surfacing.
+- **Status**: ADDRESSED (Round 4 — mock only)
+
+### Comment 2 — UNADDRESSED → ADDRESSED (Round 4, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html` (Scene 5A)
+- **Comment**:
+  > In Scene 5A include the statement that these members will be marked as sent on download. If users regenerate for a given batch, update the sent information also. In case of Send via my email tool, downloading CSV can be considered as Sent.
+- **Resolution**:
+  - Added an info-banner directly above the strong-warning amber banner on Scene 5A explaining the Self-serve Sent semantics: *"Self-serve hands the operator a CSV they paste into their own email tool — the platform marks each member's `SurveyDistribution.sentAt` at the moment of CSV download (i.e., downloading the CSV is the operator-side dispatch-handoff moment). The Survey's `sentCount` is incremented by the rows here, and these members show as Sent in the Loop Monitor (Scene 6) and in the Batch Details Sent counter (Scene 7)."*
+  - Added a follow-on line about Regenerate semantics: *"If you Regenerate later (Batch Details → Regenerate links): the regeneration replaces the tokens but updates the `sentAt` timestamp on each row — so the Sent count reflects the most recent dispatch handoff, not the original. Members already responded keep their `respondedAt` independently."*
+- **Status**: ADDRESSED (Round 4 — mock only)
+
+### Comment 3 — UNADDRESSED → ADDRESSED (Round 4, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html` (Scene 6 + new Scene 7)
+- **Comment**:
+  > Sent information should also appear in the Loop Monitor as Survey Sent. Scene 6 need not be present. Loop Monitor shows the Sent and Received information. The Batch Details should show Sent. Configuration is just what was configured in the survey.
+  > Show Survey Sent Count in the Responses Header Section, before the <X> response that changes based on the Filters selected (e.g. Wave).
+- **Resolution**:
+  - **Removed** the "Sent" line from the Configuration Summary in Scene 6. Configuration Summary now contains only what was *configured* on the survey (type, status, response policy, member identifier kind, creator/created-at), with an explicit footer note: *"Configuration Summary is what was configured on this survey. Stat counters (Sent / Responses / Closed-loop Actions) live in the Loop Monitor and Response section above — not here."*
+  - **Replaced Scene 6 entirely** with a comprehensive survey-detail view showing three sections:
+    1. **Loop Monitor** (lifetime pipeline, #241 R32b) — 4 stat-cards: Survey Sent (with mode breakdown sub-line), Responses Received, Closed-loop Actions, P75 Time-to-Action. Sub-note: *"Loop Monitor stays lifetime-wide regardless of Wave filter."*
+    2. **Responses** — new header strip showing `Survey Sent: 11 (lifetime · not affected by Wave filter) | Responses: 4 of 11 (36% · changes with the Wave filter on the right)` followed by the Wave filter dropdown and the response table. The Sent count sits **before** the filtered response count exactly as specified.
+    3. **Configuration summary** — preserved but stat-counter-free (see above).
+  - **Added Scene 7 (new)** — Batch detail page showing 5 counters strip (**Sent** · Awaiting response · Responded · Failed · Expired). The Sent counter is the new addition; the others are preserved from #378 §3.1. Sub-note explains that Sent semantics differ per mode: Managed-ACS increments per-recipient as the worker confirms ACS delivery; Self-serve increments on CSV download (and re-increments on Regenerate).
+- **Status**: ADDRESSED (Round 4 — mock only)
