@@ -1,6 +1,6 @@
 # CI/CD Pipeline — Technical Design
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-21
 **Owner:** swavak@gmail.com
 **Epic:** #391 (CI/CD pipeline improvements)
 
@@ -40,13 +40,21 @@ PR opened / pushed
 
 ---
 
-## 2. Why CI triggers on both `pull_request` and `push` to `main`
+## 2. CI trigger design
 
-`ci.yml` runs on both events. The `push: branches: [main]` trigger was added in fix(#451) and is load-bearing for the CD pipeline.
+`ci.yml` has two active triggers:
 
-`deploy.yml` uses a `workflow_run` trigger, which fires after a named workflow completes on a branch. Without the `push` trigger on `ci.yml`, no CI workflow completes on `main` pushes, so `workflow_run` never fires and production never gets deployed after a merge.
+| Trigger | When it fires | Purpose |
+|---------|--------------|---------|
+| `pull_request: types: [ready_for_review, synchronize]` | PR transitions from draft → ready, or new commits pushed to a non-draft PR | Gate before auto-merge (#498) |
+| `push: branches: [main]` | Every commit lands on `main` (squash merge from auto-merge) | Load-bearing for the CD pipeline |
+| `workflow_dispatch` | Manual | Incident / hotfix |
 
-The `docker-build` job is gated by `if: github.event_name == 'pull_request'` so it only runs on PRs — not on main pushes — since the CD pipeline builds and pushes the real production images.
+**Why `push: main` must stay:** `deploy.yml` uses a `workflow_run` trigger that fires after CI completes on `main`. Without a CI run on `main`, `workflow_run` never fires and production is never deployed. Even though auto-merge already ran CI on the PR commit, the squash merge creates a new SHA on `main` that must also have CI recorded.
+
+**Why `pull_request` uses `types: [ready_for_review, synchronize]` (#498):** Draft pushes are cheap local iterations; CI should run once on the final commit. `ready_for_review` fires when the author clicks "Ready for review" (or runs `gh pr ready`). `synchronize` re-runs CI if new commits are pushed to an already-non-draft PR (e.g., fixing a failed CI run). An additional job-level guard (`if: github.event.pull_request.draft == false`) catches any edge case where the `synchronize` event fires on a still-draft PR.
+
+**Auto-draft + auto-merge:** See §4.5 for the full workflow.
 
 ---
 
@@ -127,6 +135,40 @@ This catches a specific failure class: BAML generates ESM files with `.js` exten
 **Web image uses a dummy Clerk key:** `@clerk/nextjs` decodes the publishable key at Next.js build time to validate its format. The real key is not available in CI for security reasons. The dummy value `pk_test_Y2xlcmsuZXhhbXBsZS5jb20k` (decodes to `clerk.example.com$`) satisfies the format check without granting any functional Clerk access.
 
 **Typical duration:** 730–968s (13–16m). This job is not on the critical path to merge (only Build & Test and Lint are required gates), but it does add wall clock time for PR authors waiting for full green.
+
+### 4.5 Auto-draft + auto-merge workflow (#498)
+
+Two companion workflows eliminate redundant CI runs and enforce a single-CI-before-merge discipline without requiring GitHub Team (Rulesets are a Team feature).
+
+**`auto-draft.yml`** — fires on `pull_request: types: [opened, reopened]` against `main`. If the PR is not already a draft, it:
+1. Calls the `convertPullRequestToDraft` GraphQL mutation to switch the PR to draft.
+2. Posts a comment explaining the new merge procedure.
+
+This means every PR targeting `main` starts as a draft. CI never fires until the author explicitly marks the PR as ready.
+
+**`auto-merge.yml`** — fires on `workflow_run: workflows: [CI] types: [completed]`. It:
+1. Skips if CI was triggered by a `push` or `workflow_dispatch` (no PR to merge).
+2. Finds the PR by `workflow_run.pull_requests[0]` (or by `head_branch` as a fallback).
+3. **CI success + SHA match** → squash-merges the PR automatically.
+4. **CI success + SHA mismatch** (new commits pushed after CI started) → posts a comment asking the author to click "Ready for review" again.
+5. **CI failure** → posts a comment with a link to the failed run.
+6. **Merge error** → posts a comment with the error; no silent failure.
+
+**End-to-end flow:**
+```
+Developer opens PR  →  auto-draft converts to draft
+Developer pushes changes  →  no CI (draft)
+Developer: gh pr ready  →  CI runs once
+  CI passes + SHA matches  →  auto-merge squashes to main  →  CI runs on main  →  CD deploys
+  CI passes + SHA mismatch →  comment: "click Ready again"
+  CI fails  →  comment with run link  →  developer fixes + pushes + gh pr ready
+```
+
+**Safety net:** The `push: branches: [main]` trigger on `ci.yml` means auto-merge's squash commit still triggers CI on `main`, which is required for the `workflow_run` CD trigger to fire.
+
+**Admin bypass / hotfix:** An admin can mark a PR ready, wait for CI, then merge manually if auto-merge is blocked (e.g., merge conflict). `workflow_dispatch` on `ci.yml` provides a manual CI gate for incident use.
+
+**FRAIM impact (Rule 27):** The `resolution-merge` FRAIM phase must use `gh pr ready` instead of `gh pr merge`. See `fraim/personalized-employee/rules/project_rules.md` Rule 27.
 
 ---
 
@@ -282,6 +324,7 @@ Build + typecheck together = **78% of the critical path**.
 | #449 | Selective demo-storefront rebuild in CD | 2026-05-19 |
 | #451 | Restore `push: main` CI trigger; add `fetch-depth: 2`; gate docker-build on PR only | 2026-05-19 |
 | #488 | Trigger-level `paths-ignore` to eliminate ~29s container startup on doc-only runs | 2026-05-20 |
+| #498 | Auto-draft new PRs; auto-merge after CI passes; CI runs once per PR (not per commit) | 2026-05-21 |
 
 ---
 

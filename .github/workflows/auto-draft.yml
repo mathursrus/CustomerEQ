@@ -1,0 +1,45 @@
+name: Auto-draft new PRs
+
+on:
+  pull_request:
+    types: [opened, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  draft:
+    name: Convert to draft
+    runs-on: ubuntu-latest
+    # Only convert PRs that were opened as non-draft (e.g., created via GitHub UI
+    # without ticking "Draft" or via `gh pr create` without --draft).
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Convert PR to draft and post instructions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.graphql(`
+              mutation($prId: ID!) {
+                convertPullRequestToDraft(input: {pullRequestId: $prId}) {
+                  pullRequest { isDraft number }
+                }
+              }
+            `, { prId: context.payload.pull_request.node_id });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: [
+                '**This PR has been set to Draft automatically.**',
+                '',
+                'CI runs exactly once — when you mark the PR as ready for review:',
+                '',
+                '1. Push your changes.',
+                '2. When ready, click **"Ready for review"** on GitHub — or run `gh pr ready`.',
+                '3. CI runs. If it passes, the PR is squash-merged automatically.',
+                '4. If CI fails, fix the issues, push, then click **"Ready for review"** again.',
+              ].join('\n'),
+            });

@@ -222,6 +222,22 @@ The default for any FRAIM-tracked issue is:
 
 These specify the per-issue topology (one worktree, one branch) authoritatively. The single-PR-per-issue cadence (with phase artifacts arriving as additional commits on that PR's branch) and the work-completion merge+cleanup come from `work-completion` job phases (`resolution-merge` → `resolution-verification` → `resolution-cleanup`), which are scoped to the one parent issue, not to spawned chore-issues.
 
+## 27. Merging PRs — Use `gh pr ready`, Not `gh pr merge` (Issue #498)
+
+The repository uses an auto-draft / auto-merge workflow (`.github/workflows/auto-draft.yml` and `.github/workflows/auto-merge.yml`). When a PR is marked as ready for review, CI runs exactly once; if it passes the PR is squash-merged automatically.
+
+**Correct merge procedure:**
+```
+gh pr ready <PR-number>
+# Wait for CI to pass and auto-merge to complete (check with: gh pr view <PR>)
+```
+
+**Forbidden:**
+- `gh pr merge` — bypasses the CI pre-validation gate; auto-merge won't fire.
+- Clicking "Merge pull request" directly on a draft PR (merge button is hidden until ready-for-review triggers CI).
+
+The `resolution-merge` FRAIM phase must use `gh pr ready`, not `gh pr merge`. This phase is a hold-point: only call `seekMentoring(status='complete')` after confirming the PR shows as merged on `main` (via `gh pr view <PR>` or `git log origin/main`).
+
 **Why this rule exists:** between 2026-05-12 and 2026-05-15, four "chore-issue" PRs (#345, #350, #355, #373) and one regression chain (#343 → #347 → #349 → #351) shipped under fabricated FRAIM justifications — each created a redundant worktree and PR for what FRAIM's defaults specified ride on the parent issue. PR #350 confessed: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally"* — four worktrees for one CI/CD workstream. The cost was operational noise, erosion of the one-issue-one-PR mental model, and two on-disk retrospectives that encoded the fabrication as a "win" and would re-teach the wrong lesson to future agents (corrected by the same PR that landed this rule).
 
 **Priority order when this rule applies to your current turn:**
