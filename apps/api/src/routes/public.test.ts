@@ -204,8 +204,10 @@ describe('generateWidgetJs', () => {
 
     it('R4 — footer link href contains no respondent-specific data (no email, surveyId, brandId in querystring)', () => {
       const js = generateWidgetJs(survey, 'https://api.example.com')
-      // Parse out the footer href to inspect it directly.
-      const hrefMatch = js.match(/href="(https:\/\/customereq\.com\/[^"]+)"/)
+      // Parse out the footer href to inspect it directly. Host comes from
+      // the canonical EXPORTS_POWERED_BY_URL constant (#500 regression guard)
+      // — we just assert the URL shape here and verify host equality below.
+      const hrefMatch = js.match(/href="(https:\/\/[^/]+\/\?[^"]+)"/)
       expect(hrefMatch, 'footer href must be present').not.toBeNull()
       const url = new URL(hrefMatch![1])
       const paramKeys = [...url.searchParams.keys()].sort()
@@ -229,11 +231,11 @@ describe('generateWidgetJs', () => {
       expect(js).not.toMatch(/hideFooter|hideAttribution|showPoweredBy|disableFooter|attributionEnabled|poweredByEnabled/i)
     })
 
-    it('R8 — footer link has target="_blank" rel="noopener noreferrer" aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"', () => {
+    it('R8 — footer link has target="_blank" rel="noopener noreferrer" and the canonical aria-label', () => {
       const js = generateWidgetJs(survey, 'https://api.example.com')
       expect(js).toContain('target="_blank"')
       expect(js).toContain('rel="noopener noreferrer"')
-      expect(js).toContain('aria-label="Powered by CustomerEQ — opens customereq.com in a new tab"')
+      expect(js).toContain('aria-label="Powered by CustomerEQ — opens in a new tab"')
     })
   })
 })

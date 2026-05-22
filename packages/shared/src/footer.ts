@@ -18,9 +18,11 @@
 //
 // Imported via the `@customerEQ/shared/footer` subpath export.
 
+import { EXPORTS_POWERED_BY_URL } from './constants.js'
+
 /**
  * Channels that distinguish the surface the footer appears in. Drives the
- * UTM `medium` parameter so customereq.com can attribute referral traffic
+ * UTM `medium` parameter so the destination can attribute referral traffic
  * back to its source channel without per-respondent fingerprinting.
  *
  * - `link` — direct survey links (standalone + tokenized respondent pages).
@@ -41,9 +43,13 @@ export const POWERED_BY_LINK_TEXT = 'CustomerEQ'
  * of the visible link text so the new-tab affordance is communicated.
  * Matches WCAG 2.4.7 + the existing mock CSS pattern in
  * docs/feature-specs/mocks/36-theme-editor.html L148-149.
+ *
+ * Phrased without naming the host so the screen-reader announcement is
+ * stable across host changes — the host itself is the subject of the
+ * canonical `EXPORTS_POWERED_BY_URL` constant (single edit propagates).
  */
 export const POWERED_BY_ARIA_LABEL =
-  'Powered by CustomerEQ — opens customereq.com in a new tab'
+  'Powered by CustomerEQ — opens in a new tab'
 
 /**
  * Builds the canonical "Powered by CustomerEQ" link URL with the three UTM
@@ -56,6 +62,12 @@ export const POWERED_BY_ARIA_LABEL =
  *
  * No fourth parameter is added. The function is pure — callers can cache
  * the result per channel for the lifetime of the process if they want.
+ *
+ * Host comes from `EXPORTS_POWERED_BY_URL` (the canonical CustomerEQ host
+ * constant shared with XLSX/PDF/email exports) so a future host change is
+ * a single edit in `packages/shared/src/constants.ts`. The original #413
+ * implementation hardcoded `customereq.com` which redirected off-product
+ * (regression fixed under #500).
  */
 export function buildFooterHref(channel: PoweredByChannel): string {
   const params = new URLSearchParams({
@@ -63,5 +75,5 @@ export function buildFooterHref(channel: PoweredByChannel): string {
     utm_medium: channel,
     utm_campaign: 'powered_by',
   })
-  return `https://customereq.com/?${params.toString()}`
+  return `${EXPORTS_POWERED_BY_URL}/?${params.toString()}`
 }

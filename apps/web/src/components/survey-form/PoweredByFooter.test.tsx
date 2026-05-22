@@ -129,10 +129,14 @@ describe('<PoweredByFooter>', () => {
       }
     })
 
-    it('href base is https://customereq.com/ — not env-driven', () => {
+    it('href base is the canonical EXPORTS_POWERED_BY_URL host — not env-driven (#500 regression guard)', async () => {
+      // Import lazily so the test file's static imports stay scoped to the
+      // /footer subpath; the host constant lives on the main barrel.
+      const { EXPORTS_POWERED_BY_URL } = await import('@customerEQ/shared')
+      const expectedHost = new URL(EXPORTS_POWERED_BY_URL).hostname
       const url = hrefOf('link')
       expect(url.protocol).toBe('https:')
-      expect(url.hostname).toBe('customereq.com')
+      expect(url.hostname).toBe(expectedHost)
       expect(url.pathname).toBe('/')
     })
 
