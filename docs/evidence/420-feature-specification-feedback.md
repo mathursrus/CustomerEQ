@@ -146,3 +146,29 @@
     - Bottom warning banner: *"No platform-side send log for Self-serve batches"* clarifies the absence of per-recipient delivery confirmations (operator's email tool dispatched these).
   - Mock-header nav + TOC updated to list Scene 7A and Scene 7B as parallel batch-detail variants.
 - **Status**: ADDRESSED (Round 5 — mock only)
+
+### Comment 3 — UNADDRESSED → ADDRESSED (Round 5, **spec update**)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/420-send-via-customereq-acs.md` (the deferred consolidated spec pass)
+- **Comment**:
+  > Now update the feature spec.
+- **Resolution (consolidated spec rewrite folding Rounds 2–5 into spec text)**:
+  - **Status** bumped to *"Round 5 — consolidated spec pass."*
+  - **Iteration history** table expanded with R3, R4, R5 rows summarizing each round's outcomes (mock-only rounds + this spec pass).
+  - **§0 Shared-vs-divergent table** mode-labels switched to operator-facing wording.
+  - **§1 entry-point** copy: pills use "CustomerEQ Email" / "Self-serve".
+  - **§2.1 Audience builder Custom List card**: parser-relaxation language added (Round 3) — emails always accepted regardless of brand identifier kind; routed via `Member.email` lookup; three Source-chip categories (Existing / Existing-via-email / Email-not-found) enumerated.
+  - **§2.2 Common fields** (Round 2): Survey name in mail + Links expire on as shared, mode-aware semantics each side.
+  - **§2.3 Composer (MANAGED_EMAIL-only)**: Round 4 brand-logo-no-upload language — `{{brand_logo}}` mustache + `{{brand_name}}` in default body header, pulled from `Brand.logoUrl`, graceful collapse when null, explicit *"No brand-logo upload affordance on this page"* note pointing to Non-goals.
+  - **§2.4a SELF_SERVE Generate** + **§2.6a Success** clarified: `Survey.sentCount` increment + `SurveyDistribution.sentAt` write happen on **Download CSV** event (not at Generate-time); Regenerate re-writes both.
+  - **§3.2 Wave Detail page** rewritten as mode-aware: SELF_SERVE preserves #378 §3.1 verbatim (Audience Spec + Edit Expiry + Tokens table + Regenerate Links + Download CSV); MANAGED_EMAIL adds Composer snapshot block + Per-recipient send log.
+  - **§4 Sent-count surfacing** entirely rewritten: §4.1 Loop Monitor stat-card + §4.2 Responses section header strip (Sent before Wave-filtered count) + §4.3 Configuration Summary stat-counter-free.
+  - **Data Model** updated: `MANAGED_EMAIL` enum value (renamed from `MANAGED_ACS`); `Brand.managedEmailSenderDomain` (renamed from `Brand.acsSenderDomain`); `DistributionBatch.composerSnapshot` now includes `brandLogoUrl` (snapshot of `Brand.logoUrl` at send time); `SurveyDistribution.sentAt` semantics spelled out per mode (SELF_SERVE = CSV-download time, mutable on Regenerate; MANAGED_EMAIL = provider-confirmed delivery, immutable); `Brand.logoUrl` flagged as a dependency.
+  - **API Endpoints** collapsed: no new `/send-via-acs` route. Existing `POST /v1/surveys/:id/distribution-batches` extended with `sendMode` discriminator (defaults to `SELF_SERVE` preserving #378 contract); new `POST /v1/surveys/:id/distribution-batches/:batchId/mark-csv-downloaded` for SELF_SERVE Sent-on-download semantics.
+  - **Architecture** section: replaced operator-facing ACS references with "managed email provider"; kept the implementation-note that the provider is currently ACS at `packages/connectors/src/email.ts`, with explicit note that this is a deployment detail not surfaced to operators.
+  - **Compliance / Alternatives / Competitive Positioning** sections updated for terminology consistency.
+  - **Open Questions**: OQ-4 marked **RESOLVED** (sent-count surfacing → Loop Monitor + Response header); OQ-6 marked **RESOLVED** (drop-in reshape via §3.1); new OQ-7 added for `Brand.logoUrl` dependency clarification; OQ-1, OQ-2, OQ-3, OQ-5 still open.
+  - **Non-goals** updated: added *"Brand logo upload UX"* (V0 consumes only; production tracked separately).
+  - **Final ACS-grep**: 9 ACS occurrences remain — all in iteration-history rows or technical-implementation notes (Architecture section + Test plan + staging env). No operator-facing surface still leaks ACS.
+- **Status**: ADDRESSED (Round 5 — spec consolidated)
