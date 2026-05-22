@@ -136,15 +136,7 @@ This catches a specific failure class: BAML generates ESM files with `.js` exten
 
 **Typical duration:** 730–968s (13–16m). This job is not on the critical path to merge (only Build & Test and Lint are required gates), but it does add wall clock time for PR authors waiting for full green.
 
-### 4.5 Auto-draft + auto-merge workflow (#498)
-
-Two companion workflows eliminate redundant CI runs and enforce a single-CI-before-merge discipline without requiring GitHub Team (Rulesets are a Team feature).
-
-**`auto-draft.yml`** — fires on `pull_request: types: [opened, reopened]` against `main`. If the PR is not already a draft, it:
-1. Calls the `convertPullRequestToDraft` GraphQL mutation to switch the PR to draft.
-2. Posts a comment explaining the new merge procedure.
-
-This means every PR targeting `main` starts as a draft. CI never fires until the author explicitly marks the PR as ready.
+### 4.5 Auto-merge workflow (#498)
 
 **`auto-merge.yml`** — fires on `workflow_run: workflows: [CI] types: [completed]`. It:
 1. Skips if CI was triggered by a `push` or `workflow_dispatch` (no PR to merge).
@@ -154,21 +146,29 @@ This means every PR targeting `main` starts as a draft. CI never fires until the
 5. **CI failure** → posts a comment with a link to the failed run.
 6. **Merge error** → posts a comment with the error; no silent failure.
 
-**End-to-end flow:**
+**Recommended flow (draft PRs — fewest CI runs):**
 ```
-Developer opens PR  →  auto-draft converts to draft
-Developer pushes changes  →  no CI (draft)
-Developer: gh pr ready  →  CI runs once
-  CI passes + SHA matches  →  auto-merge squashes to main  →  CI runs on main  →  CD deploys
+gh pr create --draft     →  no CI (draft)
+push commits freely      →  no CI (draft)
+gh pr ready              →  CI runs once (ready_for_review event)
+  CI passes + SHA match  →  auto-merge squashes to main  →  CI on main  →  CD deploys
   CI passes + SHA mismatch →  comment: "click Ready again"
-  CI fails  →  comment with run link  →  developer fixes + pushes + gh pr ready
+  CI fails  →  comment with run link  →  fix + push + gh pr ready
 ```
+
+**Non-draft flow (CI on every push):**
+```
+gh pr create             →  CI runs on every synchronize event
+push final commit        →  CI runs; if passes + SHA match → auto-merge
+```
+
+**GitHub Free limitation:** Automatically converting new PRs to draft via GitHub Actions requires the `convertPullRequestToDraft` GraphQL mutation, which is only available for private repos on GitHub Pro or higher. Developers must use `--draft` at creation time manually (`gh pr create --draft`) to get the single-CI behavior.
 
 **Safety net:** The `push: branches: [main]` trigger on `ci.yml` means auto-merge's squash commit still triggers CI on `main`, which is required for the `workflow_run` CD trigger to fire.
 
-**Admin bypass / hotfix:** An admin can mark a PR ready, wait for CI, then merge manually if auto-merge is blocked (e.g., merge conflict). `workflow_dispatch` on `ci.yml` provides a manual CI gate for incident use.
+**Admin bypass / hotfix:** Mark the PR as ready, wait for CI, then merge manually if auto-merge is blocked (e.g., merge conflict). `workflow_dispatch` on `ci.yml` provides a manual CI gate for incident use.
 
-**FRAIM impact (Rule 27):** The `resolution-merge` FRAIM phase must use `gh pr ready` instead of `gh pr merge`. See `fraim/personalized-employee/rules/project_rules.md` Rule 27.
+**FRAIM impact (Rule 27):** The `resolution-merge` FRAIM phase must use `gh pr ready` (draft PRs) or wait for auto-merge (non-draft PRs). See `fraim/personalized-employee/rules/project_rules.md` Rule 27.
 
 ---
 
