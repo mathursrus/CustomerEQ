@@ -237,13 +237,13 @@ const html = `<!DOCTYPE html>
         <div class="label">CD P90 (30d)</div>
         <div class="value">${fmt(cd.summary.p90)}</div>
       </div>
-      <div class="stat${cd.summary.ttlP90 !== null && cd.summary.ttlP90 > cd.ttlThresholdS ? ' warn' : ''}">
-        <div class="label">Merge→live P90 (30d)</div>
-        <div class="value">${fmt(cd.summary.ttlP90)}</div>
-      </div>
       <div class="stat${cd.summary.successRate7d !== null && cd.summary.successRate7d < 0.99 ? ' warn' : ''}">
         <div class="label">CD success rate (7d)</div>
         <div class="value">${pct(cd.summary.successRate7d)}</div>
+      </div>
+      <div class="stat${cd.summary.ttlP90 !== null && cd.summary.ttlP90 > cd.ttlThresholdS ? ' warn' : ''}">
+        <div class="label">Merge→live P90 (30d)</div>
+        <div class="value">${fmt(cd.summary.ttlP90)}</div>
       </div>` : '<div class="stat"><div class="label">Status</div><div class="value">No data yet</div></div>'}
     </div>
 
