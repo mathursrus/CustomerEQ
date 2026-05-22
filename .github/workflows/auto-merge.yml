@@ -8,6 +8,7 @@ on:
 permissions:
   pull-requests: write
   contents: write
+  actions: write
 
 jobs:
   merge:
@@ -75,6 +76,18 @@ jobs:
                   commit_title: `${pr.title} (#${pr.number})`,
                 });
                 core.info(`Merged PR #${pr.number}`);
+
+                // Issue #503: GITHUB_TOKEN push suppression means the squash
+                // commit never fires a push event, so deploy.yml (triggered by
+                // workflow_run: [CI] on main) would never run. Dispatch it
+                // explicitly here — ref: main resolves to the squash commit.
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'deploy.yml',
+                  ref: 'main',
+                });
+                core.info('Dispatched deploy.yml for the merged commit');
               } catch (error) {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
