@@ -1,0 +1,102 @@
+name: Auto-merge on CI pass
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  merge:
+    name: Merge or comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle CI result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+
+            // Only act on pull_request-triggered CI runs. Push-to-main and
+            // workflow_dispatch runs have no PR to merge.
+            if (run.event !== 'pull_request') {
+              core.info(`Skipping — CI was triggered by '${run.event}'`);
+              return;
+            }
+
+            // Find the PR. The pull_requests array is populated for same-repo
+            // PRs; fall back to list-by-head-branch for any edge case.
+            let pr;
+            if (run.pull_requests && run.pull_requests.length > 0) {
+              const { data } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: run.pull_requests[0].number,
+              });
+              pr = data;
+            } else {
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${run.head_branch}`,
+              });
+              if (prs.length === 0) {
+                core.info('No open PR found for this workflow run — nothing to do');
+                return;
+              }
+              pr = prs[0];
+            }
+
+            if (run.conclusion === 'success') {
+              // Guard against a race: new commits pushed after CI started.
+              if (pr.head.sha !== run.head_sha) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: [
+                    `CI passed for \`${run.head_sha.slice(0, 7)}\` but new commits have since been pushed.`,
+                    'Click **"Ready for review"** again to trigger a fresh CI run and auto-merge.',
+                  ].join(' '),
+                });
+                return;
+              }
+
+              try {
+                await github.rest.pulls.merge({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  merge_method: 'squash',
+                  commit_title: `${pr.title} (#${pr.number})`,
+                });
+                core.info(`Merged PR #${pr.number}`);
+              } catch (error) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `CI passed but auto-merge failed: ${error.message}. Please merge manually.`,
+                });
+              }
+
+            } else if (run.conclusion === 'failure') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: [
+                  `CI failed. [View run](${run.html_url}).`,
+                  '',
+                  'Fix the issues, push, then click **"Ready for review"** again to re-trigger CI.',
+                ].join('\n'),
+              });
+
+            } else {
+              // cancelled, skipped, etc. — no comment needed
+              core.info(`CI conclusion was '${run.conclusion}' — no action taken`);
+            }

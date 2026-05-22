@@ -222,6 +222,26 @@ The default for any FRAIM-tracked issue is:
 
 These specify the per-issue topology (one worktree, one branch) authoritatively. The single-PR-per-issue cadence (with phase artifacts arriving as additional commits on that PR's branch) and the work-completion merge+cleanup come from `work-completion` job phases (`resolution-merge` → `resolution-verification` → `resolution-cleanup`), which are scoped to the one parent issue, not to spawned chore-issues.
 
+## 27. Merging PRs — Draft PRs + Auto-Merge Workflow (Issue #498)
+
+The repository uses an auto-merge workflow (`.github/workflows/auto-merge.yml`). CI triggers on `ready_for_review` and `synchronize` events. When CI passes, the PR is squash-merged automatically.
+
+**To minimize wasted CI runs (recommended):** Create PRs as draft from the start so CI does not run on intermediate commits:
+```
+gh pr create --draft --title "..." --body "Closes #N"
+# push commits freely — no CI runs on draft PRs
+gh pr ready <PR-number>   # triggers CI; if it passes, PR auto-merges
+```
+
+**If the PR is already non-draft:** Every push triggers CI. When CI passes and the PR head SHA matches the CI-tested SHA, auto-merge fires automatically.
+
+**Forbidden:**
+- `gh pr merge` — bypasses the auto-merge workflow; CI pre-validation still ran but you lose the automatic merge on pass.
+
+**Note:** GitHub Free plan does not support automatically converting PRs to draft via GitHub Actions (requires GitHub Pro or higher). Use `--draft` at creation time manually.
+
+The `resolution-merge` FRAIM phase must use `gh pr ready` (for draft PRs) or wait for auto-merge to fire (for non-draft PRs). This phase is a hold-point: only call `seekMentoring(status='complete')` after confirming the PR shows as merged on `main` (via `gh pr view <PR>` or `git log origin/main`).
+
 **Why this rule exists:** between 2026-05-12 and 2026-05-15, four "chore-issue" PRs (#345, #350, #355, #373) and one regression chain (#343 → #347 → #349 → #351) shipped under fabricated FRAIM justifications — each created a redundant worktree and PR for what FRAIM's defaults specified ride on the parent issue. PR #350 confessed: *"the worktrees at Issue 343, Issue 347, Issue 349, Issue 351 can all be removed locally"* — four worktrees for one CI/CD workstream. The cost was operational noise, erosion of the one-issue-one-PR mental model, and two on-disk retrospectives that encoded the fabrication as a "win" and would re-teach the wrong lesson to future agents (corrected by the same PR that landed this rule).
 
 **Priority order when this rule applies to your current turn:**

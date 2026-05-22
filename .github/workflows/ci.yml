@@ -16,6 +16,10 @@ on:
       - 'LICENSE'
   pull_request:
     branches: [main]
+    # Issue #498: only run CI when a PR transitions to ready-for-review or when
+    # new commits are pushed to an already-non-draft PR. Draft pushes are cheap
+    # local iterations; we run CI exactly once on the final commit.
+    types: [ready_for_review, synchronize]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -24,11 +28,16 @@ on:
       - 'CODEOWNERS'
       - '.gitattributes'
       - 'LICENSE'
+  # Manual trigger for incident/hotfix scenarios.
+  workflow_dispatch:
 
 jobs:
   ci:
     name: Build & Test
     runs-on: ubuntu-latest
+    # Issue #498: skip for draft PRs. Push-to-main runs always execute
+    # (github.event_name != 'pull_request' is true for push/workflow_dispatch).
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # dorny/paths-filter@v3 calls the GitHub REST API listFiles endpoint on
     # pull_request events. The default GITHUB_TOKEN on this repo lacks
     # pull-requests: read — required since #346.
@@ -211,6 +220,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    # Issue #498: same draft guard as the ci job above.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # Runs in parallel with ci — pnpm lint has no dependsOn in turbo.json.
     # permissions required for dorny/paths-filter on PR events (#346).
     permissions:
