@@ -32,7 +32,7 @@ jobs:
         run: node scripts/cd-metrics.mjs
 
       - name: Pull latest (ci-metrics may have committed since checkout)
-        run: git pull --rebase
+        run: git pull --rebase --autostash
 
       - name: Generate HTML dashboard
         run: node scripts/dashboard.mjs
