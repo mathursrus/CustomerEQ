@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # to commit docs/cd-metrics.md
-  actions: read    # to read CD run history via GitHub API
+  contents: write       # to commit docs/cd-metrics.md
+  actions: read         # to read CD run history via GitHub API
+  pull-requests: read   # to fetch merged_at timestamps for merge→live calculation
 
 jobs:
   generate-report:
