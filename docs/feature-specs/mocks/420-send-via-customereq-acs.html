@@ -148,7 +148,7 @@
   .audience-list-card .identifier-mono { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
   .audience-list-card .pagination-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; font-size: 12px; color: var(--text-muted); }
 
-  /* Common fields card — SHARED between modes (newly surfaced in Round 2 per reviewer feedback) */
+  /* Survey Batch details card — SHARED between modes (newly surfaced in Round 2 per reviewer feedback) */
   .common-fields-card { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); padding: 16px; margin-top: 12px; }
   .common-fields-card .shared-label { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px; background: #dbeafe; color: #1e40af; margin-bottom: 8px; letter-spacing: 0.4px; }
   .common-fields-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
@@ -264,9 +264,9 @@
   <div class="container">
     <div>
       <h2>🤝 Shared structure</h2>
-      <p>Both Send paths render the same React page component (<code>&lt;DistributePage mode=&quot;...&quot;/&gt;</code>) parameterized by URL <code>?mode=</code>. The full audience builder and the Common fields card are <strong>identical</strong> across modes; the operator can switch modes mid-flow without losing their audience or common-field values.</p>
+      <p>Both Send paths render the same React page component (<code>&lt;DistributePage mode=&quot;...&quot;/&gt;</code>) parameterized by URL <code>?mode=</code>. The full audience builder and the Survey Batch details card are <strong>identical</strong> across modes; the operator can switch modes mid-flow without losing their audience or common-field values.</p>
       <ul>
-        <li><strong>Shared</strong>: Distribution entry-point tile (two peer buttons); page header + "Switch mode" link; Audience builder (Existing-Members wildcard search + Random sample + Custom List paste/CSV + auto-enroll; unified deduped list with per-row deselect + 25/50 pagination); Common fields (<em>Survey name in mail</em> + <em>Links expire on</em>); Survey-detail Sent-count line; Distribution-batches mode pill.</li>
+        <li><strong>Shared</strong>: Distribution entry-point tile (two peer buttons); page header + "Switch mode" link; Audience builder (Existing-Members wildcard search + Random sample + Custom List paste/CSV + auto-enroll; unified deduped list with per-row deselect + 25/50 pagination); Survey Batch details (<em>Survey name in mail</em> + <em>Links expire on</em>); Survey-detail Sent-count line; Distribution-batches mode pill.</li>
       </ul>
     </div>
     <div>
@@ -368,7 +368,7 @@
 
 <!-- ─────────────────────────────── Scene 2 — SELF_SERVE Configure ────────────── -->
 <section class="scene" id="scene-2">
-  <div class="scene-label"><strong>Scene 2 · Distribute page · SELF_SERVE mode</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.1 + §2.2 + §2.4a · URL: <code>/admin/surveys/[id]/distribute?mode=self-serve</code> · Audience builder + Common fields (SHARED) · Format dropdown + Generate Links CTA (mode-specific).</span></div>
+  <div class="scene-label"><strong>Scene 2 · Distribute page · SELF_SERVE mode</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.1 + §2.2 + §2.4a · URL: <code>/admin/surveys/[id]/distribute?mode=self-serve</code> · Audience builder + Survey Batch details (SHARED) · Format dropdown + Generate Links CTA (mode-specific).</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -393,7 +393,7 @@
           <!-- COMMON FIELDS — SHARED, FIRST (Round-6 reorder: "Define batch attributes → Select members → Send") -->
           <div class="common-fields-card">
             <span class="shared-label">STEP 1 · SHARED · BOTH MODES — Define batch attributes</span>
-            <h3>Common fields</h3>
+            <h3>Survey Batch details</h3>
             <div class="field-grid">
               <div>
                 <label>Survey name in mail</label>
@@ -414,7 +414,7 @@
             </div>
           </div>
 
-          <!-- AUDIENCE BUILDER — SHARED, SECOND (Round-6 reorder: now beneath Common fields) -->
+          <!-- AUDIENCE BUILDER — SHARED, SECOND (Round-6 reorder: now beneath Survey Batch details) -->
           <div style="margin-top: 16px; padding: 6px 12px; background: var(--surface-muted); border-radius: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;">Step 2 · Select members</div>
           <div class="audience-cards" style="margin-top: 8px;">
             <div class="audience-card">
@@ -490,7 +490,7 @@ hannah@artistos.com</textarea>
                   <td><span class="pill source-existing">Existing</span></td>
                   <td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-04-12</span></td>
                 </tr>
-                <tr style="opacity: 0.65;" title="Ivan Rao has not given consent to receive marketing/survey emails (Member.consentGivenAt IS NULL or Member.emailOptIn = false).">
+                <tr style="opacity: 0.65;" title="Ivan Rao has not given general data-processing consent (Member.consentGivenAt IS NULL). Note: Member.emailOptIn (marketing-channel preference) is NOT checked for surveys — only consentGivenAt and unsubscribedSurveysAt gate the send.">
                   <td><input type="checkbox" disabled /></td>
                   <td style="color: var(--text-muted);">Ivan Rao</td>
                   <td class="identifier-mono">ivan@artistos.com</td>
@@ -596,7 +596,7 @@ mystery@unknownbrand.com</textarea>
                 <!-- Group 3: Suppressed (Round-6 — Existing members who matched but are unsubscribed / no-consent) -->
                 <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Suppressed — existing members matched but cannot be sent to</td></tr>
                 <tr style="opacity: 0.65;" title="Penny Liu unsubscribed on 2026-03-02. Cannot receive survey emails until she resubscribes."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Penny Liu</td><td class="identifier-mono">acme-cust-009 <span style="color: var(--text-subtle);">(via penny@others.com)</span></td><td>email → Member.email</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-03-02</span></td></tr>
-                <tr style="opacity: 0.65;" title="Quinn Park has Member.emailOptIn = false (channel preference: emails not opted in)."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Quinn Park</td><td class="identifier-mono">acme-cust-012</td><td>external_id (brand primary)</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Email opt-out</span></td></tr>
+                <tr style="opacity: 0.65;" title="Quinn Park unsubscribed from surveys on 2026-02-18. emailOptIn stays at its existing value — surveys are exempt from the marketing opt-out (legitimate-interest use case)."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Quinn Park</td><td class="identifier-mono">acme-cust-012</td><td>external_id (brand primary)</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed from surveys · 2026-02-18</span></td></tr>
 
                 <!-- Group 4: Emails not found — cannot auto-enroll -->
                 <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Emails not found — cannot be auto-enrolled because Brand identifier is <code>external_id</code></td></tr>
@@ -654,7 +654,7 @@ mystery@unknownbrand.com</textarea>
           <!-- COMMON FIELDS — SHARED -->
           <div class="common-fields-card">
             <span class="shared-label">SHARED · BOTH MODES</span>
-            <h3>Common fields</h3>
+            <h3>Survey Batch details</h3>
             <div class="field-grid">
               <div>
                 <label>Survey name in mail</label>
