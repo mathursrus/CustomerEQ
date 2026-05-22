@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CustomerEQ CI/CD Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0d1117; color: #c9d1d9; font-size: 14px; line-height: 1.5; }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { padding: 24px 32px 16px; border-bottom: 1px solid #21262d; }
+    header h1 { font-size: 22px; font-weight: 600; color: #e6edf3; }
+    header .sub { color: #8b949e; font-size: 12px; margin-top: 4px; }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 24px 32px; }
+    @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+    .panel { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; }
+    .panel h2 { font-size: 16px; font-weight: 600; color: #e6edf3; margin-bottom: 12px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+    .badge-ok   { background: #1a4731; color: #3fb950; border: 1px solid #2ea043; }
+    .badge-warn { background: #4d2600; color: #f0883e; border: 1px solid #bd561d; }
+    .chart-wrap { position: relative; height: 220px; margin-bottom: 20px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 20px; }
+    .stat { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px 14px; }
+    .stat .label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    .stat .value { color: #e6edf3; font-size: 18px; font-weight: 600; margin-top: 2px; }
+    .stat.warn .value { color: #f0883e; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { color: #8b949e; text-align: left; padding: 6px 8px; border-bottom: 1px solid #21262d; font-weight: 500; }
+    td { padding: 5px 8px; border-bottom: 1px solid #161b22; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1c2128; }
+    .cell-warn { color: #f0883e; font-weight: 600; }
+    .section-label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+    em { color: #6e7681; font-style: normal; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>CustomerEQ CI/CD Dashboard</h1>
+  <div class="sub">Updated 2026-05-22 07:45 UTC · <a href="https://github.com/mathursrus/CustomerEQ/actions" target="_blank">Actions</a> · <a href="https://github.com/mathursrus/CustomerEQ/blob/main/docs/ci-cd-metrics.md" target="_blank">CI report</a> · <a href="https://github.com/mathursrus/CustomerEQ/blob/main/docs/cd-metrics.md" target="_blank">CD report</a></div>
+</header>
+
+<div class="panels">
+
+  <!-- CI Panel -->
+  <div class="panel">
+    <h2>CI Pipeline</h2>
+    <div class="badges"><span class="badge badge-ok">✓ No data yet</span></div>
+
+    <div class="chart-wrap">
+      <canvas id="ciChart"></canvas>
+    </div>
+
+    <div class="summary-grid">
+      <div class="stat"><div class="label">Status</div><div class="value">No data yet</div></div>
+    </div>
+
+    <div class="section-label">Recent runs</div>
+    <p>No data yet.</p>
+  </div>
+
+  <!-- CD Panel -->
+  <div class="panel">
+    <h2>CD Pipeline</h2>
+    <div class="badges"><span class="badge badge-ok">✓ CD P90 16m 15s</span> <span class="badge badge-ok">✓ Merge→live P90 —</span> <span class="badge badge-warn">⚠ 55% success (7d)</span></div>
+
+    <div class="chart-wrap">
+      <canvas id="cdChart"></canvas>
+    </div>
+
+    <div class="summary-grid">
+      
+      <div class="stat">
+        <div class="label">CD P50 (30d)</div>
+        <div class="value">12m 58s</div>
+      </div>
+      <div class="stat">
+        <div class="label">CD P90 (30d)</div>
+        <div class="value">16m 15s</div>
+      </div>
+      <div class="stat">
+        <div class="label">Merge→live P90 (30d)</div>
+        <div class="value">—</div>
+      </div>
+      <div class="stat warn">
+        <div class="label">CD success rate (7d)</div>
+        <div class="value">55%</div>
+      </div>
+    </div>
+
+    <div class="section-label">Recent deploys</div>
+    <table><thead><tr><th>Date</th><th>Trigger</th><th>CD Total</th><th>Merge→Live</th><th>Result</th></tr></thead><tbody><tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26271107713" target="_blank">2026-05-22</a></td>
+      <td>auto</td>
+      <td>17m 34s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26253801783" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>20m 00s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26204408123" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>18m 00s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26203437159" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>12s</td>
+      <td>—</td>
+      <td>⏭</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26201937339" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>15m 29s</td>
+      <td>—</td>
+      <td>⏭</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26201920699" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>19m 53s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26201918629" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>10s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26201909130" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>7s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26201568617" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>10s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26197803007" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>18m 42s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26197795779" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>18m 22s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26197065424" target="_blank">2026-05-21</a></td>
+      <td>auto</td>
+      <td>-1s</td>
+      <td>—</td>
+      <td>⏭</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26188047755" target="_blank">2026-05-20</a></td>
+      <td>auto</td>
+      <td>0s</td>
+      <td>—</td>
+      <td>⏭</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26188035972" target="_blank">2026-05-20</a></td>
+      <td>auto</td>
+      <td>0s</td>
+      <td>—</td>
+      <td>⏭</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26152645514" target="_blank">2026-05-20</a></td>
+      <td>auto</td>
+      <td>17m 00s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26152431887" target="_blank">2026-05-20</a></td>
+      <td>auto</td>
+      <td>19m 45s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26133256145" target="_blank">2026-05-20</a></td>
+      <td>auto</td>
+      <td>17m 16s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26127798689" target="_blank">2026-05-19</a></td>
+      <td>auto</td>
+      <td>21m 45s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26118852792" target="_blank">2026-05-19</a></td>
+      <td>auto</td>
+      <td>20m 07s</td>
+      <td>—</td>
+      <td>✅</td>
+    </tr>
+<tr>
+      <td><a href="https://github.com/mathursrus/CustomerEQ/actions/runs/26117659178" target="_blank">2026-05-19</a></td>
+      <td>auto</td>
+      <td>29s</td>
+      <td>—</td>
+      <td>❌</td>
+    </tr></tbody></table>
+  </div>
+
+</div>
+
+<script>
+const CI  = null;
+const CD  = {"labels":["2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-24","2026-04-25","2026-04-25","2026-04-26","2026-04-26","2026-04-26","2026-04-27","2026-04-27","2026-04-28","2026-04-28","2026-04-29","2026-04-29","2026-04-29","2026-04-29","2026-04-29","2026-04-30","2026-04-30","2026-04-30","2026-04-30","2026-04-30","2026-04-30","2026-05-01","2026-05-01","2026-05-01","2026-05-01","2026-05-01","2026-05-02","2026-05-03","2026-05-03","2026-05-03","2026-05-03","2026-05-03","2026-05-04","2026-05-04","2026-05-04","2026-05-04","2026-05-05","2026-05-05","2026-05-05","2026-05-05","2026-05-05","2026-05-05","2026-05-05","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-07","2026-05-08","2026-05-08","2026-05-08","2026-05-08","2026-05-08","2026-05-08","2026-05-09","2026-05-10","2026-05-10","2026-05-10","2026-05-10","2026-05-10","2026-05-10","2026-05-10","2026-05-11","2026-05-11","2026-05-11","2026-05-11","2026-05-11","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-12","2026-05-13","2026-05-13","2026-05-13","2026-05-13","2026-05-13","2026-05-13","2026-05-13","2026-05-14","2026-05-14","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-15","2026-05-16","2026-05-16","2026-05-16","2026-05-16","2026-05-17","2026-05-17","2026-05-17","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-18","2026-05-19","2026-05-19","2026-05-19","2026-05-19","2026-05-19","2026-05-20","2026-05-20","2026-05-20","2026-05-20","2026-05-20","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-21","2026-05-22"],"cdSeries":[0,0,0,0,12.3,12.82,0.38,12.6,12.97,12.07,11.48,10.98,10.92,10.55,10.8,11.72,11.13,11.22,11.67,11.67,16.48,10.57,10.78,11.13,11.2,11.05,11.17,-0.02,11.25,11.03,11.22,10.82,11.33,0,-0.02,10.57,11.12,10.92,11.8,12.03,11.7,12.95,13.25,13.7,13.93,13,14.05,13.92,13.15,13.32,13.8,14.2,14.5,14.35,14.33,14.1,14.33,14.35,0.5,13.25,13.05,13.25,12.98,13.3,12.97,13.18,13.13,13.05,13.1,12.93,13.12,13.02,12.95,13.25,13.12,13.3,13.4,13.45,13.8,13.98,13.8,13.6,14,13.87,13.82,13.73,13.87,13.85,6.38,14.48,0.1,14.77,0.12,0.13,14.5,14.2,14.25,0.1,0.15,14.35,13.98,0.1,14,-0.1,0,-0.12,0,0,0,0,0,14.13,0.1,0.13,16.52,13.77,13.83,13.73,13.32,0.15,0.12,13.53,13.82,12.5,12.55,14.28,0.12,14.13,14.27,14.55,16.25,0.15,16.35,0.1,16.43,11.18,3.7,0.48,20.12,21.75,17.27,19.75,17,0,0,-0.02,18.37,18.7,0.17,0.12,0.17,19.88,15.48,0.2,18,20,17.57],"ttlSeries":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],"threshold":[25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25,25],"outcomes":["skipped","skipped","skipped","skipped","success","success","failure","success","success","success","success","success","success","success","success","success","success","success","success","success","success","failure","failure","success","success","success","success","skipped","success","success","success","success","success","skipped","skipped","success","success","success","failure","failure","failure","failure","failure","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","failure","success","success","success","success","failure","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","success","failure","success","failure","success","failure","failure","success","success","success","success","success","success","success","success","success","skipped","skipped","skipped","skipped","skipped","skipped","skipped","skipped","success","success","success","success","success","success","success","success","success","success","success","success","failure","failure","failure","success","failure","failure","failure","success","success","success","success","success","failure","failure","failure","success","success","success","success","success","skipped","skipped","skipped","failure","failure","failure","failure","failure","failure","cancelled","cancelled","success","success","success"],"urls":["https://github.com/mathursrus/CustomerEQ/actions/runs/24877608912","https://github.com/mathursrus/CustomerEQ/actions/runs/24878306448","https://github.com/mathursrus/CustomerEQ/actions/runs/24879116887","https://github.com/mathursrus/CustomerEQ/actions/runs/24879141824","https://github.com/mathursrus/CustomerEQ/actions/runs/24900620209","https://github.com/mathursrus/CustomerEQ/actions/runs/24901872965","https://github.com/mathursrus/CustomerEQ/actions/runs/24902324485","https://github.com/mathursrus/CustomerEQ/actions/runs/24902959327","https://github.com/mathursrus/CustomerEQ/actions/runs/24902976046","https://github.com/mathursrus/CustomerEQ/actions/runs/24933583654","https://github.com/mathursrus/CustomerEQ/actions/runs/24939407976","https://github.com/mathursrus/CustomerEQ/actions/runs/24963910288","https://github.com/mathursrus/CustomerEQ/actions/runs/24964925107","https://github.com/mathursrus/CustomerEQ/actions/runs/24966412646","https://github.com/mathursrus/CustomerEQ/actions/runs/24974150061","https://github.com/mathursrus/CustomerEQ/actions/runs/25021526368","https://github.com/mathursrus/CustomerEQ/actions/runs/25029608247","https://github.com/mathursrus/CustomerEQ/actions/runs/25041743438","https://github.com/mathursrus/CustomerEQ/actions/runs/25087195439","https://github.com/mathursrus/CustomerEQ/actions/runs/25100747981","https://github.com/mathursrus/CustomerEQ/actions/runs/25101255089","https://github.com/mathursrus/CustomerEQ/actions/runs/25134875715","https://github.com/mathursrus/CustomerEQ/actions/runs/25135961959","https://github.com/mathursrus/CustomerEQ/actions/runs/25143538438","https://github.com/mathursrus/CustomerEQ/actions/runs/25163839181","https://github.com/mathursrus/CustomerEQ/actions/runs/25176709089","https://github.com/mathursrus/CustomerEQ/actions/runs/25180000344","https://github.com/mathursrus/CustomerEQ/actions/runs/25193071356","https://github.com/mathursrus/CustomerEQ/actions/runs/25193694270","https://github.com/mathursrus/CustomerEQ/actions/runs/25195527821","https://github.com/mathursrus/CustomerEQ/actions/runs/25196824790","https://github.com/mathursrus/CustomerEQ/actions/runs/25200441621","https://github.com/mathursrus/CustomerEQ/actions/runs/25223362423","https://github.com/mathursrus/CustomerEQ/actions/runs/25223604948","https://github.com/mathursrus/CustomerEQ/actions/runs/25251710075","https://github.com/mathursrus/CustomerEQ/actions/runs/25270138346","https://github.com/mathursrus/CustomerEQ/actions/runs/25270281210","https://github.com/mathursrus/CustomerEQ/actions/runs/25271311163","https://github.com/mathursrus/CustomerEQ/actions/runs/25276237686","https://github.com/mathursrus/CustomerEQ/actions/runs/25293959468","https://github.com/mathursrus/CustomerEQ/actions/runs/25297235645","https://github.com/mathursrus/CustomerEQ/actions/runs/25306165920","https://github.com/mathursrus/CustomerEQ/actions/runs/25306863899","https://github.com/mathursrus/CustomerEQ/actions/runs/25340435182","https://github.com/mathursrus/CustomerEQ/actions/runs/25352013523","https://github.com/mathursrus/CustomerEQ/actions/runs/25354567580","https://github.com/mathursrus/CustomerEQ/actions/runs/25362336403","https://github.com/mathursrus/CustomerEQ/actions/runs/25380982039","https://github.com/mathursrus/CustomerEQ/actions/runs/25383431825","https://github.com/mathursrus/CustomerEQ/actions/runs/25383441313","https://github.com/mathursrus/CustomerEQ/actions/runs/25397557128","https://github.com/mathursrus/CustomerEQ/actions/runs/25471662126","https://github.com/mathursrus/CustomerEQ/actions/runs/25485895984","https://github.com/mathursrus/CustomerEQ/actions/runs/25509837853","https://github.com/mathursrus/CustomerEQ/actions/runs/25511520024","https://github.com/mathursrus/CustomerEQ/actions/runs/25511631381","https://github.com/mathursrus/CustomerEQ/actions/runs/25518513540","https://github.com/mathursrus/CustomerEQ/actions/runs/25518718795","https://github.com/mathursrus/CustomerEQ/actions/runs/25522744472","https://github.com/mathursrus/CustomerEQ/actions/runs/25522887970","https://github.com/mathursrus/CustomerEQ/actions/runs/25524038302","https://github.com/mathursrus/CustomerEQ/actions/runs/25526688837","https://github.com/mathursrus/CustomerEQ/actions/runs/25527100145","https://github.com/mathursrus/CustomerEQ/actions/runs/25528674958","https://github.com/mathursrus/CustomerEQ/actions/runs/25529061159","https://github.com/mathursrus/CustomerEQ/actions/runs/25529462123","https://github.com/mathursrus/CustomerEQ/actions/runs/25529611284","https://github.com/mathursrus/CustomerEQ/actions/runs/25531369251","https://github.com/mathursrus/CustomerEQ/actions/runs/25531577890","https://github.com/mathursrus/CustomerEQ/actions/runs/25532895067","https://github.com/mathursrus/CustomerEQ/actions/runs/25614077865","https://github.com/mathursrus/CustomerEQ/actions/runs/25618109100","https://github.com/mathursrus/CustomerEQ/actions/runs/25618335317","https://github.com/mathursrus/CustomerEQ/actions/runs/25623195377","https://github.com/mathursrus/CustomerEQ/actions/runs/25624440454","https://github.com/mathursrus/CustomerEQ/actions/runs/25624511422","https://github.com/mathursrus/CustomerEQ/actions/runs/25625013180","https://github.com/mathursrus/CustomerEQ/actions/runs/25626084478","https://github.com/mathursrus/CustomerEQ/actions/runs/25657571064","https://github.com/mathursrus/CustomerEQ/actions/runs/25702239530","https://github.com/mathursrus/CustomerEQ/actions/runs/25702806797","https://github.com/mathursrus/CustomerEQ/actions/runs/25703540040","https://github.com/mathursrus/CustomerEQ/actions/runs/25703690619","https://github.com/mathursrus/CustomerEQ/actions/runs/25709764370","https://github.com/mathursrus/CustomerEQ/actions/runs/25709802121","https://github.com/mathursrus/CustomerEQ/actions/runs/25712275053","https://github.com/mathursrus/CustomerEQ/actions/runs/25712407525","https://github.com/mathursrus/CustomerEQ/actions/runs/25716221063","https://github.com/mathursrus/CustomerEQ/actions/runs/25762069515","https://github.com/mathursrus/CustomerEQ/actions/runs/25762231385","https://github.com/mathursrus/CustomerEQ/actions/runs/25766620958","https://github.com/mathursrus/CustomerEQ/actions/runs/25768142150","https://github.com/mathursrus/CustomerEQ/actions/runs/25769843329","https://github.com/mathursrus/CustomerEQ/actions/runs/25769900082","https://github.com/mathursrus/CustomerEQ/actions/runs/25771511496","https://github.com/mathursrus/CustomerEQ/actions/runs/25785428323","https://github.com/mathursrus/CustomerEQ/actions/runs/25788619972","https://github.com/mathursrus/CustomerEQ/actions/runs/25789019829","https://github.com/mathursrus/CustomerEQ/actions/runs/25789400579","https://github.com/mathursrus/CustomerEQ/actions/runs/25877454906","https://github.com/mathursrus/CustomerEQ/actions/runs/25884529197","https://github.com/mathursrus/CustomerEQ/actions/runs/25898915551","https://github.com/mathursrus/CustomerEQ/actions/runs/25899105968","https://github.com/mathursrus/CustomerEQ/actions/runs/25899305422","https://github.com/mathursrus/CustomerEQ/actions/runs/25899539410","https://github.com/mathursrus/CustomerEQ/actions/runs/25900037966","https://github.com/mathursrus/CustomerEQ/actions/runs/25900441468","https://github.com/mathursrus/CustomerEQ/actions/runs/25900732285","https://github.com/mathursrus/CustomerEQ/actions/runs/25901002866","https://github.com/mathursrus/CustomerEQ/actions/runs/25901274943","https://github.com/mathursrus/CustomerEQ/actions/runs/25901495031","https://github.com/mathursrus/CustomerEQ/actions/runs/25902112816","https://github.com/mathursrus/CustomerEQ/actions/runs/25904744618","https://github.com/mathursrus/CustomerEQ/actions/runs/25935099709","https://github.com/mathursrus/CustomerEQ/actions/runs/25941638479","https://github.com/mathursrus/CustomerEQ/actions/runs/25943014431","https://github.com/mathursrus/CustomerEQ/actions/runs/25950657296","https://github.com/mathursrus/CustomerEQ/actions/runs/25967470797","https://github.com/mathursrus/CustomerEQ/actions/runs/25967674855","https://github.com/mathursrus/CustomerEQ/actions/runs/25972154010","https://github.com/mathursrus/CustomerEQ/actions/runs/25989285288","https://github.com/mathursrus/CustomerEQ/actions/runs/26001528999","https://github.com/mathursrus/CustomerEQ/actions/runs/26004885702","https://github.com/mathursrus/CustomerEQ/actions/runs/26006901455","https://github.com/mathursrus/CustomerEQ/actions/runs/26007101082","https://github.com/mathursrus/CustomerEQ/actions/runs/26012731097","https://github.com/mathursrus/CustomerEQ/actions/runs/26020628301","https://github.com/mathursrus/CustomerEQ/actions/runs/26021936906","https://github.com/mathursrus/CustomerEQ/actions/runs/26023046920","https://github.com/mathursrus/CustomerEQ/actions/runs/26023141576","https://github.com/mathursrus/CustomerEQ/actions/runs/26025241123","https://github.com/mathursrus/CustomerEQ/actions/runs/26027123208","https://github.com/mathursrus/CustomerEQ/actions/runs/26028786077","https://github.com/mathursrus/CustomerEQ/actions/runs/26028819245","https://github.com/mathursrus/CustomerEQ/actions/runs/26050204929","https://github.com/mathursrus/CustomerEQ/actions/runs/26110473645","https://github.com/mathursrus/CustomerEQ/actions/runs/26115093500","https://github.com/mathursrus/CustomerEQ/actions/runs/26117659178","https://github.com/mathursrus/CustomerEQ/actions/runs/26118852792","https://github.com/mathursrus/CustomerEQ/actions/runs/26127798689","https://github.com/mathursrus/CustomerEQ/actions/runs/26133256145","https://github.com/mathursrus/CustomerEQ/actions/runs/26152431887","https://github.com/mathursrus/CustomerEQ/actions/runs/26152645514","https://github.com/mathursrus/CustomerEQ/actions/runs/26188035972","https://github.com/mathursrus/CustomerEQ/actions/runs/26188047755","https://github.com/mathursrus/CustomerEQ/actions/runs/26197065424","https://github.com/mathursrus/CustomerEQ/actions/runs/26197795779","https://github.com/mathursrus/CustomerEQ/actions/runs/26197803007","https://github.com/mathursrus/CustomerEQ/actions/runs/26201568617","https://github.com/mathursrus/CustomerEQ/actions/runs/26201909130","https://github.com/mathursrus/CustomerEQ/actions/runs/26201918629","https://github.com/mathursrus/CustomerEQ/actions/runs/26201920699","https://github.com/mathursrus/CustomerEQ/actions/runs/26201937339","https://github.com/mathursrus/CustomerEQ/actions/runs/26203437159","https://github.com/mathursrus/CustomerEQ/actions/runs/26204408123","https://github.com/mathursrus/CustomerEQ/actions/runs/26253801783","https://github.com/mathursrus/CustomerEQ/actions/runs/26271107713"]};
+
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#21262d';
+
+const chartOpts = (yLabel) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } },
+  scales: {
+    x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#21262d' } },
+    y: { title: { display: true, text: yLabel, font: { size: 11 } }, beginAtZero: true, grid: { color: '#21262d' } },
+  },
+  elements: { point: { radius: 3, hoverRadius: 5 } },
+});
+
+if (CI) {
+  new Chart(document.getElementById('ciChart'), {
+    type: 'line',
+    data: {
+      labels: CI.labels,
+      datasets: [
+        {
+          label: 'B&T wall clock (min)',
+          data: CI.btSeries,
+          borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88,166,255,.1)',
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: CI.outcomes.map(o => o === 'failure' ? '#f85149' : '#58a6ff'),
+        },
+        {
+          label: 'Alert threshold (14m)',
+          data: CI.threshold,
+          borderColor: '#f0883e',
+          borderDash: [6, 3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: chartOpts('Minutes'),
+  });
+}
+
+if (CD) {
+  new Chart(document.getElementById('cdChart'), {
+    type: 'line',
+    data: {
+      labels: CD.labels,
+      datasets: [
+        {
+          label: 'CD total (min)',
+          data: CD.cdSeries,
+          borderColor: '#3fb950',
+          backgroundColor: 'rgba(63,185,80,.1)',
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: CD.outcomes.map(o => o === 'failure' ? '#f85149' : '#3fb950'),
+        },
+        {
+          label: 'Merge→live (min)',
+          data: CD.ttlSeries,
+          borderColor: '#a5d6ff',
+          borderDash: [4, 2],
+          borderWidth: 1.5,
+          tension: 0.3,
+          pointRadius: 2,
+          fill: false,
+        },
+        {
+          label: 'Alert threshold (25m)',
+          data: CD.threshold,
+          borderColor: '#f0883e',
+          borderDash: [6, 3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: chartOpts('Minutes'),
+  });
+}
+</script>
+</body>
+</html>
