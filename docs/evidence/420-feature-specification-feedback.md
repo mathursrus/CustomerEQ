@@ -104,3 +104,45 @@
     3. **Configuration summary** — preserved but stat-counter-free (see above).
   - **Added Scene 7 (new)** — Batch detail page showing 5 counters strip (**Sent** · Awaiting response · Responded · Failed · Expired). The Sent counter is the new addition; the others are preserved from #378 §3.1. Sub-note explains that Sent semantics differ per mode: Managed-ACS increments per-recipient as the worker confirms ACS delivery; Self-serve increments on CSV download (and re-increments on Regenerate).
 - **Status**: ADDRESSED (Round 4 — mock only)
+
+## Round 5 Feedback
+*Received: 2026-05-21 (in-conversation review of PR #497 after Round 4 mock update)*
+*Reviewer instruction continues: mock-only iteration; spec update happens in one pass once the mock is locked.*
+
+### Comment 1 — UNADDRESSED → ADDRESSED (Round 5, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html`
+- **Comment**:
+  > Remove reference to ACS — that is internal application detail. It should state CustomerEQ Email.
+- **Resolution**:
+  - All **operator-visible** ACS references in the mock replaced. Mappings:
+    - Pill text "Managed (ACS)" → "CustomerEQ Email"
+    - Mode-tag chip text "MANAGED_ACS" → "CUSTOMEREQ EMAIL" (the internal mode-tag convention, kept uppercase to parallel "SELF_SERVE")
+    - Page-header subtitle pills updated in Scene 3, Scene 5B, Scene 5C, Scene 7B.
+    - Scene 3 help-text: "Domain pinned to brand's verified ACS sender" → "Domain pinned to brand's verified CustomerEQ Email sender"
+    - Scene 3 scene-label: "the ACS composer" → "the CustomerEQ Email composer"
+    - Scene 7B sub-note: "via ACS confirmed delivery" → "via CustomerEQ Email confirmed delivery"
+    - Scene 7B explanatory note: "incremented per-recipient as the worker confirms ACS delivery" → "incremented per-recipient as the platform confirms email delivery"
+    - Loop-Monitor Wave-filter option: "(Managed ACS)" → "(CustomerEQ Email)"
+  - **Kept** (internal-only, not operator-visible): the CSS class names `mode-managed-acs` / `managed-acs` (class identifiers, not user-facing text), and the URL query-string value `?mode=managed-acs` (technical contract on the page route — the spec-side renaming to `?mode=customereq-email` is a deferred decision, will be settled in the spec pass).
+  - Verified clean via `grep "ACS"` on the mock file — no operator-visible ACS strings remain.
+- **Status**: ADDRESSED (Round 5 — mock only)
+
+### Comment 2 — UNADDRESSED → ADDRESSED (Round 5, mock only)
+- **Author**: manohar.madhira@outlook.com
+- **Type**: pr_review (conversational, transcribed)
+- **File**: `docs/feature-specs/mocks/420-send-via-customereq-acs.html`
+- **Comment**:
+  > Ensure that previous functionality of viewing Wave Detail should be maintained for Send via my email tool.
+- **Resolution**:
+  - Renamed the existing Scene 7 → **Scene 7B (Wave detail · CustomerEQ Email batch)**.
+  - **Added Scene 7A (Wave detail · Self-serve batch)** preserving #378 §3.1 functionality verbatim:
+    - Same 5-counter strip (Sent · Awaiting response · Responded · Failed · Expired). Failed shows "—" with sub-note *"n/a for Self-serve (no platform dispatch)"* — accurate to the dispatch model.
+    - **Audience spec block** preserved from #378 §3.1 (mode, members-at-send-time, members-now, survey name in mail, links-expire-on with Edit affordance, format chosen, created).
+    - **Tokens table** preserved: paginated by status (Awaiting / Responded / Expired), showing token prefix, identifier, status pill, responded-at timestamp.
+    - **Regenerate Links + Download CSV** affordance preserved (format dropdown + button at the top of the Tokens table).
+    - Sub-notes explain Self-serve Sent semantics (CSV-download = Sent timestamp; Regenerate re-increments).
+    - Bottom warning banner: *"No platform-side send log for Self-serve batches"* clarifies the absence of per-recipient delivery confirmations (operator's email tool dispatched these).
+  - Mock-header nav + TOC updated to list Scene 7A and Scene 7B as parallel batch-detail variants.
+- **Status**: ADDRESSED (Round 5 — mock only)

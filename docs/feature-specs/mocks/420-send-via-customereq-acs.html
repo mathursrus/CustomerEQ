@@ -243,18 +243,19 @@
 <body>
 
 <div class="mock-header">
-  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 4 mock</h1>
+  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 5 mock</h1>
   <div class="nav">
     <a href="#scene-1">1. Tile</a>
-    <a href="#scene-2">2. SELF_SERVE</a>
+    <a href="#scene-2">2. Self-serve</a>
     <a href="#scene-2b">2B. Mixed-id</a>
-    <a href="#scene-3">3. MANAGED_ACS</a>
+    <a href="#scene-3">3. CustomerEQ Email</a>
     <a href="#scene-4">4. Confirm</a>
     <a href="#scene-5a">5A. CSV</a>
     <a href="#scene-5b">5B. Sending</a>
     <a href="#scene-5c">5C. Sent</a>
     <a href="#scene-6">6. Loop Monitor</a>
-    <a href="#scene-7">7. Batch detail</a>
+    <a href="#scene-7a">7A. Wave detail (Self-serve)</a>
+    <a href="#scene-7b">7B. Wave detail (CustomerEQ)</a>
   </div>
 </div>
 
@@ -273,12 +274,12 @@
       <p>Only the composer / generator section and the terminal-state surface diverge — three distinct subcomponents on each side of the split.</p>
       <ul>
         <li><strong>SELF_SERVE</strong> diverges: composer = format dropdown only · CTA = <em>Generate N links</em> · terminal = Success banner + Download CSV (preserved from #378).</li>
-        <li><strong>MANAGED_ACS</strong> diverges: composer = sender + subject + rich-text body with mustache palette + live email preview · CTA = <em>Send N emails</em> · terminal = Sending → Sent SSE progress with per-recipient table + Retry-failed.</li>
+        <li><strong>CUSTOMEREQ EMAIL</strong> diverges: composer = sender + subject + rich-text body with mustache palette + live email preview · CTA = <em>Send N emails</em> · terminal = Sending → Sent SSE progress with per-recipient table + Retry-failed.</li>
       </ul>
       <div class="legend">
         <span class="chip shared">SHARED</span> appears in both modes
         <span class="chip self-serve">SELF_SERVE</span> mode-specific
-        <span class="chip managed-acs">MANAGED_ACS</span> mode-specific
+        <span class="chip managed-acs">CUSTOMEREQ EMAIL</span> mode-specific
       </div>
     </div>
   </div>
@@ -290,15 +291,16 @@
   <div class="group-label">Configure</div>
   <a href="#scene-2">2. SELF_SERVE (full page)</a>
   <a href="#scene-2b">2B. Mixed identifier kind</a>
-  <a href="#scene-3">3. MANAGED_ACS (full page)</a>
+  <a href="#scene-3">3. CUSTOMEREQ EMAIL (full page)</a>
   <div class="group-label">Confirm + Terminal</div>
   <a href="#scene-4">4. Confirm modals (both modes)</a>
   <a href="#scene-5a">5A. SELF_SERVE Success (CSV)</a>
-  <a href="#scene-5b">5B. MANAGED_ACS Sending</a>
-  <a href="#scene-5c">5C. MANAGED_ACS Sent</a>
+  <a href="#scene-5b">5B. CUSTOMEREQ EMAIL Sending</a>
+  <a href="#scene-5c">5C. CUSTOMEREQ EMAIL Sent</a>
   <div class="group-label">Survey-detail surfacing</div>
   <a href="#scene-6">6. Loop Monitor + Response header</a>
-  <a href="#scene-7">7. Batch detail · Sent counter</a>
+  <a href="#scene-7a">7A. Wave detail · Self-serve</a>
+  <a href="#scene-7b">7B. Wave detail · CustomerEQ Email</a>
 </nav>
 
 <!-- ─────────────────────────────── Scene 1 ───────────────────────────── -->
@@ -459,7 +461,7 @@ georgia@artistos.com</textarea>
               <div>
                 <label>Survey name in mail</label>
                 <input type="text" value="Q2 2026 NPS" />
-                <div class="field-help">SELF_SERVE: flows into the CSV's <code>surveyName</code> column (Mailchimp <code>*|SURVEY_NAME|*</code> merge tag). MANAGED_ACS: provides the default Subject + the <code>{{survey_title}}</code> mustache variable.</div>
+                <div class="field-help">SELF_SERVE: flows into the CSV's <code>surveyName</code> column (Mailchimp <code>*|SURVEY_NAME|*</code> merge tag). CUSTOMEREQ EMAIL: provides the default Subject + the <code>{{survey_title}}</code> mustache variable.</div>
               </div>
               <div>
                 <label>Links expire on</label>
@@ -575,7 +577,7 @@ mystery@unknownbrand.com</textarea>
           </div>
 
           <div style="margin-top: 16px; padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text);">
-            <strong>Why this matters for the spec:</strong> #378's Round 1 parser rule (*pasted identifiers must match Brand.memberIdentifierKind*) is relaxed by #420. The parser now: (1) detects email format independent of brand setup; (2) looks up matches via <code>Member.email</code> regardless of brand primary; (3) surfaces unmatched emails under "cannot auto-enroll because Brand identifier is `&lt;non-email&gt;`" — never silently dropped. Same UX for SELF_SERVE and MANAGED_ACS modes.
+            <strong>Why this matters for the spec:</strong> #378's Round 1 parser rule (*pasted identifiers must match Brand.memberIdentifierKind*) is relaxed by #420. The parser now: (1) detects email format independent of brand setup; (2) looks up matches via <code>Member.email</code> regardless of brand primary; (3) surfaces unmatched emails under "cannot auto-enroll because Brand identifier is `&lt;non-email&gt;`" — never silently dropped. Same UX for SELF_SERVE and CUSTOMEREQ EMAIL modes.
           </div>
         </div>
       </div>
@@ -583,9 +585,9 @@ mystery@unknownbrand.com</textarea>
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 3 — MANAGED_ACS Configure ────────────── -->
+<!-- ─────────────────────────────── Scene 3 — CUSTOMEREQ EMAIL Configure ────────────── -->
 <section class="scene" id="scene-3">
-  <div class="scene-label"><strong>Scene 3 · Distribute page · MANAGED_ACS mode</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.1 + §2.2 + §2.3 + §2.4b · URL: <code>/admin/surveys/[id]/distribute?mode=managed-acs</code> · Identical audience builder + identical common fields (compared to Scene 2) · then the ACS composer + live email preview.</span></div>
+  <div class="scene-label"><strong>Scene 3 · Distribute page · CUSTOMEREQ EMAIL mode</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.1 + §2.2 + §2.3 + §2.4b · URL: <code>/admin/surveys/[id]/distribute?mode=managed-acs</code> · Identical audience builder + identical common fields (compared to Scene 2) · then the CustomerEQ Email composer + live email preview.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -601,7 +603,7 @@ mystery@unknownbrand.com</textarea>
           <div class="breadcrumb"><a>← Back to survey</a></div>
           <div class="page-header">
             <div>
-              <h1>Send via CustomerEQ &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <h1>Send via CustomerEQ &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
               <p>Same audience + common fields as the self-serve path. Compose the email body — CustomerEQ delivers via Azure Communication Services.</p>
             </div>
             <a class="switch-mode" href="#scene-2">Switch to my email tool →</a>
@@ -634,11 +636,11 @@ mystery@unknownbrand.com</textarea>
             </div>
           </div>
 
-          <!-- MODE-SPECIFIC: MANAGED_ACS Composer + live email preview -->
+          <!-- MODE-SPECIFIC: CUSTOMEREQ EMAIL Composer + live email preview -->
           <div class="composer-grid">
             <div class="composer-card">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · CUSTOMEREQ EMAIL</span>
                 <h3 style="margin: 0;">Sender</h3>
               </div>
 
@@ -654,7 +656,7 @@ mystery@unknownbrand.com</textarea>
                     <input type="text" value="feedback" style="flex: 1;" />
                     <span class="suffix">@cx.acme-via-customereq.io</span>
                   </div>
-                  <div class="help-text">Domain pinned to brand's verified ACS sender.</div>
+                  <div class="help-text">Domain pinned to brand's verified CustomerEQ Email sender.</div>
                 </div>
               </div>
 
@@ -664,7 +666,7 @@ mystery@unknownbrand.com</textarea>
           <div class="composer-grid" style="margin-top: 12px;">
             <div class="composer-card">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · MANAGED_ACS</span>
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · CUSTOMEREQ EMAIL</span>
                 <h3 style="margin: 0;">Email</h3>
               </div>
 
@@ -749,7 +751,7 @@ Acme CX Team</div>
 
 <!-- ─────────────────────────────── Scene 4 — Confirm modals (both modes) ───── -->
 <section class="scene" id="scene-4">
-  <div class="scene-label"><strong>Scene 4 · Confirmation modals — both modes</strong><span class="mode-chip shared">SHARED SHAPE</span><span class="mode-chip self-serve">SELF_SERVE COPY</span><span class="mode-chip managed-acs">MANAGED_ACS COPY</span><span class="scene-note">Spec §2.5a + §2.5b · Identical modal shape (same layout, same dismiss/confirm placement). Only the copy and the embedded warning differ.</span></div>
+  <div class="scene-label"><strong>Scene 4 · Confirmation modals — both modes</strong><span class="mode-chip shared">SHARED SHAPE</span><span class="mode-chip self-serve">SELF_SERVE COPY</span><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL COPY</span><span class="scene-note">Spec §2.5a + §2.5b · Identical modal shape (same layout, same dismiss/confirm placement). Only the copy and the embedded warning differ.</span></div>
   <div class="container">
     <div class="modal-backdrop modal-row">
 
@@ -771,7 +773,7 @@ Acme CX Team</div>
       </div>
 
       <div class="modal">
-        <h3>⚠ Send 6 emails? <span class="mode-tag managed-acs">MANAGED_ACS</span></h3>
+        <h3>⚠ Send 6 emails? <span class="mode-tag managed-acs">CUSTOMEREQ EMAIL</span></h3>
         <div class="modal-summary">
           <div><strong>From:</strong> Acme CX Team &lt;feedback@cx.acme-via-customereq.io&gt;</div>
           <div><strong>Subject:</strong> Quick question: Q2 2026 NPS</div>
@@ -859,9 +861,9 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 5B — MANAGED_ACS Sending ──────────────── -->
+<!-- ─────────────────────────────── Scene 5B — CUSTOMEREQ EMAIL Sending ──────────────── -->
 <section class="scene" id="scene-5b">
-  <div class="scene-label"><strong>Scene 5B · Terminal state · MANAGED_ACS Sending — per-recipient progress</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.6b · Live SSE-driven progress bar + per-recipient status table. Closing the browser is safe — the worker continues processing the queue.</span></div>
+  <div class="scene-label"><strong>Scene 5B · Terminal state · CUSTOMEREQ EMAIL Sending — per-recipient progress</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.6b · Live SSE-driven progress bar + per-recipient status table. Closing the browser is safe — the worker continues processing the queue.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -876,7 +878,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
         <div class="admin-main">
           <div class="page-header">
             <div>
-              <h1>Sending Q2 2026 NPS &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <h1>Sending Q2 2026 NPS &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
               <p>Batch <code>btch_a1b2c3</code> · 6 recipients.</p>
             </div>
           </div>
@@ -909,9 +911,9 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 5C — MANAGED_ACS Sent ────────────────── -->
+<!-- ─────────────────────────────── Scene 5C — CUSTOMEREQ EMAIL Sent ────────────────── -->
 <section class="scene" id="scene-5c">
-  <div class="scene-label"><strong>Scene 5C · Terminal state · MANAGED_ACS Sent — summary + retry-failed</strong><span class="mode-chip managed-acs">MANAGED_ACS</span><span class="scene-note">Spec §2.6b · All sends terminal. Failed rows have Retry Failed; suppressed rows (unsubscribed / no-consent) cannot be retried.</span></div>
+  <div class="scene-label"><strong>Scene 5C · Terminal state · CUSTOMEREQ EMAIL Sent — summary + retry-failed</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.6b · All sends terminal. Failed rows have Retry Failed; suppressed rows (unsubscribed / no-consent) cannot be retried.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -926,7 +928,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
         <div class="admin-main">
           <div class="page-header">
             <div>
-              <h1>Q2 2026 NPS — sent &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <h1>Q2 2026 NPS — sent &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
               <p>Batch <code>btch_a1b2c3</code> · 6 recipients · 5 sent · 1 failed.</p>
             </div>
           </div>
@@ -1034,7 +1036,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
                   <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Wave:</span>
                   <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px;">
                     <option>All waves &amp; direct responses</option>
-                    <option>Q2 2026 NPS · 2026-05-21 · 5 sent · 2 responded (Managed ACS)</option>
+                    <option>Q2 2026 NPS · 2026-05-21 · 5 sent · 2 responded (CustomerEQ Email)</option>
                     <option>Q2 2026 NPS · 2026-05-20 · 6 sent · 2 responded (Self-serve)</option>
                     <option>Direct responses (share link / embed)</option>
                   </select>
@@ -1083,9 +1085,126 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
   </div>
 </section>
 
-<!-- ─────────────────────────────── Scene 7 — Batch Detail · Sent counter ──── -->
-<section class="scene" id="scene-7">
-  <div class="scene-label"><strong>Scene 7 · Batch detail page — Sent counter</strong><span class="mode-chip shared">SHARED · per-batch</span><span class="scene-note">Spec §3.2 / #378 §3.1 · The batch detail page (existing surface from #378) gets a Sent counter alongside the existing Awaiting / Responded / Expired counters. Sent semantics differ by send mode (see Scene 5A note): Self-serve increments on CSV download; Managed-ACS increments per-recipient as the worker confirms each ACS send.</span></div>
+<!-- ─────────────────────────────── Scene 7A — Self-serve Wave Detail (preserved #378) ──── -->
+<section class="scene" id="scene-7a">
+  <div class="scene-label"><strong>Scene 7A · Wave detail page · Self-serve batch</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §3.1 + #378 §3.1 · Preserves the existing wave-detail functionality for Send-via-my-email-tool batches verbatim — Audience Spec block, Edit Expiry control, Tokens table (paginated by status), and the Regenerate links + Download CSV affordance. The Sent counter (new in #420) joins the existing counter strip on the same page; nothing else is removed.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute/batches/btch_z9y8x7</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a> &nbsp;›&nbsp; Distribution batches &nbsp;›&nbsp; Q2 2026 NPS · 2026-05-20</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS · 2026-05-20 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+              <p>Batch <code>btch_z9y8x7</code> · 6 recipients · created 2026-05-20 11:08 PT.</p>
+            </div>
+          </div>
+
+          <!-- Counters strip: existing #378 counters + the new Sent counter at left -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Sent</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--success); margin: 4px 0;">6</div>
+              <div style="font-size: 10px; color: var(--text-muted);">at CSV download · last 2026-05-20 11:12 PT</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Awaiting response</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">4</div>
+              <div style="font-size: 10px; color: var(--text-muted);">tokens unconsumed · expires 2026-05-27</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responded</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--info); margin: 4px 0;">2</div>
+              <div style="font-size: 10px; color: var(--text-muted);">33% of sent</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Failed</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-subtle); margin: 4px 0;">—</div>
+              <div style="font-size: 10px; color: var(--text-muted);">n/a for Self-serve (no platform dispatch)</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Expired</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">window: 7 days · 6 days remain</div>
+            </div>
+          </div>
+
+          <div style="padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text); margin-bottom: 14px;">
+            <strong>Sent semantics on this batch (Self-serve):</strong> incremented when the operator downloaded the CSV (the dispatch-handoff moment). Re-incremented on Regenerate Links. <em>Failed</em> is n/a because the platform did not dispatch the email — the operator's own email tool did.
+          </div>
+
+          <!-- Audience Spec — unchanged from #378 §3.1 -->
+          <div class="section">
+            <div class="section-head"><h2>Audience spec</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Mode</td><td>Custom List · 6 identifiers (0 auto-enrolled)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience at send time</td><td>6</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience now</td><td>6 <span style="color: var(--text-muted); font-size: 11px;">(no erased / deleted since send)</span></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Survey name in mail</td><td>Q2 2026 NPS</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Links expire on</td><td>2026-05-27 23:59 PT &nbsp; <a href="#" style="color: var(--primary); font-size: 11px;">[Edit]</a></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Format chosen</td><td>Generic</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-20 11:08 PT by manohar.madhira@outlook.com</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tokens table — preserved from #378 §3.1 -->
+          <div class="section">
+            <div class="section-head">
+              <h2>Tokens (6)</h2>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px;"><option>Generic</option><option>Mailchimp</option><option>HubSpot</option><option>Klaviyo</option></select>
+                <button class="btn primary tiny">⬇ Regenerate links + download CSV</button>
+              </div>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Member</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Identifier</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Token prefix</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Status</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Responded at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Joe Olsen</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-004</td><td style="padding: 6px; font-family: var(--mono);">Xk8mP3qB…</td><td style="padding: 6px;"><span class="status-pill sent">Responded</span></td><td style="padding: 6px;">2026-05-20 11:42 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Sandra Khoury</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-007</td><td style="padding: 6px; font-family: var(--mono);">Pq3nT9vR…</td><td style="padding: 6px;"><span class="status-pill sent">Responded</span></td><td style="padding: 6px;">2026-05-20 14:30 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-001</td><td style="padding: 6px; font-family: var(--mono);">Mt7vR2kL…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-002</td><td style="padding: 6px; font-family: var(--mono);">Qa4kZ8jB…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Carla Singh</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-003</td><td style="padding: 6px; font-family: var(--mono);">Lb6cN5wG…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr><td style="padding: 6px;">Dmitri Volkov</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-005</td><td style="padding: 6px; font-family: var(--mono);">Jd2sB7fQ…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                </tbody>
+              </table>
+              <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted);">
+                <strong>Regenerate behavior preserved from #378 §3.1:</strong> clicking the Regenerate Links button mints fresh tokens for every member in this batch (responded members keep their <code>respondedAt</code>; their token is replaced but their response stays attributed to them), invalidates the previous URLs, downloads a new CSV. Survey <code>sentCount</code> + this batch's Sent counter re-increment to reflect the new dispatch handoff.
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 10px 14px; background: var(--warning-soft); border: 1px solid #fcd34d; border-radius: var(--radius); font-size: 12px; color: var(--warning-strong); margin-top: 14px;">
+            <strong>⚠ No platform-side send log for Self-serve batches.</strong> The operator's own email tool dispatched these — CustomerEQ does not have per-recipient delivery confirmations for Self-serve. The Sent counter reflects CSV-download events; Responded reflects actual respondent submissions; Failed is not applicable.
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 7B — CustomerEQ Email Wave Detail ───── -->
+<section class="scene" id="scene-7b">
+  <div class="scene-label"><strong>Scene 7B · Wave detail page · CustomerEQ Email batch</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §3.2 · Same wave-detail page (`/admin/surveys/[id]/distribute/batches/[batchId]`) as Self-serve (Scene 7A) — but the Composer snapshot + per-recipient delivery log are visible because the platform dispatched the emails. Regenerate Links is replaced by Resend (V1.x candidate; out of V0 scope per Non-goals).</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -1101,7 +1220,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
           <div class="breadcrumb"><a>← Back to survey</a> &nbsp;›&nbsp; Distribution batches &nbsp;›&nbsp; Q2 2026 NPS · 2026-05-21</div>
           <div class="page-header">
             <div>
-              <h1>Q2 2026 NPS · 2026-05-21 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-managed-acs">Managed (ACS)</span></h1>
+              <h1>Q2 2026 NPS · 2026-05-21 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
               <p>Batch <code>btch_a1b2c3</code> · 5 recipients · created 2026-05-21 14:02 PT.</p>
             </div>
           </div>
@@ -1111,7 +1230,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
             <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
               <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Sent</div>
               <div style="font-size: 24px; font-weight: 700; color: var(--success); margin: 4px 0;">5</div>
-              <div style="font-size: 10px; color: var(--text-muted);">via ACS confirmed delivery</div>
+              <div style="font-size: 10px; color: var(--text-muted);">via CustomerEQ Email confirmed delivery</div>
             </div>
             <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
               <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Awaiting response</div>
@@ -1137,7 +1256,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
 
           <!-- For SELF_SERVE batches: Sent semantic note -->
           <div style="padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text); margin-bottom: 14px;">
-            <strong>Sent semantics on this batch (Managed ACS):</strong> incremented per-recipient as the worker confirms ACS delivery (status=succeeded). For Self-serve batches, Sent increments at CSV download time and re-increments if Regenerate links is used.
+            <strong>Sent semantics on this batch (CustomerEQ Email):</strong> incremented per-recipient as the platform confirms email delivery. For Self-serve batches, Sent increments at CSV download time and re-increments if Regenerate links is used.
           </div>
 
           <!-- Audience spec block (unchanged from #378) -->
