@@ -2,8 +2,8 @@
 
 Issue: [#420](https://github.com/mathursrus/CustomerEQ/issues/420)
 Owner: manohar.madhira@outlook.com
-Status: **Round 5 — consolidated spec pass after 4 rounds of mock iteration. Operator-facing terminology cleanup; Sent-count moved to Loop Monitor + Response header.**
-Last touched: 2026-05-21
+Status: **Round 6 — codebase-verified rewrite addressing 24 inline PR comments. SHALL-style requirements added (R1..R45); V0 sender-domain reality baked in (`customereq.wellnessatwork.me`); suppressed-member surfacing; Brand.logoUrl confirmed in schema (not "assumed"); JTBD framing of tile structure; OQ-1/2/3/5 resolved by reviewer; hallucinated filter-by-attribute claim removed.**
+Last touched: 2026-05-22
 
 ---
 
@@ -15,7 +15,8 @@ Last touched: 2026-05-21
 | R2 | 2026-05-21 | Reviewer feedback on PR #497: *"The mock doesn't include how the Send via Email tool would change based on this. This issue should cover both send scenarios, because they must share the inputs. Survey Title and Link Expiry are not shown in the mocks. Think as a PM — how the two scenarios should overlap and where they diverge. Don't design / re-design in isolation."* (coaching moment: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-21T21-19-48-pm-design-paired-flows-with-shared-structure.md`) | Reframed entirely around **one shared structure with explicit divergence points**. New §0 lists every input/affordance tagged `Shared` / `Mode-specific`. New §2.2 *Common fields* (Survey name in mail + Links expire on) lifted from #378 §2.2 and applied identically in both modes. §-numbered walk-through interleaves both modes: §2.3 composer is the managed-email-only block; §2.4a is the Self-serve Generate-Links block; §2.5/§2.6 mode-specific. §3 (#378 reshape) framed as the `mode=self-serve` instance of the shared component. Both paths render `<DistributePage mode={...}/>` parameterized by `mode` URL param. |
 | R3 | 2026-05-21 | Reviewer feedback on PR #497 (mock-only round): *"please add capability to Insert Brand logo. In the default message, show Brand Logo and Brand Name as the header. In Add Custom List, we should allow emails to be pasted even if Brand is setup to use Member ID or phone number..."* (coaching moment: `manohar.madhira@outlook.com-2026-05-21T22-50-13-parser-grammar-vs-brand-primary-identifier.md`) | Brand-logo + brand-name added to the default email body as a header block (mustache tokens `{{brand_logo}}` + `{{brand_name}}`). Custom List parser **relaxed**: emails are accepted regardless of brand's primary identifier kind, looked up via `Member.email`; unmatched emails surface in an explicit *"Emails not found — cannot be auto-enrolled because Brand identifier is `<phone|external_id>`"* subsection of the audience preview (mock Scene 2B). Mock only — spec deferred to consolidated pass. |
 | R4 | 2026-05-21 | Reviewer feedback on PR #497 (mock-only round): *"Show preview for Brand Logo, but need not allow for updating the logo in this view... In Scene 5A include the statement that these members will be marked as sent on download. If users regenerate for a given batch, update the sent information also. In case of Send via my email tool, downloading CSV can be considered as Sent. Sent information should also appear in the Loop Monitor as Survey Sent. Scene 6 need not be present. Loop Monitor shows the Sent and Received information. The Batch Details should show Sent. Configuration is just what was configured in the survey. Show Survey Sent Count in the Responses Header Section, before the <X> response that changes based on the Filters selected (e.g. Wave)."* | Removed in-spec brand-logo upload affordance (no upload UX in this issue; logo pulled from `Brand.logoUrl`; header collapses gracefully if unset; upload UX deferred to a separate Organization Settings issue). **Sent semantics** spelled out: Self-serve → CSV-download is the dispatch-handoff moment that sets `SurveyDistribution.sentAt` and increments `Survey.sentCount`; Regenerate Links updates `sentAt` on every row in the batch. Managed-email → per-recipient `sentAt` set when the worker confirms delivery. **Sent-count surfacing moved**: out of Configuration Summary (which now contains only what was configured on the survey); into Loop Monitor (lifetime Survey Sent stat, mode breakdown sub-line) and Responses section header (Sent before the Wave-filtered Response count). Mock only — spec deferred to consolidated pass. |
-| R5 | 2026-05-21 | Reviewer feedback on PR #497: *"Remove reference to ACS — that is internal application detail. It should state CustomerEQ Email. Ensure that previous functionality of viewing Wave Detail should be maintained for Send via my email tool. Now update the feature spec."* | **Operator-facing terminology cleanup**: every operator-visible reference to ACS removed and replaced with *"CustomerEQ Email"*. Internal naming aligned: enum value `MANAGED_EMAIL` → `MANAGED_EMAIL`; new column `Brand.managedEmailSenderDomain` (proposed in R1) → `Brand.managedEmailSenderDomain`; URL param `?mode=managed-email` → `?mode=managed-email`; API endpoint `POST .../send-via-acs` collapsed into the existing `POST .../distribution-batches` using a `sendMode` discriminator (no new endpoint). Architecture section retains technical reference to the ACS-based email provider in `packages/connectors/src/email.ts` because that file remains the implementation surface — but operator-facing surfaces never name the provider. **Wave Detail preserved** for Self-serve: §3.2 batch-detail page renders a 5-counter strip plus mode-conditional sections — Self-serve keeps #378 §3.1's Tokens table + Edit Expiry + Regenerate-Links-and-download-CSV affordance verbatim. Spec consolidated in this round (per reviewer's *"Now update the feature spec"*); mock at Round 5. |
+| R5 | 2026-05-21 | Reviewer feedback on PR #497: *"Remove reference to ACS — that is internal application detail. It should state CustomerEQ Email. Ensure that previous functionality of viewing Wave Detail should be maintained for Send via my email tool. Now update the feature spec."* | **Operator-facing terminology cleanup**: every operator-visible reference to ACS removed and replaced with *"CustomerEQ Email"*. Internal naming: enum value `MANAGED_ACS` → `MANAGED_EMAIL`; new column `Brand.acsSenderDomain` (proposed in R1) → `Brand.managedEmailSenderDomain`; URL param `?mode=managed-acs` → `?mode=managed-email`; API endpoint `POST .../send-via-acs` collapsed into existing `POST .../distribution-batches` using a `sendMode` discriminator (no new endpoint). Architecture section retains technical reference to the ACS-based email provider in `packages/connectors/src/email.ts` because that file remains the implementation surface — operator-facing surfaces never name the provider. **Wave Detail preserved** for Self-serve: §3.2 batch-detail page renders a 5-counter strip plus mode-conditional sections — Self-serve keeps #378 §3.1's Tokens table + Edit Expiry + Regenerate-Links-and-download-CSV affordance verbatim. Spec consolidated in this round (per reviewer's *"Now update the feature spec"*); mock at Round 5. |
+| R6 | 2026-05-22 | 24 inline review comments on PR #497 commit `89d3092` (full transcription: `docs/evidence/420-feature-specification-feedback.md` Round 6). Coaching moments: (a) `manohar.madhira@outlook.com-2026-05-22T17-13-10-hallucinated-claims-without-codebase-verification.md` (don't assert codebase facts without verification — applies to line-46 attribute-filter fabrication and OQ-7 Brand.logoUrl); (b) [[stale-local-rule-text-from-feature-branch-divergence]] (rebase before reading rules) — done at the start of R6. | **Codebase verification pass** before writing — every claim in this round's spec checked against `packages/database/prisma/schema.prisma`, `apps/api/src/routes/distributionBatches.ts`, `apps/web/src/components/surveys/LoopMonitor.tsx`, `packages/connectors/src/email.ts`, `.env.example`. Verified facts baked in: `Brand.logoUrl` EXISTS (schema:201); `Brand.name` is the actual column (NOT `Brand.displayName` as R1-R5 spec wrongly said); `Member.email` (nullable per #231 PR2) EXISTS; `Member.consentGivenAt` + `Member.emailOptIn` (Boolean default false) BOTH EXIST as suppression-relevant signals; `Member.unsubscribedAt` does NOT EXIST (correctly flagged as new); `BrandTheme` (renamed from SurveyTheme per #291) holds `accentColor` / `primaryColor` / `buttonColor` / `secondaryColor` / `backgroundColor` / `textColor` etc.; Loop Monitor's `surveysSent` is already in the pipeline data shape; V0 sender domain is **`customereq.wellnessatwork.me`** (`.env.example:42`). Major spec changes: (1) **Customer Problem reordered** — point 3 ("come to one tool, do everything") promoted to position 1; (2) **Hallucinated attribute-filter capability claim removed** from Customer Problem #3 (line 46); (3) **JTBD-framed entry-point tile** rationale rewritten (one tile = one "send by email" job-to-be-done; Embed + Share link are separate JTBDs); (4) **§2 reordered**: Common fields (batch attributes) now precede the Audience builder — flow is *"Define batch attributes → Select members → Send"*; (5) **Random Sample affordance** gets an explicit Add button for flow consistency; (6) **Suppressed-member surfacing**: members who are unsubscribed OR lack consent appear in the audience preview with **checkbox unchecked + disabled** + indicator chip (`Unsubscribed` / `No consent`) + recovery hint; (7) **V0 sender domain pinned** to `customereq.wellnessatwork.me` (`Brand.managedEmailSenderDomain` column added with code wiring but null in V0 — custom domains a V1 feature); (8) **Footer copy** updated to *"You received this survey because you're a customer or partner of `{{brand_name}}`"* (was incorrectly "member of loyalty program"); (9) **Sent-count vs Wave-filter** clarified: Survey Sent IS affected by Wave filter (per-wave Sent shown when a specific Wave selected); not affected by response-side filters (date range, scope); Loop Monitor stays lifetime always; (10) `Brand.displayName` references corrected to `Brand.name` throughout; (11) `BrandTheme.accentColor` + theme mapping section added (§2.3.1) for which mustache renders into which theme color; (12) **Compliance §13.7** added — pre-dispatch second consent/suppression check (members may unsubscribe between selection and send); (13) **Resolved OQs**: OQ-1 fallback = application's default domain + warning event when ACS env unset; OQ-2 glob syntax; OQ-3 brand-wide; OQ-5 deferred to Technical Design; OQ-7 (Brand.logoUrl) closed — exists in schema, was my hallucination; (14) **New §Requirements** section with **R1..R45** SHALL-style traceable requirements + Given/When/Then acceptance criteria; (15) **OQ-NEW-1** added — relationship between proposed `Member.unsubscribedAt` and existing `Member.emailOptIn` (consent vs revocation tracking). |
 
 ## Customer
 
@@ -29,23 +30,24 @@ The **respondent** persona is unchanged from #378 — they receive an email with
 
 ## Customer's Desired Outcome
 
-1. **One in-app flow from "I have a survey" to "the survey is in my recipients' inboxes"** — no leaving the dashboard, no CSV download, no second tool.
-2. **Audience built in one place, by the same primitives, regardless of which Send path the operator picks** — Existing Members (with wildcard search) + Custom List (paste / CSV) accumulated into a single deduped list with per-row deselect. The two Send paths diverge only on what happens *after* the list is approved.
-3. **Sender identity within CustomerEQ's deliverability envelope, but operator-controlled at the human-readable level** — operator picks the From-name (e.g., *"Acme CX Team"*) and the local-part of the From-alias (e.g., *"feedback"*); CustomerEQ pins the domain (the CustomerEQ-Email-verified sender domain) so deliverability and DMARC alignment stay under CustomerEQ's operational control.
-4. **Rich-text body with one inevitable merge variable** — `{{survey_link}}`. The default body is pre-templated from the survey title; the operator edits it before sending.
-5. **Confirm before send, never silently dispatch** — *"Are you sure? This will email N recipients in the next few minutes."* Once dispatch starts, the operator has a single screen showing per-recipient send status (queued / sent / failed) so they can intervene if 60% of sends fail.
-6. **CAN-SPAM/CASL/GDPR compliance baked into every CustomerEQ Email send** — every email carries a one-click unsubscribe link that persists in `Member.unsubscribedAt` and suppresses all future CustomerEQ Email sends for that member.
-7. **Survey Sent count surfaces both paths** — the existing operator-facing counter shows total recipients across all send waves, broken down by send mode (`CustomerEQ Email` vs `Self-serve (CSV)`).
+1. **One tool, complete flow** — the customer comes to CustomerEQ expecting it to do everything for a survey wave end-to-end. Not bouncing between CustomerEQ for the survey design and a separate ESP for the send. *"I came to CustomerEQ; CustomerEQ sends my survey"* is the baseline customer expectation; the BYO-ESP path (#378) exists for the subset who still prefer their own ESP, not because we expect every operator to need it.
+2. **One in-app flow from "I have a survey" to "the survey is in my recipients' inboxes"** — no leaving the dashboard, no CSV download, no second tool. (This is the concrete UX expression of #1.)
+3. **Audience built in one place, by the same primitives, regardless of which Send path the operator picks** — Existing Members (with wildcard search) + Custom List (paste / CSV) accumulated into a single deduped list with per-row deselect. The two Send paths diverge only on what happens *after* the list is approved.
+4. **Sender identity within CustomerEQ's deliverability envelope, but operator-controlled at the human-readable level (V0 partial)** — operator picks the From-name (e.g., *"Acme CX Team"*) and the local-part of the From-alias (e.g., *"feedback"*); the domain is pinned to **`customereq.wellnessatwork.me`** in V0 (the platform's currently-verified sender domain, per `.env.example:42`'s `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM`). Per-brand custom sender domains are a V1 feature — operator-side DNS / SPF / DKIM / DMARC verification is required and not yet wired up. The data-model column `Brand.managedEmailSenderDomain` is added in this issue to take the V1 wiring (null in V0; resolves to the application's default when null in V0+V1).
+5. **Rich-text body with one inevitable merge variable** — `{{survey_link}}`. The default body opens with a brand-logo + brand-name header pulled from existing `Brand.logoUrl` (verified to exist in `schema.prisma:201`) and `Brand.name`; the operator edits before sending. Header collapses gracefully if `Brand.logoUrl` is null.
+6. **Confirm before send, never silently dispatch** — *"Are you sure? This will email N recipients in the next few minutes."* Once dispatch starts, the operator has a single screen showing per-recipient send status (queued / sent / failed) so they can intervene if 60% of sends fail.
+7. **CAN-SPAM/CASL/GDPR compliance baked into every CustomerEQ Email send** — every email carries a one-click unsubscribe link. Suppression is brand-wide (per OQ-3 reviewer decision: *"keep it brand wide. Will expand to per survey if needed later"*). Members lacking consent (`Member.consentGivenAt IS NULL`) or who have unsubscribed (`Member.unsubscribedAt IS NOT NULL`) are surfaced in the audience preview — visible, checkbox unchecked and disabled, with the reason chip — so operators see them but can't accidentally send to them. The dispatcher re-checks consent + unsubscribe state at send time (members may unsubscribe in the seconds between selection and dispatch).
+8. **Survey Sent count surfaces both paths** — operator-facing counter shows recipients across send waves, broken down by send mode (`CustomerEQ Email` vs `Self-serve (CSV)`). Surfaces in **Loop Monitor** (lifetime) and **Responses section header** (Wave-filtered). Wave-filtered Sent count IS affected by the Wave dropdown; lifetime Sent in Loop Monitor is not.
 
 ## Customer Problem being solved
 
 Restating the issue body in persona language:
 
 1. **No supported in-app send.** Today's only sends are share-link (anonymous, no PII attribution), embed widget (host-page integration), and #378's per-recipient-CSV-for-BYO-ESP. None of these let the operator click a button and have CustomerEQ actually drop emails into recipients' inboxes. For the operator without an ESP, this is a complete dead end — they cannot run a survey wave at all from inside CustomerEQ.
-2. **The #378 audience builder is mutually-exclusive between Existing and Custom.** That decision (Round 2 Decision A in #378) was correct for #378's CSV download semantics — one mode, one CSV, one wave. But it fights against the ACS-send use case: *"Send to my Gold tier (existing members) plus these 5 specific support-escalation customers (custom list) that I want to include in this wave."* That natural request has no single-batch answer in #378; the operator runs two batches and downloads two CSVs. #420 unifies them into a **merged + deduped list with per-row deselect** that serves both Send paths.
-3. **Wildcard search on the member roster doesn't exist.** Operators commonly want *"all members at `@artistos.com`"* or *"all members whose external-id starts with `q2-2026-`"*. The current member-list page has filters by attribute (status, enrolled date, tier) but no glob-on-identifier. #420 introduces wildcard search as a member-selection primitive on the Distribute page.
-4. **No "I want CustomerEQ as the sender alias" affordance.** The platform sends notification emails today (via `packages/connectors/src/email.ts`), but the sender is hard-pinned at platform startup from `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` — it isn't per-survey, per-wave, or per-brand. For #420, the brand needs to project a sender identity that *they* configure (display name + local-part), not the platform's notifications sender.
-5. **No sent-count surfacing.** The platform tracks `DistributionBatch.tokenCount` and `SurveyDistribution.sentAt` (which today marks "we minted a token for this member" — not "we actually dropped an email in their inbox"). For #420, the worker that performs the ACS send updates a true sent timestamp + sent mode, and a survey-level aggregator rolls them up. For #378 sends, the sent count is incremented atomically when the operator downloads the CSV (the moment of operator-side dispatch handoff — analogous to "we minted; you took it from here").
+2. **The #378 audience builder is mutually-exclusive between Existing and Custom.** That decision (Round 2 Decision A in #378) was correct for #378's CSV download semantics — one mode, one CSV, one wave. But it fights against the in-app-send use case: *"Send to my Gold tier (existing members) plus these 5 specific support-escalation customers (custom list) that I want to include in this wave."* That natural request has no single-batch answer in #378; the operator runs two batches and downloads two CSVs. #420 unifies them into a **merged + deduped list with per-row deselect** that serves both Send paths.
+3. **Wildcard search on the member roster doesn't exist.** Operators commonly want *"all members at `@artistos.com`"* or *"all members whose external-id starts with `q2-2026-`"*. The current member-list page (verified by reading `apps/web/src/app/(admin)/admin/members/page.tsx`) supports basic filters but no glob-on-identifier. **Filter-by-attribute audience targeting (tier / sentiment / health-score / cooldown) does NOT exist in the codebase today** — the R1–R5 spec wrongly described it as an existing feature; corrected in this round. #420 introduces only wildcard-glob search on identifier / name as the new member-selection primitive on the Distribute page; richer attribute filters remain a future enhancement.
+4. **No "I want CustomerEQ as the sender alias" affordance — V0 partially solves this.** The platform sends notification emails today (via `packages/connectors/src/email.ts`), but the sender alias is hard-pinned at platform startup. V0 of #420 lets the operator configure the **From-name and the local-part of the alias**; the **domain stays platform-pinned** (`customereq.wellnessatwork.me`) until V1 enables custom-domain registration with ACS. The data-model column for per-brand domain ships now (null in V0).
+5. **No sent-count surfacing.** The platform tracks `DistributionBatch.tokenCount` and `SurveyDistribution.sentAt` (which today marks "we minted a token for this member" — not "we actually dropped an email in their inbox"). For #420, the worker that performs the CustomerEQ Email send updates a true sent timestamp + sent mode, and a survey-level aggregator rolls them up. For #378 sends, the sent count is incremented when the operator downloads the CSV (the moment of operator-side dispatch handoff — *"we minted; you took it from here"*).
 
 ## Shared surface vs path-specific divergence (the PM framing)
 
@@ -85,7 +87,13 @@ Both buttons render with **equal visual weight** (both `outline-primary` styling
 
 **DRAFT/PAUSED/STOPPED states** are unchanged from #378 R2: both buttons are disabled with state-keyed tooltips ("Activate the survey before distributing" / "Resume the survey to distribute" / "This survey is stopped — Restart to distribute").
 
-**Why two buttons in one tile, not two separate tiles**: the audience builder + common fields are *the same* between the two paths. Surfacing them as one tile telegraphs "these share the audience step and the common fields; they diverge after." Two separate tiles would imply two independent flows and invite the operator to wonder which one the audience-builder choices belong to.
+**Why two buttons in one tile, not two separate tiles — JTBD framing**: the Distribution tile grid is structured by **jobs-to-be-done**, not by mechanism. Each tile is a distinct JTBD:
+
+- **Send via Email** (left tile) — *"I want my recipients to receive a survey email."* Two modes of accomplishing this single JTBD (let CustomerEQ deliver, or download links for my own email tool); both go through identical audience + batch-attribute steps. One tile, two action buttons.
+- **Embed snippet** (middle tile) — *"I want this survey to render inline on my own website."* Different JTBD, different mechanism (HTML/JS snippet).
+- **Share link** (right tile) — *"I want to paste a URL into a social post / chat / signage."* Different JTBD, different mechanism (single anonymous URL).
+
+Two separate tiles for *"CustomerEQ Email"* and *"My email tool"* would imply two different jobs-to-be-done, when in fact both are the same JTBD (deliver a survey to a recipient via email) with two equally-valid mechanisms.
 
 ### §2. The Distribute page — single mode-parameterized page
 
@@ -101,60 +109,83 @@ The page has **two-to-four visual states** on the same route — the first two s
 
 Clicking the path-specific CTA transitions Configure → Confirm modal → Terminal state in place. **Audience changes are not allowed past the Configure state** — the page is locked to the audience as confirmed at submit-time. A **"Switch to `<other-mode>`"** link in the page header is available throughout the Configure state and preserves the audience + common fields, swapping only the composer.
 
-#### §2.1 Configure state — Audience builder (shared with §3)
+The Configure-state layout follows the flow *"Define batch attributes → Select members → Send"* — common fields come **first**, then the audience builder, then the mode-specific composer (managed-email only) and the final action. This matches how the operator actually thinks about a send: the batch attributes (survey name in mail, expiry) are decisions about the batch as a whole, decided before they think about who's in it.
 
-The audience builder is the headline UX innovation of #420 and is **shared with the existing `Send via my email tool` page** (#378's `/admin/surveys/[id]/distribute`) — both flows hand off to it. Layout:
+#### §2.1 Configure state — Common fields (**SHARED — both modes, defined first**)
 
-**Two add-members cards stacked vertically** (not radio-card mutually-exclusive like #378 today):
-
-- **Add from Existing Members** card
-  - Search input with placeholder: *"Search by email, name, external ID. Wildcards supported (e.g., `*@artistos.com`, `q2-*`, `*support*`)."*
-  - Wildcard grammar: `*` matches any run of characters; `?` matches a single character; non-wildcard input is substring-matched. Case-insensitive. Applied against `Member.externalId` + `Member.firstName` + `Member.lastName` (OR-joined).
-  - Live results list (paginated under the search input, 25 per page) showing matching members. Each row: name · identifier · last-response date (this survey).
-  - Each row has an `Add` button. The whole result set is `Add all on this page` and `Add all matching (N)`.
-  - Sample-by-count / sample-by-percent (the #378 affordance) is preserved as a secondary tab on this card — *"Random sample"* — for the operator who wants "10% of all members" without searching. Mutually exclusive with the search results within this card (operator picks one at a time inside the card).
-- **Add from Custom List** card
-  - Same paste-textarea + `Upload CSV` toggle as #378 §2.1 today (newline / comma / semicolon separated; `Name <email>` accepted; auto-enroll checkbox per #378).
-  - **Email format is always accepted, regardless of `Brand.memberIdentifierKind`** (the **Round-3 parser relaxation** — the #378 rule that pasted identifiers must match the brand's primary identifier kind is **deliberately relaxed by #420**). Rationale: brands routinely supply lists in their own segmentation tools' format (typically email) regardless of which identifier kind the brand picked in CustomerEQ. The parser detects email format, looks up via `Member.email` (an existing column on the Member model), and routes the match through three possible buckets:
-    - **Matched** on the brand's primary identifier (e.g., paste was `acme-cust-001` and the brand is `external_id`-keyed) → counts as Existing in the audience list, Source chip `Existing`.
-    - **Matched** on email lookup (e.g., paste was `joe@example.com` against an `external_id`-keyed brand where Member exists with that email) → counts as Existing, Source chip `Existing (via email)`.
-    - **Email unmatched against a non-email-keyed brand** (e.g., paste was `unknown@somewhere.com` and the brand is `external_id`-keyed; the email doesn't match any Member's `email`) → **listed in a separate "Emails not found — cannot be auto-enrolled because Brand identifier is `<phone|external_id>`" subsection** of the audience list with a one-line recovery hint: *"Add these members in Members → New with the brand identifier first; they'll match here on the next paste."* These rows are not silently dropped — the operator gets explicit signal about why they can't be sent to and what to do about it.
-  - One `Add` button at the bottom of the card parses the paste/CSV and appends rows to the unified list (instead of replacing it, like #378 today).
-
-**Below the two cards: the unified Audience list**
-
-- Header: *"`N` members in this wave"* (N updates as members are added/removed).
-- Table columns: ☑ (checkbox, default selected) · Name · Identifier · Last response · this survey · Last response · all surveys · Source (chip: `Existing` / `Existing (via email)` / `New (will auto-enroll)` / `Email — not found` / `Skipped`).
-- **Deselect**: operator can uncheck individual rows. Deselected rows are excluded from the wave but remain visible so the operator can re-select before sending.
-- **Bulk actions**: `Select all on page` / `Deselect all on page` / `Remove all unchecked`.
-- **Dedup**: identical identifier added twice (once from Existing, once from Custom List) appears once. The card source that won is shown in the Source chip; the duplicate is silently absorbed.
-- **Pagination**: default page size **25**, alternative **50** via a select control. Pagination preserves checkbox state across pages.
-- **Empty state**: *"No members added yet. Use the cards above to add members from your roster or paste a list."*
-
-#### §2.2 Configure state — Common fields (**SHARED — both modes**)
-
-Below the audience list, before any mode-specific composer, a **Common fields** card surfaces the two inputs that both flows need. Identical UI, identical semantics, identical persistence (both write to `DistributionBatch.surveyNameInMail` + `DistributionBatch.expiresAt`):
+The **Common fields** card sits at the top of the Configure surface. Identical UI, identical semantics, identical persistence (both flows write to `DistributionBatch.surveyNameInMail` + `DistributionBatch.expiresAt`):
 
 - **Survey name in mail** — single text input. Default: `Survey.title` (respondent-facing title per #241 R7) falling back to `Survey.name`. Max 80 chars. The operator may edit before generating/sending.
   - **SELF_SERVE path**: flows into the downloaded CSV's `surveyName` column so the brand's mail-merge template can reference it (e.g., `*|SURVEY_NAME|*` in Mailchimp). #378 §2.2 semantics, preserved.
   - **MANAGED_EMAIL path**: provides the default value for the Subject input below (composer §2.3) and is exposed as the `{{survey_title}}` mustache variable in the Body editor.
-- **Links expire on** — a select with presets (24 hours / 7 days / 30 days / 90 days / Custom date+time). Default: 7 days from now, snapped to **end-of-day in `Brand.timezone`** (per #378 §2.2). Custom Date+Time opens a date-and-time picker; helper text directly below the picker reads *"All times in `<Brand.timezone>`"*. Stored on `DistributionBatch.expiresAt` as a UTC timestamp.
+- **Links expire on** — a select with presets (24 hours / 7 days / 30 days / 90 days / Custom date+time). Default: 7 days from now, snapped to **end-of-day in `Brand.timezone`** (column verified — `schema.prisma:213`, default `"UTC"`). Custom Date+Time opens a date-and-time picker; helper text reads *"All times in `<Brand.timezone>`"*. Stored on `DistributionBatch.expiresAt` as a UTC timestamp.
   - **SELF_SERVE path**: every minted token in the batch expires at this timestamp. #378 §2.2 semantics, preserved.
-  - **MANAGED_EMAIL path**: same — the tokenized URL embedded in the CustomerEQ Email message expires at this timestamp. The MANAGED_EMAIL confirm-modal copy (§2.4) surfaces the expiry alongside the recipient count so the operator sees both before clicking Send.
-- *(The `Auto-enroll members not in this brand` checkbox lives inside the Custom List card per §2.1; it's part of the audience builder, not a common field. Mentioned here only so reviewers don't think it's missing.)*
+  - **MANAGED_EMAIL path**: same — the tokenized URL embedded in the CustomerEQ Email message expires at this timestamp. The MANAGED_EMAIL confirm-modal copy (§2.5) surfaces the expiry alongside the recipient count so the operator sees both before clicking Send.
 
-A **wave label** is auto-derived from `<Survey.title> · <ISO date>` (e.g., *"Q2 customer satisfaction · 2026-05-21"*) and stored on `DistributionBatch.label`. Not surfaced as an editable input on the configure page in either mode — operators rename from the batch detail page (#378 §3.1) if needed.
+A **wave label** is auto-derived from `<Survey.title> · <ISO date>` (e.g., *"Q2 customer satisfaction · 2026-05-22"*) and stored on `DistributionBatch.label`. Not surfaced as an editable input on the configure page — operators rename from the Wave Detail page (§3.2) if needed.
+
+#### §2.2 Configure state — Audience builder (**SHARED — both modes**)
+
+The audience builder follows the common fields. Layout:
+
+**Two add-members cards stacked vertically** (replacing #378's mutually-exclusive radio-card mode chooser):
+
+- **Add from Existing Members** card
+  - Search input with placeholder: *"Search by email, name, external ID. Wildcards supported (e.g., `*@artistos.com`, `q2-*`, `*support*`)."*
+  - Wildcard grammar: glob — `*` matches any run of characters; `?` matches a single character; non-wildcard input is substring-matched. Case-insensitive. Applied against `Member.externalId` + `Member.email` (nullable per #231 PR2) + `Member.firstName` + `Member.lastName` (OR-joined). **Glob is the chosen primitive** per OQ-2 resolution: *"glib is correct"* (reviewer confirmed glob over raw SQL LIKE).
+  - Live results list (paginated under the search input, 25 per page) showing matching members. Each row: name · identifier · last-response date (this survey) · suppression indicator (if any — see below).
+  - Each row has an `Add` button. The whole result set offers `Add all on this page` and `Add all matching (N)`.
+  - **Random Sample** is the second tab on this card — for the operator who wants "10% of all members" or "exactly 500 random members" without searching. **The Random Sample tab also surfaces an explicit `Add N members` button** (not auto-add) so the flow feels consistent with the Search tab — operator picks the sampling parameters, sees a count, clicks Add. (Reviewer feedback: *"Random Sample should also have Add button, so the flow doesn't appear broken and distinct"*.)
+- **Add from Custom List** card
+  - Same paste-textarea + `Upload CSV` toggle as #378 §2.1 today (newline / comma / semicolon separated; `Name <email>` accepted; auto-enroll checkbox per #378).
+  - **Email format is always accepted, regardless of `Brand.memberIdentifierKind`** (the Round-3 parser relaxation; #378's primary-identifier-only rule is relaxed). The parser detects email format, looks up via `Member.email` (verified column in `schema.prisma:331`, nullable per #231 PR2), and routes through three buckets:
+    - **Matched** on the brand's primary identifier (e.g., paste `acme-cust-001` against an `external_id`-keyed brand) → Source chip `Existing`.
+    - **Matched** on email lookup (e.g., paste `joe@example.com` against an `external_id`-keyed brand where some Member has that email) → Source chip `Existing (via email)`.
+    - **Email unmatched against a non-email-keyed brand** → listed in a separate *"Emails not found — cannot be auto-enrolled because Brand identifier is `<phone|external_id>`"* subsection with the recovery hint *"Add these members in Members → New with the brand identifier first; they'll match here on the next paste."*
+  - One `Add` button at the bottom of the card parses the paste/CSV and appends rows to the unified list.
+
+**Below the two cards: the unified Audience list**
+
+- Header: *"`N` members in this wave"* (N updates as members are added/removed).
+- Table columns: ☑ (checkbox) · Name · Identifier · Last response · this survey · Last response · all surveys · Source · Status.
+- **Source chip vocabulary**: `Existing` / `Existing (via email)` / `New (will auto-enroll)` / `Email — not found` / `Skipped`.
+- **Status chip vocabulary (new in Round 6)**: `OK` (default — checkbox enabled, checked) / `Unsubscribed` (warning-styled) / `No consent` (warning-styled) / `Erased` (member.erased = true; warning-styled).
+- **Suppressed members are surfaced — not hidden**: members whose primary lookup matched the search/list but who are **unsubscribed (`Member.unsubscribedAt IS NOT NULL`) or lack consent (`Member.consentGivenAt IS NULL` for the email channel, or `Member.emailOptIn = false`) or erased (`Member.erased = true`)** appear in the audience list with **checkbox unchecked AND disabled** + the appropriate Status chip + a tooltip explaining why (e.g., *"This member unsubscribed on 2026-04-12; cannot receive emails."*). The operator sees them so they understand *why* the audience count differs from the search result count; they cannot send to them. **This applies to both Self-serve and Managed-Email paths** — Self-serve does not get to bypass the consent gate just because the operator's own email tool is doing the dispatch (the platform still controls token-minting and member-resolution).
+- **Deselect**: operator can uncheck individual rows. Deselected rows are excluded from the wave but remain visible so the operator can re-select before sending.
+- **Bulk actions**: `Select all on page` / `Deselect all on page` / `Remove all unchecked`.
+- **Dedup**: identical identifier added twice (once from Existing search, once from Custom List paste) appears once. The card source that won is shown in the Source chip; the duplicate is silently absorbed.
+- **Pagination**: default page size **25**, alternative **50** via a select control. Pagination preserves checkbox state across pages.
+- **Empty state**: *"No members added yet. Use the cards above to add members from your roster or paste a list."*
 
 #### §2.3 Configure state — Composer (**Mode-specific: MANAGED_EMAIL only**)
 
-Below the common fields, the MANAGED_EMAIL composer appears. On SELF_SERVE this card is replaced by the §2.4a Generate-Links section (no email body to compose).
+Below the common fields and audience builder, the MANAGED_EMAIL composer appears. On SELF_SERVE this card is replaced by the §2.4a Generate-Links section (no email body to compose).
 
 **Sender block** (two side-by-side fields):
-- **Sender name** — free text. Default: `Brand.displayName` (from #277 Organization Settings) or the brand name fallback. Max 50 chars. Renders in the email as the friendly From-name.
-- **Sender alias** — local-part-only input. Renders next to a non-editable suffix showing the pinned CustomerEQ Email domain (e.g., the input shows *"feedback"* and the suffix shows *"@cx.acme-via-customereq.io"*). Validated as `[a-z0-9._-]+` (RFC-822 safe local-part subset). Default: `feedback`.
-  - **Why the domain is non-editable**: it's the CustomerEQ-Email-verified sender domain configured at the brand level; arbitrary domains would fail SPF/DKIM/DMARC alignment and break deliverability. The domain comes from `Brand.managedEmailSenderDomain` (new column — see Data Model §A); if not set on the brand, falls back to the platform's existing-notifications sender domain (currently `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` env value — implementation detail) with an info-line *"Using shared CustomerEQ sender domain. Contact support to configure a brand-specific sender."*
+- **Sender name** — free text. Default: `Brand.name` (verified — `schema.prisma:198`, the actual brand display column; an earlier R1–R5 spec reference to a non-existent `Brand.displayName` has been corrected). Max 50 chars. Renders in the email as the friendly From-name.
+- **Sender alias** — local-part-only input. Renders next to a non-editable suffix showing the pinned CustomerEQ Email domain. **V0 reality**: the suffix is **`@customereq.wellnessatwork.me`** (the platform's currently-verified sender domain — verified in `.env.example:42` `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM="no-reply@customereq.wellnessatwork.me"`). Validated as `[a-z0-9._-]+` (RFC-822 safe local-part subset). Default: `feedback`.
+  - **V0 sender-domain reality (reviewer-confirmed)**: V0 does **NOT** offer per-brand custom sender domains. The domain shown to operators is the application default (`customereq.wellnessatwork.me`). The data-model column `Brand.managedEmailSenderDomain` ships in this issue with code wiring but stays **null in V0** — V1 will enable custom-domain registration with the ACS-backed email provider, at which point `Brand.managedEmailSenderDomain` is consulted first and falls through to the application default if null. V0 + V1 fallback order: `Brand.managedEmailSenderDomain` → application default (`customereq.wellnessatwork.me`).
+  - **Fallback safety (OQ-1 resolution)**: per reviewer — *"Fallback domain is required. If Azure Communication Services Email from is not set, it should fall back to application's domain. It should also fire an event with a warning."* The domain resolution order is: (a) `Brand.managedEmailSenderDomain` if non-null (V1+); (b) parsed-domain from `process.env.AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` if set; (c) the platform's hard-coded fallback `customereq.wellnessatwork.me`. **If the resolution falls through to (c) because (b) was unset, the platform emits a `warn`-level structured log event** (`event=email.sender_domain.fallback`, `reason=acs_env_unset`) so ops can see when the config is degraded.
 
-**No brand-logo upload affordance on this page.** The brand logo is consumed (not produced) by the composer — the `{{brand_logo}}` mustache renders the existing `Brand.logoUrl` value (set in Organization Settings). This issue intentionally scopes only the **surfacing** of the logo in survey emails; the upload UX itself (which doesn't exist yet) is tracked separately as a future Organization Settings issue (see Non-goals). When `Brand.logoUrl` is null, `{{brand_logo}}` renders empty and the header collapses to the brand name only — graceful degradation, no operator action required.
+**No brand-logo upload affordance on this page.** The brand logo is consumed (not produced) by the composer — the `{{brand_logo}}` mustache renders the existing `Brand.logoUrl` value. **`Brand.logoUrl` is verified to exist** at `packages/database/prisma/schema.prisma:201` (`String?` column on the Brand model; an earlier OQ-7 marked this as an assumption — closed as confirmed-existing). This issue intentionally scopes only the **surfacing** of the logo in survey emails; the upload UX itself (which doesn't exist yet) is tracked separately as a future Organization Settings issue (see Non-goals). When `Brand.logoUrl` is null, `{{brand_logo}}` renders empty and the header collapses to the brand name only — graceful degradation, no operator action required.
+
+#### §2.3.1 Theme-color mapping for managed-email rendering
+
+The email body picks up the brand's visual identity from the **selected `BrandTheme`** (the brand's `defaultTheme` per `Brand.defaultThemeId` → `BrandTheme.id`, or the Survey-selected theme per `Survey.themeId` → `BrandTheme.id` if set). `BrandTheme` is verified to exist in `schema.prisma:758-789` (renamed from SurveyTheme per #291; the spec's earlier references to a "SurveyTheme" model are corrected to `BrandTheme`).
+
+| Email element | `BrandTheme` column | Default (verified in schema) |
+|---|---|---|
+| Brand-name header text color | `primaryColor` | `#6366f1` |
+| `{{survey_link}}` rendered as a link — text color | `accentColor` | `#6366f1` |
+| Body background | `backgroundColor` | `#ffffff` |
+| Body text | `textColor` | `#111827` |
+| (Future V1 CTA button — out of V0 scope) Background | `buttonColor` | `#6366f1` |
+| (Future V1 CTA button — out of V0 scope) Text color | `buttonTextColor` | `#ffffff` |
+| Subtle / secondary accents | `secondaryColor` | `#818cf8` |
+
+The worker renders the HTML body using these theme values inlined into the email's `<style>` block (email clients require inline styling for reliable rendering). The plaintext part of the multipart email uses no styling — the mustaches resolve to plain text + the survey URL.
+
+**Theme resolution order**: `Survey.themeId` (if set) → `Brand.defaultThemeId` (if set) → CustomerEQ default palette (the same default values shown above). The resolved `BrandTheme` row is snapshotted into `DistributionBatch.composerSnapshot.themeSnapshot` at send time so the Wave Detail page (§3.2) can show exactly which palette was used.
 
 **Email body block**:
 - **Subject** — single text input. Default: the survey's respondent-facing title (`Survey.title`) prefixed by *"Quick question:"* (configurable — operator may overwrite the whole subject).
@@ -172,16 +203,16 @@ Below the common fields, the MANAGED_EMAIL composer appears. On SELF_SERVE this 
   Thanks,
   {{sender_name}}
   ```
-- The `{{brand_logo}}` token renders as `<img src="<Brand.logoUrl>" alt="<Brand.displayName>" />` if `Brand.logoUrl` is present, otherwise as an empty string. `{{brand_name}}` renders as `<Brand.displayName>` (always present). Both are visible in the live preview pane so the operator sees what recipients see.
+- The `{{brand_logo}}` token renders as `<img src="<Brand.logoUrl>" alt="<Brand.name>" />` if `Brand.logoUrl` is present, otherwise as an empty string. `{{brand_name}}` renders as `<Brand.name>` (always present, verified — `schema.prisma:198`). Both are visible in the live preview pane so the operator sees what recipients see.
 - Available mustache variables surfaced as a click-to-insert palette:
   - `{{survey_link}}` (required — the spec rejects send if the body doesn't contain at least one literal `{{survey_link}}`)
   - `{{first_name}}` / `{{last_name}}` (from `Member.firstName` / `Member.lastName`; render as empty string if null — *not* a default-to-"Customer" courtesy fallback, to avoid surprising the operator who didn't notice their roster has unfilled names)
   - `{{survey_title}}` (`Survey.title`)
   - `{{sender_name}}` (the Sender name field above)
-  - `{{brand_name}}` (`Brand.displayName`)
+  - `{{brand_name}}` (`Brand.name` — verified column at `schema.prisma:198`)
   - `{{brand_logo}}` (`Brand.logoUrl` — renders as `<img>`, or empty if unset)
 - **Footer (auto-appended)**: a non-editable footer with the unsubscribe link, mandated by CAN-SPAM §316.5 / CASL §6 / GDPR Art. 21:
-  > *You received this survey because you're a member of `{{brand_name}}`'s loyalty program. [Unsubscribe](unsubscribe-link)*
+  > *You received this survey because you're a customer or partner of `{{brand_name}}`. [Unsubscribe](unsubscribe-link)*
 
   The unsubscribe-link is a tokenized URL of shape `https://<frontend-host>/u/<unsubscribe-token>`. Clicking it shows a one-click confirmation page and sets `Member.unsubscribedAt = now()`. Suppression applies to **all future CustomerEQ Email sends from this brand** (not per-survey, per CAN-SPAM convention — see Open Question OQ-3).
 
@@ -335,7 +366,7 @@ The Loop Monitor section gains a **Survey Sent** stat-card at the leftmost posit
 
 > **Survey Sent**: `N` &nbsp;&nbsp; *(sub-line:* `K` via CustomerEQ Email · `M` via my email tool *)*
 
-- The big number `N` is `Survey.sentCount` (sum across both modes, lifetime — i.e., every batch ever created on this survey).
+- The big number `N` is `Survey.sentCount` (sum across both modes, lifetime — i.e., every batch ever created on this survey). Note: the Loop Monitor's pipeline data already exposes a `surveysSent` field today (verified — `apps/web/src/components/surveys/LoopMonitor.tsx:13`); #420 only adds the per-mode breakdown sub-line.
 - The sub-line breaks down by `DistributionBatch.sendMode` aggregated through `SurveyDistribution.sendMode` (which mirrors the parent batch's mode for fast aggregation without a join).
 - **Loop Monitor stays lifetime-wide regardless of the Wave filter** in the Responses section below (per #378 §3 design — the per-batch slicing belongs to Responses, not the lifetime pipeline view).
 
@@ -343,13 +374,19 @@ The other three stat-cards in the Loop Monitor — Responses Received, Closed-lo
 
 #### §4.2 Responses section header
 
-The Responses section gains a **header strip** that surfaces Sent count alongside the existing Wave-filtered response count:
+The Responses section gains a **header strip** that surfaces Sent count alongside the response count:
 
-> **Survey Sent**: `N` &nbsp; *(lifetime · not affected by Wave filter)* &nbsp; **|** &nbsp; **Responses**: `R of N` &nbsp; *(`P%` · changes with the Wave filter on the right)* &nbsp; *[Wave filter dropdown]*
+> **Survey Sent**: `N` &nbsp; **|** &nbsp; **Responses**: `R of N` &nbsp; *(`P%`)* &nbsp; *[Wave filter dropdown]*
 
-- The Sent value sits **before** the filtered response count (left of the divider), so the operator anchors on lifetime Sent first, then narrows Responses by Wave.
-- The Wave filter dropdown (preserved from #378 §3) still scopes the Responses section's table below; the strip's response count updates accordingly. The Sent number does **not** change when the operator picks a specific Wave (Sent is a lifetime stat anchored above the filter).
-- When the operator picks a specific Wave, the response count display reads e.g., *"Responses: 2 of 5 (40% · Wave: Q2 2026 NPS · 2026-05-21)"*; selecting *"All waves & direct responses"* reads e.g., *"Responses: 4 of 11 (36% · lifetime)"*.
+- The Sent value sits **before** the response count (left of the divider) so the operator anchors on Sent first, then reads Responses as a fraction of it.
+- **Filter responsiveness (Round-6 clarification per reviewer)**:
+  - **Wave filter** affects BOTH Sent and Responses. When the operator selects a specific Wave, Sent shows that wave's recipient count and Responses shows responses within that wave (`R of N` where N is the wave's sent count).
+  - **Response-only filters** (date range, sentiment scope, etc.) affect **Responses only** — Sent stays anchored to the Wave-level (or lifetime if no Wave selected) because the question *"how many did we ask?"* doesn't change when the operator narrows the response cohort by submission date or sentiment band.
+- **Example reads**:
+  - *"Survey Sent: 11 | Responses: 4 of 11 (36%) · Wave: All"* — no Wave selected, lifetime view.
+  - *"Survey Sent: 5 | Responses: 2 of 5 (40%) · Wave: Q2 2026 NPS · 2026-05-21"* — Wave selected; Sent is the Wave's sent count.
+  - *"Survey Sent: 5 | Responses: 1 of 5 (20%) · Wave: Q2 2026 NPS · 2026-05-21 · Date: last 24h"* — Wave + Date-range filter; Sent stays at 5 (still that wave); Responses narrows to the date-filtered subset.
+- The lifetime Sent always appears in the Loop Monitor stat-card (§4.1) — that surface is filter-agnostic by design.
 
 #### §4.3 Configuration Summary is **stat-counter-free**
 
@@ -530,7 +567,7 @@ Re-enqueues per-recipient send jobs for any `SurveyDistribution` rows in failed 
 
 ### New: `GET /u/:token` (public) + `POST /u/:token/confirm` (public)
 
-- `GET` renders the unsubscribe page (HTML, no auth, no PII other than `Brand.displayName`).
+- `GET` renders the unsubscribe page (HTML, no auth, no PII other than `Brand.name`).
 - `POST /confirm` sets `Member.unsubscribedAt = now()` and marks the `MemberUnsubscribeToken` as consumed. Idempotent — repeated POSTs are no-ops after the first.
 
 ### New: search endpoint extension: `GET /v1/members?q=<wildcard>`
@@ -568,7 +605,7 @@ Every `survey-distribution-send` worker job MUST check `Member.unsubscribedAt IS
 ### 13.3 — CAN-SPAM §316.5 / CASL §6 mandatory footer
 
 The composer's appended footer (operator cannot remove) must contain:
-- The brand's legal name (`Brand.displayName`).
+- The brand's legal name (`Brand.name` — verified column at `schema.prisma:198`).
 - A one-click unsubscribe link (the `/u/<token>` endpoint).
 - No PII other than the recipient's name (rendered via `{{first_name}}` / `{{last_name}}` if present in body).
 
@@ -583,6 +620,27 @@ The CustomerEQ Email message body MUST NOT contain PII other than the recipient'
 ### 13.6 — Audit logging
 
 Every `MANAGED_EMAIL` batch creation + every per-recipient CustomerEQ Email send + every unsubscribe confirmation writes an `AuditLog` row with appropriate action / actorUserId / resourceType / metadata. Audit allowlist is documented per-handler in the new endpoints' `auditAllowlist` config (matches the existing pattern in `apps/api/src/routes/distributionBatches.ts`).
+
+### 13.7 — Pre-dispatch second consent / suppression check (Round-6 addition)
+
+The audience-builder's suppression check at member-selection time (§2.2 — *Status* chip + disabled checkbox for unsubscribed / no-consent / erased members) is a **first** gate; the **second** gate is at the per-recipient worker job, immediately before the actual send call. The two-gate model is required because:
+
+- Members may unsubscribe in the **time window between audience selection and dispatch** (operator builds the audience at 10:00, clicks Send at 10:05, worker picks up the job at 10:06 — a member who unsubscribed at 10:04 must still be skipped at 10:06).
+- Members may be **erased** (GDPR right-to-erasure) in the same window.
+- Members may have their `consentGivenAt` cleared by a brand admin in the same window.
+
+**Worker pre-dispatch check** (added to the `survey-distribution-send` job):
+```
+const member = await tx.member.findUnique({ where: { id: payload.memberId }, select: { unsubscribedAt: true, consentGivenAt: true, emailOptIn: true, erased: true, email: true } });
+if (member.erased) → Failed: 'Skipped: member erased' (no retry)
+if (member.unsubscribedAt !== null) → Failed: 'Skipped: unsubscribed' (no retry)
+if (member.consentGivenAt === null) → Failed: 'Skipped: no consent' (no retry)
+if (!member.emailOptIn) → Failed: 'Skipped: email opt-out' (no retry)
+if (member.email == null || member.email === '') → Failed: 'Skipped: no email on record' (no retry)
+// else: proceed with sendEmailMessage(...)
+```
+
+These suppression failures are **distinct from technical failures** (bounce, network error, ACS 5xx). Technical failures are retryable via the Retry-Failed affordance (§2.6b); suppression failures are not retryable — the audience-builder gate should have caught them, or they happened in the dispatch window (in which case the suppression is correct and re-trying would re-violate it).
 
 ## Validation Plan
 
@@ -676,15 +734,89 @@ E2E test scenarios:
 - `docs/architecture/architecture.md` is the resolved design-standards source.
 - Mocks follow the existing `docs/feature-specs/mocks/378-distribute-flow.html` CSS-variable system (`:root` palette, `.dist-tile`, `.btn primary` patterns) for visual consistency across the Distribute surface.
 
+## Requirements (SHALL-style, traceable)
+
+Every functional/data/non-functional requirement below is tagged `R<N>` for traceability in the RFC and implementation phases. Each carries a one-line acceptance statement in Given/When/Then form where applicable.
+
+### Distribution entry-point (R1–R5)
+
+- **R1**: The `Send via Email` tile in the Distribution section SHALL render two equal-weight peer buttons stacked vertically: `Send via CustomerEQ →` (routes to `?mode=managed-email`) and `Send via my email tool →` (routes to `?mode=self-serve`). *Given* the survey is ACTIVE *when* the operator opens the survey detail page *then* both buttons SHALL be enabled.
+- **R2**: When the survey is `DRAFT` / `PAUSED` / `STOPPED`, both buttons SHALL be disabled with state-keyed tooltips matching #378 R2 vocabulary.
+- **R3**: The `Embed snippet` (Copy) and `Share link` (Copy) tiles SHALL remain unchanged from #241 R26.
+- **R4**: The Distribution tile grid SHALL preserve the three-column layout on desktop and collapse to single-column on mobile (responsive baseline from #241).
+- **R5**: Bookmarked URL `/admin/surveys/[id]/distribute` (no `?mode=`) SHALL default to `?mode=self-serve` to preserve continuity for #378 operators.
+
+### Configure surface (R6–R10)
+
+- **R6**: The Configure page SHALL render sections in this order top-to-bottom: (1) Common fields, (2) Audience builder, (3) Composer (managed-email only), (4) Action button — matching the *"Define batch attributes → Select members → Send"* mental model.
+- **R7**: A `Switch to <other-mode>` link SHALL appear in the page header throughout the Configure state and SHALL preserve the audience + common-field values across the mode swap.
+- **R8**: Survey title and link expiry (the Common fields) SHALL be editable until the operator commits via the action button.
+- **R9**: The audience list SHALL remain visible during the Send / Generate progression so the operator can monitor against the audience they confirmed.
+- **R10**: All page state SHALL be ephemeral — closing the browser before clicking the action button SHALL discard the in-progress configuration (no resumable drafts in V0).
+
+### Common fields (R11–R15)
+
+- **R11**: `Survey name in mail` SHALL be a text input, max 80 chars, defaulting to `Survey.title` falling back to `Survey.name`, persisted to `DistributionBatch.surveyNameInMail`.
+- **R12**: `Links expire on` SHALL offer five presets (24h / 7d / 30d / 90d / Custom date+time), defaulting to 7d. Persisted to `DistributionBatch.expiresAt` as UTC timestamp.
+- **R13**: The expiry preset value SHALL be snapped to end-of-day in `Brand.timezone` (default `UTC`); Custom Date+Time opens a date-and-time picker showing the timezone helper.
+- **R14**: Common-field values SHALL flow into both SELF_SERVE (CSV column) and MANAGED_EMAIL (subject default + mustache) paths identically.
+- **R15**: A wave label `<Survey.title> · <YYYY-MM-DD>` SHALL be auto-derived and stored on `DistributionBatch.label`; not surfaced as an editable input on the configure page.
+
+### Audience builder (R16–R23)
+
+- **R16**: The audience builder SHALL render two add-cards stacked vertically: `Add from Existing Members` and `Add from Custom List`. Both flows accumulate into a single deduped audience list below.
+- **R17**: The Existing Members search SHALL accept glob syntax (`*` matches any run, `?` matches single char) translated to SQL LIKE after escaping operator-literal `%`/`_`/`\` characters. Case-insensitive. Searches against `Member.externalId` + `Member.email` + `Member.firstName` + `Member.lastName` (OR-joined).
+- **R18**: The Random Sample tab SHALL offer a sample-by-percent OR sample-by-count input + an explicit `Add N members` button (not auto-add).
+- **R19**: Custom List paste/CSV SHALL accept email format **regardless of `Brand.memberIdentifierKind`**; matched members are added via `Member.email` lookup with Source chip `Existing (via email)`; unmatched emails against a non-email-keyed brand are listed in a separate *"Emails not found — cannot be auto-enrolled because Brand identifier is `<phone|external_id>`"* subsection with a recovery hint.
+- **R20**: The audience list SHALL paginate at 25 / 50 rows per page (operator-selectable); checkbox state SHALL persist across pages.
+- **R21**: Identical identifiers added from multiple sources SHALL appear once in the audience list (deduped); the Source chip reflects the card that won (Existing search beats Custom List paste).
+- **R22**: Suppressed members (unsubscribed / no consent / erased) SHALL appear in the audience list with **checkbox unchecked AND disabled**, a `Status` chip indicating the suppression reason, and a hover-tooltip explaining why and when. Suppressed members SHALL NOT be silently filtered out — they MUST be visible so the operator understands why the audience count differs from the search-result count.
+- **R23**: The operator SHALL be able to deselect individual rows (unchecking their checkbox) and re-select before committing the send; bulk `Select all on page` / `Deselect all on page` / `Remove all unchecked` controls SHALL be provided.
+
+### Composer (MANAGED_EMAIL only — R24–R30)
+
+- **R24**: The composer SHALL surface a Sender block (`Sender name` text input — default `Brand.name`; `Sender alias` local-part input — default `feedback`, validated `[a-z0-9._-]+`) and a fixed sender-domain suffix.
+- **R25**: The sender-domain suffix SHALL resolve as: `Brand.managedEmailSenderDomain` if non-null (V1+) → parsed-domain from `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` env if set → hard-coded `customereq.wellnessatwork.me`. The fallback to the hard-coded value SHALL emit a `warn`-level structured log event `email.sender_domain.fallback`.
+- **R26**: The composer SHALL NOT offer a brand-logo upload affordance. The logo is consumed from `Brand.logoUrl` (verified existing column).
+- **R27**: The composer SHALL include a Body editor (rich-text — TipTap or equivalent per OQ-5 RFC decision) with a mustache palette: `{{survey_link}}` (required) + `{{first_name}}` + `{{last_name}}` + `{{survey_title}}` + `{{sender_name}}` + `{{brand_name}}` + `{{brand_logo}}`.
+- **R28**: The default Body SHALL open with a `{{brand_logo}}\n{{brand_name}}` header block. When `Brand.logoUrl` is null, `{{brand_logo}}` SHALL render as an empty string and the header SHALL collapse to brand name only.
+- **R29**: The Body SHALL render against the selected `BrandTheme` palette (`primaryColor` for header text, `accentColor` for link color, `backgroundColor` / `textColor` for body) — theme resolved as `Survey.themeId` → `Brand.defaultThemeId` → CustomerEQ default palette.
+- **R30**: An auto-appended non-editable unsubscribe footer SHALL render: *"You received this survey because you're a customer or partner of `{{brand_name}}`. [Unsubscribe](unsubscribe-link)"* — `unsubscribe-link` is a tokenized URL of shape `/u/<token>`.
+
+### Send + Terminal state (R31–R35)
+
+- **R31**: A single primary CTA SHALL appear at the bottom-right of the Configure surface: `Generate N links →` (SELF_SERVE) or `Send N emails →` (MANAGED_EMAIL). Disabled until validation passes (audience ≥ 1; body contains `{{survey_link}}` for managed; sender fields non-empty for managed).
+- **R32**: Clicking the CTA SHALL open a mode-specific confirmation modal (§2.5a / §2.5b) with the same modal shape and an explicit summary block (audience count + common-field values + composer values + warnings).
+- **R33**: On confirm, SELF_SERVE SHALL transition to the Success state with format dropdown + Download CSV button + strong-warning amber banner; MANAGED_EMAIL SHALL transition to the Sending state with SSE-driven progress + per-recipient status table + Retry-Failed CTA.
+- **R34**: For MANAGED_EMAIL, the platform SHALL NOT permit cancellation of an in-flight batch send in V0 (mid-flight cancel is a V1 candidate per Non-goals).
+- **R35**: For both modes, closing the browser mid-flight SHALL be safe — SELF_SERVE has no async work; MANAGED_EMAIL workers continue processing the BullMQ queue independently of the page session.
+
+### Sent-count surfacing (R36–R40)
+
+- **R36**: `Survey.sentCount` SHALL be a denormalized aggregate maintained per the semantics in Data Model §G; the column SHALL exist on the Survey model (new column).
+- **R37**: For SELF_SERVE batches, `Survey.sentCount` SHALL increment by `tokenCount` on CSV-download event (via the new `mark-csv-downloaded` endpoint); SHALL re-increment by `tokenCount` on Regenerate Links + Download CSV.
+- **R38**: For MANAGED_EMAIL batches, `Survey.sentCount` SHALL increment by 1 per `SurveyDistribution` row that transitions to `sentAt IS NOT NULL` (managed email provider confirmed delivery).
+- **R39**: The Loop Monitor section SHALL surface lifetime Survey Sent in a stat-card with a per-mode breakdown sub-line (`K via CustomerEQ Email · M via my email tool`). Loop Monitor values SHALL NOT change with the Wave-filter dropdown in the Responses section.
+- **R40**: The Responses section header SHALL surface `Survey Sent: N | Responses: R of N (P%)` followed by the Wave filter dropdown. Both Sent and Responses values SHALL update when the Wave filter changes; only Responses SHALL update with response-only filters (date range, sentiment scope).
+
+### Compliance + suppression (R41–R45)
+
+- **R41**: The platform SHALL maintain a brand-wide unsubscribe timestamp `Member.unsubscribedAt DateTime?` (new column). Setting it permanently suppresses future CustomerEQ Email sends to that member from that brand.
+- **R42**: The unsubscribe footer link SHALL be a per-batch, per-member tokenized URL (`MemberUnsubscribeToken` table, new) that on confirmation sets `Member.unsubscribedAt = now()` and marks the token consumed (idempotent — repeated confirmations are no-ops).
+- **R43**: The audience builder SHALL surface suppressed members (R22 above) with disabled checkbox + Status chip + explanatory tooltip; cannot be selected for send.
+- **R44**: The `survey-distribution-send` worker SHALL re-check `Member.unsubscribedAt IS NULL` AND `Member.consentGivenAt IS NOT NULL` AND `Member.emailOptIn === true` AND `Member.erased === false` AND `Member.email IS NOT NULL` BEFORE invoking the email provider (§13.7). Any failure → row transitions to Failed with the appropriate `Skipped: <reason>` value (not retryable).
+- **R45**: Every batch creation, per-recipient send (success or fail), regenerate-links event, mark-csv-downloaded event, and unsubscribe confirmation SHALL write an `AuditLog` row with allowlisted metadata fields (matching the existing pattern in `apps/api/src/routes/distributionBatches.ts`).
+
 ## Open Questions for reviewer
 
-- **OQ-1 (Sender domain default value)**: For V0, when `Brand.managedEmailSenderDomain` is unset, the spec falls back to the platform's existing-notifications sender domain (currently the `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` env value — implementation detail; the *operator-facing* name remains "CustomerEQ Email sender domain"). **Is that fallback domain the deliberate operator-facing sender, or is it notifications-only and we should NOT expose it as a survey-send domain?** If the latter, V0 should require `Brand.managedEmailSenderDomain` to be set before the `Send via CustomerEQ` tile is enabled (else show *"Configure brand sender domain"* tooltip).
-- **OQ-2 (Wildcard syntax)**: spec defaults to `*` / `?` glob (translated to SQL LIKE `%` / `_` after escape). **Is glob the right primitive, or should we lean toward SQL LIKE syntax (`%@artistos.com`) since operators may already think in that vocabulary?** Glob is more user-friendly; LIKE is more familiar to power users. Spec defaults to glob.
-- **OQ-3 (Unsubscribe granularity)**: spec defaults to **brand-wide** suppression (`Member.unsubscribedAt`). **Should it be per-survey** instead — letting a member opt out of just this survey while remaining subscribed to other surveys from the brand? CAN-SPAM doesn't require brand-wide, but it's the convention. Operators in regulated industries (healthcare) often want per-survey.
-- **OQ-4 (Survey.sentCount surfacing location)** — **RESOLVED (Round 4 mock review)**: surfaces in Loop Monitor (lifetime Survey Sent stat-card) + Responses section header (Sent before the Wave-filtered response count). Explicitly **not** in Configuration Summary (which stays stat-counter-free). See §4.
-- **OQ-5 (Rich-text editor library)**: spec assumes a TipTap-based editor if one is in the codebase, otherwise minimal contenteditable. **Is there a preferred editor library or should we pick during implementation?** If no preference, spec defaults to TipTap (battle-tested, MIT-licensed, accessible).
-- **OQ-6 (#378 audience-builder reshape — backward compat)** — **RESOLVED via §3.1**: drop-in reshape, no feature flag. The merged shape degenerates to single-source if one card is empty, so existing #378 workflows continue to work; the new affordances (per-row deselect, wildcard search, merged dedup) are additive. Bookmarked `/admin/surveys/[id]/distribute` URLs default to `mode=self-serve` to preserve continuity.
-- **OQ-7 (NEW — Brand.logoUrl source)**: spec assumes `Brand.logoUrl` either exists today or is added by a separate, parallel Organization-Settings issue. **Does it exist today, or do we need to file the dependency now?** If filing now: add to the `Brand` model with appropriate validation/storage (URL or CDN-uploaded asset). The upload UX itself is out of scope here (see Non-goals); only the column/value-consumption is needed for #420.
+- **OQ-1 (Sender domain default value)** — **RESOLVED (Round-6 review)**: V0 does not offer custom domains. Domain resolution order: `Brand.managedEmailSenderDomain` if non-null (V1+) → parsed-domain from `process.env.AZURE_COMMUNICATION_SERVICES_EMAIL_FROM` if set → hard-coded fallback `customereq.wellnessatwork.me`. When falling through to the hard-coded value because the env was unset, emit `warn`-level structured log event `email.sender_domain.fallback` so ops can detect degraded config. See §2.3.
+- **OQ-2 (Wildcard syntax)** — **RESOLVED (Round-6 review)**: reviewer confirmed *"glib is correct"* — glob (`*` / `?`) translated to SQL LIKE `%` / `_` after escaping operator literals (`%`, `_`, `\`). See §2.2.
+- **OQ-3 (Unsubscribe granularity)** — **RESOLVED (Round-6 review)**: reviewer confirmed *"keep it brand wide. Will expand to per survey if needed later"* — `Member.unsubscribedAt` is a brand-wide suppression timestamp. Per-survey opt-out is V1+. See §13.2 / §13.7.
+- **OQ-4 (Survey.sentCount surfacing location)** — **RESOLVED (Round-4 mock review)**: surfaces in Loop Monitor (lifetime Survey Sent stat-card) + Responses section header (Sent + Wave-filtered count). Explicitly **not** in Configuration Summary. See §4.
+- **OQ-5 (Rich-text editor library)** — **RESOLVED (Round-6 review)**: *"Decide at Technical Design."* Deferred to the RFC phase. The spec's default of TipTap (if no preference surfaces) stands as the soft default for the RFC author to confirm or revise.
+- **OQ-6 (#378 audience-builder reshape — backward compat)** — **RESOLVED via §3.1**: drop-in reshape, no feature flag. Bookmarked `/admin/surveys/[id]/distribute` URLs default to `mode=self-serve`.
+- **OQ-7 (Brand.logoUrl existence)** — **RESOLVED via codebase verification**: `Brand.logoUrl` exists today (`packages/database/prisma/schema.prisma:201`, `String?` column on the Brand model). The R5 spec marked this as an assumption to verify; reviewer correctly objected (*"I know it exists. Shouldn't spec verify this first instead of assuming?"*) and Round 6 verified it directly rather than asking. **No external dependency to file.** Closed.
+- **OQ-NEW-1 (`Member.unsubscribedAt` vs existing `Member.emailOptIn`)** — **OPEN**: `Member` already has an `emailOptIn Boolean @default(false)` column (verified — `schema.prisma:340`), which is a channel-level opt-in flag (default `false`). The R1–R5 spec proposed a new `Member.unsubscribedAt DateTime?` column to track unsubscribe events. **Question**: should we (a) add the new `unsubscribedAt` column as an immutable opt-out timestamp distinct from the existing `emailOptIn` channel preference (recommended — separate consent-given from consent-withdrawn for audit/compliance); or (b) reuse `emailOptIn` as the single suppression signal (simpler, but loses the timestamp of the unsubscribe event)? Round-6 spec defaults to (a) — the dispatcher checks BOTH `Member.unsubscribedAt IS NULL` AND `Member.emailOptIn === true` AND `Member.consentGivenAt IS NOT NULL` (any failure → Failed: Skipped with the appropriate reason). Reviewer call expected at the RFC phase.
 
 ## Non-goals (V1+)
 
