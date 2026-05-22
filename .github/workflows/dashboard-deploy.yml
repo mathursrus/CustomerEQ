@@ -1,12 +1,12 @@
 name: Deploy Dashboard
 
 on:
-  push:
+  # Trigger after cd-metrics.yml completes — its commits use [skip ci] which
+  # suppresses push-triggered workflows. workflow_run fires regardless.
+  workflow_run:
+    workflows: [CD Metrics]
+    types: [completed]
     branches: [main]
-    paths:
-      - 'docs/index.html'
-      - 'docs/ci-metrics.json'
-      - 'docs/cd-metrics.json'
   workflow_dispatch:
 
 permissions:
