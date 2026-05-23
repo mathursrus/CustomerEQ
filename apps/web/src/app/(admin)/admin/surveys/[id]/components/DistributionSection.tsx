@@ -127,18 +127,22 @@ function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: 
       }`}
     >
       <h3 className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
-        <span aria-hidden>📧</span>
+        <span aria-hidden>📨</span>
         Send via Email
       </h3>
       <p className="mt-1 text-xs text-gray-600">
-        CustomerEQ sends the emails for you, or generate per-recipient links for your own ESP.
+        Reach members by email — either let CustomerEQ deliver, or download per-recipient links
+        for your own email tool. Both paths share the same audience builder and common fields.
       </p>
       <div className="mt-auto flex flex-col gap-2 pt-4">
         {isActive ? (
           <>
+            {/* Spec §1 R1 + mock #scene-1 line 308: both buttons are equal-weight
+                outline-primary peers — neither path is "primary". The operator's
+                situation determines which is right. */}
             <a
               href={`/admin/surveys/${surveyId}/distribute?mode=managed-email`}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-1 rounded-md border border-indigo-600 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
             >
               Send via CustomerEQ →
             </a>
