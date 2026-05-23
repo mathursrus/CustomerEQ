@@ -1084,7 +1084,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
               <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface-muted); border-radius: var(--radius-sm); margin-bottom: 12px;">
                 <div style="font-size: 13px;">
                   <strong style="color: var(--text);">Survey Sent:</strong> <span style="font-weight: 600; color: var(--text);">11</span>
-                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(lifetime · not affected by Wave filter)</span>
+                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(lifetime · changes with Wave filter)</span>
                 </div>
                 <div style="height: 18px; width: 1px; background: var(--border);"></div>
                 <div style="font-size: 13px;">
@@ -1264,7 +1264,7 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
 
 <!-- ─────────────────────────────── Scene 7B — CustomerEQ Email Wave Detail ───── -->
 <section class="scene" id="scene-7b">
-  <div class="scene-label"><strong>Scene 7B · Wave detail page · CustomerEQ Email batch</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §3.2 · Same wave-detail page (`/admin/surveys/[id]/distribute/batches/[batchId]`) as Self-serve (Scene 7A) — but the Composer snapshot + per-recipient delivery log are visible because the platform dispatched the emails. Regenerate Links is replaced by Resend (V1.x candidate; out of V0 scope per Non-goals).</span></div>
+  <div class="scene-label"><strong>Scene 7B · Wave detail page · CustomerEQ Email batch</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §3.2 · Same wave-detail page (`/admin/surveys/[id]/distribute/batches/[batchId]`) as Self-serve (Scene 7A) — but the Composer snapshot + per-recipient delivery log are visible because the platform dispatched the emails. Regenerate Links is not surfaced for CustomerEQ Email batches: there is no CSV to re-download (the platform owns dispatch), and any resend semantics intersect with <code>Member.unsubscribedSurveysAt</code> in ways that warrant their own design pass.</span></div>
   <div class="container">
     <div class="admin-shell">
       <div class="admin-top">
@@ -1330,6 +1330,79 @@ georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/sr
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Survey name in mail</td><td>Q2 2026 NPS</td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Links expire on</td><td>2026-05-28 23:59 PT · <a href="#" style="color: var(--primary);">[Edit]</a></td></tr>
                 <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-21 14:02 PT by manohar.madhira@outlook.com</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <!-- §3.2 Composer snapshot — read-only render of what the operator
+               sent for this wave. Body is shown as preformatted text (mono)
+               because rendering the stored HTML would open an XSS surface;
+               the unresolved mustache tokens are also part of the audit. -->
+          <div class="section">
+            <div class="section-head"><h2>Composer snapshot</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted); width: 100px;">From</td>
+                  <td>Acme CX Team <span style="font-family: var(--mono); color: var(--text-muted);">&lt;feedback@customereq.wellnessatwork.me&gt;</span></td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted);">Subject</td>
+                  <td>Quick question: Q2 2026 NPS</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted);">Brand</td>
+                  <td style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
+                    <span>Acme Coffee</span>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top: 12px;">
+                <div style="font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;">Body</div>
+                <pre style="max-height: 220px; overflow: auto; padding: 12px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px; color: var(--text); white-space: pre-wrap;">{{brand_logo}}
+{{brand_name}}
+
+Hi {{first_name}},
+
+We&rsquo;d love your feedback on {{survey_title}}. It takes about 2 minutes.
+
+{{survey_link}}
+
+Thanks,
+{{sender_name}}</pre>
+                <p style="margin-top: 4px; font-size: 11px; color: var(--text-muted);">Read-only snapshot taken at send time. Mustache tokens (e.g. <code>{{first_name}}</code>) render unresolved here; the worker substitutes them per-recipient at dispatch.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- §3.2 Per-recipient send log — historical view of the SendProgressTable
+               that drove the Sending state (Scene 5B). Same shape, but persistent
+               across page reloads; polling auto-stops once `isComplete=true` on
+               the /send-progress endpoint so an operator landing on a finished
+               batch only does one round-trip. -->
+          <div class="section">
+            <div class="section-head">
+              <h2>Send log</h2>
+              <span style="font-size: 11px; color: var(--text-muted);">5 sent · 0 failed · 0 skipped</span>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <table class="recipient-table" style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Name</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Identifier</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Status</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Sent / failed at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px; font-family: var(--mono);">alice@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:11 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px; font-family: var(--mono);">bob@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:12 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Carla Singh</td><td style="padding: 6px; font-family: var(--mono);">carla@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:13 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Eric Olsen</td><td style="padding: 6px; font-family: var(--mono);">eric@others.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:14 PT</td></tr>
+                  <tr><td style="padding: 6px;">Fiona Castro</td><td style="padding: 6px; font-family: var(--mono);">fiona@others.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:18 PT</td></tr>
+                </tbody>
               </table>
             </div>
           </div>
