@@ -188,7 +188,39 @@ These are scoped to the audience builder lifted in Item E — defer formal closu
 
 ---
 
-## Closure plan
+## Closure status
+
+Updated 2026-05-23 after M1–M6 + mock-update landed. Commits on this branch:
+- `fcf60e9` — M1 (Scene 1 outline-primary peers + icon + copy)
+- `4ae9f0b` — M2 (Scene 6 Responses caption + dropdown + sendMode plumbing)
+- `7f0198b` — M3 (Scene 2/3/5A recaps + arrows + Done primary)
+- `97b41ff` — M4 (Scene 3 composer defaults)
+- `1be11e1` — M5 (Scene 6 LoopMonitor pills inline + lifetime-anchor note)
+- `7d36b3a` — M6 (Wave Detail Sent-semantics + Self-serve no-platform-log warning)
+- `8d4181b` — Mock-update (Scene 6 R40 caption + Scene 7B Composer/SendLog blocks + V0/V1 framing removed from 7B scene-note)
+
+**CLOSED**: 1.1, 1.2, 1.3, 2.2, 2.3, 3.4, 3.5, 3.6, 3.10, 5A.3, 6.2, 6.3, 6.4 (mock), 6.5, 6.6, 6.7, 7A.2, 7A.5, 7B.1 (mock), 7B.2, 7B.4 (mock).
+
+**STILL OPEN — substantial-drift items needing user discussion before closure**:
+- 3.8 — Auto-appended footer preview in composer
+- 3.9 — Live email preview pane (Scene 3 right column)
+- 3.11 — Theme color-mapping legend (coupled to 3.9)
+- 4.1 — SELF_SERVE confirmation modal
+- 4.2 — MANAGED_EMAIL confirm rendered inline vs modal (verbiage + summary lines)
+- 5A.2 — CSV preview pane on Success state
+- 5B.1 / 5B.2 / 5B.4 / 5B.5 — Sending headline + progress bar + reassurance copy + per-recipient table column verification
+- 5C.1 / 5C.2 / 5C.3 / 5C.4 — Sent state header + summary line + amber banner + post-action context
+- 6.1 — Loop Monitor 4-card vs 5-stage layout (#241 R32b territory)
+- 6.8 — "Details →" link addition (mock parity vs UX improvement — judgment call)
+- 6.9 — Configuration-summary footnote (needs verification)
+- 7A.1 / 7A.3 / 7A.4 / 7B.3 — Wave Detail counter-strip layout, Audience Spec missing rows (mostly #378-preexisting)
+
+**STILL OPEN — visual confirmation owed against seeded data**:
+- 2B.1 / 2B.2 — Custom-list against non-email-keyed brand (audience-builder Item-E surface)
+- 3.7 — Composer mustache toolbar button count
+- 5B.5 — Per-recipient table column count
+
+## Closure plan (original; superseded above)
 
 ### Mock-update items (fix the MOCK file, not implementation)
 
