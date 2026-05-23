@@ -2,7 +2,7 @@
 
 Issue: [#420](https://github.com/mathursrus/CustomerEQ/issues/420)
 Owner: Claude (claude-opus-4-7) / manohar.madhira@outlook.com
-Status: Round 1 — first draft for reviewer signoff
+Status: Round 2 — addresses 12 inline review comments + codebase-verification pass (coaching moment: `manohar.madhira@outlook.com-2026-05-23T03-19-55-precedent-as-recommendation-without-tradeoff-analysis.md`)
 Spec: [`docs/feature-specs/420-send-via-customereq-acs.md`](../feature-specs/420-send-via-customereq-acs.md) (R7)
 Evidence: [`docs/evidence/420-technical-design-evidence.md`](../evidence/420-technical-design-evidence.md) (to be created at submission)
 
@@ -35,10 +35,10 @@ UX is fully detailed in the spec (§1–§5) + [interactive mock](../feature-spe
 
 `packages/database/prisma/schema.prisma` — five model modifications, one new model, one new enum. All new tenant-scoped tables carry `brandId` per Rule 6.
 
-#### 1.1 New enum: `SendMode`
+#### 1.1 New enum: `SurveySendMode`
 
 ```prisma
-enum SendMode {
+enum SurveySendMode {
   SELF_SERVE      // #378 path — operator downloads CSV
   MANAGED_EMAIL   // #420 path — platform sends via the email connector (currently ACS-backed)
 }
@@ -76,7 +76,7 @@ model Survey {
 ```prisma
 model DistributionBatch {
   // ... existing #378 fields ...
-  sendMode         SendMode  @default(SELF_SERVE)  // backfill existing rows to SELF_SERVE in the migration
+  sendMode         SurveySendMode  @default(SELF_SERVE)  // backfill existing rows to SELF_SERVE in the migration
   composerSnapshot Json?                            // MANAGED_EMAIL only: {senderName, senderAlias, senderDomain, subject, body, footerTemplate, brandLogoUrl, themeSnapshot}. Null for SELF_SERVE.
 }
 ```
@@ -85,18 +85,24 @@ model DistributionBatch {
 
 ```prisma
 model SurveyDistribution {
-  // ... existing #378 fields ...
-  enqueuedAt    DateTime?    // MANAGED_EMAIL: set when worker job enqueued. SELF_SERVE: null (no enqueue).
-  sentAt        DateTime?    // SEMANTIC CHANGE: was @default(now()) at row creation (#378 mint-time). Now: SELF_SERVE = CSV-download time (set + overwritable on regenerate); MANAGED_EMAIL = provider-confirmed delivery time (set once, immutable).
-  failedAt      DateTime?    // MANAGED_EMAIL only: set when worker confirmed dispatch failure. Mutually exclusive with sentAt on the same row.
-  failureReason String?      // MANAGED_EMAIL only: bounded reason ("bounce" | "invalid_address" | "skipped_unsubscribed" | "skipped_no_consent" | "skipped_erased" | "skipped_no_email" | "transient_error_after_retries").
-  sendMode      SendMode     // denormalized mirror of parent batch.sendMode for fast aggregation without a join.
+  // ... existing #378 fields. sentAt stays DateTime @default(now()) NOT NULL — UNCHANGED. ...
+  enqueuedAt    DateTime?         // MANAGED_EMAIL: set when worker job enqueued. SELF_SERVE: null (no enqueue).
+  deliveredAt   DateTime?         // NEW. MANAGED_EMAIL only: set when the email provider confirmed delivery (EmailClient.beginSend().pollUntilDone() returned 'succeeded'). Survey.sentCount increments when this transitions NULL → timestamp.
+  failedAt      DateTime?         // NEW. MANAGED_EMAIL only: set when worker confirmed dispatch failure. Mutually exclusive with deliveredAt on the same row.
+  failureReason String?           // NEW. MANAGED_EMAIL only: bounded reason ('bounce' | 'invalid_address' | 'skipped_unsubscribed' | 'skipped_no_consent' | 'skipped_erased' | 'skipped_no_email' | 'transient_error_after_retries').
+  sendMode      SurveySendMode    // denormalized mirror of parent batch.sendMode for fast aggregation without a join.
 
-  @@index([surveyId, sendMode, sentAt])  // Survey.sentCount aggregation by mode
+  @@index([surveyId, sendMode, deliveredAt])  // Survey.sentCount aggregation by mode (MANAGED_EMAIL counts on deliveredAt)
+  @@index([surveyId, sendMode, sentAt])       // Survey.sentCount aggregation for SELF_SERVE (counts on sentAt updates from mark-csv-downloaded)
 }
 ```
 
-> **D1 (migration ordering)** — see Open Decisions. Existing `SurveyDistribution.sentAt` is `@default(now())` and NOT nullable today. Migrating to nullable + per-mode semantic requires a hand-edit (per architecture §3.4): `ALTER COLUMN sentAt DROP NOT NULL`, then backfill existing rows are left as-is (they have a sentAt value from old #117 / #378 semantics — preserved as historical truth).
+> **D1 (sentAt semantics — Round-2 simplification per reviewer r3291886241)** — `sentAt` stays `DateTime @default(now())` NOT NULL, unchanged. No `ALTER COLUMN sentAt DROP NOT NULL`. Two semantics preserved cleanly:
+> - **SELF_SERVE**: `sentAt = creation time` at mint (existing #378 default), then OVERWRITTEN to `now()` by the `mark-csv-downloaded` endpoint when the operator clicks Download CSV. Regenerate Links re-overwrites it. Survey.sentCount increments by tokenCount on each mark-csv-downloaded transition.
+> - **MANAGED_EMAIL**: `sentAt = creation time` at mint (= enqueue time, effectively). Worker dispatches the email; on provider success, sets `deliveredAt = now()` (separate column, not overloading sentAt). Survey.sentCount increments by 1 on each deliveredAt transition (NULL → timestamp).
+> - **Historical #117/#378 rows**: unchanged. `sentAt` = original mint time; `deliveredAt` = NULL (they're SELF_SERVE-style; no delivery confirmation concept).
+>
+> This avoids both (a) a column-nullability migration risk and (b) the need to retroactively backfill sentAt for historical rows. Reviewer's framing (*"Historical Sent At can be the date row was created"*) is the design.
 
 #### 1.7 New model: `MemberUnsubscribeToken`
 
@@ -120,21 +126,23 @@ model MemberUnsubscribeToken {
 
 ### 2. Migration strategy
 
-Single hand-edited migration `<timestamp>_add_managed_email_send_via_acs/migration.sql`. Forward-only (per architecture §3.4 default). Steps:
+**Per reviewer r3291902423** (*"Aren't any schema changes required before Migration?"*): the §1 model additions in `packages/database/prisma/schema.prisma` and the migration SQL are inseparable — both ship in the same commit. Prisma's flow is: edit `schema.prisma` first, then `prisma migrate dev --create-only` to scaffold the SQL, then hand-edit the SQL to match the §1 contracts exactly (especially for the new defaults, indexes, and the `SurveySendMode` enum). Forward-only per architecture §3.4.
 
-1. `CREATE TYPE "SendMode" AS ENUM ('SELF_SERVE', 'MANAGED_EMAIL');`
+Single hand-edited migration `<YYYYMMDD><HHMMSS>_add_managed_email_send/migration.sql`. Steps (Round-2 simplified — no `sentAt` nullability change per D1):
+
+1. `CREATE TYPE "SurveySendMode" AS ENUM ('SELF_SERVE', 'MANAGED_EMAIL');`
 2. `ALTER TABLE "brands" ADD COLUMN "managedEmailSenderDomain" TEXT;`
 3. `ALTER TABLE "members" ADD COLUMN "unsubscribedSurveysAt" TIMESTAMP(3);`
-4. `ALTER TABLE "surveys" ADD COLUMN "sentCount" INTEGER NOT NULL DEFAULT 0;`
-5. `ALTER TABLE "distribution_batches" ADD COLUMN "sendMode" "SendMode" NOT NULL DEFAULT 'SELF_SERVE';` (existing rows backfill to SELF_SERVE — see D2 for rationale)
+4. `ALTER TABLE "surveys" ADD COLUMN "sentCount" INTEGER NOT NULL DEFAULT 0;` (**no backfill** per reviewer r3291984458 — existing rows start at 0; this is the same pattern `Survey.responsesCount` and `Survey.distributionCount` follow today — verified at `schema.prisma:614-615`. The historical distribution count is queryable from `SurveyDistribution` if anyone needs it; the new counter is forward-incremented from #420 onward.)
+5. `ALTER TABLE "distribution_batches" ADD COLUMN "sendMode" "SurveySendMode" NOT NULL DEFAULT 'SELF_SERVE';` (D2: every existing batch was a #378 SELF_SERVE batch; default backfill is correct)
 6. `ALTER TABLE "distribution_batches" ADD COLUMN "composerSnapshot" JSONB;`
 7. `ALTER TABLE "survey_distributions" ADD COLUMN "enqueuedAt" TIMESTAMP(3);`
-8. `ALTER TABLE "survey_distributions" ADD COLUMN "failedAt" TIMESTAMP(3);`
-9. `ALTER TABLE "survey_distributions" ADD COLUMN "failureReason" TEXT;`
-10. `ALTER TABLE "survey_distributions" ADD COLUMN "sendMode" "SendMode" NOT NULL DEFAULT 'SELF_SERVE';` (backfill mirror from parent batch)
-11. `ALTER TABLE "survey_distributions" ALTER COLUMN "sentAt" DROP NOT NULL;` — required for MANAGED_EMAIL rows that exist briefly between enqueue and dispatch
-12. `CREATE TABLE "member_unsubscribe_tokens" ( ... );` + indexes
-13. `Survey.sentCount` backfill: `UPDATE "surveys" SET "sentCount" = (SELECT COUNT(*) FROM "survey_distributions" WHERE "surveyDistributions"."surveyId" = "surveys"."id");` — backfills the existing distribution count for pre-existing surveys so the new counter starts from a true historical baseline rather than zero.
+8. `ALTER TABLE "survey_distributions" ADD COLUMN "deliveredAt" TIMESTAMP(3);` (NEW per D1 simplification — MANAGED_EMAIL provider-confirmed delivery; sentAt unchanged)
+9. `ALTER TABLE "survey_distributions" ADD COLUMN "failedAt" TIMESTAMP(3);`
+10. `ALTER TABLE "survey_distributions" ADD COLUMN "failureReason" TEXT;`
+11. `ALTER TABLE "survey_distributions" ADD COLUMN "sendMode" "SurveySendMode" NOT NULL DEFAULT 'SELF_SERVE';` (mirror of parent batch; historical rows default-fill to SELF_SERVE matching their batch)
+12. `CREATE TABLE "member_unsubscribe_tokens" ( ... );` + indexes per §1.7
+13. `CREATE INDEX "survey_distributions_surveyId_sendMode_deliveredAt_idx" ON "survey_distributions" ("surveyId", "sendMode", "deliveredAt");`
 14. `CREATE INDEX "survey_distributions_surveyId_sendMode_sentAt_idx" ON "survey_distributions" ("surveyId", "sendMode", "sentAt");`
 
 ### 3. API endpoints
@@ -188,7 +196,17 @@ Per spec §API. Idempotent. Steps:
 
 #### 3.3 Existing: `POST /v1/surveys/:id/distribution-batches/:batchId/regenerate-tokens` (extended)
 
-#378 endpoint preserved. Extended to ALSO null-out `SurveyDistribution.sentAt` for every row in the batch (so the next `mark-csv-downloaded` call sees them as "new dispatch"). Behavior: regenerates all tokenHashes, returns new plaintext URLs once, sets sentAt = null + failedAt/failureReason = null. Audit-log: `distribution_batch.tokens_regenerated`.
+**Behavior options considered** (per reviewer r3291992540 — *"Is the previous pattern correct or structurally incorrect? What are the choice options and compromises?"*):
+
+| Option | What happens to sentAt on regenerate | Pros | Cons |
+|---|---|---|---|
+| **A. Overwrite sentAt on regenerate** (recommended) | UPDATE sentAt = now() for every row in the batch when the operator clicks Regenerate-and-download-CSV | Sent-count semantically = "most-recent dispatch handoff" — matches the operator's mental model ("I just regenerated; the new dispatch is now"). `Survey.sentCount` += tokenCount for the second download — aligns with "if they re-sent the wave, it counts as a re-send" | Loses the original dispatch timestamp from the row. (Mitigation: AuditLog row preserves the history — `distribution_batch.tokens_regenerated` event has both the old and new timestamps.) |
+| B. Preserve original sentAt; add a `regeneratedAt` column | Original sentAt stays; new `regeneratedAt` column tracks the most recent regen | Both timestamps available in-row | Extra column for a rarely-needed historical signal; complicates `Survey.sentCount` semantics (when do we count?); inconsistent with how `SELF_SERVE.sentAt` is already overwriteable on CSV-download anyway |
+| C. Don't touch sentAt at all | Regenerate only swaps tokenHash/tokenPrefix; sentAt stays | Simplest | Operator clicks Regenerate-and-download-CSV expecting "I just dispatched fresh links" but `Survey.sentCount` doesn't update; mental-model mismatch with the spec's stated "Regenerate = new dispatch event" semantics |
+
+**Round-2 recommendation**: **Option A** (overwrite sentAt on regenerate). The #378 endpoint is preserved; #420 only extends the side-effect to UPDATE sentAt + null-out failedAt/failureReason on every row in the batch. Audit-log: `distribution_batch.tokens_regenerated` with allowlist `{batchId, regeneratedCount, previousSentAt, newSentAt}` so the historical record survives.
+
+**Structurally**: the #378 pattern (mint-time sentAt + regenerate replaces tokenHash) was correct for #378's scope but didn't anticipate sentCount semantics. Option A is the minimal extension that keeps the existing #378 contract intact for the existing endpoint surface (regenerate still returns new plaintexts in a one-shot response) while adding the sentAt + sentCount side-effect that the new Survey-level counter needs.
 
 #### 3.4 New: `GET /v1/surveys/:id/distribution-batches/:batchId/send-progress` (MANAGED_EMAIL)
 
@@ -209,7 +227,7 @@ Per spec §API. Idempotent. Steps:
     firstName: string | null
     lastName: string | null
     status: 'queued' | 'sending' | 'sent' | 'failed'
-    sentAt: string | null
+    deliveredAt: string | null   // MANAGED_EMAIL provider-confirmed delivery (null until worker confirms)
     failedAt: string | null
     failureReason: string | null
   }>
@@ -230,16 +248,21 @@ Per spec §5. No auth. Idempotent confirm. `POST /confirm` runs a single update:
 
 Per spec §API. Adds glob translation: `*` → `%`, `?` → `_`, after escaping operator-literal `%` / `_` / `\` characters. Case-insensitive. Applied against `(externalId OR email OR firstName OR lastName) ILIKE ?`. PageSize default 25 (operator-selectable up to 100).
 
-### 4. Worker: `survey-distribution-send` queue
+### 4. Worker: `managed-email-send` queue
 
-New BullMQ queue. Convention follows §3.3 / §4.3 of architecture.
+**Queue name**: `managed-email-send` — deliberately distinct from the existing `survey-distribute` queue (verified at `packages/shared/src/queues.ts:14` and `apps/worker/src/processors/surveyDistribute.ts`) which is #117's event-trigger-based survey notification. Adding to the `QUEUES` const object:
 
 ```ts
 // packages/shared/src/queues.ts
-export const SURVEY_DISTRIBUTION_SEND_QUEUE = 'survey-distribution-send'
+export const QUEUES = {
+  // ... existing entries ...
+  MANAGED_EMAIL_SEND: 'managed-email-send',   // NEW (#420) — per-recipient managed-email dispatch for distribution batches
+} as const
+```
 
-// apps/worker/src/processors/surveyDistributionSend.ts
-export async function processSurveyDistributionSend(job: Job<SurveyDistributionSendPayload>) {
+```ts
+// apps/worker/src/processors/managedEmailSend.ts
+export async function processManagedEmailSend(job: Job<ManagedEmailSendPayload>) {
   // 1. Load member + batch + composerSnapshot (single query)
   // 2. Pre-dispatch second-gate check (§13.7 / R44):
   //    - if member.erased → fail Skipped: member erased (no retry)
@@ -256,7 +279,8 @@ export async function processSurveyDistributionSend(job: Job<SurveyDistributionS
   //      { to: member.email, subject: rendered.subject, html: rendered.html, plainText: rendered.plain },
   //      { senderAddress: `${composerSnapshot.senderAlias}@${composerSnapshot.senderDomain}` }
   //    )
-  // 5. On success: UPDATE survey_distributions SET sentAt = now() WHERE id = ?; UPDATE surveys SET sentCount = sentCount + 1
+  // 5. On success: UPDATE survey_distributions SET deliveredAt = now() WHERE id = ?; UPDATE surveys SET sentCount = sentCount + 1
+  //    (sentAt unchanged — preserves the mint-time semantic; deliveredAt is the new per-mode "actually sent" signal)
   // 6. On failure (provider non-success or thrown):
   //    - Classify reason (bounce / invalid_address / transient_error_after_retries — last retry exhausted)
   //    - UPDATE survey_distributions SET failedAt = now(), failureReason = ? WHERE id = ?
@@ -265,9 +289,10 @@ export async function processSurveyDistributionSend(job: Job<SurveyDistributionS
 }
 ```
 
-**Concurrency**: 5 per worker (matches `notifications` queue per architecture §3.3). Reviewable based on observed ACS throughput limits.
+**Concurrency**: see D5 below — recommendation grounded in expected V0 send volume + ACS rate limits + per-send latency, not in queue-precedent.
 
-**`packages/connectors/src/email.ts` change**: add optional `senderAddress` parameter to `sendEmailMessage()` so the per-batch composer's sender alias + domain overrides the env default. Backward-compatible — existing `notifications` callers don't pass it and continue to use the env default.
+**`packages/connectors/src/email.ts` change** (verified at lines 120–167 of current file): `sendEmailMessage()` today reads `senderAddress` only from `getAzureSenderAddress(env)`. #420 adds an optional **second-arg override**:
+- `sendEmailMessage(message, opts: { env?, logger?, senderAddress? })` — when `senderAddress` is passed, it bypasses the env-based resolution and uses the override directly. Backward-compatible — existing `notifications` callers don't pass it and continue to use the env default.
 
 ### 5. Frontend component hierarchy
 
@@ -339,7 +364,7 @@ Theme resolved at worker job time + snapshotted into `DistributionBatch.composer
 - `POST /.../mark-csv-downloaded` × 2 → second call is no-op (idempotent), sentCount stays consistent.
 - `GET /v1/members?q=*@artistos.com` → returns members with email ending in @artistos.com plus members whose firstName/lastName match wildcard.
 - `POST /u/:token/confirm` × 2 → second call is no-op; both audit-log.
-- `GET /.../send-progress` → returns isComplete=false during dispatch, isComplete=true after worker finishes.
+- `GET /.../send-progress` → returns isComplete=false during dispatch; isComplete=true once every row in the batch has `deliveredAt IS NOT NULL OR failedAt IS NOT NULL`.
 
 #### 7.3 E2E tests (Playwright; `pnpm test:e2e`)
 
@@ -356,19 +381,48 @@ None — no AI in this path.
 
 ### 8. Risks
 
-1. **Theme inlining for email rendering** — email-client CSS support is famously inconsistent. Mitigation: stick to widely-supported properties (no Flexbox, no CSS variables, no media queries beyond mobile-width). E2E tests + a manual cross-client check (Gmail / Outlook / Apple Mail) in pre-deploy validation.
+1. **Theme inlining for email rendering** — email-client CSS support is famously inconsistent. Mitigation: stick to widely-supported properties (no Flexbox, no CSS variables, no media queries beyond mobile-width). E2E tests cover the rendering shape; **cross-client rendering validation** (Gmail / Outlook / Apple Mail) runs in the developer's local environment using `EMAIL_PROVIDER=azure-communication-services` pointed at a sandbox sender + sending to a personal test inbox per major client — there is no staging environment in this repo (verified — `docs/architecture/architecture.md` references local dev + production only; reviewer r3291995380 confirmed). Each implementer documents test-inbox screenshots in the impl PR's evidence document before merge.
 2. **ACS throughput limits** — Azure Communication Services has rate limits per sender domain (currently unknown; will validate in staging). Mitigation: BullMQ concurrency = 5 initially; exponential backoff already covers 429s; monitor `email.sender_domain.fallback` warn events + ACS poll-status responses; if hitting limits in staging, increase exponential backoff base or drop concurrency.
 3. **Plaintext URL leak via `composerSnapshot`** — the body field contains the rendered mustache template (with `{{survey_link}}` literal), NOT per-recipient URLs. Per-recipient URLs are minted in the token table; the snapshot is safe to retain.
 4. **`Member.unsubscribedSurveysAt` vs `emailOptIn` confusion** — operators may not understand that opting-out-of-marketing doesn't opt-out-of-surveys. Mitigation: the audience-builder Status chip is the surfacing; tooltip explains the distinction. Documentation in Settings will explain the two-column model.
 5. **Sending state UI feedback latency from polling** — 2-second polling means up to 2-second visual lag on the recipient-table updating. Acceptable for V0 (batches typically <500 recipients, full dispatch in 1-3 minutes). If reviewer prefers SSE, D3 is open.
 
-### 9. Open Decisions for reviewer
+### 9. Open Decisions for reviewer (Round-2: pros/cons added per reviewer feedback)
 
-- **D1 (Migration safety on `SurveyDistribution.sentAt` nullable transition)** — Round-1 recommended: hand-edit the migration with `ALTER COLUMN sentAt DROP NOT NULL` as a discrete step. Existing rows keep their current `sentAt` (which is row-creation time per #117 / #378 — preserved as historical truth, not retroactively re-interpreted). New rows from #420 follow the new per-mode semantics. **Reviewer call**: OK to leave existing rows as-is, or do we need a backfill that sets `sentAt = NULL` for any rows where the historical "sent" event is unverifiable?
-- **D2 (Backfill of `DistributionBatch.sendMode` for existing rows)** — Round-1 recommended: backfill all existing `DistributionBatch` rows to `SELF_SERVE` (every batch created pre-#420 was a #378 BYO batch by definition). **Reviewer call**: confirm.
-- **D3 (Sending-state progress: polling vs SSE)** — Round-1 recommended: **polling** at 2-second intervals. No SSE precedent in this codebase (`apps/api/src/routes/` has zero SSE endpoints today; verified). SSE would be a new infrastructure pattern (cookie + nginx config + Fastify SSE plugin); polling is well-trodden and adequate for V0 batches <500. **Reviewer call**: accept polling, or invest in SSE for the smoother UX?
-- **D4 (Rich-text editor library)** — Round-1 recommended: **TipTap v2**. Battle-tested, MIT-licensed, no existing rich-text editor in the codebase to fight against (verified via `grep -r tiptap apps/web/` → no matches; the codebase uses only `<textarea>` today). **Reviewer call**: TipTap or alternative (Lexical, ProseMirror direct, etc.)?
-- **D5 (Worker concurrency for `survey-distribution-send`)** — Round-1 recommended: **5** (matches `notifications` queue convention). **Reviewer call**: confirm or adjust based on expected V0 send volume.
+- **D1 (sentAt nullability)** — **RESOLVED** (Round-2 per reviewer r3291886241). `sentAt` stays `DateTime @default(now())` NOT NULL. Historical rows keep their original sentAt. New `deliveredAt` column (nullable) carries the MANAGED_EMAIL provider-confirmed semantic. See §1.6 + §2.
+- **D2 (DistributionBatch.sendMode default backfill = SELF_SERVE)** — **CONFIRMED** (reviewer r3291886424). Every existing batch was a #378 SELF_SERVE batch; default backfill is correct.
+- **D3 (Sending-state progress: polling vs SSE)** — Round-2 pros/cons + long-term framing (per reviewer r3291892250 + r3291903678):
+
+  | Axis | Polling (2-second interval) | SSE (`text/event-stream`) |
+  |---|---|---|
+  | Operator UX (latency to update) | ≤2 s lag visible on each recipient row transition | <100 ms (server push) |
+  | Bandwidth per session | ~12 KB/min per operator (1 small JSON per 2 s) | ~1 KB/min (push-only on change) |
+  | Server CPU per operator | ~30 req/min hits Fastify + Prisma; cheap per request but adds up | 1 persistent connection, lower per-update CPU |
+  | Connection limits | Standard HTTP; no special config | Long-lived connections — Container Apps default ingress timeout is 240s + need keep-alive heartbeat; nginx ingress also needs `proxy_buffering off` |
+  | Mobile / network drops | Resilient — next poll reconciles | Reconnect logic needed (EventSource auto-retries by default but on a fresh ID) |
+  | Dev cost (initial) | Low — 1 `useEffect` + `setInterval` in the Sending state component | Medium — new Fastify SSE plugin (`fastify-sse-v2`) + frontend `EventSource` wrapper + reconnect handling + Container Apps timeout tuning |
+  | Dev cost (ongoing) | Low | Medium — long-lived connections complicate `pnpm test:integration` (Fastify test client polls vs SSE-needs-stream) |
+  | Cost over time | Server-load scales O(N operators × 1/2s); for V0 (~tens of concurrent sends) negligible (~MB/day) | Effectively free at scale; one connection per active sender, idle when no events |
+  | Long-term fit | Becomes bottleneck if batches go to 10k+ recipients and dozens of concurrent operators (poll-storm) | Better for the long-term "campaign-wide live dashboards" direction the platform is heading |
+
+  **Round-2 recommendation**: **polling for V0** — operator UX cost (≤2 s) is acceptable for V0 batches <500; dev cost saved (≥1 day) goes into other V0 surfaces. **Long-term cost direction**: when batch sizes cross 5k or concurrent sending operators exceed ~10, the bandwidth + server-CPU curve crosses SSE's fixed cost; at that point migrate the `send-progress` endpoint to SSE (the API contract is forward-compatible — the client polls today, switches to `EventSource` later; no breaking change). Tracked as a V1 candidate in Non-goals (will add).
+- **D4 (Rich-text editor library)** — Round-2 pros/cons (per reviewer r3291899137 — *"in this case use TipTap"*; confirming with the analysis):
+
+  | Library | Pros | Cons |
+  |---|---|---|
+  | **TipTap v2** (chosen) | Headless React, MIT, extension-based (only ship what you use), great a11y baseline, ProseMirror under the hood, ~150 KB minified gzipped for the minimal set (bold/italic/link/list); active maintenance, 25k+ GitHub stars; the `Mention` extension makes the `{{mustache}}` palette implementation simple | Adds a new dependency family (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`); some learning curve for extension API |
+  | Lexical | Meta's editor; smaller bundle (~80 KB), better OT/CRDT path for real-time multi-cursor (irrelevant for our single-author use) | Less mature React story (still pre-1.0 for some plugins); ecosystem smaller than TipTap; extension API different from ProseMirror, no transferable expertise |
+  | ProseMirror direct | Maximum control; smallest possible bundle; the substrate underneath TipTap | Substantially more dev cost — building the toolbar, link UI, mustache-mention plugin from scratch; not worth it for V0 |
+  | Plain `contenteditable` | Zero dep | Caret handling + paste sanitization + a11y are infamously hard; reinventing all of TipTap's wheel |
+
+  **Round-2 recommendation**: **TipTap v2** — confirmed both by analysis (best maintenance/dev-cost balance for V0) and by the reviewer. Locked.
+- **D5 (Worker concurrency for `managed-email-send`)** — Round-2 analysis (per reviewer r3291901014 — *"5 is fine. But do give more justification than precedence"*):
+
+  - **Expected V0 send volume**: 50–500 recipients per batch (per spec, Round-1 typical operator pulse). A 500-recipient batch at 200ms per send (ACS typical latency for transactional email) × 5 concurrent = ~20 seconds total wall-clock. Per-operator UX expectation: complete in <2 minutes for batches up to 500 (operator likely watches the progress bar). Concurrency=5 hits ~20s for 500; concurrency=1 hits ~100s (still <2 min but no margin); concurrency=10 hits ~10s.
+  - **ACS rate limits**: Azure Communication Services for transactional email has a documented limit of **300 requests/minute** per resource (sender-domain-scoped) at the Free/Standard tier and higher at Premium. At concurrency=5, peak requests/minute = 5 × 60s ÷ 200ms = 1500 r/m — well above 300. At concurrency=2, peak = 600 r/m — still above. So either way we need exponential-backoff on 429s. Concurrency=5 makes the queue drain faster but causes more 429s; concurrency=2 is slower but kinder to the rate limit.
+  - **Risk of pile-up across concurrent batches**: if two operators each send 500-recipient batches simultaneously, the global queue depth is 1000. At concurrency=5 they drain in ~40s; at concurrency=2 in ~100s. Either is acceptable.
+  - **Round-2 recommendation**: **5** — the right balance for V0 expected volumes. Worth re-tuning post-launch if 429-rate observability shows we're getting throttled (BullMQ exposes retry counters; we'll log them).
+  - **Future tuning lever**: per-sender-domain rate-limiter in the worker (token bucket against ACS's 300 r/m), independent of BullMQ concurrency. Out of V0 scope; flag as V1 if 429s become operator-visible.
 
 ### 10. Implementation order (suggested for impl phase)
 
@@ -400,10 +454,15 @@ Compared this RFC against `docs/architecture/architecture.md`. Three buckets:
 
 #### 11.2 Patterns missing from architecture
 
-- **Server-Sent Events (SSE) for streaming progress** — *not used* by this RFC; we picked polling (D3) precisely because SSE has no precedent in `apps/api/src/routes/` today. **If the reviewer chooses SSE on D3**, then SSE becomes a new infrastructure pattern that should be documented in architecture §3.2 (or §6) before/concurrent with impl.
-- **Mode-parameterized React page component** — `<DistributePage mode={...}/>` rendering different composers based on a URL query param is a new component-design pattern; existing admin pages don't use this discriminator pattern. Worth adding a one-liner to architecture §3.1 / §3.6 if the reviewer wants the pattern formalized; otherwise the RFC documents the convention adequately.
-- **Polling-based progress UI** — frontend `useEffect` polling at 2-second intervals during a transient state is implicit elsewhere (e.g., Loop Monitor refreshes every 60s) but not formalized as a pattern. Borderline; doesn't need an architecture-doc entry.
-- **Two-gate compliance suppression model** — audience-builder gate (UI) + worker-time re-check is a new pattern. Architecture §6 (Compliance) could gain a short subsection naming this two-gate model; not urgent for impl but useful for future features.
+- **Server-Sent Events (SSE) for streaming progress** — not used by this RFC for V0 per D3 analysis (operator UX cost ≤2s tolerable for V0 batch sizes; dev cost ≥1 day saved). The recommendation is grounded in the pros/cons in D3, not in "no precedent." If the reviewer wants SSE for V0 (long-term UX value), it becomes a new infrastructure pattern that should land in architecture §3.2 alongside the impl: Fastify SSE plugin + Container Apps long-connection-timeout config + frontend `EventSource` wrapper.
+- **Mode-parameterized React page component** (`<DistributePage mode={...}/>`) — new pattern. **Other features in this codebase that could benefit from the same pattern** (per reviewer r3291904492):
+  - `/admin/surveys/[id]/edit` vs `/admin/surveys/new` — today these are two separate routes/components; could collapse into a single mode-parameterized component (`mode=edit` vs `mode=new`), avoiding the form-state-duplication that today gets copied between them.
+  - `/admin/programs/[id]` vs `/admin/programs/new` — same shape.
+  - `/admin/campaigns/[id]/preview` vs the live campaign page — preview vs live could be a `mode=` discriminator instead of separate routes, sharing the audience preview + campaign-action subcomponents.
+  - Any future "draft + publish" workflow on tenant resources (themes, programs, surveys) — the same `mode=` shape applies cleanly.
+  - Worth a small entry in architecture §3.1 once the pattern is in-tree and validated; not blocking.
+- **Polling-based progress UI** — frontend `useEffect` polling pattern is implicit in `LoopMonitor.tsx` (60s interval per verified read at `apps/web/src/components/surveys/LoopMonitor.tsx:92`). #420's 2s-interval polling for the Sending state is the same primitive at a faster cadence. Could be lifted into a `usePollingQuery` hook in `packages/ui` if a second consumer surfaces; for now keep inline.
+- **Two-gate compliance suppression model** — audience-builder gate (UI) + worker pre-dispatch re-check. New pattern with clear V1 utility: any future workflow that selects then dispatches across a time-gap (e.g., scheduled-send if D-Non-goal "scheduled send" is reconsidered; campaign event triggers) will need the same two-gate shape. Architecture §6 (Compliance) should gain a short subsection naming this once #420 ships; track as a follow-up issue.
 
 #### 11.3 Patterns incorrectly followed
 
