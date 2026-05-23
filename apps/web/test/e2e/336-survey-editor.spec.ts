@@ -229,7 +229,7 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     // Activate visible on every tab.
     for (const name of ['Basics', 'Questions', 'Look & Feel', 'Points & Thank You']) {
       await page.getByRole('tab', { name }).click()
-      await expect(page.getByRole('button', { name: /^activate$/i })).toBeVisible()
+      await expect(page.getByTestId('activate-btn')).toBeVisible()
     }
   })
 
@@ -255,9 +255,9 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     await mockApi(page, { surveyOverride: { questions: [], title: 'Quick NPS pulse' } })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=basics`)
-    await expect(page.getByRole('button', { name: /^activate$/i })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('activate-btn')).toBeVisible({ timeout: 20000 })
 
-    await page.getByRole('button', { name: /^activate$/i }).click()
+    await page.getByTestId('activate-btn').click()
     await expect(page.getByText(/add at least one question/i)).toBeVisible({ timeout: 10000 })
   })
 
@@ -266,9 +266,9 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     await mockApi(page, { surveyOverride: { title: null } })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=basics`)
-    await expect(page.getByRole('button', { name: /^activate$/i })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('activate-btn')).toBeVisible({ timeout: 20000 })
 
-    await page.getByRole('button', { name: /^activate$/i }).click()
+    await page.getByTestId('activate-btn').click()
     await expect(page.getByText(/survey title.*required/i)).toBeVisible({ timeout: 10000 })
   })
 
@@ -281,9 +281,9 @@ test.describe('Admin survey editor — /admin/surveys/[id]/edit', () => {
     })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}/edit?tab=basics`)
-    await expect(page.getByRole('button', { name: /^activate$/i })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('activate-btn')).toBeVisible({ timeout: 20000 })
 
-    await page.getByRole('button', { name: /^activate$/i }).click()
+    await page.getByTestId('activate-btn').click()
     // ActivateModal opens with pre-summary.
     await expect(page.getByTestId('activate-summary')).toBeVisible()
     await page.getByRole('button', { name: /activate.*go to detail|^activate$/i }).last().click()

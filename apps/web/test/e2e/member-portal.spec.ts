@@ -148,8 +148,8 @@ test.describe('Member Portal — Dashboard (/dashboard)', () => {
     await mockMemberAPI(page)
     await page.goto('/dashboard')
 
-    await expect(page.getByRole('link', { name: 'Rewards' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'History' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Rewards', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'History', exact: true })).toBeVisible()
   })
 
   test('browse rewards button is shown when no affordable reward', async ({ page }) => {

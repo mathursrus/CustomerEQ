@@ -21,6 +21,7 @@
     "openai": "^6.33.0"
   },
   "devDependencies": {
+    "@customerEQ/config": "workspace:*",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

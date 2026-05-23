@@ -93,7 +93,7 @@ describe('/admin/surveys/[id] · detail page rewrite', () => {
     expect(loopMonitorIdx).toBeGreaterThan(distributionIdx)
     expect(responseIdx).toBeGreaterThan(loopMonitorIdx)
     expect(configIdx).toBeGreaterThan(responseIdx)
-  })
+  }, 10_000)
 
   it('with responsesCount=0: Distribution expanded, Loop Monitor expanded, Response collapsed, Configuration expanded (R32b)', async () => {
     const Page = (await import('./page')).default

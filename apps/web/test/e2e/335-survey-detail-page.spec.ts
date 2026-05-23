@@ -152,9 +152,10 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     await mockApi(page, { responsesCount: 0 })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}`)
+    await expect(page.getByRole('heading', { level: 1, name: MOCK_SURVEY_BASE.name })).toBeVisible({ timeout: 10000 })
 
     // Distribution body visible (Share link tile)
-    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 3, name: 'Share link' })).toBeVisible()
     // Configuration body visible (the embedded PreviewSurvey renders the survey title)
     await expect(page.getByRole('heading', { name: 'Quick NPS pulse' })).toBeVisible()
     // Response body hidden (placeholder copy not rendered)
@@ -171,10 +172,10 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     // load the dev server takes longer to respond than the default 5s assertion timeout.
     await expect(page.getByRole('heading', { level: 1, name: MOCK_SURVEY_BASE.name })).toBeVisible({ timeout: 20000 })
 
-    // Response body visible (deferral note above embedded LoopMonitor)
-    await expect(page.getByText(/sibling sub-issue/i)).toBeVisible({ timeout: 10000 })
+    // Response body visible with the real v1 empty/auth state.
+    await expect(page.getByText('Sign in to load responses')).toBeVisible({ timeout: 10000 })
     // Distribution body hidden (no Share link tile rendered)
-    await expect(page.getByText('Share link', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 3, name: 'Share link' })).toHaveCount(0)
     // Configuration body hidden (the preview's survey-title heading is not rendered)
     await expect(page.getByRole('heading', { name: 'Quick NPS pulse' })).toHaveCount(0)
   })
@@ -184,15 +185,16 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     await mockApi(page, { responsesCount: 0 })
 
     await page.goto(`/admin/surveys/${SURVEY_ID}`)
+    await expect(page.getByRole('heading', { level: 1, name: MOCK_SURVEY_BASE.name })).toBeVisible({ timeout: 10000 })
 
     // Distribution starts expanded — click toggles to collapsed
     const distributionToggle = page.getByRole('button', { name: /Distribution/i })
-    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 3, name: 'Share link' })).toBeVisible()
     await distributionToggle.click()
-    await expect(page.getByText('Share link', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 3, name: 'Share link' })).toHaveCount(0)
     // Click again — back to expanded
     await distributionToggle.click()
-    await expect(page.getByText('Share link', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 3, name: 'Share link' })).toBeVisible()
   })
 
   test('share link tile copies the canonical URL', async ({ page, context }) => {
