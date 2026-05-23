@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
+import { SendModePill } from './SendModePill'
 
 interface LoopMonitorData {
   surveyId: string
@@ -12,6 +13,10 @@ interface LoopMonitorData {
   message?: string
   pipeline?: {
     surveysSent: number
+    surveysSentByMode?: {
+      MANAGED_EMAIL: number
+      SELF_SERVE: number
+    }
     responsesReceived: number | null
     scoreDistribution: Record<string, number>
     rulesMatched: number | null
@@ -109,8 +114,19 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
   const p = data.pipeline
   const lat = data.latency
 
-  const stages: Array<{ key: DrawerStage; label: string; value: string; detail?: string }> = [
-    { key: 'surveysSent', label: 'Surveys Sent', value: numOrDash(p?.surveysSent) },
+  const sentByMode = p?.surveysSentByMode
+  const stages: Array<{ key: DrawerStage; label: string; value: string; detail?: string; subline?: ReactNode }> = [
+    {
+      key: 'surveysSent',
+      label: 'Survey Sent',
+      value: numOrDash(p?.surveysSent),
+      // R39 — per-mode breakdown sub-line (lifetime, not Wave-filtered).
+      subline: sentByMode ? (
+        <span className="text-[10px] text-gray-500 leading-tight mt-1" data-testid="surveys-sent-by-mode">
+          {sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ · {sentByMode.SELF_SERVE.toLocaleString()} via my email tool
+        </span>
+      ) : null,
+    },
     { key: 'responsesReceived', label: 'Responses Received', value: numOrDash(p?.responsesReceived) },
     { key: 'rulesMatched', label: 'Rules Matched', value: numOrDash(p?.rulesMatched) },
     { key: 'campaignsTriggered', label: 'Campaigns Triggered', value: numOrDash(p?.campaignsTriggered) },
@@ -155,6 +171,7 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
                 <span className="text-xl font-bold text-gray-900">{stage.value}</span>
                 <span className="text-xs text-gray-500 mt-1">{stage.label}</span>
                 {stage.detail && <span className="text-xs text-gray-400">{stage.detail}</span>}
+                {stage.subline}
               </button>
               {i < stages.length - 1 && (
                 <span className="text-gray-300 text-lg px-1">›</span>
@@ -198,7 +215,30 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
                 </div>
               </div>
             )}
-            {(openDrawer === 'surveysSent' || openDrawer === 'rulesMatched' || openDrawer === 'campaignsTriggered') && (
+            {openDrawer === 'surveysSent' && (
+              <div data-testid="surveys-sent-drawer">
+                <p className="text-xs font-medium text-indigo-700 mb-2">Survey Sent by send mode</p>
+                {sentByMode ? (
+                  <div className="flex gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">{sentByMode.MANAGED_EMAIL.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">via CustomerEQ Email</span>
+                      <SendModePill mode="MANAGED_EMAIL" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">{sentByMode.SELF_SERVE.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">via my email tool</span>
+                      <SendModePill mode="SELF_SERVE" />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-indigo-700">
+                    <strong>Total:</strong> {numOrDash(p?.surveysSent)}
+                  </p>
+                )}
+              </div>
+            )}
+            {(openDrawer === 'rulesMatched' || openDrawer === 'campaignsTriggered') && (
               <p className="text-xs text-indigo-700">
                 <strong>{stages.find((s) => s.key === openDrawer)?.label}</strong>: {stages.find((s) => s.key === openDrawer)?.value}
               </p>
