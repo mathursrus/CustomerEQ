@@ -786,11 +786,23 @@ Every functional/data/non-functional requirement below is tagged `R<N>` for trac
 - **R28**: The default Body SHALL open with a `{{brand_logo}}\n{{brand_name}}` header block. When `Brand.logoUrl` is null, `{{brand_logo}}` SHALL render as an empty string and the header SHALL collapse to brand name only.
 - **R29**: The Body SHALL render against the selected `BrandTheme` palette (`primaryColor` for header text, `accentColor` for link color, `backgroundColor` / `textColor` for body) — theme resolved as `Survey.themeId` → `Brand.defaultThemeId` → CustomerEQ default palette.
 - **R30**: An auto-appended non-editable unsubscribe footer SHALL render: *"You received this survey because you're a customer or partner of `{{brand_name}}`. [Unsubscribe](unsubscribe-link)"* — `unsubscribe-link` is a tokenized URL of shape `/u/<token>`.
+- **R30a**: The composer surface SHALL include a **live email preview pane** on the right column (mock #scene-3 lines 747–800). The preview SHALL render the email as a recipient would see it: meta block (From / To), Subject, brand-logo + brand-name header block, body with mustache tokens substituted against a sample recipient, and the auto-appended unsubscribe footer (R30). Rationale: WYSIWYG confidence before commit — operators have visibility into the rendered email *before* dispatch, not only at audit time on the Wave Detail Composer Snapshot block.
+- **R30b**: The sample recipient SHALL be the **first selected member from the audience builder** (`AudienceBuilder.rows.find(r => r.selected)` — firstName + lastName + identifier). When no audience member is selected yet, the preview SHALL render with placeholder tokens visible (so the operator sees which substitutions will occur).
+- **R30c**: The preview SHALL substitute the following mustache tokens at render time against the sample recipient and brand: `{{first_name}}` → `sample.firstName`; `{{last_name}}` → `sample.lastName`; `{{survey_title}}` → `Survey.title`; `{{sender_name}}` → composer's `senderName` field; `{{brand_name}}` → `Brand.name`; `{{brand_logo}}` → `<img src="<Brand.logoUrl>">` or empty string per R28; `{{survey_link}}` → a realistic sample URL of shape `<origin>/survey/<surveyId>/r/<sample-token>`. The substitution is purely client-side preview-rendering; the actual per-recipient substitution still happens server-side at dispatch.
+- **R30d**: The preview SHALL **live-update** as the operator edits any of: sender name, sender alias, subject, body. No "refresh preview" button — keystroke-driven.
+- **R30e**: (Theme color-mapping legend is **design-only, no SHALL** — out of V0 scope per user decision 2026-05-23. Theme rendering still uses resolved palette per R29 but the operator-facing legend documenting which BrandTheme column drives which element is deferred.)
 
 ### Send + Terminal state (R31–R35)
 
 - **R31**: A single primary CTA SHALL appear at the bottom-right of the Configure surface: `Generate N links →` (SELF_SERVE) or `Send N emails →` (MANAGED_EMAIL). Disabled until validation passes (audience ≥ 1; body contains `{{survey_link}}` for managed; sender fields non-empty for managed).
-- **R32**: Clicking the CTA SHALL open a mode-specific confirmation modal (§2.5a / §2.5b) with the same modal shape and an explicit summary block (audience count + common-field values + composer values + warnings).
+- **R31a**: Directly above the CTA, a pre-submit recap row SHALL render the audience count + survey-name-in-mail + expiry + (SELF_SERVE only) CSV format. SELF_SERVE recap copy SHALL be of shape *"Ready to generate **N links**. Survey name: **<name>**. Expires **<date>**. Format: **<format>**."* (mock #scene-2 line 530). MANAGED_EMAIL recap copy SHALL be of shape *"Ready to send **N emails** from **<sender-name> &lt;<alias>@<domain>&gt;**. Survey name: **<name>**. Links expire **<date>**."* (mock #scene-3 line 803). Rationale: last-chance scan-friendly summary before commit (mock-confirmed UX call).
+- **R32**: Clicking the CTA SHALL open a mode-specific confirmation modal. R32a–f below decompose the previously-compound SHALL into per-sub-clause R-numbers so each is independently traceable.
+- **R32a**: The confirmation surface SHALL render as a **centered, page-blocking modal with a backdrop** — never an inline section. Modal shape is identical across modes (same backdrop, same layout, same Cancel-on-left + primary-confirm-on-right button placement).
+- **R32b**: The modal heading SHALL be mode-specific copy with a mode tag: SELF_SERVE = *"⚠ Generate N tokenized links?"* + Self-Serve mode tag (mock #scene-4 line 819); MANAGED_EMAIL = *"⚠ Send N emails?"* + CUSTOMEREQ EMAIL mode tag (mock #scene-4 line 836).
+- **R32c**: The modal SHALL render an explicit summary block. SELF_SERVE summary SHALL contain `Survey name in mail`, `Links expire`, `Format`, `Recipients` (with auto-enroll parenthetical when > 0) — mock lines 820–825. MANAGED_EMAIL summary SHALL contain `From` (formatted as `<sender-name> <<alias>@<domain>>`), `Subject`, `Survey name in mail`, `Links expire`, `Recipients` (with auto-enroll parenthetical when > 0) — mock lines 837–843. Both summaries SHALL echo back the values the operator just configured so the operator can scan one screen before committing.
+- **R32d**: SELF_SERVE modal SHALL render the strong-warning amber block: *"⚠ The plaintext URLs are shown only once. Save the CSV immediately. Re-downloading later requires regenerating all tokens (which invalidates the URLs in this batch)."* (mock line 827).
+- **R32e**: MANAGED_EMAIL modal SHALL render the informational sub-warning: *"Emails will be sent in the next few minutes. You can monitor progress on the next screen but **you cannot cancel a send in progress**."* (mock line 844).
+- **R32f**: The modal SHALL surface Cancel + primary-confirm buttons. Confirm button copy is mode-specific: SELF_SERVE = *"Yes, generate N links"*; MANAGED_EMAIL = *"Yes, send N emails"*. Cancel button SHALL be of low-emphasis style and dismiss the modal without state change.
 - **R33**: On confirm, SELF_SERVE SHALL transition to the Success state with format dropdown + Download CSV button + strong-warning amber banner; MANAGED_EMAIL SHALL transition to the Sending state with SSE-driven progress + per-recipient status table + Retry-Failed CTA.
 - **R34**: For MANAGED_EMAIL, the platform SHALL NOT permit cancellation of an in-flight batch send in V0 (mid-flight cancel is a V1 candidate per Non-goals).
 - **R35**: For both modes, closing the browser mid-flight SHALL be safe — SELF_SERVE has no async work; MANAGED_EMAIL workers continue processing the BullMQ queue independently of the page session.
@@ -840,3 +852,59 @@ Every functional/data/non-functional requirement below is tagged `R<N>` for trac
 - `mobileValidationRequired`: false — Distribute surfaces are desktop-first (admin tooling).
 - Required browser baseline: Chrome / Firefox / Safari (latest). Responsive: tablet portrait + landscape; not optimized for mobile portrait.
 - Required test environment: dev-mode `EMAIL_PROVIDER=stub` for unit / integration tests; staging-mode `EMAIL_PROVIDER=azure-communication-services` against an ACS sandbox sender for end-to-end pre-deploy validation.
+
+## Mock-to-R cross-reference
+
+Spec mock: `docs/feature-specs/mocks/420-send-via-customereq-acs.html` (11 scenes: `#scene-1` through `#scene-7b`).
+
+This table is the closure artifact for FRAIM issue #473 — every visible mock element either has a numbered R-statement (deliverable) or is explicitly marked `(design-only, no SHALL)` with rationale. **No prose-only affordances.** Any mock surface added in future spec rounds SHALL be appended here before `spec-finalize` is called complete.
+
+| Scene | Mock line(s) | Mock element | R-statement(s) | Note |
+|---|---|---|---|---|
+| Scene 1 | 337–344 | Send-via-Email tile + two equal-weight outline-primary peer buttons + tile copy | R1, R2 | Mock-line wording is canonical. |
+| Scene 2 | 393–415 | Survey Batch details card (Step 1 chip + name + expiry) | R5, R7, R8 | Shared across modes per §2.1. |
+| Scene 2 | 418–506 | Audience builder (Step 2 chip + Existing + Custom-List + unified list with suppressed-row treatment) | R16, R18, R20, R22, R23, R43 | Shared across modes. |
+| Scene 2 | 509–527 | SELF_SERVE format dropdown (Generic/Mailchimp/HubSpot/Klaviyo) + section help text | R11 | SELF_SERVE only. |
+| Scene 2 | 529–532 | Pre-submit recap row + Generate-N-links CTA | R31, R31a | Recap row newly R-numbered (was prose-only). |
+| Scene 2B | 540–619 | Custom-list parser against non-email-keyed brand (5 group headers, recovery hint) | R17, R19 | Shared across modes. |
+| Scene 3 | 645–652 | Shared audience-builder reference (compact summary in mock — full builder in Scene 2) | (see Scene 2 row) | Mock-side compactness only. |
+| Scene 3 | 654–670 | Shared Survey Batch details card | (see Scene 2 row) | Shared across modes. |
+| Scene 3 | 674–697 | Composer Sender block (Sender name + Sender alias + domain suffix) | R24, R25 | MANAGED_EMAIL only. |
+| Scene 3 | 699–745 | Composer Email block (Subject + Body editor + toolbar + mustache palette + helper text) | R27, R28 | MANAGED_EMAIL only. R28 covers default body header. |
+| Scene 3 | 740–744 | Auto-appended footer preview block in composer | R30 + (drift 3.8 needs implementer to surface in composer UI; tracked) | R30 names the footer; spec authors note implementer must render it as preview chrome too. |
+| Scene 3 | 747–800 | **Live email preview pane (right column)** | **R30a, R30b, R30c, R30d** | Newly R-numbered (was prose-only at §2.3 line 219). |
+| Scene 3 | 781–798 | Theme color-mapping legend | **R30e (design-only, no SHALL)** | Out of V0 scope per user 2026-05-23. |
+| Scene 3 | 802–805 | Pre-submit recap row + Send-N-emails CTA | R31, R31a | Recap row newly R-numbered (mirror of SELF_SERVE). |
+| Scene 4 | 818–833 | SELF_SERVE confirmation modal (heading + summary + strong-warning + Cancel/Yes) | R31, R32a, R32b, R32c, R32d, R32f | R32 split into 32a–f. |
+| Scene 4 | 835–849 | MANAGED_EMAIL confirmation modal (heading + summary + warning + Cancel/Yes) | R31, R32a, R32b, R32c, R32e, R32f | R32 split into 32a–f. |
+| Scene 5A | 876–887 | SELF_SERVE Success banner + Sent-semantics blue box + amber save-now warning | R33 + (drift 5A.1: Sent-semantics box owed, mock-confirmed) | Banner + amber-warn covered; semantics box owed. |
+| Scene 5A | 890–911 | Format dropdown + Download-CSV button + CSV preview pane | R33 + (drift 5A.2: CSV preview pane owed) | Download covered; CSV preview pane owed. |
+| Scene 5B | 946–950 | Sending progress banner + progress bar + "Retry failed" inline affordance | (drifts 5B.1, 5B.2, 5B.3 owed — currently prose-only at §2.6b line 301; **R-numbers owed**) | Same prose-only failure mode as R30a; spec rewrite owed. |
+| Scene 5B | 952–962 | Per-recipient table (Name · Identifier · Status · Sent/failed at) | R33 (implicit; sub-clause owed) | Implementer has SendProgressTable.tsx — column verification owed visually. |
+| Scene 5B | 964–967 | "You can leave this page; sending continues" reassurance | (drift 5B.4 owed — prose-only) | Same failure mode. |
+| Scene 5C | 991–999 | Sent-state header + sub-line + amber summary-warn banner for partial-failure | R33 + (drifts 5C.1, 5C.2, 5C.3 owed) | Same failure mode. |
+| Scene 5C | 1013–1015 | Footer with batch-id link + Survey-Sent count update | (drift 5C.4 owed) | Same failure mode. |
+| Scene 6 | 1045–1075 | Loop Monitor 4-stat-card grid (Survey Sent + Responses + Closed-loop Actions + P75 Time-to-Action) + lifetime-anchor note | R39 + #241 R32b (lifetime-anchor note newly added in #420-M5) | Card-vs-funnel layout difference (drift 6.1) flagged as #241 R32b territory — not closed in #420. |
+| Scene 6 | 1053 | Per-mode breakdown subline with inline SendModePills | R39 (M5 added inline pills) | Closed by commit `1be11e1`. |
+| Scene 6 | 1077–1104 | Responses header strip (Survey Sent · Responses · Wave dropdown) | R40 | Closed by commit `ed0afac` + verbiage in `4ae9f0b`. |
+| Scene 6 | 1106–1121 | Responses table (Member · Wave · Score · Submitted) | (pre-existing #335 surface; not in #420 scope) | Reuses ResponseSection. |
+| Scene 6 | 1125–1138 | Configuration summary table + footnote ("stat counters live above, not here") | (pre-existing #241 surface; footnote text owed — drift 6.9 needs verification) | Pre-existing surface. |
+| Scene 7A | 1163–1170 | Wave Detail page header (label + Active + SendModePill `Self-serve`) | R-Wave-Detail (closed by commit `1df5cb2` — Item D) | Mode pill is new in #420; Active pill predates. |
+| Scene 7A | 1172–1198 | 5-card counters strip (Sent + Awaiting + Responded + Failed + Expired) | (#378-preexisting layout; drift 7A.1 flagged) | Out of #420 scope. |
+| Scene 7A | 1200–1202 | SELF_SERVE Sent-semantics blue box | (closed by commit `7d36b3a` — Item M6, drift 7A.2) | New in #420. |
+| Scene 7A | 1204–1218 | Audience Spec table | (#378-preexisting; drifts 7A.3 minor row gaps flagged) | Out of #420 scope. |
+| Scene 7A | 1220–1252 | Tokens table + Regenerate-links CTA + regenerate-behavior explanation | (#378-preexisting; drift 7A.4 verbiage gap flagged) | Out of #420 scope. |
+| Scene 7A | 1255–1257 | SELF_SERVE "No platform-side send log" amber warning box | (closed by commit `7d36b3a` — Item M6, drift 7A.5) | New in #420. |
+| Scene 7B | 1283 | Wave Detail header with `CustomerEQ Email` mode pill | R-Wave-Detail (closed by commit `1df5cb2` — Item D) | New in #420. |
+| Scene 7B | 1289–1320 | 5-card counters + Sent-semantics blue box (managed variant) | drift 7B.2 closed by commit `7d36b3a`; drift 7B.3 (counter layout) flagged as #378-preexisting | Mixed scope. |
+| Scene 7B | 1322–1335 | Audience Spec table (managed wave) | (mirror of 7A.3) | Out of #420 scope. |
+| Scene 7B | 1336–1380 (mock-extended in commit `8d4181b`) | Composer Snapshot block | R-Wave-Detail-Composer (closed by commits `1df5cb2` — Item D — and depicted in mock-update `8d4181b`) | New in #420. |
+| Scene 7B | 1381–1425 (mock-extended) | Per-recipient Send Log block | R-Wave-Detail-SendLog (closed by commit `da92799` — Item D.2 — and depicted in mock-update `8d4181b`) | New in #420. |
+
+**Cross-cutting (no scene-anchor; spec §13.x territory):**
+
+| Element | R-statement(s) | Note |
+|---|---|---|
+| Two-gate suppression model (audience-builder + worker pre-dispatch) | R22, R23, R43, R44 + §13.7 | Item E closed Gate 1; worker already closes Gate 2. F.2 docs the model in architecture.md §6 (still owed). |
+| Audit log entries | R45 | Existing pattern in `apps/api/src/routes/distributionBatches.ts`. |
+| `Survey.sentCount` denormalized aggregate | R36, R37, R38 | Worker increments per §G data model. |
