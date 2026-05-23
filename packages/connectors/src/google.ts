@@ -77,10 +77,9 @@ export async function fetchGoogleBusinessProfileReviews(
     params.set('pageToken', cursor.pageToken)
   }
 
-  // The locationId stored in scopeConfig is the full resource name from the Business Profile
-  // Account Management API: "accounts/{account}/locations/{location}". The reviews API v1
-  // uses that same path as the parent — no need to compose accountId separately.
-  const url = `https://mybusinessreviews.googleapis.com/v1/${locationId}/reviews?${params}`
+  // accountId = "accounts/{id}", locationId = "locations/{id}" (from Business Information API).
+  // Reviews API v1 parent format: "accounts/{id}/locations/{id}" — compose from both fields.
+  const url = `https://mybusinessreviews.googleapis.com/v1/${accountId}/${locationId}/reviews?${params}`
 
   const response = await connectorFetch('Google', url, {
     headers: {
