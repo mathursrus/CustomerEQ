@@ -7,6 +7,7 @@ import type {
   SurveyDistributePayload,
   ExternalSignalIngestionPayload,
   WebhookDeliveryPayload,
+  ManagedEmailSendPayload,
 } from '@customerEQ/shared'
 import { createQueue } from './definitions.js'
 
@@ -40,6 +41,20 @@ export async function enqueueSurveyDistribute(
 ): Promise<Job> {
   const queue: Queue = createQueue(QUEUES.SURVEY_DISTRIBUTE, connection)
   return queue.add(QUEUES.SURVEY_DISTRIBUTE, payload)
+}
+
+// Issue #420 — managed-email per-recipient dispatch. attempts=3 with exponential
+// backoff for transient errors; bounce/invalid_address handled by the processor
+// via the bounded failureReason (no further retry).
+export async function enqueueManagedEmailSend(
+  connection: ConnectionOptions,
+  payload: ManagedEmailSendPayload,
+): Promise<Job> {
+  const queue: Queue = createQueue(QUEUES.MANAGED_EMAIL_SEND, connection)
+  return queue.add(QUEUES.MANAGED_EMAIL_SEND, payload, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+  })
 }
 
 export async function enqueueExternalSignalIngestion(

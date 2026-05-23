@@ -119,7 +119,7 @@ export function resetEmailClientCache(): void {
 
 export async function sendEmailMessage(
   message: EmailMessage,
-  opts: { env?: NodeJS.ProcessEnv; logger?: LoggerLike } = {},
+  opts: { env?: NodeJS.ProcessEnv; logger?: LoggerLike; senderAddress?: string } = {},
 ): Promise<EmailSendResult> {
   const env = opts.env ?? process.env
   const log = opts.logger ?? logger
@@ -138,9 +138,11 @@ export async function sendEmailMessage(
     throw new Error('AZURE_COMMUNICATION_SERVICES_CONNECTION_STRING is required when EMAIL_PROVIDER=azure-communication-services')
   }
 
-  const senderAddress = getAzureSenderAddress(env)
+  // Issue #420 — when opts.senderAddress is set (the MANAGED_EMAIL per-batch composer
+  // path), bypass env resolution. Backward-compatible for existing notification callers.
+  const senderAddress = opts.senderAddress?.trim() || getAzureSenderAddress(env)
   if (!senderAddress) {
-    throw new Error('AZURE_COMMUNICATION_SERVICES_EMAIL_FROM is required when EMAIL_PROVIDER=azure-communication-services')
+    throw new Error('AZURE_COMMUNICATION_SERVICES_EMAIL_FROM is required when EMAIL_PROVIDER=azure-communication-services (or pass opts.senderAddress)')
   }
 
   const client = getAzureClient(connectionString)
