@@ -14,6 +14,7 @@ import { API_URL, getAuthToken } from '@/lib/config'
 import { SendModePill } from '@/components/surveys/SendModePill'
 
 import { ComposerSnapshotBlock, type ComposerSnapshot } from './ComposerSnapshotBlock'
+import { RecipientSendLogBlock } from './RecipientSendLogBlock'
 
 interface BatchDetail {
   id: string
@@ -308,6 +309,17 @@ export default function BatchDetailPage() {
           surface) and to preserve the mustache tokens the operator wrote. */}
       {batch.sendMode === 'MANAGED_EMAIL' && batch.composerSnapshot ? (
         <ComposerSnapshotBlock snapshot={batch.composerSnapshot} />
+      ) : null}
+
+      {/* Issue #420 §3.2 — historical per-recipient send log. Same shape as
+          the Sending-state recipient table, persistent across page reloads. */}
+      {batch.sendMode === 'MANAGED_EMAIL' ? (
+        <RecipientSendLogBlock
+          surveyId={surveyId}
+          batchId={batchId}
+          brandTimezone={brand.timezone}
+          brandLocale={brand.locale}
+        />
       ) : null}
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 mb-4">

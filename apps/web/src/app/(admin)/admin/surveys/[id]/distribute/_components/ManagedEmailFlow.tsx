@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
 import { MustacheEditor } from '@/components/managed-email-composer/MustacheEditor'
+import { SendProgressTable } from '@/components/surveys/SendProgressTable'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
 
 import type { DistributeMode } from './modes'
@@ -462,33 +463,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
                 <Stat label="Failed" value={progress.failedCount} tone="error" />
                 <Stat label="Skipped" value={progress.skippedCount} tone="muted" />
               </div>
-              <div className="max-h-96 overflow-y-auto rounded border border-gray-200">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 text-left">
-                    <tr>
-                      <th className="px-3 py-2 font-medium text-gray-700">Recipient</th>
-                      <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-                      <th className="px-3 py-2 font-medium text-gray-700">Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {progress.recipients.map((r) => (
-                      <tr key={r.memberId} className="border-t border-gray-100">
-                        <td className="px-3 py-2">
-                          {r.firstName ?? ''} {r.lastName ?? ''}{' '}
-                          <span className="text-gray-500">{r.identifier}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <StatusPill status={r.status} />
-                        </td>
-                        <td className="px-3 py-2 text-gray-600">
-                          {r.failureReason ?? (r.deliveredAt ? new Date(r.deliveredAt).toLocaleTimeString() : '—')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <SendProgressTable recipients={progress.recipients} />
               {flow === 'sent' && progress.failedCount > 0 && (
                 <div className="mt-3 flex justify-end">
                   <button
@@ -526,13 +501,3 @@ function Stat({ label, value, tone = 'neutral' }: { label: string; value: number
   )
 }
 
-function StatusPill({ status }: { status: SendingStatus }) {
-  const map = {
-    queued: { label: 'Queued', cls: 'bg-gray-100 text-gray-700' },
-    sending: { label: 'Sending', cls: 'bg-blue-100 text-blue-700' },
-    sent: { label: 'Sent', cls: 'bg-green-100 text-green-700' },
-    failed: { label: 'Failed', cls: 'bg-red-100 text-red-700' },
-  }
-  const { label, cls } = map[status]
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
-}
