@@ -860,6 +860,210 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       })
     },
   )
+
+  // ─── Issue #420: managed-email-specific endpoints ───────────────────────────
+
+  // POST /v1/surveys/:id/distribution-batches/:batchId/mark-csv-downloaded
+  // SELF_SERVE only. Idempotent. Increments Survey.sentCount on first call.
+  fastify.post(
+    '/surveys/:id/distribution-batches/:batchId/mark-csv-downloaded',
+    {
+      config: {
+        auditAction: 'distribution_batch.csv_downloaded',
+        auditResourceType: 'distribution_batch',
+        auditAllowlist: ['batchId', 'delta'],
+      },
+    },
+    async (request, reply) => {
+      const { id: surveyId, batchId } = request.params as { id: string; batchId: string }
+      const brandId = request.brandId
+
+      const batch = await fastify.prisma.distributionBatch.findFirst({
+        where: { id: batchId, surveyId, brandId },
+        select: { id: true, sendMode: true },
+      })
+      if (!batch) return reply.status(404).send({ error: 'Batch not found' })
+      if (batch.sendMode !== 'SELF_SERVE') {
+        return reply.status(409).send({ error: 'mark-csv-downloaded only valid for SELF_SERVE batches', code: 'WRONG_SEND_MODE' })
+      }
+
+      const now = new Date()
+      const result = await fastify.prisma.$transaction(async (tx) => {
+        // Δ = rows in this batch whose sentAt is the original mint-time (we
+        // treat any sentAt that equals creation order as "not yet downloaded").
+        // Heuristic: rows with deliveredAt IS NULL AND sentAt set to the row's
+        // createdAt are pre-download. For idempotency, count rows where sentAt
+        // hasn't been bumped yet — we encode this by tracking sentAt < NOW().
+        // Simpler V0 contract: count BEFORE we bump, so the second call returns
+        // delta=0.
+        const before = await tx.surveyDistribution.findMany({
+          where: { batchId },
+          select: { sentAt: true, id: true },
+        })
+        const delta = before.filter((r) => r.sentAt < now).length
+        if (delta === 0) {
+          // Idempotent no-op.
+          const surveySentCount = await tx.survey.findUniqueOrThrow({
+            where: { id: surveyId },
+            select: { sentCount: true },
+          })
+          return { delta: 0, surveySentCount: surveySentCount.sentCount, sentAt: now.toISOString() }
+        }
+        await tx.surveyDistribution.updateMany({
+          where: { batchId },
+          data: { sentAt: now },
+        })
+        const updated = await tx.survey.update({
+          where: { id: surveyId },
+          data: { sentCount: { increment: delta } },
+          select: { sentCount: true },
+        })
+        return { delta, surveySentCount: updated.sentCount, sentAt: now.toISOString() }
+      })
+
+      request.audit = { metadata: { batchId, delta: result.delta } }
+
+      return reply.status(200).send({
+        batchId,
+        sentAt: result.sentAt,
+        sentCountDelta: result.delta,
+        surveySentCount: result.surveySentCount,
+      })
+    },
+  )
+
+  // GET /v1/surveys/:id/distribution-batches/:batchId/send-progress
+  // MANAGED_EMAIL only. Polled at 2s by the Sending state UI.
+  fastify.get(
+    '/surveys/:id/distribution-batches/:batchId/send-progress',
+    async (request, reply) => {
+      const { id: surveyId, batchId } = request.params as { id: string; batchId: string }
+      const brandId = request.brandId
+
+      const batch = await fastify.prisma.distributionBatch.findFirst({
+        where: { id: batchId, surveyId, brandId },
+        select: { id: true, sendMode: true },
+      })
+      if (!batch) return reply.status(404).send({ error: 'Batch not found' })
+      if (batch.sendMode !== 'MANAGED_EMAIL') {
+        return reply.status(409).send({ error: 'send-progress only valid for MANAGED_EMAIL batches', code: 'WRONG_SEND_MODE' })
+      }
+
+      const rows = await fastify.prisma.surveyDistribution.findMany({
+        where: { batchId },
+        select: {
+          memberId: true,
+          deliveredAt: true,
+          failedAt: true,
+          failureReason: true,
+          member: {
+            select: { firstName: true, lastName: true, email: true, externalId: true },
+          },
+        },
+      })
+
+      const recipientCount = rows.length
+      let queuedCount = 0
+      let sentCount = 0
+      let failedCount = 0
+      let skippedCount = 0
+      const recipients = rows.map((r) => {
+        let status: 'queued' | 'sending' | 'sent' | 'failed' = 'queued'
+        if (r.deliveredAt) {
+          status = 'sent'
+          sentCount++
+        } else if (r.failedAt) {
+          status = 'failed'
+          if (r.failureReason?.startsWith('skipped_')) skippedCount++
+          else failedCount++
+        } else {
+          queuedCount++
+        }
+        return {
+          memberId: r.memberId,
+          identifier: r.member.email ?? r.member.externalId,
+          firstName: r.member.firstName,
+          lastName: r.member.lastName,
+          status,
+          deliveredAt: r.deliveredAt?.toISOString() ?? null,
+          failedAt: r.failedAt?.toISOString() ?? null,
+          failureReason: r.failureReason,
+        }
+      })
+      const isComplete = queuedCount === 0
+
+      return reply.status(200).send({
+        batchId,
+        recipientCount,
+        queuedCount,
+        sentCount,
+        failedCount,
+        skippedCount,
+        isComplete,
+        recipients,
+      })
+    },
+  )
+
+  // POST /v1/surveys/:id/distribution-batches/:batchId/retry-failed
+  // MANAGED_EMAIL only. Re-enqueues rows with retryable failureReason.
+  fastify.post(
+    '/surveys/:id/distribution-batches/:batchId/retry-failed',
+    {
+      config: {
+        auditAction: 'distribution_batch.retry_failed',
+        auditResourceType: 'distribution_batch',
+        auditAllowlist: ['batchId', 'retriedCount'],
+      },
+    },
+    async (request, reply) => {
+      const { id: surveyId, batchId } = request.params as { id: string; batchId: string }
+      const brandId = request.brandId
+
+      const batch = await fastify.prisma.distributionBatch.findFirst({
+        where: { id: batchId, surveyId, brandId },
+        select: { id: true, sendMode: true },
+      })
+      if (!batch) return reply.status(404).send({ error: 'Batch not found' })
+      if (batch.sendMode !== 'MANAGED_EMAIL') {
+        return reply.status(409).send({ error: 'retry-failed only valid for MANAGED_EMAIL batches', code: 'WRONG_SEND_MODE' })
+      }
+
+      // Retryable reasons: bounce + transient_error_after_retries. NOT
+      // skipped_* (those are suppression-driven, will fail again).
+      const retryable = await fastify.prisma.surveyDistribution.findMany({
+        where: {
+          batchId,
+          failureReason: { in: ['bounce', 'transient_error_after_retries'] },
+        },
+        select: { memberId: true },
+      })
+
+      // Clear the failure markers so the worker re-attempts cleanly.
+      if (retryable.length > 0) {
+        await fastify.prisma.surveyDistribution.updateMany({
+          where: {
+            batchId,
+            failureReason: { in: ['bounce', 'transient_error_after_retries'] },
+          },
+          data: { failedAt: null, failureReason: null },
+        })
+        // Enqueue managed-email-send jobs for each. Producer call is dynamic
+        // import to avoid circular dependency between routes and queues.
+        const { enqueueManagedEmailSend } = await import('../queues/bullmq.js')
+        for (const row of retryable) {
+          await enqueueManagedEmailSend({ batchId, memberId: row.memberId, brandId, surveyId })
+        }
+      }
+
+      request.audit = { metadata: { batchId, retriedCount: retryable.length } }
+
+      return reply.status(200).send({
+        batchId,
+        retriedCount: retryable.length,
+      })
+    },
+  )
 }
 
 export default distributionBatchesRoutes

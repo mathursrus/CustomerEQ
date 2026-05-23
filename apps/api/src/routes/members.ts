@@ -8,6 +8,7 @@ import {
   CreateMemberNoteSchema,
   UpdateMemberNoteSchema,
   floatToSentimentBucket,
+  globToSqlLike,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
@@ -790,13 +791,38 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       deletedAt: null,
     }
 
-    // Text search (ILIKE via Prisma mode: 'insensitive')
+    // Text search.
+    // - Default: substring ILIKE via Prisma `contains` (backward-compat).
+    // - Glob mode (Issue #420 / R17): when q contains `*` or `?`, translate to
+    //   SQL LIKE (`*`→`%`, `?`→`_`) with operator-literal `%`/`_`/`\` escaped
+    //   via `globToSqlLike`, then OR-match against externalId / email /
+    //   firstName / lastName. Used by the #420 audience-builder wildcard
+    //   search. Backward-compatible: queries without `*`/`?` keep the existing
+    //   substring behavior.
     if (q) {
-      where.OR = [
-        { firstName: { contains: q, mode: 'insensitive' } },
-        { lastName: { contains: q, mode: 'insensitive' } },
-        { email: { contains: q, mode: 'insensitive' } },
-      ]
+      const isGlob = /[*?]/.test(q)
+      if (isGlob) {
+        const likePattern = globToSqlLike(q)
+        const matching = await fastify.prisma.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "members"
+          WHERE "brandId" = ${request.brandId}
+            AND "deletedAt" IS NULL
+            AND (
+              "externalId" ILIKE ${likePattern} ESCAPE '\\'
+              OR "email" ILIKE ${likePattern} ESCAPE '\\'
+              OR "firstName" ILIKE ${likePattern} ESCAPE '\\'
+              OR "lastName" ILIKE ${likePattern} ESCAPE '\\'
+            )
+        `
+        const ids = matching.map((r) => r.id)
+        where.id = { in: ids.length > 0 ? ids : ['__none__'] }
+      } else {
+        where.OR = [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ]
+      }
     }
 
     // Behavioral filters

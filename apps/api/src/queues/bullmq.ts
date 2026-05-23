@@ -13,6 +13,7 @@ import {
   type ExternalSignalIngestionPayload,
   type WebhookDeliveryPayload,
   type SurveyImportRowPayload,
+  type ManagedEmailSendPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -49,6 +50,7 @@ let _externalSignalSyncQueue: Queue | null = null
 let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
 let _surveyImportQueue: Queue | null = null
+let _managedEmailSendQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -67,6 +69,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
   _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
+  _managedEmailSendQueue = new Queue(QUEUES.MANAGED_EMAIL_SEND, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -122,6 +125,10 @@ function getWebhookDeliveryQueue(): Queue {
 function getSurveyImportQueue(): Queue {
   if (!_surveyImportQueue) throw new Error('Queues not initialized.')
   return _surveyImportQueue
+}
+function getManagedEmailSendQueue(): Queue {
+  if (!_managedEmailSendQueue) throw new Error('Queues not initialized.')
+  return _managedEmailSendQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1143,6 +1150,25 @@ export async function enqueueSurveyImportRow(payload: SurveyImportRowPayload): P
     return INLINE_STUB
   }
   return getSurveyImportQueue().add(QUEUES.SURVEY_IMPORT, payload)
+}
+
+// Issue #420 — managed-email per-recipient dispatch.
+// In QUEUE_MODE=redis: enqueue to the dedicated BullMQ queue; worker processes.
+// In QUEUE_MODE=inline: structured-log a warning and return the stub job.
+// (Inline mode doesn't run the dispatcher — that's the worker's job. Tests
+// validate the API contract; end-to-end dispatch is a worker-mode concern.)
+export async function enqueueManagedEmailSend(payload: ManagedEmailSendPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    log.warn(
+      { event: 'managed_email_send.inline_noop', batchId: payload.batchId, memberId: payload.memberId },
+      'Managed-email-send enqueue in inline mode — no-op (use QUEUE_MODE=redis for dispatch)',
+    )
+    return INLINE_STUB
+  }
+  return getManagedEmailSendQueue().add(QUEUES.MANAGED_EMAIL_SEND, payload, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+  })
 }
 
 export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): Promise<Job> {
