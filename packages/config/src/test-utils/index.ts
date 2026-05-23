@@ -27,6 +27,14 @@ export { createMockRedis } from './mocks/redis.mock.js'
 export { salesforceNpsPayload, hubspotTicketPayload, invalidSignatureHeaders } from './mocks/integrations.mock.js'
 export { mockEmailSend, assertEmailSent, clearEmailMock, getSentEmails } from './mocks/email.mock.js'
 export { mockSentimentAnalyze, mockNegativeSentiment, mockPositiveSentiment, clearSentimentMock } from './mocks/sentiment.mock.js'
+export {
+  bamlClientMockFactory,
+  mockBamlAnalyzeFeedback,
+  mockBamlDiscoverClusters,
+  mockBamlGenerateEmbedding,
+  mockBamlClassifyIntent,
+  clearBamlMocks,
+} from './mocks/baml.mock.js'
 export { mockAnalyzeResponse, mockDiscoverClusters, mockDetectAnomalies, mockNegativeAnalysis, mockNewClusterAnalysis, mockGenerateEmbedding, mockClassifyIntent, clearAiMock } from './mocks/ai.mock.js'
 export { databaseMockFactory, createMockPrisma } from './mocks/database.mock.js'
 export type { MockPrisma } from './mocks/database.mock.js'

@@ -9,6 +9,11 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
+const shouldBypassAuthToken =
+  process.env.PLAYWRIGHT_TEST === 'true' ||
+  process.env.NEXT_PUBLIC_PLAYWRIGHT_TEST === 'true' ||
+  process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'
+
 /**
  * Wrapper around Clerk's getToken that returns null when the auth
  * provider is unavailable (network timeout, not initialized, etc.)
@@ -24,6 +29,10 @@ export async function getAuthToken(
   getToken: () => Promise<string | null>,
   timeoutMs = 10_000,
 ): Promise<string | null> {
+  if (shouldBypassAuthToken) {
+    return null
+  }
+
   try {
     return await Promise.race([
       getToken(),
