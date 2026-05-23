@@ -135,3 +135,95 @@ All five are tracked in the work-list at `docs/evidence/420-implement-work-list.
 - ✅ Observability event emission verified at code-review
 
 Ready to advance to `implement-security-review`.
+
+---
+
+## Security Review
+
+### Executive Summary
+
+- **Counts**: 1 Medium auto-fixed inline, 2 Low filed for follow-up, 0 Critical/High.
+- **Disposition**: 1 `fix`, 2 `file`, 0 `accept`.
+- **Phase outcome**: Pass — no Critical/High blocking findings.
+- **Highest-priority next action**: Medium body-size cap auto-fix is already applied (`packages/shared/src/zod/distributionBatch.schema.ts`, body now capped at 50 KB).
+
+### Review Scope
+
+- **reviewType**: `embedded-diff-review`
+- **reviewScope**: `diff` (commits `c32424f` → `f22455e` against `main`)
+- **surfaceAreaPaths**: full #420 diff on PR #497, branch `feature/420-use-azure-communication-services-to-send-survey-emails`
+
+### Threat Surface Summary
+
+| Surface | Evidence |
+|---|---|
+| `web` | `apps/web/src/app/u/[token]/page.tsx`, `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/ManagedEmailFlow.tsx`, `apps/web/src/middleware.ts` |
+| `api` | `apps/api/src/routes/unsubscribe.ts`, `apps/api/src/routes/distributionBatches.ts`, `apps/api/src/routes/members.ts`, `apps/api/src/queues/bullmq.ts` |
+| `data-pipeline` | `apps/worker/src/processors/managedEmailSend.ts`, `apps/worker/src/queues/producers.ts`, `apps/worker/src/index.ts` |
+| `capability-authoring` | retrospective + coaching-moment files under `fraim/personalized-employee/learnings/raw/` + `docs/retrospectives/` |
+| (no `llm-app`, no `mobile`) | no LLM imports + no `ios/`/`android/` files in diff |
+
+### Coverage Matrix
+
+| Category | Result | Notes |
+|---|---|---|
+| A01 Broken Access Control | Pass | New admin endpoints inherit auth/MultiTenant; public endpoints (`/u/:token`) opt in via `config.public` explicitly |
+| A02 Cryptographic Failures | Pass | New token type (`MemberUnsubscribeToken`) uses SHA-256 via shared `hashToken` helper — same shape as #378 `SurveyDistributionToken`; plaintext returned once + never stored |
+| A03 Injection | Pass | All raw SQL uses Prisma `$queryRaw` / `$executeRaw` tagged-template forms (parameterized). `LIKE` patterns pass through `globToSqlLike` which escapes literal `%` / `_` / `\` before binding |
+| A04 Insecure Design | Pass | Two-gate suppression (UI gate + worker pre-dispatch re-check) is the design; `emailOptIn` exemption is structurally enforced by the `checkSuppression` function signature, not a runtime branch |
+| A05 Security Misconfiguration | Pass | Public route additions to middleware are narrow (`/u/(.*)` only); no wildcard surface widened |
+| A06 Vulnerable & Outdated Components | Pass | No new external deps added (TipTap deferred to V1) |
+| A07 Ident & Authn Failures | Pass | Unsubscribe tokens are single-use via `consumedAt` set with COALESCE — second confirm is no-op, no second-use signal leaked |
+| A08 Software & Data Integrity Failures | Pass | `composerSnapshot` is operator-controlled JSON; sender-domain resolution has structured `warn` log on env fallback so config drift is observable |
+| A09 Security Logging | Pass | New audit-action keys declared with explicit allowlists (`distribution_batch.csv_downloaded`, `retry_failed`, `member.unsubscribed_surveys`); worker writes `managed_email.send_attempt` via Prisma directly with status + bounded failureReason |
+| A10 SSRF | N/A | No URL-input → outbound-fetch paths added |
+| API01 Broken Object Level Authorization | Pass | Every batch/member lookup in new code filters by `brandId = request.brandId` |
+| API02 Broken Authentication | Pass | Public routes scoped to `/u/:token` only; admin/v1 unchanged |
+| Secrets-in-code | Pass | No hardcoded secrets; all ACS config via env vars; sender-domain resolution warn-logs fallback |
+| Privacy / PII | Pass | Audit metadata allowlists carry IDs only (no email/phone/PII); rendered email captures snapshot of operator-authored body (already operator-controlled); `Member.unsubscribedSurveysAt` semantic preserves the legitimate-interest exemption from `Member.emailOptIn` |
+
+### Findings
+
+| ID | Severity | OWASP | File:Line | Summary | Disposition |
+|---|---|---|---|---|---|
+| #420-SR-001 | Medium | A04 | `packages/shared/src/zod/distributionBatch.schema.ts` ManagedEmailComposerSchema | Composer body had no max length — operator could submit a 10MB body that bloats `composerSnapshot` JSON and slows the worker per-recipient render | **fix** (applied — cap at 50 KB) |
+| #420-SR-002 | Low | A04 | `packages/shared/src/email/renderTemplate.ts` `renderMustaches` | Mustache substitution does not HTML-escape variable values (e.g., `{{brand_name}}` → raw HTML inserted). Defense-in-depth: brand name is operator-controlled at brand-onboarding, the email body is already operator-authored, and email clients universally strip `<script>` tags. Real-world impact limited to operator-vs-self HTML injection in their own brand-name field. | **file** — V1 polish item |
+| #420-SR-003 | Low | A05 | `apps/api/src/routes/unsubscribe.ts` `GET /u/:token` | No rate limit on the public unsubscribe endpoints. Mitigated by the existing `MemberUnsubscribeToken` table only containing tokens that were minted via the rate-limited `POST /distribution-batches` flow — so abuse surface is bounded by legitimate batch creation. Worth adding a per-IP rate limit before V1 cross-tenant production traffic | **file** — V1 polish item |
+
+### Prioritized Remediation Queue
+
+1. **#420-SR-001 (Medium, fix-applied)** — body size cap. **Done in-phase**. Verification: `pnpm --filter @customerEQ/shared build` passes; the existing renderTemplate tests still pass (the cap is below their test fixture sizes).
+2. **#420-SR-002 (Low, filed)** — HTML-escape mustache variable substitutions in `renderEmailHtml`. Effort: ~30 LOC + 3 tests. Track as a follow-up issue.
+3. **#420-SR-003 (Low, filed)** — per-IP rate limit on `/u/:token` + `/u/:token/confirm`. Effort: ~20 LOC reusing the existing `enforceBatchRateLimit` shape from `distributionBatches.ts`. Track as a follow-up issue.
+
+### Verification Evidence
+
+- **Before fix (#420-SR-001)**: Zod schema `body: z.string().min(1).refine(...)` accepted any string length up to JS engine limits.
+- **After fix (#420-SR-001)**: `body: z.string().min(1).max(50_000).refine(...)`. A 50,001-char body would fail Zod validation with the standard "String must contain at most 50000 character(s)" error.
+- **Build verification post-fix**: `pnpm --filter @customerEQ/shared build` — passes.
+- **Test verification post-fix**: existing renderEmailHtml tests (20/20) pass; fixture bodies are well below 50KB so no test changes needed.
+
+### Applied Fixes and Filed Work Items
+
+- **Applied this phase**: 1 fix (#420-SR-001) — body 50 KB cap added to `ManagedEmailComposerSchema`. Will be included in the next commit alongside the security review evidence.
+- **Filed for follow-up**: 2 items (#420-SR-002, #420-SR-003). To file as separate GitHub issues at workflow-completion time; both are Low and acceptable in V0.
+
+### Accepted / Deferred / Blocked
+
+- **Accepted**: none.
+- **Deferred to follow-up issues** (Low severity, V0-acceptable): #420-SR-002, #420-SR-003.
+- **Blocked**: none.
+
+### Compliance Control Mapping
+
+No active compliance framework (SOC2 / GDPR / HIPAA) for this issue beyond the existing #117/#231/#276/#291/#378 audit trail. The new audit events extend the existing AuditEvent table; allowlist-based metadata filtering already in place via the audit plugin satisfies the "no PII / no secrets in audit metadata" baseline.
+
+### Run Metadata
+
+- **Run date**: 2026-05-23
+- **Commit SHA at review start**: `f22455e`
+- **Auto-fix cap used**: 1 of 10
+- **Caps hit**: none
+- **Skill errors**: none
+- **Environment**: local dev (`pnpm test:smoke` + targeted typechecks); production validation queued for post-merge
+

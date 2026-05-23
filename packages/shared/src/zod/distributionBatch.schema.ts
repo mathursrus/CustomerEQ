@@ -248,9 +248,13 @@ export const ManagedEmailComposerSchema = z.object({
   // operator can customize this; the domain is resolved by the API per R25.
   senderAlias: z.string().regex(/^[a-z0-9._-]+$/, 'alias must be lowercase alphanumeric + dot/underscore/dash'),
   subject: z.string().min(1).max(200),
+  // Issue #420 — body size capped at 50KB to prevent abuse (megabyte payloads
+  // are not legitimate use and would slow the worker + bloat composerSnapshot).
+  // 50KB accommodates rich HTML emails with inline styles up to ~2,000 lines.
   body: z
     .string()
     .min(1)
+    .max(50_000)
     .refine((s) => /\{\{\s*survey_link\s*\}\}/.test(s), {
       message: 'body must contain {{survey_link}} so the per-recipient URL can be rendered',
     }),
