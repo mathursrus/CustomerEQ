@@ -20,6 +20,7 @@ import { useAuth } from '@clerk/nextjs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
+import { MustacheEditor } from '@/components/managed-email-composer/MustacheEditor'
 
 import type { DistributeMode } from './modes'
 
@@ -69,14 +70,12 @@ interface SurveyContext {
 
 type FlowState = 'configure' | 'confirm' | 'sending' | 'sent'
 
-const DEFAULT_BODY = `Hi {{first_name}},
-
-We'd love your feedback on your recent experience with {{brand_name}}.
-
-Two minutes. <a href="{{survey_link}}">Take the survey</a>.
-
-Thanks,
-{{sender_name}}`
+// HTML-form default body — fed into TipTap as the editor's seed content
+// (R27). The literal `{{...}}` tokens render in-editor as inline chips via
+// the Mention extension and serialize back to plain `{{name}}` strings in
+// getHTML() output, which the backend renderTemplate.ts substitutes at
+// dispatch.
+const DEFAULT_BODY = `<p>Hi {{first_name}},</p><p>We&rsquo;d love your feedback on your recent experience with {{brand_name}}.</p><p>Two minutes. <a href="{{survey_link}}">Take the survey</a>.</p><p>Thanks,<br />{{sender_name}}</p>`
 
 const DEFAULT_SUBJECT_PREFIX = 'A quick survey from'
 
@@ -491,20 +490,24 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
                   onChange={(e) => setSubject(e.target.value)}
                 />
               </label>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-gray-700">
-                  Body — must contain {`{{survey_link}}`}
-                </span>
-                <textarea
-                  className="h-48 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-xs"
+              <div className="block text-sm">
+                <label
+                  htmlFor="managed-email-body"
+                  className="mb-1 block font-medium text-gray-700"
+                >
+                  Body — must contain {'{{survey_link}}'}
+                </label>
+                <MustacheEditor
+                  id="managed-email-body"
+                  ariaLabel="Email body"
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={setBody}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Available tokens: {'{{first_name}}'}, {'{{last_name}}'}, {'{{brand_name}}'},
-                  {'{{sender_name}}'}, {'{{survey_link}}'}, {'{{survey_title}}'}
+                  Type <code className="rounded bg-gray-100 px-1">{`{{`}</code> to insert a token,
+                  or pick one from the toolbar.
                 </p>
-              </label>
+              </div>
               {composerError && (
                 <p className="text-sm text-red-700" role="alert">
                   {composerError}
