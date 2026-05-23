@@ -2,7 +2,7 @@
 
 Issue: [#420](https://github.com/mathursrus/CustomerEQ/issues/420)
 Owner: Claude (claude-opus-4-7) / manohar.madhira@outlook.com
-Status: Round 2.1 — adds the 4 TECHSPEC-template sections missed in Rounds 1–2 (Confidence Level §9, Spike Decision §9.3–9.4, Validation Plan user-scenario table §7.0, Observability §13). Coaching moments: `…2026-05-23T03-19-55-precedent-as-recommendation-without-tradeoff-analysis.md` + `…2026-05-23T04-59-52-skipped-template-fetch-because-i-thought-i-knew-the-shape.md`.
+Status: Round 2.2 — runs the §9.3 cross-client rendering spike. Spike code in `spike/420-cross-client-rendering/`; Chromium-validated; §6 + §8 + §9.1 + §9.4 updated with findings + design impact. Confidence raised 78 → 80. D6 resolved. Remaining real-inbox check is Help-needed per §9.4.
 Spec: [`docs/feature-specs/420-send-via-customereq-acs.md`](../feature-specs/420-send-via-customereq-acs.md) (R7)
 Evidence: [`docs/evidence/420-technical-design-evidence.md`](../evidence/420-technical-design-evidence.md) (to be created at submission)
 
@@ -348,6 +348,10 @@ Plaintext multipart counterpart: no styling, mustache-rendered text + raw URLs.
 
 Theme resolved at worker job time + snapshotted into `DistributionBatch.composerSnapshot.themeSnapshot`. So if `BrandTheme` is edited between batch creation and the worker dispatching the last recipient, every email in that batch still uses the palette frozen at batch-creation.
 
+**Link auto-styling** (validated in the §9.3 spike): operator-authored `<a>` tags inside the TipTap body that don't carry an explicit `style=` attribute get the brand `accentColor` + underline applied via a small idempotent inline-style sweep (`rewriteLinksWithAccent` in `spike/420-cross-client-rendering/render-template.ts`). Operator-styled links win. This avoids needing TipTap to know the theme.
+
+**Outer layout**: outer `<table>` (not flex/grid) for Outlook desktop reliability. Divider via single-cell `<table>` row with `border-top` (not raw `<hr>`, which Outlook desktop strips styling from).
+
 ### 7. Validation Plan
 
 #### 7.0 User-scenario × expected-outcome × validation-method table (per TECHSPEC template)
@@ -401,7 +405,7 @@ None — no AI in this path.
 
 ### 8. Risks
 
-1. **Theme inlining for email rendering** — email-client CSS support is famously inconsistent. Mitigation: stick to widely-supported properties (no Flexbox, no CSS variables, no media queries beyond mobile-width). E2E tests cover the rendering shape; **cross-client rendering validation** (Gmail / Outlook / Apple Mail) runs in the developer's local environment using `EMAIL_PROVIDER=azure-communication-services` pointed at a sandbox sender + sending to a personal test inbox per major client — there is no staging environment in this repo (verified — `docs/architecture/architecture.md` references local dev + production only; reviewer r3291995380 confirmed). Each implementer documents test-inbox screenshots in the impl PR's evidence document before merge.
+1. **Theme inlining for email rendering** — email-client CSS support is famously inconsistent. Mitigation: stick to widely-supported properties (no Flexbox, no CSS variables, no media queries beyond mobile-width). The §9.3 spike validated the template structure in Chromium (Webkit-derived, proxy for Gmail web + Apple Mail Safari engine); see §9.4 for Chromium-validated checklist. E2E tests cover the rendering shape; **cross-client rendering validation** (Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS) runs in the developer's local environment using `EMAIL_PROVIDER=azure-communication-services` pointed at a sandbox sender + sending to a personal test inbox per major client — there is no staging environment in this repo (verified — `docs/architecture/architecture.md` references local dev + production only; reviewer r3291995380 confirmed). Each implementer documents test-inbox screenshots in the impl PR's evidence document before merge. **V0 escape hatch**: if Outlook desktop strips the CTA-button styling on a plain `<a>`, ship a VML conditional-comment wrapper for Outlook-only — documented in `spike/420-cross-client-rendering/FINDINGS.md`.
 2. **ACS throughput limits** — Azure Communication Services has rate limits per sender domain (currently unknown; will validate in staging). Mitigation: BullMQ concurrency = 5 initially; exponential backoff already covers 429s; monitor `email.sender_domain.fallback` warn events + ACS poll-status responses; if hitting limits in staging, increase exponential backoff base or drop concurrency.
 3. **Plaintext URL leak via `composerSnapshot`** — the body field contains the rendered mustache template (with `{{survey_link}}` literal), NOT per-recipient URLs. Per-recipient URLs are minted in the token table; the snapshot is safe to retain.
 4. **`Member.unsubscribedSurveysAt` vs `emailOptIn` confusion** — operators may not understand that opting-out-of-marketing doesn't opt-out-of-surveys. Mitigation: the audience-builder Status chip is the surfacing; tooltip explains the distinction. Documentation in Settings will explain the two-column model.
@@ -409,7 +413,7 @@ None — no AI in this path.
 
 ### 9. Confidence Level + Spike Decision
 
-#### 9.1 Confidence: **78 / 100**
+#### 9.1 Confidence: **80 / 100** (post-spike; was 78 pre-spike)
 
 Per-axis breakdown (why 78, not 90+):
 
@@ -419,10 +423,10 @@ Per-axis breakdown (why 78, not 90+):
 | ACS sender-address override | 75 | Existing `sendEmailMessage()` resolves `senderAddress` from env only (verified at `packages/connectors/src/email.ts:141-144`); adding an `opts.senderAddress` override is a small backward-compatible refactor — but the V0-domain-pinned → V1-`Brand.managedEmailSenderDomain` → env-parsed → hard-coded fallback chain warrants early-impl validation |
 | MemberUnsubscribeToken flow | 85 | Mirrors verified #378 `SurveyDistributionToken` pattern (SHA-256 of plaintext, plaintext returned once, never stored); audit + verification endpoint shape are direct copies |
 | Two-gate suppression in a single DB transaction | 85 | Pure Prisma; checks are simple WHERE clauses; one new index covers the worker pre-dispatch re-check |
-| **Theme-color inline-style rendering across Gmail / Outlook / Apple Mail** | **60** | The single highest-variance surface. Industry-wide CSS constraints are documented (no flexbox, table-based layouts, inline-only), but the operator-configured palette is the rendered email's primary trust signal — *"on-brand-looking inbox"* is the V0 customer outcome, and Outlook desktop in particular has historically broken assumptions about `<hr>` color, link `text-decoration`, and CSS-variable fallbacks |
+| **Theme-color inline-style rendering across Gmail / Outlook / Apple Mail** | **72** (was 60 pre-spike) | Highest-variance surface in the RFC, narrowed by the §9.3 spike. Chromium rendering validated (Webkit-derived → Gmail web + Apple Mail Safari engine); known Outlook-desktop / Gmail-iOS / dark-mode risks have mitigations in-template (`render-template.ts`). Remaining 28 = real-inbox uncertainty until the §9.4 *Help needed* check completes. *"On-brand-looking inbox"* is the V0 customer outcome |
 | Polling + `send-progress` query cost at concurrency=5 | 80 | Compound index covers the hot path; integration tests will catch regressions; light load expected V0 (50–500 recipients/batch) |
 
-The 60 for theme rendering pulls the average to 78. Tightening that one axis by 15 points (via the spike below) would land overall at ~85.
+**Pre-spike**: 60 for theme rendering pulled average to 78. **Post-spike** (Chromium-validated + mitigations in template): 72 for theme rendering lifts average to **~80**. Real-inbox follow-up (the §9.4 Help-needed step) would take this to ~85.
 
 #### 9.2 Technical Ambiguities
 
@@ -450,13 +454,41 @@ Per `rules/spike-first-development.md`: spike only on Medium-or-higher uncertain
 
 **Reviewer call**: see D6 below — spike now, or defer to per-impl-PR validation (Risk #1's existing mitigation)?
 
-#### 9.4 Spike Findings (to be populated if the spike is run)
+#### 9.4 Spike Findings
 
-*Not yet run. Pending D6.*  When run, this section will record:
-- **What was spiked**: scope from §9.3.
-- **Findings**: per-client CSS-property checklist (Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS) + screenshots stored in `docs/evidence/420-spike-cross-client-rendering/`.
-- **Design impact**: any §6 template adjustments + Risk #1 update.
-- **Help needed**: none expected (developer-personal inboxes only; no shared credentials).
+**Status**: Run on 2026-05-23 (commit pending). Code + screenshots in `spike/420-cross-client-rendering/`. Full report in `spike/420-cross-client-rendering/FINDINGS.md`.
+
+**What was spiked**:
+- `render-template.ts` — pure email-rendering function matching §6 (inline styles, table-based outer layout, mustache substitution, link auto-styling, no `<style>` block / no flexbox / no `@media`).
+- `render-preview.ts` — CLI rendering the template with the CustomerEQ default BrandTheme palette (`schema.prisma:764-770`) + a realistic ComposerSnapshot (Acme Coffee Roasters / Q2 NPS Pulse / Priya Patel) to a static `preview.html`.
+- `send-to-inbox.ts` — CLI that wraps existing `sendEmailMessage()` to dispatch to a configured inbox (no schema, no worker, no API changes — just the existing connector).
+- Chromium rendering verified at 800px (desktop) and 375px (mobile) widths via Playwright; screenshots at `spike/420-cross-client-rendering/preview-chrome-{desktop,mobile}-*.png`.
+
+**Findings (Chromium-validated, ✓ = working as designed)**:
+- ✓ Inline styles applied across all elements; no `<style>` block needed.
+- ✓ Mustache substitution (`{{first_name}}`, `{{brand_name}}`, `{{survey_link}}`, `{{sender_name}}`) renders correctly.
+- ✓ Theme colors thread through correctly: primary → brand-name `<h1>`, accent → links + unsubscribe, secondary → divider, background + text → body, button + buttonText → CTA.
+- ✓ Inline operator-body `<a>` tags auto-styled with accent color via a small `rewriteLinksWithAccent` pass that's idempotent — operator-set `style=` wins.
+- ✓ Mobile responsive at 375px: 600px max-width outer table collapses to viewport width; text wraps; CTA stays usable.
+- ✓ Footer reduced-opacity rendering works.
+- ✓ Divider via single-cell `<table>` row with `border-top` renders (not raw `<hr>`, which avoids Outlook desktop's known `<hr>` styling issues).
+
+**Still needs real-inbox follow-up** (Help needed — see below). Mitigations are already in the template; the risks below are known-unknowns we want confirmed in actual clients:
+- Outlook desktop: `<hr>`-substitute via table-row, `system-ui` font fallback chain, button-as-`<a>` (potential VML escape hatch if button styling strips).
+- Gmail iOS: link auto-recoloring (mitigated by inline `style="color:…"` on every `<a>`).
+- Apple Mail macOS/iOS: dark-mode auto-inversion of light themes.
+
+**Design impact** (RFC adjustments based on the spike):
+- ➕ Add to §6: the `rewriteLinksWithAccent` link-pass — small inline-style sweep ensuring operator-authored TipTap `<a>` tags inherit accent color without TipTap needing to know the theme.
+- ➕ Add to §8 Risks: a new contingency note that if Outlook desktop strips the CTA button styling, V0 ships a VML conditional-comment wrapper. Plain-styled `<a>` is the V0 default; VML is the documented escape hatch.
+- ➖ No §6 structural changes needed — the table-based layout + inline-styles approach is correct.
+- 📌 §9.1 Confidence on the "Theme-color rendering" axis updated from **60 → 72** (Chromium evidence + documented mitigations narrowed the unknown surface; remaining 28 is the real-inbox uncertainty that needs human follow-up).
+
+**Help needed** (per `rules/spike-first-development.md`):
+- Run `EMAIL_PROVIDER=azure-communication-services npx tsx spike/420-cross-client-rendering/send-to-inbox.ts your.inbox@example.com` with ACS creds set in env, OR upload `spike/420-cross-client-rendering/preview.html` to a Litmus/EmailOnAcid trial.
+- Capture screenshots for: Gmail web, Gmail iOS, Outlook web, Outlook desktop, Apple Mail macOS, Apple Mail iOS.
+- Drop them in `spike/420-cross-client-rendering/inbox-{client}.png`. The final per-client checklist will be appended to this §9.4 once results land.
+- The impl PR's evidence document (`docs/evidence/420-impl-evidence.md`) carries the cross-client screenshots as a pre-merge gate per Risk #1's mitigation.
 
 ---
 
@@ -496,7 +528,7 @@ Per `rules/spike-first-development.md`: spike only on Medium-or-higher uncertain
   - **Risk of pile-up across concurrent batches**: if two operators each send 500-recipient batches simultaneously, the global queue depth is 1000. At concurrency=5 they drain in ~40s; at concurrency=2 in ~100s. Either is acceptable.
   - **Round-2 recommendation**: **5** — the right balance for V0 expected volumes. Worth re-tuning post-launch if 429-rate observability shows we're getting throttled (BullMQ exposes retry counters; we'll log them).
   - **Future tuning lever**: per-sender-domain rate-limiter in the worker (token bucket against ACS's 300 r/m), independent of BullMQ concurrency. Out of V0 scope; flag as V1 if 429s become operator-visible.
-- **D6 (NEW: Cross-client theme-rendering spike — run now or defer to impl?)** — per §9.3. **Recommended**: run a ≤2-hour spike now (one inbox per major client, screenshots, §9.4 populated) so findings land *before* the worker is written — any §6 template adjustments are then cheap. **Alternate**: defer to per-impl-PR cross-client screenshots per Risk #1 — saves the upfront 2 hours, but if a client (Outlook desktop is the usual offender) rejects an assumed CSS property, the worker may need rework after it's already written + tested.
+- **D6 (Cross-client theme-rendering spike)** — **RESOLVED**. Spike code + Chromium-rendered screenshots landed in `spike/420-cross-client-rendering/` (commit pending); RFC §6, §8, §9.1, §9.4 updated with spike outcomes. Real-inbox cross-client check (Gmail iOS / Outlook desktop / Apple Mail) deferred to a Help-needed sub-task per §9.4, *with* the spike's mitigations already in-template.
 
 ### 11. Implementation order (suggested for impl phase)
 
