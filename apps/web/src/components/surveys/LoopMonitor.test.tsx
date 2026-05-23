@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act, fireEvent } from '@testing-library/react'
+import { render, screen, act, fireEvent, within } from '@testing-library/react'
 
 import LoopMonitor from './LoopMonitor'
 
@@ -51,6 +51,20 @@ describe('<LoopMonitor> — R39 Survey Sent breakdown', () => {
     const subline = screen.getByTestId('surveys-sent-by-mode')
     expect(subline).toHaveTextContent('5 via CustomerEQ')
     expect(subline).toHaveTextContent('6 via my email tool')
+    // Mock #scene-6 line 1053 — pills inline on the subline (not just in the drawer).
+    expect(within(subline).getByTestId('send-mode-pill-MANAGED_EMAIL')).toBeInTheDocument()
+    expect(within(subline).getByTestId('send-mode-pill-SELF_SERVE')).toBeInTheDocument()
+  })
+
+  it('renders the lifetime-anchor note above the pipeline stages', async () => {
+    await act(async () => {
+      render(<LoopMonitor surveyId="srv_test" surveyStatus="ACTIVE" getToken={stubGetToken} />)
+    })
+    await screen.findByTestId('pipeline-stages')
+    // Mock #scene-6 lines 1071–1073.
+    const note = screen.getByTestId('loop-monitor-lifetime-note')
+    expect(note).toHaveTextContent(/Loop Monitor stays/i)
+    expect(note).toHaveTextContent(/lifetime-wide/i)
   })
 
   it('opens the Survey Sent drawer with both mode pills on click', async () => {
@@ -69,9 +83,10 @@ describe('<LoopMonitor> — R39 Survey Sent breakdown', () => {
     expect(drawer).toHaveTextContent('6')
     expect(drawer).toHaveTextContent('via my email tool')
 
-    // Both pills present
-    expect(screen.getByTestId('send-mode-pill-MANAGED_EMAIL')).toBeInTheDocument()
-    expect(screen.getByTestId('send-mode-pill-SELF_SERVE')).toBeInTheDocument()
+    // Both pills present — scoped to the drawer because the inline subline
+    // now also renders its own pair (mock #scene-6 line 1053).
+    expect(within(drawer).getByTestId('send-mode-pill-MANAGED_EMAIL')).toBeInTheDocument()
+    expect(within(drawer).getByTestId('send-mode-pill-SELF_SERVE')).toBeInTheDocument()
   })
 
   it('falls back to total-only when surveysSentByMode is missing', async () => {

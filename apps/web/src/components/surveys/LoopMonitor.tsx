@@ -121,9 +121,19 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
       label: 'Survey Sent',
       value: numOrDash(p?.surveysSent),
       // R39 — per-mode breakdown sub-line (lifetime, not Wave-filtered).
+      // Mock #scene-6 line 1053 places the SendModePill chip inline with each
+      // count so the operator reads "N via CustomerEQ <Managed>" at a glance
+      // without opening the drawer.
       subline: sentByMode ? (
-        <span className="text-[10px] text-gray-500 leading-tight mt-1" data-testid="surveys-sent-by-mode">
-          {sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ · {sentByMode.SELF_SERVE.toLocaleString()} via my email tool
+        <span
+          className="flex flex-wrap items-center justify-center gap-1 text-[10px] text-gray-500 leading-tight mt-1"
+          data-testid="surveys-sent-by-mode"
+        >
+          <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
+          <SendModePill mode="MANAGED_EMAIL" />
+          <span>·</span>
+          <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
+          <SendModePill mode="SELF_SERVE" />
         </span>
       ) : null,
     },
@@ -159,6 +169,17 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
 
       {/* Pipeline stages */}
       <div className="px-6 pb-5">
+        {/* Mock #scene-6 lines 1071–1073 — anchor note so the operator
+            understands Loop Monitor stays lifetime-wide regardless of any
+            Wave filter applied to the Responses section. Spec R39 + #378 §3. */}
+        <p
+          className="mb-3 rounded-md bg-gray-50 px-3 py-2 text-[11px] text-gray-600"
+          data-testid="loop-monitor-lifetime-note"
+        >
+          <strong className="text-gray-700">Note:</strong> Loop Monitor stays{' '}
+          <strong className="text-gray-700">lifetime-wide</strong> regardless of Wave filter — the
+          per-batch slicing belongs to the Responses section below.
+        </p>
         <div className="flex items-stretch gap-0 overflow-x-auto" data-testid="pipeline-stages">
           {stages.map((stage, i) => (
             <div key={stage.key} className="flex items-center">
