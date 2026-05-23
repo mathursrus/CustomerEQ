@@ -9,7 +9,7 @@ Evidence: [`docs/evidence/420-technical-design-evidence.md`](../evidence/420-tec
 > **Closes:** #420.
 > **Builds on:** [#378](https://github.com/mathursrus/CustomerEQ/issues/378) (`DistributionBatch` / `SurveyDistributionToken` / `SurveyDistribution` data model; tokenized survey URLs; audience-builder primitives), [#231](https://github.com/mathursrus/CustomerEQ/issues/231) (`Member.email` nullable, `Brand.memberIdentifierKind`, `Member.consentGivenAt`), [#277](https://github.com/mathursrus/CustomerEQ/issues/277) (`Brand.timezone`), [#241](https://github.com/mathursrus/CustomerEQ/issues/241) (survey detail page, Loop Monitor surface), [#291](https://github.com/mathursrus/CustomerEQ/issues/291) (`BrandTheme` model post-rename).
 > **Resolved decisions** (from spec R6–R7): OQ-1 sender-domain fallback order, OQ-2 glob syntax, OQ-3 brand-wide opt-out, OQ-4 Loop Monitor + Response-header surfacing, OQ-5 rich-text editor deferred to this RFC, OQ-6 #378 drop-in reshape, OQ-7 `Brand.logoUrl` verified existing, OQ-NEW-1 separate `unsubscribedSurveysAt` (distinct from `emailOptIn`).
-> **Open RFC decisions** (D1–D5): see *Open Decisions for Reviewer* at bottom.
+> **Open RFC decisions** (D1–D6): see *Open Decisions for Reviewer* (§10) and *Confidence + Spike Decision* (§9).
 
 ---
 
@@ -387,7 +387,60 @@ None — no AI in this path.
 4. **`Member.unsubscribedSurveysAt` vs `emailOptIn` confusion** — operators may not understand that opting-out-of-marketing doesn't opt-out-of-surveys. Mitigation: the audience-builder Status chip is the surfacing; tooltip explains the distinction. Documentation in Settings will explain the two-column model.
 5. **Sending state UI feedback latency from polling** — 2-second polling means up to 2-second visual lag on the recipient-table updating. Acceptable for V0 (batches typically <500 recipients, full dispatch in 1-3 minutes). If reviewer prefers SSE, D3 is open.
 
-### 9. Open Decisions for reviewer (Round-2: pros/cons added per reviewer feedback)
+### 9. Confidence Level + Spike Decision
+
+#### 9.1 Confidence: **78 / 100**
+
+Per-axis breakdown (why 78, not 90+):
+
+| Axis | Score | Rationale |
+|---|---|---|
+| Patterns / framework integration | 90 | Every layer has 3+ in-repo precedents — 30+ Prisma migrations, 11 BullMQ queues, ~40 `/v1/` routes; copying the shape is mechanical |
+| ACS sender-address override | 75 | Existing `sendEmailMessage()` resolves `senderAddress` from env only (verified at `packages/connectors/src/email.ts:141-144`); adding an `opts.senderAddress` override is a small backward-compatible refactor — but the V0-domain-pinned → V1-`Brand.managedEmailSenderDomain` → env-parsed → hard-coded fallback chain warrants early-impl validation |
+| MemberUnsubscribeToken flow | 85 | Mirrors verified #378 `SurveyDistributionToken` pattern (SHA-256 of plaintext, plaintext returned once, never stored); audit + verification endpoint shape are direct copies |
+| Two-gate suppression in a single DB transaction | 85 | Pure Prisma; checks are simple WHERE clauses; one new index covers the worker pre-dispatch re-check |
+| **Theme-color inline-style rendering across Gmail / Outlook / Apple Mail** | **60** | The single highest-variance surface. Industry-wide CSS constraints are documented (no flexbox, table-based layouts, inline-only), but the operator-configured palette is the rendered email's primary trust signal — *"on-brand-looking inbox"* is the V0 customer outcome, and Outlook desktop in particular has historically broken assumptions about `<hr>` color, link `text-decoration`, and CSS-variable fallbacks |
+| Polling + `send-progress` query cost at concurrency=5 | 80 | Compound index covers the hot path; integration tests will catch regressions; light load expected V0 (50–500 recipients/batch) |
+
+The 60 for theme rendering pulls the average to 78. Tightening that one axis by 15 points (via the spike below) would land overall at ~85.
+
+#### 9.2 Technical Ambiguities
+
+| # | Area | Uncertainty | Spike candidate? |
+|---|---|---|---|
+| A1 | Cross-client theme-color rendering (Gmail web + iOS; Outlook web + desktop; Apple Mail macOS + iOS) | **Medium** | **Yes** — see §9.3 |
+| A2 | ACS `senderAddress` override response on invalid-alias 4xx | Low | No — ACS docs are explicit; impl-time integration test sufficient |
+| A3 | BullMQ "throw + no-retry" semantics for bounce / invalid-address classification | Low | No — direct precedent at `apps/worker/src/processors/notifications.ts` |
+| A4 | Polling query cost at concurrency=5 (Prisma + new compound index) | Low | No — covered by §7.2 integration tests + EXPLAIN ANALYZE during impl |
+| A5 | TipTap integration with Next.js App Router (`use client` + SSR hydration) | Low | No — TipTap v2 docs cover App-Router patterns; `dynamic({ ssr: false })` is the documented escape hatch |
+
+#### 9.3 Spike Decision
+
+Per `rules/spike-first-development.md`: spike only on Medium-or-higher uncertainty where the spike outcome would change the design.
+
+**Recommendation**: **One ≤2-hour spike** on A1 (cross-client theme rendering) **before** the worker + composer impl commits land. Rationale: A1 is the single Medium-uncertainty item in the RFC, and it directly determines whether the V0 customer outcome ("emails look on-brand") is met; the spike findings (a checklist of which CSS properties each client honors) can absorb cleanly into §6 without breaking the schema, API, or worker contracts.
+
+**Spike scope**:
+1. Build the §6 minimal HTML template (background-color, primaryColor `<h1>`, accentColor link, secondaryColor `<hr>`, theme.textColor body) with one hard-coded BrandTheme palette + mustache-rendered `{{brand_name}}` + `{{survey_link}}` + `[Unsubscribe]` footer.
+2. Call existing `sendEmailMessage()` (no schema changes, no worker changes) to one personal inbox per major client: **Gmail** (web + iOS), **Outlook** (web + desktop), **Apple Mail** (macOS + iOS).
+3. Capture screenshots of each rendered email.
+4. Land findings in §9.4 below: a checklist of CSS properties honored / broken per client, and any §6 template adjustments that result.
+
+**Why not spike A2–A5**: each has direct in-repo precedent or unambiguous external documentation; spiking would be cargo-cult overhead. The rule specifically says spike only when **unfamiliar** — A2–A5 are familiar.
+
+**Reviewer call**: see D6 below — spike now, or defer to per-impl-PR validation (Risk #1's existing mitigation)?
+
+#### 9.4 Spike Findings (to be populated if the spike is run)
+
+*Not yet run. Pending D6.*  When run, this section will record:
+- **What was spiked**: scope from §9.3.
+- **Findings**: per-client CSS-property checklist (Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS) + screenshots stored in `docs/evidence/420-spike-cross-client-rendering/`.
+- **Design impact**: any §6 template adjustments + Risk #1 update.
+- **Help needed**: none expected (developer-personal inboxes only; no shared credentials).
+
+---
+
+### 10. Open Decisions for reviewer (Round-2: pros/cons added per reviewer feedback)
 
 - **D1 (sentAt nullability)** — **RESOLVED** (Round-2 per reviewer r3291886241). `sentAt` stays `DateTime @default(now())` NOT NULL. Historical rows keep their original sentAt. New `deliveredAt` column (nullable) carries the MANAGED_EMAIL provider-confirmed semantic. See §1.6 + §2.
 - **D2 (DistributionBatch.sendMode default backfill = SELF_SERVE)** — **CONFIRMED** (reviewer r3291886424). Every existing batch was a #378 SELF_SERVE batch; default backfill is correct.
@@ -423,8 +476,9 @@ None — no AI in this path.
   - **Risk of pile-up across concurrent batches**: if two operators each send 500-recipient batches simultaneously, the global queue depth is 1000. At concurrency=5 they drain in ~40s; at concurrency=2 in ~100s. Either is acceptable.
   - **Round-2 recommendation**: **5** — the right balance for V0 expected volumes. Worth re-tuning post-launch if 429-rate observability shows we're getting throttled (BullMQ exposes retry counters; we'll log them).
   - **Future tuning lever**: per-sender-domain rate-limiter in the worker (token bucket against ACS's 300 r/m), independent of BullMQ concurrency. Out of V0 scope; flag as V1 if 429s become operator-visible.
+- **D6 (NEW: Cross-client theme-rendering spike — run now or defer to impl?)** — per §9.3. **Recommended**: run a ≤2-hour spike now (one inbox per major client, screenshots, §9.4 populated) so findings land *before* the worker is written — any §6 template adjustments are then cheap. **Alternate**: defer to per-impl-PR cross-client screenshots per Risk #1 — saves the upfront 2 hours, but if a client (Outlook desktop is the usual offender) rejects an assumed CSS property, the worker may need rework after it's already written + tested.
 
-### 10. Implementation order (suggested for impl phase)
+### 11. Implementation order (suggested for impl phase)
 
 1. Migration (single hand-edited file).
 2. Prisma client regen + shared Zod schemas + queue-name constant.
@@ -438,13 +492,13 @@ None — no AI in this path.
 10. Wave Detail page extensions (sendMode pill, Composer snapshot block for managed-email batches, per-recipient send log).
 11. Audit allowlists.
 12. Compliance §13.7 worker re-check coverage tests.
-13. Cross-client email rendering manual validation in staging.
+13. Cross-client email rendering manual validation (developer-local; no staging env).
 
-### 11. Architecture Analysis
+### 12. Architecture Analysis
 
 Compared this RFC against `docs/architecture/architecture.md`. Three buckets:
 
-#### 11.1 Patterns correctly followed
+#### 12.1 Patterns correctly followed
 
 - **§3.2 API Layer** — new endpoints follow `/v1/` versioned route convention with Zod request validation, Clerk JWT auth, MultiTenant scoping, and audit-allowlist plugin. Sender-address resolution falls back to env, matching the "config-via-env" precedent.
 - **§3.3 Event Processing Layer** — new BullMQ queue `survey-distribution-send` with concurrency 5 (matches `notifications` queue convention). Worker structure mirrors `apps/worker/src/processors/notifications.ts`. Both `QUEUE_MODE=redis` and `QUEUE_MODE=inline` execute the same processor function per architecture §3.3.
@@ -452,7 +506,7 @@ Compared this RFC against `docs/architecture/architecture.md`. Three buckets:
 - **§4.4 Database Models** — all new tenant-scoped models carry `brandId` per Rule 6. Token-hash pattern (SHA-256 of plaintext, plaintext shown once) mirrors `SurveyDistributionToken` (#378) and `ApiKey.keyHash` (#170).
 - **#378 §3.1 batch-detail page** — Wave Detail page mode-conditional rendering preserves the existing Tokens table + Edit Expiry + Regenerate Links affordances for self-serve, per the spec's preservation contract.
 
-#### 11.2 Patterns missing from architecture
+#### 12.2 Patterns missing from architecture
 
 - **Server-Sent Events (SSE) for streaming progress** — not used by this RFC for V0 per D3 analysis (operator UX cost ≤2s tolerable for V0 batch sizes; dev cost ≥1 day saved). The recommendation is grounded in the pros/cons in D3, not in "no precedent." If the reviewer wants SSE for V0 (long-term UX value), it becomes a new infrastructure pattern that should land in architecture §3.2 alongside the impl: Fastify SSE plugin + Container Apps long-connection-timeout config + frontend `EventSource` wrapper.
 - **Mode-parameterized React page component** (`<DistributePage mode={...}/>`) — new pattern. **Other features in this codebase that could benefit from the same pattern** (per reviewer r3291904492):
@@ -464,11 +518,11 @@ Compared this RFC against `docs/architecture/architecture.md`. Three buckets:
 - **Polling-based progress UI** — frontend `useEffect` polling pattern is implicit in `LoopMonitor.tsx` (60s interval per verified read at `apps/web/src/components/surveys/LoopMonitor.tsx:92`). #420's 2s-interval polling for the Sending state is the same primitive at a faster cadence. Could be lifted into a `usePollingQuery` hook in `packages/ui` if a second consumer surfaces; for now keep inline.
 - **Two-gate compliance suppression model** — audience-builder gate (UI) + worker pre-dispatch re-check. New pattern with clear V1 utility: any future workflow that selects then dispatches across a time-gap (e.g., scheduled-send if D-Non-goal "scheduled send" is reconsidered; campaign event triggers) will need the same two-gate shape. Architecture §6 (Compliance) should gain a short subsection naming this once #420 ships; track as a follow-up issue.
 
-#### 11.3 Patterns incorrectly followed
+#### 12.3 Patterns incorrectly followed
 
 None identified. The RFC follows architecture-documented patterns where they exist, and the gaps above are *additions* (new patterns) rather than misuses.
 
-### 12. Requirements Traceability
+### 13. Requirements Traceability
 
 R1..R45 (spec §Requirements) map to RFC sections as follows:
 - R1–R5 (entry point) → §5 Frontend hierarchy (`DistributionSection.tsx` reshape)

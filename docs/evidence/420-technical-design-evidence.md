@@ -12,7 +12,7 @@
 |---|---|---|
 | requirements-analysis | ✅ | Spec R1..R45 + architecture §3.2/§3.3/§3.4/§4.3 loaded |
 | design-authoring | ✅ | No spike — phaseOutcome = default. RFC drafted. |
-| technical-spike | N/A | Skipped (no high-uncertainty items) |
+| technical-spike | Pending D6 | RFC §9 carries Confidence=78/100 + 5-item Ambiguities table. A1 (cross-client theme rendering) flagged Medium uncertainty; recommendation = ≤2-hour spike before worker impl, awaiting reviewer call on D6. A2–A5 are Low uncertainty (in-repo precedent / unambiguous external docs); no spike needed. §9.4 will be populated if D6 = run-spike-now. |
 | architecture-gap-review | ✅ | Gap-analysis added to RFC §11 |
 | design-completeness-review | ✅ (this doc) | Traceability matrix below |
 
