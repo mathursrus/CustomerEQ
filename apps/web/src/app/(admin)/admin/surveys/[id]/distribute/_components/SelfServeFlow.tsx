@@ -414,7 +414,21 @@ export function SelfServeFlow() {
           </div>
         ) : null}
 
-        <div className="flex justify-end">
+        {/* Mock #scene-2 line 530 — pre-submit recap so the operator can scan
+            wave + expiry + format before committing. Spec §2.4a. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <p className="text-sm text-gray-700" data-testid="self-serve-pre-submit-recap">
+            Ready to generate{' '}
+            <strong className="text-gray-900">
+              {audience?.selectedCount ?? 0} link{audience?.selectedCount === 1 ? '' : 's'}
+            </strong>
+            . Survey name: <strong className="text-gray-900">{surveyNameInMail || '—'}</strong>.
+            Expires{' '}
+            <strong className="text-gray-900">
+              {formatDistributionTzDate(expiresAtIso, brand.timezone, brand.locale)}
+            </strong>
+            . Format: <strong className="text-gray-900 capitalize">{downloadFormat}</strong>.
+          </p>
           <button
             type="button"
             onClick={handleGenerate}
@@ -423,7 +437,7 @@ export function SelfServeFlow() {
           >
             {generating
               ? `Generating ${audience?.selectedCount ?? 0} links…`
-              : `Generate ${audience?.selectedCount ?? 0} links`}
+              : `Generate ${audience?.selectedCount ?? 0} links →`}
           </button>
         </div>
       </div>
@@ -492,8 +506,13 @@ function SuccessState({
         </button>
       </div>
 
+      {/* Mock #scene-5a line 916 — Done is the page's terminal primary CTA. */}
       <div className="mt-6">
-        <button type="button" onClick={onBack} className="text-sm text-indigo-600 hover:underline">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+        >
           Done — back to survey →
         </button>
       </div>

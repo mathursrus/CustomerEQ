@@ -406,7 +406,37 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
             </div>
           )}
 
-          <div className="flex justify-end">
+          {/* Mock #scene-3 line 803 — pre-submit recap; sender + survey name +
+              expiry surfaced one last time before the confirm dialog. Mirror
+              of the SELF_SERVE recap (mock #scene-2 line 530). */}
+          <div
+            className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+            data-testid="managed-email-pre-submit-recap"
+          >
+            <p className="text-sm text-gray-700">
+              Ready to send{' '}
+              <strong className="text-gray-900">
+                {audience?.selectedCount ?? 0} email{audience?.selectedCount === 1 ? '' : 's'}
+              </strong>{' '}
+              from{' '}
+              <strong className="text-gray-900">
+                {senderName || '—'} &lt;{senderAlias}@customereq.wellnessatwork.me&gt;
+              </strong>
+              . Survey name: <strong className="text-gray-900">{surveyNameInMail || '—'}</strong>.
+              Links expire{' '}
+              <strong className="text-gray-900">
+                {new Date(expiresAtIso).toLocaleString(undefined, {
+                  timeZone: brand.timezone,
+                  year: 'numeric',
+                  month: 'short',
+                  day: '2-digit',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZoneName: 'short',
+                })}
+              </strong>
+              .
+            </p>
             <button
               type="button"
               onClick={handleContinueToConfirm}
