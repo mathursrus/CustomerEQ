@@ -5,10 +5,11 @@
 'use client'
 
 import { useAuth } from '@clerk/nextjs'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import { API_URL, getAuthToken } from '@/lib/config'
+import { ManagedEmailFlow } from './_components/ManagedEmailFlow'
 
 type AudienceMode = 'existing_members' | 'custom_list'
 type DistributionFormat = 'generic' | 'mailchimp' | 'hubspot' | 'klaviyo'
@@ -172,6 +173,27 @@ function downloadCsv(filename: string, body: string): void {
 }
 
 export default function DistributePage() {
+  const searchParams = useSearchParams()
+  // Issue #420 — mode-parameterized rendering. ?mode=managed-email routes the
+  // operator into the new MANAGED_EMAIL flow (CustomerEQ delivers via ACS).
+  // Absent / ?mode=self-serve / any other value falls through to the existing
+  // #378 SELF_SERVE flow below, unchanged. Bookmarked-URL backward compat (R5).
+  const mode = searchParams.get('mode')
+  if (mode === 'managed-email') {
+    return <ManagedEmailWrapper />
+  }
+  return <SelfServeFlow />
+}
+
+// Wrapper so we don't violate rules-of-hooks (the original DistributePage
+// instantiated dozens of useState/useEffect calls; we can't conditionally
+// short-circuit those, so route to a separate component instead).
+function ManagedEmailWrapper() {
+  const params = useParams<{ id: string }>()
+  return <ManagedEmailFlow surveyId={params.id} />
+}
+
+function SelfServeFlow() {
   const params = useParams<{ id: string }>()
   const surveyId = params.id
   const { getToken } = useAuth()

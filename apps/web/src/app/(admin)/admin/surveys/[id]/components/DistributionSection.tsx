@@ -104,6 +104,11 @@ function dataPrefillAttrFor(kind: MemberIdentifierKind): { attr: string; label: 
 // Issue #378 — primary action that routes to the per-recipient links page.
 // Rendered as the right-most tile in the 3-column dist-tiles grid (matches the
 // Round-2 mock at docs/feature-specs/mocks/378-distribute-flow.html scene 1).
+// Issue #420 — Send tile reshape per R1. One tile with two equal-weight buttons:
+// "Send via CustomerEQ →" (MANAGED_EMAIL, platform-delivered) and
+// "Send via my email tool →" (SELF_SERVE, #378 BYO-ESP). JTBD framing:
+// both buttons serve the same job (send the survey via email); the
+// mechanism differs.
 function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: SurveyStatus }) {
   const isActive = status === 'ACTIVE'
   const disabledTooltip =
@@ -123,28 +128,44 @@ function SendViaEmailToolTile({ surveyId, status }: { surveyId: string; status: 
     >
       <h3 className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
         <span aria-hidden>📧</span>
-        Send via my email tool
+        Send via Email
       </h3>
       <p className="mt-1 text-xs text-gray-600">
-        Generate per-recipient links for mail-merge applications like Mailchimp, or send individual
-        mails.
+        CustomerEQ sends the emails for you, or generate per-recipient links for your own ESP.
       </p>
-      <div className="mt-auto pt-4">
+      <div className="mt-auto flex flex-col gap-2 pt-4">
         {isActive ? (
-          <a
-            href={`/admin/surveys/${surveyId}/distribute`}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-          >
-            Send via my email tool →
-          </a>
+          <>
+            <a
+              href={`/admin/surveys/${surveyId}/distribute?mode=managed-email`}
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+            >
+              Send via CustomerEQ →
+            </a>
+            <a
+              href={`/admin/surveys/${surveyId}/distribute?mode=self-serve`}
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-1 rounded-md border border-indigo-600 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+            >
+              Send via my email tool →
+            </a>
+          </>
         ) : (
-          <span
-            aria-disabled
-            title={disabledTooltip}
-            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400"
-          >
-            Send via my email tool →
-          </span>
+          <>
+            <span
+              aria-disabled
+              title={disabledTooltip}
+              className="inline-flex w-full cursor-not-allowed items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400"
+            >
+              Send via CustomerEQ →
+            </span>
+            <span
+              aria-disabled
+              title={disabledTooltip}
+              className="inline-flex w-full cursor-not-allowed items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400"
+            >
+              Send via my email tool →
+            </span>
+          </>
         )}
       </div>
     </div>
