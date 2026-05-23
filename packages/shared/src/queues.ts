@@ -13,6 +13,7 @@ export const QUEUES = {
   WEBHOOK_DELIVERY: 'webhook-delivery',
   SURVEY_DISTRIBUTE: 'survey-distribute',
   SURVEY_IMPORT: 'survey-import',
+  MANAGED_EMAIL_SEND: 'managed-email-send', // Issue #420 — per-recipient ACS dispatch for MANAGED_EMAIL batches
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

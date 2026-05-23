@@ -68,6 +68,17 @@ export interface SurveyDistributePayload {
   cooldownDays: number
 }
 
+// Issue #420 — payload for the managed-email-send BullMQ queue.
+// Keys only; the worker loads batch + member + composerSnapshot via Prisma.
+// Kept slim so the queue payload stays under BullMQ's default 1MB limit even
+// for batches with thousands of recipients.
+export interface ManagedEmailSendPayload {
+  batchId: string
+  memberId: string
+  brandId: string
+  surveyId: string
+}
+
 export interface SurveyImportRowPayload {
   batchId: string
   surveyId: string

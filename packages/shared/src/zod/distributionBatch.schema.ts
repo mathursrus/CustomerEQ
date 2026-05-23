@@ -227,3 +227,129 @@ export const TokenStatusResponseSchema = z.object({
 }).strict()
 
 export type TokenStatusResponse = z.infer<typeof TokenStatusResponseSchema>
+
+// ─── Issue #420: Send via CustomerEQ (MANAGED_EMAIL) extensions ────────────────
+
+/**
+ * sendMode mirrors the Prisma enum; the API accepts both modes on the
+ * POST /distribution-batches endpoint with composer required when MANAGED_EMAIL.
+ */
+export const SurveySendModeSchema = z.enum(['SELF_SERVE', 'MANAGED_EMAIL'])
+export type SurveySendMode = z.infer<typeof SurveySendModeSchema>
+
+/**
+ * Composer body for MANAGED_EMAIL. The body field MUST contain the literal
+ * `{{survey_link}}` mustache token; the worker fails the dispatch with a
+ * validation error otherwise.
+ */
+export const ManagedEmailComposerSchema = z.object({
+  senderName: z.string().min(1).max(50),
+  // Local part of the sender email (`{senderAlias}@{senderDomain}`). Per R24 the
+  // operator can customize this; the domain is resolved by the API per R25.
+  senderAlias: z.string().regex(/^[a-z0-9._-]+$/, 'alias must be lowercase alphanumeric + dot/underscore/dash'),
+  subject: z.string().min(1).max(200),
+  body: z
+    .string()
+    .min(1)
+    .refine((s) => /\{\{\s*survey_link\s*\}\}/.test(s), {
+      message: 'body must contain {{survey_link}} so the per-recipient URL can be rendered',
+    }),
+}).strict()
+
+export type ManagedEmailComposer = z.infer<typeof ManagedEmailComposerSchema>
+
+/**
+ * Extended Generate request — discriminator on sendMode.
+ * - SELF_SERVE (default; preserves #378 contract): no composer, optional format
+ * - MANAGED_EMAIL: composer required, format absent
+ */
+export const GenerateBatchRequestV2Schema = z.discriminatedUnion('sendMode', [
+  z.object({
+    sendMode: z.literal('SELF_SERVE'),
+    surveyNameInMail: z.string().min(1).max(80),
+    expiresAt: z.string().datetime(),
+    audience: AudienceSpecSchema,
+    format: DistributionFormatSchema.optional(),
+  }).strict(),
+  z.object({
+    sendMode: z.literal('MANAGED_EMAIL'),
+    surveyNameInMail: z.string().min(1).max(80),
+    expiresAt: z.string().datetime(),
+    audience: AudienceSpecSchema,
+    composer: ManagedEmailComposerSchema,
+  }).strict(),
+])
+
+export type GenerateBatchRequestV2 = z.infer<typeof GenerateBatchRequestV2Schema>
+
+/**
+ * mark-csv-downloaded — idempotent.
+ */
+export const MarkCsvDownloadedResponseSchema = z.object({
+  batchId: z.string(),
+  sentAt: z.string().datetime(),
+  sentCountDelta: z.number().int().nonnegative(),
+  surveySentCount: z.number().int().nonnegative(),
+})
+
+export type MarkCsvDownloadedResponse = z.infer<typeof MarkCsvDownloadedResponseSchema>
+
+/**
+ * send-progress — polled by ManagedEmailProgress.tsx during the Sending state.
+ */
+const SendProgressRecipientStatus = z.enum(['queued', 'sending', 'sent', 'failed'])
+
+const SendProgressRecipient = z.object({
+  memberId: z.string(),
+  identifier: z.string(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  status: SendProgressRecipientStatus,
+  deliveredAt: z.string().datetime().nullable(),
+  failedAt: z.string().datetime().nullable(),
+  failureReason: z.string().nullable(),
+})
+
+export const SendProgressResponseSchema = z.object({
+  batchId: z.string(),
+  recipientCount: z.number().int().nonnegative(),
+  queuedCount: z.number().int().nonnegative(),
+  sentCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  isComplete: z.boolean(),
+  recipients: z.array(SendProgressRecipient),
+})
+
+export type SendProgressResponse = z.infer<typeof SendProgressResponseSchema>
+
+/**
+ * retry-failed — re-enqueue rows whose failureReason is retryable
+ * (bounce / transient_error_after_retries). Excludes skipped_* (suppression-driven).
+ */
+export const RetryFailedResponseSchema = z.object({
+  batchId: z.string(),
+  retriedCount: z.number().int().nonnegative(),
+})
+
+export type RetryFailedResponse = z.infer<typeof RetryFailedResponseSchema>
+
+/**
+ * Unsubscribe public endpoints — GET /u/:token returns a uniform render-state
+ * shape (similar to TokenStatusResponse), and POST /u/:token/confirm is idempotent.
+ */
+export const UnsubscribeStateSchema = z.enum(['valid', 'already-confirmed', 'invalid'])
+export type UnsubscribeState = z.infer<typeof UnsubscribeStateSchema>
+
+export const UnsubscribeTokenViewResponseSchema = z.object({
+  state: UnsubscribeStateSchema,
+  brandName: z.string().optional(), // present when state=valid or already-confirmed
+}).strict()
+
+export type UnsubscribeTokenViewResponse = z.infer<typeof UnsubscribeTokenViewResponseSchema>
+
+export const UnsubscribeConfirmResponseSchema = z.object({
+  state: z.enum(['confirmed', 'already-confirmed']),
+}).strict()
+
+export type UnsubscribeConfirmResponse = z.infer<typeof UnsubscribeConfirmResponseSchema>
