@@ -3,24 +3,19 @@
 // confirm → POST .../distribution-batches with sendMode=MANAGED_EMAIL →
 // Sending state polls /send-progress every 2s → Sent state with Retry Failed.
 //
-// V0 notes:
-// - Audience builder reuses the existing #378 /preview endpoint (same audience
-//   spec shape; sendMode discriminator only matters at POST). For V0 the UI
-//   exposes "all existing members" + "custom list paste" — the random-sample
-//   tab + glob search are wired on the API but the dedicated UI is a follow-up.
-// - Composer body is a <textarea> for V0 (operator can manually type
-//   {{first_name}} / {{survey_link}} / {{brand_name}}). TipTap rich-text editor
-//   + Mention palette for the mustache UX is a known follow-up. The backend
-//   Zod schema (ManagedEmailComposerSchema) validates body MUST contain literal
-//   `{{survey_link}}` — surfaced as inline validation error here too.
+// Composer uses TipTap (MustacheEditor) with a Mention palette for the six
+// mustache tokens defined in components/managed-email-composer/mustacheTokens.
+// Audience reuses #378's /preview endpoint via the same audience spec shape
+// (sendMode discriminator only matters at POST).
 
 'use client'
 
 import { useAuth } from '@clerk/nextjs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
 import { MustacheEditor } from '@/components/managed-email-composer/MustacheEditor'
+import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
 
 import type { DistributeMode } from './modes'
 
@@ -127,7 +122,6 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [batchId, setBatchId] = useState<string | null>(null)
-  const [progress, setProgress] = useState<SendProgressResponse | null>(null)
   const [retrying, setRetrying] = useState(false)
 
   // Load survey context
@@ -206,40 +200,29 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
     }
   }, [surveyId, getToken, survey, flow, audienceMode, strategyValue, pasteBody, autoEnroll, surveyNameInMail, expiryPreset])
 
-  // Polling — Sending state
-  const pollIntervalRef = useRef<number | null>(null)
+  // Polling — Sending state. Shared usePollingQuery handles cancellation +
+  // interval lifecycle; we only fetch when the flow is sending and a batchId
+  // has been assigned.
+  const fetchSendProgress = useCallback(async (): Promise<SendProgressResponse> => {
+    const token = await getAuthToken(getToken)
+    if (!token) throw new Error('Not authenticated.')
+    const res = await fetch(
+      `${API_URL}/v1/surveys/${surveyId}/distribution-batches/${batchId}/send-progress`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (!res.ok) throw new Error(`send-progress ${res.status}`)
+    return (await res.json()) as SendProgressResponse
+  }, [surveyId, batchId, getToken])
+
+  const { data: progress } = usePollingQuery<SendProgressResponse>({
+    fetchFn: fetchSendProgress,
+    intervalMs: SEND_PROGRESS_POLL_MS,
+    enabled: flow === 'sending' && !!batchId,
+  })
+
   useEffect(() => {
-    if (flow !== 'sending' || !batchId) return
-    let cancelled = false
-    const tick = async () => {
-      const token = await getAuthToken(getToken)
-      if (!token || cancelled) return
-      try {
-        const res = await fetch(
-          `${API_URL}/v1/surveys/${surveyId}/distribution-batches/${batchId}/send-progress`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        )
-        if (!res.ok) return
-        const data = (await res.json()) as SendProgressResponse
-        if (cancelled) return
-        setProgress(data)
-        if (data.isComplete) {
-          setFlow('sent')
-        }
-      } catch {
-        // Network blip — next tick will reconcile
-      }
-    }
-    void tick()
-    pollIntervalRef.current = window.setInterval(tick, SEND_PROGRESS_POLL_MS)
-    return () => {
-      cancelled = true
-      if (pollIntervalRef.current) {
-        window.clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
-    }
-  }, [flow, batchId, surveyId, getToken])
+    if (progress?.isComplete) setFlow('sent')
+  }, [progress?.isComplete])
 
   const validateComposer = useCallback((): string | null => {
     if (!senderName.trim()) return 'Sender name is required.'

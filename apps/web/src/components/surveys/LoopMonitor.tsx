@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
+import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
 
 interface LoopMonitorData {
   surveyId: string
@@ -64,37 +65,22 @@ function numOrDash(v: number | null | undefined): string {
 }
 
 export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props) {
-  const [data, setData] = useState<LoopMonitorData | null>(null)
-  const [loading, setLoading] = useState(true)
   const [openDrawer, setOpenDrawer] = useState<DrawerStage>(null)
   const [warningDismissed, setWarningDismissed] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  async function fetchData() {
-    try {
-      const token = await getAuthToken(getToken)
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/loop-monitor`, { headers })
-      if (res.ok) {
-        const json = await res.json()
-        setData(json)
-      }
-    } catch {
-      // silent — keep stale data
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchLoopMonitor = useCallback(async (): Promise<LoopMonitorData> => {
+    const token = await getAuthToken(getToken)
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/loop-monitor`, { headers })
+    if (!res.ok) throw new Error(`loop-monitor ${res.status}`)
+    return (await res.json()) as LoopMonitorData
+  }, [surveyId, getToken])
 
-  useEffect(() => {
-    fetchData()
-    if (surveyStatus === 'ACTIVE') {
-      intervalRef.current = setInterval(fetchData, 60_000) // auto-refresh every 60s
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [surveyId, surveyStatus]) // eslint-disable-line
+  const { data, loading } = usePollingQuery<LoopMonitorData>({
+    fetchFn: fetchLoopMonitor,
+    intervalMs: 60_000,
+    enabled: surveyStatus === 'ACTIVE',
+  })
 
   if (surveyStatus !== 'ACTIVE') {
     return (
