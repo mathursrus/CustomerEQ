@@ -2,7 +2,7 @@
 
 Issue: [#420](https://github.com/mathursrus/CustomerEQ/issues/420)
 Owner: Claude (claude-opus-4-7) / manohar.madhira@outlook.com
-Status: Round 2 — addresses 12 inline review comments + codebase-verification pass (coaching moment: `manohar.madhira@outlook.com-2026-05-23T03-19-55-precedent-as-recommendation-without-tradeoff-analysis.md`)
+Status: Round 2.1 — adds the 4 TECHSPEC-template sections missed in Rounds 1–2 (Confidence Level §9, Spike Decision §9.3–9.4, Validation Plan user-scenario table §7.0, Observability §13). Coaching moments: `…2026-05-23T03-19-55-precedent-as-recommendation-without-tradeoff-analysis.md` + `…2026-05-23T04-59-52-skipped-template-fetch-because-i-thought-i-knew-the-shape.md`.
 Spec: [`docs/feature-specs/420-send-via-customereq-acs.md`](../feature-specs/420-send-via-customereq-acs.md) (R7)
 Evidence: [`docs/evidence/420-technical-design-evidence.md`](../evidence/420-technical-design-evidence.md) (to be created at submission)
 
@@ -350,7 +350,27 @@ Theme resolved at worker job time + snapshotted into `DistributionBatch.composer
 
 ### 7. Validation Plan
 
-#### 7.1 Unit tests (`pnpm test:smoke`)
+#### 7.0 User-scenario × expected-outcome × validation-method table (per TECHSPEC template)
+
+| # | User Scenario | Expected Outcome | Validation method |
+|---|---|---|---|
+| V1 | Operator clicks **Send via CustomerEQ →** in the Distribution tile of a survey | Routes to `/admin/surveys/[id]/distribute?mode=managed-email`; Survey Batch Details, Audience builder, and ManagedEmailComposer all render | E2E (Playwright) |
+| V2 | Operator clicks **Send via my email tool →** in the same tile | Routes to `?mode=self-serve`; same shared shell renders SelfServeComposer with format dropdown instead of ManagedEmailComposer | E2E |
+| V3 | Operator searches Existing Members with glob `*@artistos.com` | List returns every member whose email ends `@artistos.com` plus name-matches; suppressed (unsubscribed / no-consent / erased) rows visible with checkbox disabled + Status chip | API + E2E |
+| V4 | Operator pastes 1 email + 1 phone in Add Custom List when Brand identifier = phone | Email row is auto-rolled by `Member.email` lookup; unresolved phone surfaces as a *"Cannot auto-roll because Brand Identifier is phone"* error row | UI + E2E |
+| V5 | Operator confirms a MANAGED_EMAIL batch with 5 recipients (1 unsubscribed-since-selection) | API returns 201; worker re-checks suppression; 4 emails dispatched, 1 row lands with `failureReason='skipped_unsubscribed'` and no provider call; Survey.sentCount increments by 4 | API + DB + worker integration |
+| V6 | Operator watches Sending state during a MANAGED_EMAIL batch | Progress bar advances; recipient table flips rows `queued → sending → sent`/`failed` within ≤2s of each transition; isComplete=true when every row settled | E2E |
+| V7 | Operator clicks **Retry Failed** on a Sent state with 2 bounces and 1 transient failure | 3 rows re-enqueued; suppressed-skip rows untouched; survey.sentCount unchanged until each retry succeeds | API + UI |
+| V8 | Operator opens Loop Monitor on the survey detail page | Stat-card shows lifetime Survey Sent count + mode breakdown sub-line ("SELF_SERVE × N, MANAGED_EMAIL × M"); filter-agnostic | UI + DB |
+| V9 | Operator selects a Wave in the Responses section | Sent and Responses both reflect wave-scoped numbers; date-range / sentiment filters affect Responses only, not Sent | UI + DB |
+| V10 | Operator clicks the Unsubscribe link in a received MANAGED_EMAIL email | `GET /u/:token` renders confirmation page; `POST /u/:token/confirm` is idempotent; sets `Member.unsubscribedSurveysAt`; **does NOT touch** `Member.emailOptIn` | API + DB |
+| V11 | Operator regenerates tokens on a SELF_SERVE batch + downloads CSV | sentAt updates to now() for every row; `Survey.sentCount += tokenCount`; audit-log records `previousSentAt` + `newSentAt` | API + DB |
+| V12 | Brand has `Brand.managedEmailSenderDomain = NULL` (V0 reality) | Sender resolves to `customereq.wellnessatwork.me`; warn log `email.sender_domain.fallback` fires if env unset; no fatal | DB + log inspection |
+| V13 | Worker dispatches MANAGED_EMAIL to member with `Member.emailOptIn = false` AND `Member.unsubscribedSurveysAt IS NULL` AND `Member.consentGivenAt IS NOT NULL` | Email SENT (surveys are legitimate-interest, exempt from marketing opt-out per R44) — emailOptIn is NOT checked | worker integration test |
+| V14 | Operator's email body validation: body missing `{{survey_link}}` | API returns 400 with field-specific error; UI shows inline error before submit | API + UI |
+| V15 | Cross-client rendering of theme palette (see §9.3 spike) | Gmail / Outlook / Apple Mail render theme.primaryColor h1, theme.accentColor link, theme.secondaryColor `<hr>`, theme.backgroundColor body without visible breakage | Spike screenshots in §9.4; per-impl-PR cross-client screenshots in Risk #1 mitigation |
+
+#### 7.1 Unit tests (Test Matrix — `pnpm test:smoke`)
 
 - `packages/shared/src/zod/distributionBatches.ts` — body validation per mode (composer required when MANAGED_EMAIL; format required when SELF_SERVE; senderAlias regex; body contains `{{survey_link}}`; etc.).
 - `packages/shared/src/distributionGlob.ts` — glob → SQL LIKE translation with operator-literal escaping (test cases: `*@artistos.com`, `q2-*`, `100%off` literal, `\\foo`, `?bar`, edge cases).
@@ -358,7 +378,7 @@ Theme resolved at worker job time + snapshotted into `DistributionBatch.composer
 - `apps/web/.../ManagedEmailComposer.test.tsx` — sender-alias regex + body-requires-{{survey_link}} validation, default-body template, theme-color preview rendering.
 - `apps/worker/src/processors/surveyDistributionSend.test.ts` — two-gate suppression checks (one test per skip reason); on-success sentAt + sentCount increment; on-bounce no-retry; on-transient retry.
 
-#### 7.2 Integration tests (`pnpm test:integration`)
+#### 7.2 Integration tests (Test Matrix — `pnpm test:integration`)
 
 - `POST /v1/surveys/:id/distribution-batches` with `sendMode = MANAGED_EMAIL`, suppressed members in audience → 201; verify suppressed rows in SurveyDistribution land with `failureReason = 'skipped_*'` and `failedAt` set, no email enqueued.
 - `POST /.../mark-csv-downloaded` × 2 → second call is no-op (idempotent), sentCount stays consistent.
@@ -366,7 +386,7 @@ Theme resolved at worker job time + snapshotted into `DistributionBatch.composer
 - `POST /u/:token/confirm` × 2 → second call is no-op; both audit-log.
 - `GET /.../send-progress` → returns isComplete=false during dispatch; isComplete=true once every row in the batch has `deliveredAt IS NOT NULL OR failedAt IS NOT NULL`.
 
-#### 7.3 E2E tests (Playwright; `pnpm test:e2e`)
+#### 7.3 E2E tests (Test Matrix — Playwright; `pnpm test:e2e`)
 
 - Full Managed-Email path: configure audience (3 existing + 2 custom auto-enroll + 1 unsubscribed-existing); compose; confirm; progress; sent state. Stub `EMAIL_PROVIDER=stub` so no real send.
 - Full Self-serve path: same audience; configure; generate; download CSV; verify Survey.sentCount incremented.
@@ -522,7 +542,61 @@ Compared this RFC against `docs/architecture/architecture.md`. Three buckets:
 
 None identified. The RFC follows architecture-documented patterns where they exist, and the gaps above are *additions* (new patterns) rather than misuses.
 
-### 13. Requirements Traceability
+### 13. Observability (logs, metrics, alerts)
+
+Per TECHSPEC template. All emissions follow the existing repo conventions (`fastify.log` for API, BullMQ worker logger for worker, AuditLog table for compliance trail).
+
+#### 13.1 Structured logs (Fastify + worker)
+
+| Event key | Level | Where emitted | Allowlist fields | Why we care |
+|---|---|---|---|---|
+| `email.sender_domain.fallback` | `warn` | `POST /v1/surveys/:id/distribution-batches` handler when sender-domain resolution falls through to the hard-coded fallback | `brandId, reason: 'acs_env_unset' \| 'brand_domain_null'` | Ops signal that the env or brand-domain config has drifted; otherwise silent |
+| `email.send_attempt` | `info` | `managed-email-send` worker after each provider call | `batchId, memberId, status: 'success' \| 'failure', durationMs, operationId` (ACS) | Per-recipient send latency + provider-success rate |
+| `email.send_skip` | `info` | `managed-email-send` worker on suppression gate hit | `batchId, memberId, reason: 'unsubscribed' \| 'no_consent' \| 'erased' \| 'no_email'` | Compliance trail; volume of suppressed-at-dispatch (vs suppressed-at-builder) — high counts here = audience-builder gate is leaking |
+| `email.send_retry` | `info` | BullMQ retry hook on transient errors | `batchId, memberId, attempt: 1-3, errorClass` | Provider-instability signal |
+| `unsubscribe.confirmed` | `info` | `POST /u/:token/confirm` | `memberId, brandId, batchId, tokenPrefix` (first 8 chars only) | Volume + per-batch unsubscribe attribution |
+
+#### 13.2 AuditLog rows (compliance trail — `audit_logs` table, allowlist-enforced)
+
+| Event | Triggered by | Allowlist fields |
+|---|---|---|
+| `distribution_batch.create` | `POST /v1/surveys/:id/distribution-batches` | `surveyId, batchId, sendMode, recipientCount, autoEnrolledCount, requestIp` |
+| `distribution_batch.csv_downloaded` | `POST /.../mark-csv-downloaded` | `batchId, delta, surveySentCount` |
+| `distribution_batch.tokens_regenerated` | `POST /.../regenerate-tokens` | `batchId, regeneratedCount, previousSentAt, newSentAt` |
+| `distribution_batch.retry_failed` | `POST /.../retry-failed` | `batchId, retriedCount` |
+| `managed_email.send_attempt` | worker per-recipient | `batchId, memberId, status, failureReason?` |
+| `member.unsubscribed_surveys` | `POST /u/:token/confirm` | `memberId, brandId, batchId, tokenPrefix` |
+
+Audit allowlist plugin is the existing one (per architecture §3.2). No new audit infrastructure.
+
+#### 13.3 Metrics (BullMQ + Prisma)
+
+| Metric | Source | Use |
+|---|---|---|
+| `managed_email_send.queue_depth` | BullMQ queue inspect (existing dashboard pattern from `notifications`) | Saturation signal for the V0 concurrency=5 setting (per D5) |
+| `managed_email_send.success_rate` (derived) | `email.send_attempt` count by status / total | Drives the V1 *"increase concurrency"* decision if rate is steady ≥99% |
+| `managed_email_send.suppression_rate` (derived) | `email.send_skip` count / `email.send_attempt + skip` count | Audience-builder-gate health; >1% = builder gate is leaking |
+| `acs.429_rate` (derived) | `email.send_retry` count where `errorClass='rate_limit'` | Signal for per-sender-domain rate-limiter (V1 future lever per D5) |
+
+#### 13.4 Alerts (V0 minimum)
+
+| Alert | Threshold | Action |
+|---|---|---|
+| ACS provider error spike | `email.send_attempt` failure-status rate >5% over 5 min | Page ops |
+| Queue saturation | `managed_email_send.queue_depth` >100 sustained 10 min | Page ops; investigate worker capacity |
+| Sender-domain fallback firing | `email.sender_domain.fallback` warn count >0 in any 1-hr window | Slack notification; ACS env config drift |
+| Unsubscribe spike | `unsubscribe.confirmed` rate >5x trailing-7d-baseline in 1hr | Slack notification — possible deliverability or content issue |
+
+Alert wiring follows the existing pattern (Container Apps log alerts → Slack via webhook); no new alert infrastructure. Alert thresholds reviewable after V0 ships and we have a week of baseline data.
+
+#### 13.5 What we explicitly do NOT instrument in V0
+
+- Per-recipient open / click / bounce webhooks from ACS (ACS Email supports these via Event Grid — adding the subscription is V1 work; tracked as non-goal).
+- Cross-batch latency percentiles per-brand (until we have enough batch volume to make percentiles meaningful — V1).
+
+---
+
+### 14. Requirements Traceability
 
 R1..R45 (spec §Requirements) map to RFC sections as follows:
 - R1–R5 (entry point) → §5 Frontend hierarchy (`DistributionSection.tsx` reshape)
