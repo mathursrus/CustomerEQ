@@ -176,10 +176,11 @@ export async function fetchGoogleBusinessProfileReviews(
 
     if (errText.includes('SERVICE_DISABLED') && placeId && mapsApiKey) {
       logger.info({ sourceId: ctx.sourceId, placeId }, 'google.falling_back_to_places_api')
-      return fetchViaPlacesApi(ctx, placeId, mapsApiKey, locationId)
+      const placesResult = await fetchViaPlacesApi(ctx, placeId, mapsApiKey, locationId)
+      return { ...placesResult, updatedCredentials: updatedCredentials ?? placesResult.updatedCredentials }
     }
 
-    throw new ConnectorAuthError('Google', `HTTP 403: ${errText.slice(0, 200)}`)
+    throw new ConnectorAuthError('Google', `HTTP 403: ${errText.slice(0, 200)}`, updatedCredentials)
   }
 
   if (!rawResponse.ok) {

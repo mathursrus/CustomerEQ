@@ -27,9 +27,11 @@ export type ProviderConnector = (ctx: ConnectorContext) => Promise<ConnectorResu
 // ---------------------------------------------------------------------------
 
 export class ConnectorAuthError extends Error {
-  constructor(provider: string, message: string) {
+  updatedCredentials?: Record<string, unknown>
+  constructor(provider: string, message: string, updatedCredentials?: Record<string, unknown>) {
     super(`[${provider}] Auth error: ${message}`)
     this.name = 'ConnectorAuthError'
+    this.updatedCredentials = updatedCredentials
   }
 }
 
