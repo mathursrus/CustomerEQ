@@ -13,6 +13,15 @@ interface BatchSummary {
   createdAt: string
   sentCount: number
   respondedCount: number
+  /** Issue #420 — optional so old tests / endpoints that don't surface it still
+   *  type-check; when present, drives the mode parenthetical in option text. */
+  sendMode?: 'MANAGED_EMAIL' | 'SELF_SERVE'
+}
+
+function sendModeLabel(mode: 'MANAGED_EMAIL' | 'SELF_SERVE' | undefined): string {
+  if (mode === 'MANAGED_EMAIL') return 'CustomerEQ Email'
+  if (mode === 'SELF_SERVE') return 'Self-serve'
+  return ''
 }
 
 export interface SurveyResponsesHeaderStripProps {
@@ -106,10 +115,13 @@ export function SurveyResponsesHeaderStrip({
           {filteredResponseCount.toLocaleString()}
           {waveSentCount !== null ? ` of ${waveSentCount.toLocaleString()}` : ''}
         </span>
+        {/* Mock #scene-6 line 1092 — caption matches the mock's framing
+            (Wave filter is the user-visible toggle on the right; response-only
+            filters live below in the table). Spec R40 confirms both apply. */}
         <span className="ml-1.5 text-[11px] text-slate-500">
           {responseRate !== null
-            ? `(${responseRate}% · response filters apply)`
-            : '(response filters apply)'}
+            ? `(${responseRate}% · changes with the Wave filter on the right)`
+            : '(changes with the Wave filter on the right)'}
         </span>
       </div>
       <div className="flex-1" />
@@ -132,13 +144,20 @@ export function SurveyResponsesHeaderStrip({
             else onWaveChange({ batchId: next })
           }}
         >
-          <option value="all">All waves and direct responses</option>
-          {batches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.label} · {fmtDate(b.createdAt, brandTimezone, brandLocale)} ·{' '}
-              {b.respondedCount} / {b.sentCount}
-            </option>
-          ))}
+          <option value="all">All waves &amp; direct responses</option>
+          {batches.map((b) => {
+            // Mock #scene-6 line 1099: "Q2 2026 NPS · 2026-05-21 · 5 sent ·
+            // 2 responded (CustomerEQ Email)". Mode parenthetical disambiguates
+            // managed vs self-serve waves when a survey has both.
+            const modeLabel = sendModeLabel(b.sendMode)
+            return (
+              <option key={b.id} value={b.id}>
+                {b.label} · {fmtDate(b.createdAt, brandTimezone, brandLocale)} ·{' '}
+                {b.sentCount} sent · {b.respondedCount} responded
+                {modeLabel ? ` (${modeLabel})` : ''}
+              </option>
+            )
+          })}
           {hasDirectResponses ? (
             <option value="direct">Direct responses (share link / embed)</option>
           ) : null}

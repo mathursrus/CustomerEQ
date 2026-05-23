@@ -829,6 +829,10 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       expiresAt: b.expiresAt.toISOString(),
       createdAt: b.createdAt.toISOString(),
       createdBy: b.createdBy,
+      // Issue #420 — sendMode included so the Survey detail page's Responses
+      // header-strip dropdown can disambiguate which wave is managed vs
+      // self-serve in the option text (audit drift 6.7, mock #scene-6 line 1099).
+      sendMode: b.sendMode,
       audienceMode: ((b.audienceSpec as { mode?: string })?.mode ?? 'custom_list') as
         | 'existing_members'
         | 'custom_list',

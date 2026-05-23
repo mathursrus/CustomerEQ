@@ -10,6 +10,7 @@ const baseBatches = [
     createdAt: '2026-05-21T14:02:00.000Z',
     sentCount: 5,
     respondedCount: 2,
+    sendMode: 'MANAGED_EMAIL' as const,
   },
   {
     id: 'btch_b',
@@ -17,6 +18,7 @@ const baseBatches = [
     createdAt: '2026-05-20T18:08:00.000Z',
     sentCount: 6,
     respondedCount: 2,
+    sendMode: 'SELF_SERVE' as const,
   },
 ]
 
@@ -43,7 +45,28 @@ describe('<SurveyResponsesHeaderStrip>', () => {
     const responses = screen.getByTestId('responses-header-responses')
     expect(responses).toHaveTextContent('Responses:')
     expect(responses).toHaveTextContent('4 of 11')
-    expect(responses).toHaveTextContent('(36% · response filters apply)')
+    // Mock #scene-6 line 1092 caption phrasing — Wave filter is the user-
+    // visible toggle on the right; response-only filters live below.
+    expect(responses).toHaveTextContent('(36% · changes with the Wave filter on the right)')
+  })
+
+  it('renders the wave dropdown options in "N sent · M responded (mode)" format per mock', () => {
+    render(<SurveyResponsesHeaderStrip {...baseProps} />)
+    const select = screen.getByTestId('responses-wave-select') as HTMLSelectElement
+    // Mock #scene-6 lines 1098–1100.
+    expect(select).toHaveTextContent('All waves & direct responses')
+    expect(select).toHaveTextContent('5 sent · 2 responded (CustomerEQ Email)')
+    expect(select).toHaveTextContent('6 sent · 2 responded (Self-serve)')
+    expect(select).toHaveTextContent('Direct responses (share link / embed)')
+  })
+
+  it('omits the mode parenthetical when sendMode is missing (backward-compat)', () => {
+    const noModeBatches = baseBatches.map((b) => ({ ...b, sendMode: undefined }))
+    render(<SurveyResponsesHeaderStrip {...baseProps} batches={noModeBatches} />)
+    const select = screen.getByTestId('responses-wave-select') as HTMLSelectElement
+    expect(select).toHaveTextContent('5 sent · 2 responded')
+    expect(select).not.toHaveTextContent('(CustomerEQ Email)')
+    expect(select).not.toHaveTextContent('(Self-serve)')
   })
 
   it('switches Sent to the wave-level count and hides the Details link when wave="all"', () => {

@@ -39,6 +39,8 @@ interface BatchSummary {
   createdAt: string
   sentCount: number
   respondedCount: number
+  /** Issue #420 — mode parenthetical in the Responses header strip dropdown. */
+  sendMode?: 'MANAGED_EMAIL' | 'SELF_SERVE'
 }
 
 const DEFAULT_THEME: BrandThemeLite = {
