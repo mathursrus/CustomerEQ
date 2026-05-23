@@ -78,7 +78,9 @@ export async function fetchGoogleBusinessProfileReviews(
   }
 
   // accountId = "accounts/{id}", locationId = "locations/{id}" (from Business Information API).
-  // Reviews API v1 parent format: "accounts/{id}/locations/{id}" — compose from both fields.
+  // Compose the parent path "accounts/{id}/locations/{id}" for the Business Profile Reviews API.
+  // NOTE: mybusinessreviews.googleapis.com/v1 requires Google Business Profile API access approval
+  // (https://developers.google.com/my-business/content/prereqs). Until approved this returns 404.
   const url = `https://mybusinessreviews.googleapis.com/v1/${accountId}/${locationId}/reviews?${params}`
 
   const response = await connectorFetch('Google', url, {
