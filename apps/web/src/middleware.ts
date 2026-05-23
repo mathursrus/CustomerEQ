@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   '/security',
   '/api/public(.*)',
   '/survey(.*)',
+  '/u/(.*)', // Issue #420 — public unsubscribe landing page
   '/(.*)/enroll',
   '/spin(.*)',
   '/scratch(.*)',
