@@ -70,9 +70,17 @@ interface BrandContext {
 
 type FlowState = 'configure' | 'confirm' | 'sending' | 'sent'
 
-const DEFAULT_BODY = `<p>Hi {{first_name}},</p><p>We&rsquo;d love your feedback on your recent experience with {{brand_name}}.</p><p>Two minutes. <a href="{{survey_link}}">Take the survey</a>.</p><p>Thanks,<br />{{sender_name}}</p>`
+// Mock #scene-3 lines 726–736 — default body opens with the {{brand_logo}}
+// + {{brand_name}} header block (renders as logo + brand name in the
+// recipient's email; operator may delete to suppress the header), then
+// asks for feedback on {{survey_title}} with the bare {{survey_link}} line
+// recipients click. The mustache tokens are non-editable atoms in the
+// editor — see MustacheEditor.tsx — and serialize back to the literal
+// {{token}} strings the worker renders.
+const DEFAULT_BODY = `<p>{{brand_logo}}</p><p>{{brand_name}}</p><p>Hi {{first_name}},</p><p>We&rsquo;d love your feedback on {{survey_title}}. It takes about 2 minutes.</p><p>{{survey_link}}</p><p>Thanks,<br />{{sender_name}}</p>`
 
-const DEFAULT_SUBJECT_PREFIX = 'A quick survey from'
+// Mock #scene-3 line 708 default subject is "Quick question: <survey title>".
+const DEFAULT_SUBJECT_PREFIX = 'Quick question:'
 
 // Sending-state polling cadence — per RFC §3.4 / §9.1 D3. 2s is the V0 default.
 const SEND_PROGRESS_POLL_MS = 2_000
