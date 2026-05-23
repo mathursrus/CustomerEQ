@@ -13,6 +13,13 @@ import { z } from 'zod'
 export const DistributionFormatSchema = z.enum(['generic', 'mailchimp', 'hubspot', 'klaviyo'])
 export type DistributionFormat = z.infer<typeof DistributionFormatSchema>
 
+/**
+ * sendMode mirrors the Prisma enum; declared upfront so BatchDetailResponseSchema
+ * (and other batch-shape schemas) can compose it without forward references.
+ */
+export const SurveySendModeSchema = z.enum(['SELF_SERVE', 'MANAGED_EMAIL'])
+export type SurveySendMode = z.infer<typeof SurveySendModeSchema>
+
 const ExistingMembersAudience = z.object({
   mode: z.literal('existing_members'),
   strategy: z.enum(['percent', 'count']),
@@ -167,6 +174,21 @@ const BatchTokenRow = z.object({
   respondedAt: z.string().datetime().nullable(),
 }).strict()
 
+/**
+ * Composer snapshot surfaced read-only on the Wave Detail page for
+ * MANAGED_EMAIL batches (spec §3.2). Mirrors the JSON shape persisted on
+ * DistributionBatch.composerSnapshot. Always null for SELF_SERVE.
+ */
+const ComposerSnapshotViewSchema = z.object({
+  senderName: z.string(),
+  senderAlias: z.string(),
+  senderDomain: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  brandLogoUrl: z.string().nullable(),
+  brandName: z.string(),
+}).passthrough()                                       // themeSnapshot and any future additive fields pass through unchecked — load-bearing only for the worker, not the audit-view contract
+
 export const BatchDetailResponseSchema = z.object({
   id: z.string(),
   surveyId: z.string(),
@@ -175,6 +197,11 @@ export const BatchDetailResponseSchema = z.object({
   expiresAt: z.string().datetime(),
   createdAt: z.string().datetime(),
   createdBy: z.string(),
+  /** Issue #420 §3.2 — drives the mode pill at the top of the Wave Detail page
+   *  and gates surfaces like the Composer snapshot block (MANAGED_EMAIL only). */
+  sendMode: SurveySendModeSchema,
+  /** Issue #420 §3.2 — populated only when sendMode='MANAGED_EMAIL'. */
+  composerSnapshot: ComposerSnapshotViewSchema.nullable(),
   audienceSpec: z.object({
     mode: z.enum(['existing_members', 'custom_list']),
     description: z.string(),                          // operator-friendly summary, e.g. "Count = 100" or "47 identifiers (4 auto-enrolled)"
@@ -252,13 +279,6 @@ export const TokenStatusResponseSchema = z.object({
 export type TokenStatusResponse = z.infer<typeof TokenStatusResponseSchema>
 
 // ─── Issue #420: Send via CustomerEQ (MANAGED_EMAIL) extensions ────────────────
-
-/**
- * sendMode mirrors the Prisma enum; the API accepts both modes on the
- * POST /distribution-batches endpoint with composer required when MANAGED_EMAIL.
- */
-export const SurveySendModeSchema = z.enum(['SELF_SERVE', 'MANAGED_EMAIL'])
-export type SurveySendMode = z.infer<typeof SurveySendModeSchema>
 
 /**
  * Composer body for MANAGED_EMAIL. The body field MUST contain the literal

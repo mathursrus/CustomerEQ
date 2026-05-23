@@ -922,6 +922,15 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         ? `${audienceSpec.strategy ?? 'count'} = ${audienceSpec.value ?? '?'}`
         : `${audienceSpec.memberCountAtSendTime ?? 0} identifiers (${(audienceSpec.autoEnrolledMemberIds ?? []).length} auto-enrolled)`
 
+    // Issue #420 §3.2 — surface sendMode + the read-only composer snapshot so
+    // the Wave Detail page can render the mode pill and (for MANAGED_EMAIL) the
+    // audit-trail composer block. composerSnapshot is intentionally null for
+    // SELF_SERVE rows (no composer was used).
+    const composerSnapshot =
+      batch.sendMode === 'MANAGED_EMAIL' && batch.composerSnapshot !== null
+        ? (batch.composerSnapshot as Record<string, unknown>)
+        : null
+
     return reply.status(200).send({
       id: batch.id,
       surveyId: batch.surveyId,
@@ -930,6 +939,8 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       expiresAt: batch.expiresAt.toISOString(),
       createdAt: batch.createdAt.toISOString(),
       createdBy: batch.createdBy,
+      sendMode: batch.sendMode,
+      composerSnapshot,
       audienceSpec: {
         mode,
         description,

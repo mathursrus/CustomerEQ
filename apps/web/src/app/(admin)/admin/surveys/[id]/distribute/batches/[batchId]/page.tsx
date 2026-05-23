@@ -11,6 +11,9 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import { API_URL, getAuthToken } from '@/lib/config'
+import { SendModePill } from '@/components/surveys/SendModePill'
+
+import { ComposerSnapshotBlock, type ComposerSnapshot } from './ComposerSnapshotBlock'
 
 interface BatchDetail {
   id: string
@@ -20,6 +23,10 @@ interface BatchDetail {
   expiresAt: string
   createdAt: string
   createdBy: string
+  /** Issue #420 §3.2 — drives the mode pill and gates the Composer block. */
+  sendMode: 'SELF_SERVE' | 'MANAGED_EMAIL'
+  /** Populated only when sendMode='MANAGED_EMAIL' (spec §3.2). */
+  composerSnapshot: ComposerSnapshot | null
   audienceSpec: {
     mode: 'existing_members' | 'custom_list'
     description: string
@@ -263,7 +270,11 @@ export default function BatchDetailPage() {
         ← Back to survey
       </a>
       <header className="mt-2 mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">{batch.label}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold text-gray-900">{batch.label}</h1>
+          {/* Issue #420 §3.2 — mode pill at the top of the page (md sized for the header). */}
+          <SendModePill mode={batch.sendMode} size="md" />
+        </div>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
           <span
             className={`rounded-full px-2 py-1 ${
@@ -290,6 +301,14 @@ export default function BatchDetailPage() {
           Created at {fmt(batch.createdAt, brand.timezone, brand.locale)} by {batch.createdBy}
         </p>
       </section>
+
+      {/* Issue #420 §3.2 — Composer snapshot (read-only). Operators audit
+          exactly what was sent for a MANAGED_EMAIL wave. Body is rendered
+          as preformatted text to avoid trusting the snapshot HTML (XSS
+          surface) and to preserve the mustache tokens the operator wrote. */}
+      {batch.sendMode === 'MANAGED_EMAIL' && batch.composerSnapshot ? (
+        <ComposerSnapshotBlock snapshot={batch.composerSnapshot} />
+      ) : null}
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 mb-4">
         <h2 className="text-sm font-semibold text-gray-900 mb-2">Expiry</h2>
@@ -339,13 +358,19 @@ export default function BatchDetailPage() {
       <section className="rounded-lg border border-gray-200 bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-900">Tokens</h2>
-          <button
-            type="button"
-            onClick={() => setShowRegenerateModal(true)}
-            className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-          >
-            ⬇ Regenerate links + download CSV
-          </button>
+          {/* Issue #420 §3.2 — Regenerate-Links is hidden for MANAGED_EMAIL
+              batches: there's no CSV to re-download (the platform owns dispatch),
+              and re-send semantics intersect with Member.unsubscribedSurveysAt
+              in ways deliberately outside V0 scope. */}
+          {batch.sendMode !== 'MANAGED_EMAIL' ? (
+            <button
+              type="button"
+              onClick={() => setShowRegenerateModal(true)}
+              className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              ⬇ Regenerate links + download CSV
+            </button>
+          ) : null}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
