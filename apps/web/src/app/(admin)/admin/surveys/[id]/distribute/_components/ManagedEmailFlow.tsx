@@ -18,6 +18,7 @@ import { useAuth } from '@clerk/nextjs'
 import { useCallback, useEffect, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
+import { EmailPreviewCard } from '@/components/managed-email-composer/EmailPreviewCard'
 import { MustacheEditor } from '@/components/managed-email-composer/MustacheEditor'
 import { SendProgressTable } from '@/components/surveys/SendProgressTable'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
@@ -66,7 +67,18 @@ interface SurveyContext {
 interface BrandContext {
   timezone: string
   memberCount: number
+  /** R30c — surfaced in the live email preview pane (mock #scene-3 lines
+   *  747–800) for {{brand_name}} + {{brand_logo}} substitution. */
+  name: string
+  logoUrl: string | null
 }
+
+// MANAGED_EMAIL sender-domain fallback chain — mirrors R25. Surfaced in the
+// preview pane's From line + the recap row above the CTA. Until V1 lifts
+// Brand.managedEmailSenderDomain into the brand profile, the V0 default is
+// the hard-coded customereq.wellnessatwork.me. The literal lives here so the
+// composer + preview show the same value the worker will dispatch from.
+const SENDER_DOMAIN = 'customereq.wellnessatwork.me'
 
 type FlowState = 'configure' | 'confirm' | 'sending' | 'sent'
 
@@ -165,6 +177,9 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         setBrand({
           timezone: brandData.timezone ?? 'UTC',
           memberCount,
+          // R30c — preview pane substitutes {{brand_name}} + {{brand_logo}}.
+          name: brandData.name ?? '',
+          logoUrl: brandData.logoUrl ?? null,
         })
         const title = surveyData.title ?? surveyData.name
         setSurveyNameInMail(title)
@@ -336,77 +351,106 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
             />
           </div>
 
-          {/* Composer */}
-          <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-800">
-                Step 3 · Mode-specific · CustomerEQ Email
-              </span>
-              <h2 className="text-sm font-semibold text-gray-900">Compose email</h2>
-            </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {/* Composer + Live preview — mock #scene-3 lines 673–800 +
+              spec R30a (right-column preview pane) + R30b (sample recipient
+              = first selected audience member) + R30d (keystroke-driven
+              live update). Layout: composer left, sticky preview right. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-800">
+                  Step 3 · Mode-specific · CustomerEQ Email
+                </span>
+                <h2 className="text-sm font-semibold text-gray-900">Compose email</h2>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-gray-700">Sender name</span>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      value={senderName}
+                      onChange={(e) => setSenderName(e.target.value)}
+                      placeholder="Acme CX Team"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-gray-700">
+                      Sender alias (local-part)
+                    </span>
+                    <div className="flex items-center rounded-md border border-gray-300">
+                      <input
+                        type="text"
+                        className="flex-1 rounded-l-md border-0 px-3 py-2 text-sm focus:outline-none"
+                        value={senderAlias}
+                        onChange={(e) => setSenderAlias(e.target.value.toLowerCase())}
+                      />
+                      <span className="rounded-r-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                        @{SENDER_DOMAIN}
+                      </span>
+                    </div>
+                  </label>
+                </div>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-gray-700">Sender name</span>
+                  <span className="mb-1 block font-medium text-gray-700">Subject</span>
                   <input
                     type="text"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    value={senderName}
-                    onChange={(e) => setSenderName(e.target.value)}
-                    placeholder="Acme CX Team"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
                   />
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-gray-700">
-                    Sender alias (local-part)
-                  </span>
-                  <div className="flex items-center rounded-md border border-gray-300">
-                    <input
-                      type="text"
-                      className="flex-1 rounded-l-md border-0 px-3 py-2 text-sm focus:outline-none"
-                      value={senderAlias}
-                      onChange={(e) => setSenderAlias(e.target.value.toLowerCase())}
-                    />
-                    <span className="rounded-r-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
-                      @customereq.wellnessatwork.me
-                    </span>
-                  </div>
-                </label>
+                <div className="block text-sm">
+                  <label
+                    htmlFor="managed-email-body"
+                    className="mb-1 block font-medium text-gray-700"
+                  >
+                    Body — must contain {'{{survey_link}}'}
+                  </label>
+                  <MustacheEditor
+                    id="managed-email-body"
+                    ariaLabel="Email body"
+                    value={body}
+                    onChange={setBody}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Type <code className="rounded bg-gray-100 px-1">{`{{`}</code> to insert a token,
+                    or pick one from the toolbar.
+                  </p>
+                </div>
+                {composerError && (
+                  <p className="text-sm text-red-700" role="alert">
+                    {composerError}
+                  </p>
+                )}
               </div>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-gray-700">Subject</span>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-              </label>
-              <div className="block text-sm">
-                <label
-                  htmlFor="managed-email-body"
-                  className="mb-1 block font-medium text-gray-700"
-                >
-                  Body — must contain {'{{survey_link}}'}
-                </label>
-                <MustacheEditor
-                  id="managed-email-body"
-                  ariaLabel="Email body"
-                  value={body}
-                  onChange={setBody}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Type <code className="rounded bg-gray-100 px-1">{`{{`}</code> to insert a token,
-                  or pick one from the toolbar.
-                </p>
-              </div>
-              {composerError && (
-                <p className="text-sm text-red-700" role="alert">
-                  {composerError}
-                </p>
-              )}
-            </div>
-          </section>
+            </section>
+
+            <EmailPreviewCard
+              senderName={senderName}
+              senderAlias={senderAlias}
+              senderDomain={SENDER_DOMAIN}
+              subject={subject}
+              bodyHtml={body}
+              sampleRecipient={
+                // R30b — first selected audience member; preview falls back
+                // to a generic placeholder when no audience exists yet.
+                audience?.rows.find((r) => r.selected)
+                  ? {
+                      firstName:
+                        audience.rows.find((r) => r.selected)!.firstName ?? null,
+                      lastName: audience.rows.find((r) => r.selected)!.lastName ?? null,
+                      identifier: audience.rows.find((r) => r.selected)!.identifier,
+                    }
+                  : null
+              }
+              brandName={brand.name}
+              brandLogoUrl={brand.logoUrl}
+              surveyTitle={survey.title ?? survey.name}
+              surveyId={surveyId}
+            />
+          </div>
 
           {submitError && (
             <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
