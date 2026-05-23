@@ -174,7 +174,8 @@ export async function fetchGoogleBusinessProfileReviews(
     const placeId = ctx.scopeConfig.placeId as string | undefined
     const mapsApiKey = process.env.CEQ_GOOGLE_MAPS_API_KEY
 
-    if (errText.includes('SERVICE_DISABLED') && placeId && mapsApiKey) {
+    const apiDisabled = errText.includes('SERVICE_DISABLED') || errText.includes('has not been used') || errText.includes('is disabled')
+    if (apiDisabled && placeId && mapsApiKey) {
       logger.info({ sourceId: ctx.sourceId, placeId }, 'google.falling_back_to_places_api')
       const placesResult = await fetchViaPlacesApi(ctx, placeId, mapsApiKey, locationId)
       return { ...placesResult, updatedCredentials: updatedCredentials ?? placesResult.updatedCredentials }

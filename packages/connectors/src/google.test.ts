@@ -179,6 +179,36 @@ describe('fetchGoogleBusinessProfileReviews', () => {
     delete process.env.CEQ_GOOGLE_MAPS_API_KEY
   })
 
+  it('falls back to Places API on 403 "has not been used" variant', async () => {
+    process.env.CEQ_GOOGLE_MAPS_API_KEY = 'test-maps-key'
+    const ctx = {
+      ...baseCtx,
+      scopeConfig: { ...baseCtx.scopeConfig, placeId: 'ChIJtest123' },
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ error: { code: 403, message: 'Google My Business API has not been used in project 123 before or it is disabled.' } }),
+      headers: new Map(),
+    })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'OK',
+        result: { reviews: [{ author_name: 'Test User', rating: 4, text: 'Good', time: 1716000000 }] },
+      }),
+      headers: new Map(),
+    })
+
+    const result = await fetchGoogleBusinessProfileReviews(ctx)
+    expect(result.deliveries).toHaveLength(1)
+    expect(result.nextCursor).toBeNull()
+
+    delete process.env.CEQ_GOOGLE_MAPS_API_KEY
+  })
+
   it('throws ConnectorAuthError on 403 when no Places API fallback is configured', async () => {
     delete process.env.CEQ_GOOGLE_MAPS_API_KEY
     mockFetch.mockResolvedValueOnce({
