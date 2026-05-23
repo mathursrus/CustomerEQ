@@ -127,15 +127,21 @@ async function syncViaConnector(
     return { queued: result.deliveries.length }
   } catch (err) {
     if (err instanceof ConnectorAuthError) {
-      // Auth errors need human intervention — don't retry
+      // Auth errors need human intervention — don't retry.
+      // Still persist any refreshed credentials so subsequent retries don't
+      // hit a second token-refresh failure after the real error is resolved.
+      const authErrUpdate: Record<string, unknown> = {
+        healthStatus: 'auth_error',
+        lastError: err.message,
+        lastErrorAt: new Date(),
+        lastSyncAt: new Date(),
+      }
+      if (err.updatedCredentials) {
+        authErrUpdate.scopeConfig = { ...scopeConfig, credentials: err.updatedCredentials }
+      }
       await prisma.externalSignalSource.update({
         where: { id: source.id },
-        data: {
-          healthStatus: 'auth_error',
-          lastError: err.message,
-          lastErrorAt: new Date(),
-          lastSyncAt: new Date(),
-        },
+        data: authErrUpdate,
       })
       logger.error({ sourceId: source.id, err: err.message }, 'external_source.auth_error')
       return { queued: 0, error: err.message }

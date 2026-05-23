@@ -142,7 +142,7 @@ export default function IntegrationsPage() {
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [googleLocations, setGoogleLocations] = useState<Array<{ accountId: string; accountName: string; locationId: string; locationName: string; address: string }>>([])
+  const [googleLocations, setGoogleLocations] = useState<Array<{ accountId: string; accountName: string; locationId: string; locationName: string; address: string; placeId: string | null }>>([])
   const [loadingLocations, setLoadingLocations] = useState(false)
 
   // Provider-specific form state
@@ -203,7 +203,7 @@ export default function IntegrationsPage() {
       }
       const data = await res.json()
       setGoogleLocations(data.locations ?? [])
-      return data.locations as Array<{ accountId: string; accountName: string; locationId: string; locationName: string; address: string }>
+      return data.locations as Array<{ accountId: string; accountName: string; locationId: string; locationName: string; address: string; placeId: string | null }>
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load Google Business locations')
       return []
@@ -229,6 +229,7 @@ export default function IntegrationsPage() {
               accountId: loc.accountId,
               locationId: loc.locationId,
               locationLabel: loc.locationName,
+              placeId: loc.placeId ?? '',
             }))
           }
         }
@@ -415,6 +416,7 @@ export default function IntegrationsPage() {
       fields.accountId = (sc.accountId as string) ?? ''
       fields.locationId = (sc.locationId as string) ?? ''
       fields.locationLabel = (sc.locationLabel as string) ?? ''
+      fields.placeId = (sc.placeId as string) ?? ''
     } else if (source.sourceType === 'LINKEDIN_ORG') {
       fields.organizationUrn = (sc.organizationUrn as string) ?? ''
     }
@@ -441,6 +443,7 @@ export default function IntegrationsPage() {
         sc.accountId = editForm.accountId?.trim()
         sc.locationId = editForm.locationId?.trim()
         sc.locationLabel = editForm.locationLabel?.trim()
+        if (editForm.placeId?.trim()) sc.placeId = editForm.placeId.trim()
       } else if (source.sourceType === 'LINKEDIN_ORG') {
         sc.organizationUrn = editForm.organizationUrn?.trim()
       }
@@ -716,6 +719,7 @@ export default function IntegrationsPage() {
                                             accountId: loc.accountId,
                                             locationId: loc.locationId,
                                             locationLabel: loc.locationName,
+                                            placeId: loc.placeId ?? '',
                                           }))
                                         }
                                       }}
