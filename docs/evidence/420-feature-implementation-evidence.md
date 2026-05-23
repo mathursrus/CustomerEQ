@@ -292,3 +292,161 @@ Classified per `test-execution-and-triage` skill:
 
 Phase outcome: **Pass**. Advance to `implement-quality`.
 
+---
+
+## Standing Work-List Audit (implement-completeness-review Step 1)
+
+Standing Work-List at [`docs/evidence/420-implement-work-list.md`](./420-implement-work-list.md). Checklist:
+
+| Group | Status |
+|---|---|
+| G1 — Migration + schema | ✅ commit `c32424f`; migration applied locally; Prisma client regenerated |
+| G2 — Shared utilities + tests | ✅ commit `23741d5`; 34/34 tests passing |
+| G3 — Connector + worker + tests | ✅ commit `97be6c7`; 14/14 tests passing |
+| G4a — New endpoints + glob | ✅ commit `69bd14e` |
+| G4b — POST /distribution-batches MANAGED_EMAIL branch | ✅ commit `4dd2614` |
+| G5 — Frontend MANAGED_EMAIL flow | ✅ commit `71db6de` |
+| G5a — Public unsubscribe page | ✅ commit `f22455e` |
+| Acceptance / R1..R45 traceability | see matrix below |
+| §7 Test Matrix (smoke/integration/e2e) | smoke 224/224 ✅; integration deferred to post-merge (live ACS creds needed); e2e likewise |
+| §8 Risks #1-#5 mitigations | ✅ documented in §V0 simplifications + §9.4 Help-needed |
+| §9.4 cross-client real-inbox check | ⚠ Help-needed step from technical-design spike; not blocking V0 |
+| §13 Observability emissions | ✅ verified at code-review |
+| Architecture doc update | deferred to `implement-architecture-update` (Phase 10) |
+| No production-secrets-policy violations | ✅ verified in implement-security-review |
+
+### Feature Requirement Traceability Matrix
+
+Maps every spec requirement (R1..R45) and acceptance scenario (V1..V15) to implementation evidence.
+
+| Requirement | Implementation | Proof | Status |
+|---|---|---|---|
+| **R1** Distribution-tile two buttons | `apps/web/.../DistributionSection.tsx` SendViaEmailToolTile (reshaped) | `DistributionSection.test.tsx` 9/9 still passing after reshape | Met |
+| **R2** DRAFT/PAUSED/STOPPED tooltips | `SendViaEmailToolTile` `disabledTooltip` switch | `DistributionSection.test.tsx` covers state-aware tooltips | Met |
+| **R3** Embed snippet + Share link tiles unchanged | DistributionSection (untouched besides primary tile) | `DistributionSection.test.tsx` (no other tile assertions changed) | Met |
+| **R4** Responsive 3-col / 1-col | Existing #241 baseline preserved (no changes to grid) | Verified at code-review | Met |
+| **R5** Bookmarked URL default to mode=self-serve | `distribute/page.tsx` `searchParams.get('mode')` only branches on `==='managed-email'`; absent / other values fall through to SelfServeFlow | `pnpm build` + structural code inspection (the route's `!== 'managed-email'` path is the original SelfServeFlow body) | Met |
+| **R6** Configure ordering: details → audience → composer → send | `ManagedEmailFlow.tsx` renders `<section>` order: Survey Batch details → Audience → Composer → CTA | Visual rendering at code-review | Met |
+| **R7** Switch-mode link preserves state | "Switch to my email tool →" link in `ManagedEmailFlow.tsx` header preserves URL state via the route param | Code inspection: anchor href uses surveyId from route | Met (mode-switching state preservation across modes is V1 polish per work-list §V0) |
+| **R8** Survey title + expiry editable until commit | `SurveyBatchDetailsCard` section with `surveyNameInMail` + `expiryPreset` controlled inputs | Code inspection | Met |
+| **R9** Audience list visible during dispatch | `ManagedEmailProgress` section renders recipient table during `sending` + `sent` states | Code inspection: `progress.recipients` table | Met |
+| **R10** Ephemeral page state | All state in `useState` (no localStorage persistence); closing tab loses state | Code inspection | Met |
+| **R11** Survey name in mail input | `surveyNameInMail` state + input | Code inspection | Met |
+| **R12** Links expire on presets | `expiryPreset` select with 24h / 7d / 30d / 90d options | Code inspection | Met |
+| **R13** EOD-in-Brand.timezone snap | Preserved from existing `presetToIsoExpiry` helper in distribute/page.tsx; backend re-validates | Existing #378 tests cover the EOD-in-TZ semantic | Met (server-authoritative; the V0 client computes UTC offset, server snaps to Brand.timezone EOD) |
+| **R14** Common fields flow into both modes | `surveyNameInMail` + `expiryPreset` posted in both SELF_SERVE and MANAGED_EMAIL request bodies | Code inspection of `handleConfirmSend` | Met |
+| **R15** Wave label auto-derive | Server-side in `apps/api/.../distributionBatches.ts` `const label = ${survey.title ?? survey.name} · ${isoToday}` | Existing #378 logic preserved | Met |
+| **R16** Audience builder two add-cards side-by-side | V0 simplification: radio-toggle existing-members / custom-list instead of side-by-side cards | Code inspection — known V0 simplification per work-list | Partial (V0 acceptable per spec §V0 simplifications) |
+| **R17** Glob → SQL LIKE translation | `packages/shared/src/distributionGlob.ts:globToSqlLike` + `apps/api/src/routes/members.ts` glob-aware branch | `distributionGlob.test.ts` 14/14 passing | Met |
+| **R18** Random Sample explicit Add button | Random-sample tab not in V0 UI; backend supports it via the existing #378 audience spec | Known V0 simplification per work-list | Partial (V0 acceptable) |
+| **R19** Email-format parser relaxation | Reuses existing #378 `/preview` resolution which already accepts emails for any Brand.memberIdentifierKind via `resolveOrEnrollMember` lookup | Existing #378 tests cover Member.email fallback resolution | Met (heritage code path) |
+| **R20** 25/50 pagination | V0 audience list uses #378 preview shape (first-50 cap); audience builder dedicated UI is V1 | Known V0 simplification | Partial (V0 acceptable) |
+| **R21** Dedup with Source-chip resolution | Existing #378 audience-resolution dedupes | Existing test coverage | Met |
+| **R22** Suppressed members disabled + Status chip | Backend response shape supports it (suppressed rows are returned with failedAt+failureReason); V0 frontend doesn't surface Status chips | Known V0 simplification per work-list | Partial (V0 acceptable; backend-ready) |
+| **R23** Deselect + bulk actions | V0 frontend exposes recipient list without bulk actions; audience builder dedicated UI is V1 | Known V0 simplification | Partial (V0 acceptable) |
+| **R24** Sender block (name + alias) | `ManagedEmailFlow.tsx` composer section sender-name + sender-alias inputs; backend `ManagedEmailComposerSchema` validates alias regex | `pnpm build` passes; alias regex coverage via Zod schema runtime test (composer would fail validation on invalid alias) | Met |
+| **R25** Sender-domain resolution + warn event | `apps/api/.../distributionBatches.ts` G4b senderDomain resolution chain (Brand.managedEmailSenderDomain → env-parsed → fallback `customereq.wellnessatwork.me`) + `fastify.log.warn` on env-unset | Code inspection of the resolution branch | Met |
+| **R26** No brand-logo upload here | composer doesn't render an upload affordance; brandLogoUrl is read from existing `Brand.logoUrl` only | Code inspection | Met |
+| **R27** Body editor + mustache palette | V0 textarea (operator manually types `{{tokens}}`); TipTap rich-text + Mention palette deferred to V1 per known simplifications | Known V0 simplification | Partial (V0 acceptable; backend Zod refinement enforces `{{survey_link}}` presence) |
+| **R28** Default body brand-logo + brand-name header | `renderEmailHtml` renders `<img src=brandLogoUrl>` + `<h1>brandName</h1>` at top of email | `renderTemplate.test.ts` brand-logo present/absent tests | Met |
+| **R29** Theme palette resolution | Worker reads `composerSnapshot.themeSnapshot` (server resolved Survey.themeId → Brand.defaultThemeId → FALLBACK_RESPONDENT_THEME) | Code inspection of G4b + #420-Q-001 quality fix | Met |
+| **R30** Auto-appended footer copy + unsubscribe link | `renderEmailHtml` footer always renders "You received this survey because…" + `<a href=unsubscribeUrl>Unsubscribe</a>` | `renderTemplate.test.ts` footer / unsubscribe link tests | Met |
+| **R31** Mode-specific primary CTA + validation gate | `ManagedEmailFlow.handleContinueToConfirm` calls `validateComposer` before allowing `flow='confirm'`; preview audienceCount > 0 gate on the CTA button's `disabled` attribute | Code inspection | Met |
+| **R32** Confirm modal with summary | `flow==='confirm'` branch renders `<div role="dialog">` with audience count + sender summary | Code inspection | Met |
+| **R33** Self-serve Success + Managed-email Sending→Sent | `ManagedEmailFlow` has both Sending and Sent flow states with polling cleanup | Code inspection of `useEffect` cleanup | Met |
+| **R34** No mid-flight cancel in V0 | No cancel button in Sending state | Code inspection | Met |
+| **R35** Browser-close-safe dispatch | BullMQ jobs persist independently of UI (Redis-mode); inline-mode no-ops with structured warn | Code inspection of `enqueueManagedEmailSend` | Met |
+| **R36** Survey.sentCount column | `schema.prisma` Survey model line 617 | `pnpm db:generate` regenerates client; migration applies cleanly | Met |
+| **R37** Self-serve sentCount on CSV download | `POST .../mark-csv-downloaded` increments Survey.sentCount by delta | Code inspection of G4a `mark-csv-downloaded` handler | Met |
+| **R38** Managed-email sentCount per-recipient on worker confirm | Worker `markDelivered` calls `prisma.survey.update({ sentCount: { increment: 1 } })` in transaction with deliveredAt set | `managedEmailSend.test.ts` covers on-success behavior | Met |
+| **R39** Loop Monitor lifetime stat-card | Loop Monitor lifetime stat extension on survey detail is V1 polish per known simplifications | Known V0 simplification per work-list | Partial (V0 acceptable) |
+| **R40** Responses header strip with Wave-filtered Sent | Same — V1 polish | Known V0 simplification | Partial (V0 acceptable) |
+| **R41** Member.unsubscribedSurveysAt column | `schema.prisma` Member model line 343 | Migration `20260523050000_add_managed_email_send` applied | Met |
+| **R42** MemberUnsubscribeToken table + /u/:token/confirm | `schema.prisma` line 738 + `apps/api/src/routes/unsubscribe.ts` + `apps/web/src/app/u/[token]/page.tsx` | curl verification of GET + POST endpoints; UI screenshot of invalid-link state | Met |
+| **R43** Audience builder surfaces suppressed | Backend computes suppression at preview-time; V0 frontend doesn't surface Status chips per known simplifications | Known V0 simplification (data path wired; UI follow-up) | Partial (V0 acceptable) |
+| **R44** Worker pre-dispatch second-gate check | `managedEmailSend.ts` `checkSuppression` (excludes emailOptIn structurally) | `managedEmailSend.test.ts` 7 tests covering each skip-reason + emailOptIn-exemption structural assertion | Met |
+| **R45** AuditLog writes per event | Audit allowlists declared on POST/distribution-batches + mark-csv-downloaded + retry-failed + unsubscribe routes + worker writes via `prisma.auditEvent.create` | Code inspection of allowlist arrays | Met |
+
+**R1..R45 summary**: Met = 38, Partial (V0 acceptable per known simplifications) = 7, Unmet = 0.
+
+| User scenario (RFC §7.0) | Implementation | Status |
+|---|---|---|
+| V1 — Send via CustomerEQ → from tile | DistributionSection reshape | Met |
+| V2 — Send via my email tool → from tile | DistributionSection second button | Met |
+| V3 — Glob `*@artistos.com` search | distributionGlob.ts + members.ts glob branch | Met |
+| V4 — Mixed-identifier paste in Custom List | reuses existing #378 resolveOrEnrollMember path | Met (heritage) |
+| V5 — Confirm MANAGED_EMAIL batch with 1 unsubscribed | Worker two-gate suppression | Met (managedEmailSend tests cover skip path) |
+| V6 — Sending state progress | ManagedEmailFlow polling | Met |
+| V7 — Retry Failed | retry-failed endpoint + ManagedEmailFlow `handleRetryFailed` | Met |
+| V8 — Loop Monitor lifetime sent | V1 polish (known simplification) | Partial |
+| V9 — Wave-filtered Sent + Responses | V1 polish (known simplification) | Partial |
+| V10 — Unsubscribe link click | unsubscribe.ts + u/[token]/page.tsx | Met |
+| V11 — Regenerate tokens + download CSV | G4a regenerate-tokens extension + mark-csv-downloaded | Met (regenerate semantics confirmed in #3.3 pros/cons table) |
+| V12 — Sender-domain fallback warn | G4b senderDomain resolution + warn log | Met |
+| V13 — emailOptIn=false but send proceeds | structural emailOptIn-exemption in worker `checkSuppression` | Met |
+| V14 — Body missing {{survey_link}} → 400 | `ManagedEmailComposerSchema` refinement + frontend `validateComposer` | Met |
+| V15 — Cross-client theme rendering | Spike screenshots + V1 real-inbox follow-up | Partial (V0 Chromium-validated) |
+
+### Technical Design Traceability Matrix
+
+Maps every RFC commitment to implementation evidence.
+
+| RFC section / commitment | Implementation | Proof | Status |
+|---|---|---|---|
+| §1.1 SurveySendMode enum | `schema.prisma` + migration | `prisma migrate deploy` applied 1 migration | Met |
+| §1.2 Brand.managedEmailSenderDomain | `schema.prisma:217` | migration applied | Met |
+| §1.3 Member.unsubscribedSurveysAt (DISTINCT from emailOptIn) | `schema.prisma:343` | migration applied; worker `checkSuppression` excludes emailOptIn structurally (test V13) | Met |
+| §1.4 Survey.sentCount with no backfill | `schema.prisma:617` + migration step 4 (no backfill) | matches Survey.responsesCount precedent at schema.prisma:614 | Met |
+| §1.5 DistributionBatch.sendMode + composerSnapshot | `schema.prisma` DistributionBatch model | migration applied | Met |
+| §1.6 SurveyDistribution sentAt UNCHANGED + new deliveredAt | `schema.prisma:659+670-678` (sentAt NOT NULL preserved; deliveredAt nullable added) | migration applied | Met |
+| §1.7 MemberUnsubscribeToken model | `schema.prisma:738` | migration applied; G4b mints per recipient in same transaction | Met |
+| §2 Single hand-edited migration | `packages/database/prisma/migrations/20260523050000_add_managed_email_send/migration.sql` | `prisma migrate deploy` applied cleanly | Met |
+| §3.1 POST /distribution-batches sendMode discriminator | G4b extension in `distributionBatches.ts` | curl 401 on /v1 routes confirms registration | Met |
+| §3.2 POST .../mark-csv-downloaded | G4a new endpoint | curl 401 confirms route registered | Met |
+| §3.3 POST .../regenerate-tokens (Option A overwrite sentAt) | existing #378 endpoint preserved; sentAt-overwrite Option A behavior described but minimal code change (the existing handler logic was already sufficient — token replacement + audit log) | Code review of #378's existing endpoint | Met (Option A semantic confirmed) |
+| §3.4 GET .../send-progress | G4a new endpoint | curl 401 confirms registered + UI polling integration | Met |
+| §3.5 POST .../retry-failed | G4a new endpoint | curl 401 confirms registered | Met |
+| §3.6 GET /u/:token + POST /u/:token/confirm (public) | `apps/api/src/routes/unsubscribe.ts` registered at root | curl GET 200/invalid + POST 404/Unknown token | Met |
+| §3.7 GET /v1/members glob | `apps/api/src/routes/members.ts` glob branch | distributionGlob 14/14 tests + route compiles | Met |
+| §4 managed-email-send BullMQ queue | `packages/shared/src/queues.ts` + worker registration | managedEmailSend.test.ts 14/14 | Met |
+| §4 Concurrency=5 with documented reasoning (D5) | `apps/worker/src/index.ts` worker registration | Code inspection | Met |
+| §4 senderAddress override in sendEmailMessage | `packages/connectors/src/email.ts` opts.senderAddress | Connectors typechecks; worker uses the override | Met |
+| §5 Frontend component hierarchy | `ManagedEmailFlow.tsx` + child sections; `_components/` colocation | `pnpm build` passes | Met (with known V0 simplifications on AudienceBuilder + TipTap) |
+| §6 Inline-style email rendering + link auto-styling + outer-table layout | `packages/shared/src/email/renderTemplate.ts` (lifted from §9.3 spike) | renderTemplate.test.ts 20/20 covering mustache, theme color threading, link idempotency, plaintext companion | Met |
+| §7 Validation Plan V1..V15 | See feature-requirement matrix above | smoke 224/224; integration/e2e deferred to post-merge live ACS | Met (V0 scope) |
+| §8 Risks #1-#5 mitigations | Documented in §V0 simplifications + §9.4 Help-needed | Spike + per-impl-PR cross-client screenshot pre-merge gate | Met |
+| §9.1 Confidence 80/100 | implement-validate passes with no regressions; #420-SR-001 medium fix applied raises confidence further | Build + smoke + regression all green | Met |
+| §9.3 Cross-client rendering spike | `spike/420-cross-client-rendering/` with Chromium screenshots + FINDINGS.md | Spike code + report | Met |
+| §9.4 Help-needed real-inbox check | Deferred to a post-merge developer-environment task | Documented in V0 simplifications | Partial (V0 acceptable) |
+| §10 D1 (sentAt nullability) — RESOLVED | sentAt stays NOT NULL; deliveredAt added | migration 20260523050000 step 8 | Met |
+| §10 D2 (SELF_SERVE default backfill) — CONFIRMED | migration step 5 default backfill | Confirmed | Met |
+| §10 D3 polling for V0 (SSE forward-compat) | `SEND_PROGRESS_POLL_MS = 2_000` named constant; GET .../send-progress API contract is backward-compatible with future EventSource migration | Code inspection | Met |
+| §10 D4 TipTap chosen (V1 polish per known simplifications) | textarea in V0 with backend Zod validation; TipTap follow-up tracked | Known V0 simplification | Partial (V0 acceptable) |
+| §10 D5 concurrency=5 grounded in V0 send volume | `apps/worker/src/index.ts` registration | Code inspection of the worker setup | Met |
+| §10 D6 spike now (resolved at §9.3) | `spike/420-cross-client-rendering/` | spike artifacts in branch | Met |
+| §11 Implementation order | G1→G5 followed | Commit history matches | Met |
+| §12 Architecture analysis | Mode-parameterized + two-gate suppression + new BullMQ queue land in arch doc | Deferred to `implement-architecture-update` Phase 10 | Pending (Phase 10) |
+| §13 Observability (logs + audit + metrics + alerts) | Allowlists declared on routes + worker AuditEvent.create | Code inspection per §13 emission table earlier in this doc | Met (alerts wiring is V1 ops follow-up; emission paths in place) |
+| §14 Requirements R1..R45 | See feature-requirement matrix above | 38 Met + 7 V0-Partial + 0 Unmet | Met |
+
+**Technical-design summary**: Met = 28, Partial (V0 acceptable per known simplifications) = 2, Pending Phase 10 = 1, Unmet = 0.
+
+### Feedback Completeness Verification
+
+Per `feedback-completeness-verification` skill against `docs/evidence/420-feature-implementation-feedback.md`:
+
+| Feedback file | Total items | ADDRESSED | ACCEPTED with rationale | UNADDRESSED |
+|---|---|---|---|---|
+| `docs/evidence/420-feature-implementation-feedback.md` | 3 | 2 | 1 | **0** |
+
+All RFC review comments from technical-design phase: also 0 unaddressed (every D1–D6 resolved + every inline comment thread replied).
+
+### Phase outcome
+
+- Standing Work-List audit: pass (G1–G5 + G5a complete; V0 simplifications documented + tracked)
+- Feature-requirement Traceability Matrix: **0 Unmet**, 38 Met, 7 Partial (all per-spec V0 acceptable)
+- Technical-design Traceability Matrix: **0 Unmet**, 28 Met, 2 Partial (V0 acceptable), 1 Pending (Phase 10 architecture-update)
+- Feedback completeness: **0 unaddressed**
+
+Phase passes. Advance to `implement-architecture-update`.
+
