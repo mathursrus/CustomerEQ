@@ -19,6 +19,9 @@
 import { useAuth } from '@clerk/nextjs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
+import { useModeRouter } from '@/components/mode-router'
+
+import type { DistributeMode } from './modes'
 
 type SendingStatus = 'queued' | 'sending' | 'sent' | 'failed'
 
@@ -95,6 +98,7 @@ function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d'): string {
 
 export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const { getToken } = useAuth()
+  const { switchTo } = useModeRouter<DistributeMode>()
 
   // Survey context
   const [survey, setSurvey] = useState<SurveyContext | null>(null)
@@ -336,12 +340,13 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
           <p className="text-xs uppercase tracking-wide text-indigo-600">Send via CustomerEQ</p>
           <h1 className="text-2xl font-semibold text-gray-900">{survey.title ?? survey.name}</h1>
         </div>
-        <a
-          href={`/admin/surveys/${surveyId}/distribute?mode=self-serve`}
+        <button
+          type="button"
+          onClick={() => switchTo('self-serve')}
           className="text-sm text-indigo-600 hover:text-indigo-800"
         >
           Switch to my email tool →
-        </a>
+        </button>
       </header>
 
       {flow === 'configure' && (
