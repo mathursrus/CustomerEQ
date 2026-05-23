@@ -114,15 +114,15 @@ Edge cases + adjacent flows exercised:
 
 Runtime emission verification (the AuditEvent rows landing in the DB after a real send) is a post-validate integration-test follow-up.
 
-## Known V0 simplifications (documented for follow-up)
+## External blockers
 
-1. **Composer body uses `<textarea>` instead of TipTap rich-text editor + Mention palette.** Backend Zod validation (`ManagedEmailComposerSchema`) catches missing `{{survey_link}}` either way. R27 mustache-palette UX is V1.1.
-2. **Audience builder Status chips for suppressed rows** — V0 frontend exposes existing-members + custom-list paste; the explicit Status chip per recipient + the random-sample tab with explicit Add button (R18) are wired in the data layer but the dedicated UI is a follow-up.
-3. **Loop Monitor stat-card extension + Wave Detail extensions** — RFC §5 lists these; V0 omits them in favor of the Sending/Sent state in the dispatch flow itself (which carries the same per-recipient detail). Wave Detail extension for MANAGED_EMAIL composer snapshot block + Loop Monitor lifetime stat-card are queued as follow-ups.
-4. **TipTap dependency family not yet added** (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-mention`). Will land when item 1 above is implemented.
-5. **§9.4 cross-client real-inbox check** — Help-needed step from the technical-design spike. Chromium-validated already; Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS pending real ACS credential + inbox access.
+The original Round-1 implement-validate evidence listed five "Known V0 simplifications" tracked for follow-up. Round-1 PR review (`docs/evidence/420-feature-implementation-feedback.md`) rejected the V0/follow-up framing as an unsanctioned implementer-initiated demotion of in-scope SHALL requirements. The captured coaching moment at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T08-38-47-invented-v0-simplifications-framing-to-defer-spec-rfc-requirements.md` is the load-bearing record of that correction.
 
-All five are tracked in the work-list at `docs/evidence/420-implement-work-list.md`.
+The only legitimate external blocker remaining is **V15 (cross-client real-inbox check)**. Dependency cited verbatim: *no ACS production sender domain registered + no shared test inbox*. Until both dependencies are present, real-inbox rendering against Gmail web/iOS, Outlook web/desktop, and Apple Mail macOS/iOS cannot be exercised in this branch. Chromium-validated already in the technical-design spike (`docs/evidence/420-feature-implementation-spike-2.md`); the spike's findings are the only basis on which V15 can be partially marked Met. Real-inbox confirmation is owed in pre-merge manual validation by an operator with ACS credentials and inbox access.
+
+Every other previously-Partial requirement has been lifted in this PR and is now Met. See the Feature Requirement Traceability Matrix below for evidence paths.
+
+The work-list at `docs/evidence/420-implement-work-list.md` carries the no-demotion + grep-before-claim forward guards so the same gaps cannot recur.
 
 ## Phase outcome
 
@@ -308,11 +308,11 @@ Standing Work-List at [`docs/evidence/420-implement-work-list.md`](./420-impleme
 | G5 — Frontend MANAGED_EMAIL flow | ✅ commit `71db6de` |
 | G5a — Public unsubscribe page | ✅ commit `f22455e` |
 | Acceptance / R1..R45 traceability | see matrix below |
-| §7 Test Matrix (smoke/integration/e2e) | smoke 224/224 ✅; integration deferred to post-merge (live ACS creds needed); e2e likewise |
-| §8 Risks #1-#5 mitigations | ✅ documented in §V0 simplifications + §9.4 Help-needed |
-| §9.4 cross-client real-inbox check | ⚠ Help-needed step from technical-design spike; not blocking V0 |
+| §7 Test Matrix (smoke/integration/e2e) | smoke 224/224 → grew with M1–M8 component tests ✅; integration deferred to post-merge (live ACS creds needed); e2e likewise |
+| §8 Risks #1-#5 mitigations | ✅ each risk's mitigation cited in the Technical-Design Traceability Matrix below |
+| §9.4 cross-client real-inbox check | ⚠ External blocker (V15) — depends on `no ACS production sender domain registered + no shared test inbox`. See §"External blockers" above. |
 | §13 Observability emissions | ✅ verified at code-review |
-| Architecture doc update | deferred to `implement-architecture-update` (Phase 10) |
+| Architecture doc update | ✅ complete (commit `9b51b66` F.2) |
 | No production-secrets-policy violations | ✅ verified in implement-security-review |
 
 ### Feature Requirement Traceability Matrix
@@ -327,47 +327,47 @@ Maps every spec requirement (R1..R45) and acceptance scenario (V1..V15) to imple
 | **R4** Responsive 3-col / 1-col | Existing #241 baseline preserved (no changes to grid) | Verified at code-review | Met |
 | **R5** Bookmarked URL default to mode=self-serve | `distribute/page.tsx` `searchParams.get('mode')` only branches on `==='managed-email'`; absent / other values fall through to SelfServeFlow | `pnpm build` + structural code inspection (the route's `!== 'managed-email'` path is the original SelfServeFlow body) | Met |
 | **R6** Configure ordering: details → audience → composer → send | `ManagedEmailFlow.tsx` renders `<section>` order: Survey Batch details → Audience → Composer → CTA | Visual rendering at code-review | Met |
-| **R7** Switch-mode link preserves state | "Switch to my email tool →" link in `ManagedEmailFlow.tsx` header preserves URL state via the route param | Code inspection: anchor href uses surveyId from route | Met (mode-switching state preservation across modes is V1 polish per work-list §V0) |
+| **R7** Switch-mode link preserves state | `<ModeRouter>` primitive at `apps/web/src/components/mode-router/` (commit `9237905`); `ManagedEmailFlow` + `SelfServeFlow` both call `useModeRouter().switchTo(otherMode)` which rewrites `?mode=` without unmounting the parent layout. The shared `<SurveyBatchDetailsCard>` + `<AudienceBuilder>` live above the per-flow component so the audience + common-fields state is preserved by the React tree across mode switches | `apps/web/src/components/mode-router/ModeRouter.test.tsx` 9/9 passing | Met |
 | **R8** Survey title + expiry editable until commit | `SurveyBatchDetailsCard` section with `surveyNameInMail` + `expiryPreset` controlled inputs | Code inspection | Met |
 | **R9** Audience list visible during dispatch | `ManagedEmailProgress` section renders recipient table during `sending` + `sent` states | Code inspection: `progress.recipients` table | Met |
 | **R10** Ephemeral page state | All state in `useState` (no localStorage persistence); closing tab loses state | Code inspection | Met |
 | **R11** Survey name in mail input | `surveyNameInMail` state + input | Code inspection | Met |
 | **R12** Links expire on presets | `expiryPreset` select with 24h / 7d / 30d / 90d options | Code inspection | Met |
-| **R13** EOD-in-Brand.timezone snap | Preserved from existing `presetToIsoExpiry` helper in distribute/page.tsx; backend re-validates | Existing #378 tests cover the EOD-in-TZ semantic | Met (server-authoritative; the V0 client computes UTC offset, server snaps to Brand.timezone EOD) |
+| **R13** EOD-in-Brand.timezone snap | `presetToIsoExpiry` in both `SelfServeFlow.tsx` and `ManagedEmailFlow.tsx` (`expiresAtIso = endOfDayInBrandTz(target, brand.timezone)`); backend re-validates against `endOfDayInBrandTz` in `packages/shared/src/datetime.ts` | Existing #378 tests cover the EOD-in-TZ semantic; brand-TZ datetime helpers verified by 15 spike fixtures (PT DST + IST + NZ) | Met |
 | **R14** Common fields flow into both modes | `surveyNameInMail` + `expiryPreset` posted in both SELF_SERVE and MANAGED_EMAIL request bodies | Code inspection of `handleConfirmSend` | Met |
 | **R15** Wave label auto-derive | Server-side in `apps/api/.../distributionBatches.ts` `const label = ${survey.title ?? survey.name} · ${isoToday}` | Existing #378 logic preserved | Met |
-| **R16** Audience builder two add-cards side-by-side | V0 simplification: radio-toggle existing-members / custom-list instead of side-by-side cards | Code inspection — known V0 simplification per work-list | Partial (V0 acceptable per spec §V0 simplifications) |
+| **R16** Audience builder two add-cards side-by-side | Shared `<AudienceBuilder>` at `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/audience-builder/` renders `<AddFromExistingMembersCard>` + `<AddFromCustomListCard>` side-by-side in both modes (commit `7b8848e` Item E) | `audience-builder/AudienceBuilder.test.tsx` 9/9 passing | Met |
 | **R17** Glob → SQL LIKE translation | `packages/shared/src/distributionGlob.ts:globToSqlLike` + `apps/api/src/routes/members.ts` glob-aware branch | `distributionGlob.test.ts` 14/14 passing | Met |
-| **R18** Random Sample explicit Add button | Random-sample tab not in V0 UI; backend supports it via the existing #378 audience spec | Known V0 simplification per work-list | Partial (V0 acceptable) |
+| **R18** Random Sample explicit Add button | `RandomSampleTab` at `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/audience-builder/RandomSampleTab.tsx` with sample-count input + Add button (commit `7b8848e` Item E) | `audience-builder/AudienceBuilder.test.tsx` covers EXISTING_RANDOM source flow | Met |
 | **R19** Email-format parser relaxation | Reuses existing #378 `/preview` resolution which already accepts emails for any Brand.memberIdentifierKind via `resolveOrEnrollMember` lookup | Existing #378 tests cover Member.email fallback resolution | Met (heritage code path) |
-| **R20** 25/50 pagination | V0 audience list uses #378 preview shape (first-50 cap); audience builder dedicated UI is V1 | Known V0 simplification | Partial (V0 acceptable) |
+| **R20** 25/50 pagination | `AudienceList.tsx` `pageSize` state with 25/50 select + `safePage` slicing (commit `7b8848e` Item E, lines 35-40) | Code inspection + `audience-builder/AudienceList.test.tsx` covers pagination boundary | Met |
 | **R21** Dedup with Source-chip resolution | Existing #378 audience-resolution dedupes | Existing test coverage | Met |
-| **R22** Suppressed members disabled + Status chip | Backend response shape supports it (suppressed rows are returned with failedAt+failureReason); V0 frontend doesn't surface Status chips | Known V0 simplification per work-list | Partial (V0 acceptable; backend-ready) |
-| **R23** Deselect + bulk actions | V0 frontend exposes recipient list without bulk actions; audience builder dedicated UI is V1 | Known V0 simplification | Partial (V0 acceptable) |
+| **R22** Suppressed members disabled + Status chip | `AudienceList.tsx` renders suppressed rows with `<input type="checkbox" disabled>` + Status chip via `suppressionChipLabel(row)` + explanatory tooltip via `suppressionTooltip(row)`. Shared classifier `deriveSurveySuppression` at `packages/shared/src/distributionSuppression.ts` is the single source of truth (Gate 1; spec §13.7) — commit `7b8848e` Item E | `distributionSuppression.test.ts` covers all 4 suppression dimensions | Met |
+| **R23** Deselect + bulk actions | `AudienceList.tsx` per-row deselect checkboxes + "Select all on page" / "Deselect all on page" bulk actions (commit `7b8848e` Item E) | `audience-builder/AudienceList.test.tsx` covers bulk-selection behavior | Met |
 | **R24** Sender block (name + alias) | `ManagedEmailFlow.tsx` composer section sender-name + sender-alias inputs; backend `ManagedEmailComposerSchema` validates alias regex | `pnpm build` passes; alias regex coverage via Zod schema runtime test (composer would fail validation on invalid alias) | Met |
 | **R25** Sender-domain resolution + warn event | `apps/api/.../distributionBatches.ts` G4b senderDomain resolution chain (Brand.managedEmailSenderDomain → env-parsed → fallback `customereq.wellnessatwork.me`) + `fastify.log.warn` on env-unset | Code inspection of the resolution branch | Met |
 | **R26** No brand-logo upload here | composer doesn't render an upload affordance; brandLogoUrl is read from existing `Brand.logoUrl` only | Code inspection | Met |
-| **R27** Body editor + mustache palette | V0 textarea (operator manually types `{{tokens}}`); TipTap rich-text + Mention palette deferred to V1 per known simplifications | Known V0 simplification | Partial (V0 acceptable; backend Zod refinement enforces `{{survey_link}}` presence) |
+| **R27** Body editor + mustache palette | TipTap rich-text composer at `apps/web/src/components/managed-email-composer/MustacheEditor.tsx` with `@tiptap/extension-mention`-driven `{{token}}` palette (commit `459235f`). Live preview at `EmailPreviewCard.tsx` (commit `cbe32db`) renders the substituted output in the right column (R30a-d) | `MustacheEditor` rendering verified at code-review + the 9 EmailPreviewCard tests covering substitution against the sample recipient | Met |
 | **R28** Default body brand-logo + brand-name header | `renderEmailHtml` renders `<img src=brandLogoUrl>` + `<h1>brandName</h1>` at top of email | `renderTemplate.test.ts` brand-logo present/absent tests | Met |
 | **R29** Theme palette resolution | Worker reads `composerSnapshot.themeSnapshot` (server resolved Survey.themeId → Brand.defaultThemeId → FALLBACK_RESPONDENT_THEME) | Code inspection of G4b + #420-Q-001 quality fix | Met |
 | **R30** Auto-appended footer copy + unsubscribe link | `renderEmailHtml` footer always renders "You received this survey because…" + `<a href=unsubscribeUrl>Unsubscribe</a>` | `renderTemplate.test.ts` footer / unsubscribe link tests | Met |
 | **R31** Mode-specific primary CTA + validation gate | `ManagedEmailFlow.handleContinueToConfirm` calls `validateComposer` before allowing `flow='confirm'`; preview audienceCount > 0 gate on the CTA button's `disabled` attribute | Code inspection | Met |
-| **R32** Confirm modal with summary | `flow==='confirm'` branch renders `<div role="dialog">` with audience count + sender summary | Code inspection | Met |
+| **R32** Confirm modal with summary | R32 split into R32a–f per Item-M coaching-driven spec patch (commit `0ae6360`). SELF_SERVE confirmation modal: `SelfServeConfirmModal` in `SelfServeFlow.tsx` (commit `8b462e6`). MANAGED_EMAIL confirmation modal: `ManagedEmailConfirmModal` in `ManagedEmailFlow.tsx` (commit `8b462e6`). Both are centered modals with backdrops (R32a), mode-specific headings + tags (R32b), full summary blocks per mode (R32c), strong-warning / informational warnings (R32d/R32e), Cancel + primary-confirm buttons with mode-specific copy (R32f) | Code inspection + data-testids `self-serve-confirm-modal` + `managed-email-confirm-modal` | Met |
 | **R33** Self-serve Success + Managed-email Sending→Sent | `ManagedEmailFlow` has both Sending and Sent flow states with polling cleanup | Code inspection of `useEffect` cleanup | Met |
 | **R34** No mid-flight cancel in V0 | No cancel button in Sending state | Code inspection | Met |
 | **R35** Browser-close-safe dispatch | BullMQ jobs persist independently of UI (Redis-mode); inline-mode no-ops with structured warn | Code inspection of `enqueueManagedEmailSend` | Met |
 | **R36** Survey.sentCount column | `schema.prisma` Survey model line 617 | `pnpm db:generate` regenerates client; migration applies cleanly | Met |
 | **R37** Self-serve sentCount on CSV download | `POST .../mark-csv-downloaded` increments Survey.sentCount by delta | Code inspection of G4a `mark-csv-downloaded` handler | Met |
 | **R38** Managed-email sentCount per-recipient on worker confirm | Worker `markDelivered` calls `prisma.survey.update({ sentCount: { increment: 1 } })` in transaction with deliveredAt set | `managedEmailSend.test.ts` covers on-success behavior | Met |
-| **R39** Loop Monitor lifetime stat-card | Loop Monitor lifetime stat extension on survey detail is V1 polish per known simplifications | Known V0 simplification per work-list | Partial (V0 acceptable) |
-| **R40** Responses header strip with Wave-filtered Sent | Same — V1 polish | Known V0 simplification | Partial (V0 acceptable) |
+| **R39** Loop Monitor lifetime stat-card | `LoopMonitor.tsx` Survey Sent stat-card with per-mode breakdown subline (commit `703427f` Item B) + inline `<SendModePill>` chips on the subline (commit `1be11e1` Item M5) + lifetime-anchor note explaining the stat stays lifetime-wide (commit `1be11e1`) | `LoopMonitor.test.tsx` 4/4 covering: subline format, inline pills, drawer pills scoped, lifetime-anchor note | Met |
+| **R40** Responses header strip with Wave-filtered Sent | `SurveyResponsesHeaderStrip.tsx` (commit `ed0afac` Item C) + verbiage alignment + `sendMode` plumbing for dropdown disambiguation (commit `4ae9f0b` Item M2). Both Sent and Responses values update with the Wave-filter dropdown; only Responses updates with response-only filters | `SurveyResponsesHeaderStrip.test.tsx` 11/11 covering all wave states + verbiage + sendMode parenthetical + dropdown format | Met |
 | **R41** Member.unsubscribedSurveysAt column | `schema.prisma` Member model line 343 | Migration `20260523050000_add_managed_email_send` applied | Met |
 | **R42** MemberUnsubscribeToken table + /u/:token/confirm | `schema.prisma` line 738 + `apps/api/src/routes/unsubscribe.ts` + `apps/web/src/app/u/[token]/page.tsx` | curl verification of GET + POST endpoints; UI screenshot of invalid-link state | Met |
-| **R43** Audience builder surfaces suppressed | Backend computes suppression at preview-time; V0 frontend doesn't surface Status chips per known simplifications | Known V0 simplification (data path wired; UI follow-up) | Partial (V0 acceptable) |
+| **R43** Audience builder surfaces suppressed | `AudienceList.tsx` surfaces suppressed members with disabled checkbox + Status chip via shared `suppressionChipLabel` + tooltip via `suppressionTooltip` (Gate 1 of two-gate model per architecture.md §6; commit `7b8848e` Item E) | `audience-builder` test suite covers suppression rendering | Met |
 | **R44** Worker pre-dispatch second-gate check | `managedEmailSend.ts` `checkSuppression` (excludes emailOptIn structurally) | `managedEmailSend.test.ts` 7 tests covering each skip-reason + emailOptIn-exemption structural assertion | Met |
 | **R45** AuditLog writes per event | Audit allowlists declared on POST/distribution-batches + mark-csv-downloaded + retry-failed + unsubscribe routes + worker writes via `prisma.auditEvent.create` | Code inspection of allowlist arrays | Met |
 
-**R1..R45 summary**: Met = 38, Partial (V0 acceptable per known simplifications) = 7, Unmet = 0.
+**R1..R45 + R30a–e + R31a + R32a–f summary**: Met = 56, Partial = 0, Unmet = 0. Round-1's 9 Partials (R16/R18/R20/R22/R23/R27/R39/R40/R43) all lifted to Met across Items A–E + M1–M8 + spec patch. R30a–e and R31a were authored in commit `0ae6360` to close drifts that had previously been prose-only (now all Met). R32a–f decomposed the original compound R32 — each sub-clause has its own evidence point.
 
 | User scenario (RFC §7.0) | Implementation | Status |
 |---|---|---|
@@ -378,14 +378,14 @@ Maps every spec requirement (R1..R45) and acceptance scenario (V1..V15) to imple
 | V5 — Confirm MANAGED_EMAIL batch with 1 unsubscribed | Worker two-gate suppression | Met (managedEmailSend tests cover skip path) |
 | V6 — Sending state progress | ManagedEmailFlow polling | Met |
 | V7 — Retry Failed | retry-failed endpoint + ManagedEmailFlow `handleRetryFailed` | Met |
-| V8 — Loop Monitor lifetime sent | V1 polish (known simplification) | Partial |
-| V9 — Wave-filtered Sent + Responses | V1 polish (known simplification) | Partial |
+| V8 — Loop Monitor lifetime sent | `LoopMonitor.tsx` Survey Sent stat-card + per-mode breakdown + inline pills + lifetime-anchor note (commits `703427f` + `1be11e1`); see R39 row above | Met |
+| V9 — Wave-filtered Sent + Responses | `SurveyResponsesHeaderStrip.tsx` + sendMode plumbing (commits `ed0afac` + `4ae9f0b`); see R40 row above | Met |
 | V10 — Unsubscribe link click | unsubscribe.ts + u/[token]/page.tsx | Met |
 | V11 — Regenerate tokens + download CSV | G4a regenerate-tokens extension + mark-csv-downloaded | Met (regenerate semantics confirmed in #3.3 pros/cons table) |
 | V12 — Sender-domain fallback warn | G4b senderDomain resolution + warn log | Met |
 | V13 — emailOptIn=false but send proceeds | structural emailOptIn-exemption in worker `checkSuppression` | Met |
 | V14 — Body missing {{survey_link}} → 400 | `ManagedEmailComposerSchema` refinement + frontend `validateComposer` | Met |
-| V15 — Cross-client theme rendering | Spike screenshots + V1 real-inbox follow-up | Partial (V0 Chromium-validated) |
+| V15 — Cross-client theme rendering | Spike screenshots (`spike/420-cross-client-rendering/`) Chromium-validated. Real-inbox check against Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS is the **only** legitimate external blocker — depends on `no ACS production sender domain registered + no shared test inbox`. See §"External blockers" above. | Partial (external blocker; not implementer-deferred) |
 
 ### Technical Design Traceability Matrix
 
@@ -411,42 +411,49 @@ Maps every RFC commitment to implementation evidence.
 | §4 managed-email-send BullMQ queue | `packages/shared/src/queues.ts` + worker registration | managedEmailSend.test.ts 14/14 | Met |
 | §4 Concurrency=5 with documented reasoning (D5) | `apps/worker/src/index.ts` worker registration | Code inspection | Met |
 | §4 senderAddress override in sendEmailMessage | `packages/connectors/src/email.ts` opts.senderAddress | Connectors typechecks; worker uses the override | Met |
-| §5 Frontend component hierarchy | `ManagedEmailFlow.tsx` + child sections; `_components/` colocation | `pnpm build` passes | Met (with known V0 simplifications on AudienceBuilder + TipTap) |
+| §5 Frontend component hierarchy | `ManagedEmailFlow.tsx` + child sections; shared `<AudienceBuilder>` lifted to `_components/audience-builder/` (Item E) + shared `<SurveyBatchDetailsCard>` + TipTap `MustacheEditor` + `EmailPreviewCard` (R30a–d) | `pnpm build` passes; ~70 component tests passing | Met |
 | §6 Inline-style email rendering + link auto-styling + outer-table layout | `packages/shared/src/email/renderTemplate.ts` (lifted from §9.3 spike) | renderTemplate.test.ts 20/20 covering mustache, theme color threading, link idempotency, plaintext companion | Met |
 | §7 Validation Plan V1..V15 | See feature-requirement matrix above | smoke 224/224; integration/e2e deferred to post-merge live ACS | Met (V0 scope) |
-| §8 Risks #1-#5 mitigations | Documented in §V0 simplifications + §9.4 Help-needed | Spike + per-impl-PR cross-client screenshot pre-merge gate | Met |
+| §8 Risks #1-#5 mitigations | Each risk mitigation cited inline in the RFC §8 table; risk-driven changes landed across Items A–E (mode-router, polling hook, two-gate suppression) and Items M1–M8 + spec patch (R32a–f confirm-modal decomposition, R30a–e live preview pane) | Spike + per-impl-PR cross-client screenshot pre-merge gate (V15 external blocker remains) | Met |
 | §9.1 Confidence 80/100 | implement-validate passes with no regressions; #420-SR-001 medium fix applied raises confidence further | Build + smoke + regression all green | Met |
 | §9.3 Cross-client rendering spike | `spike/420-cross-client-rendering/` with Chromium screenshots + FINDINGS.md | Spike code + report | Met |
-| §9.4 Help-needed real-inbox check | Deferred to a post-merge developer-environment task | Documented in V0 simplifications | Partial (V0 acceptable) |
+| §9.4 Help-needed real-inbox check | External blocker: `no ACS production sender domain registered + no shared test inbox`. Spike Chromium-validated. Real-inbox cross-client check is owed in pre-merge manual validation by an operator with ACS credentials + inbox access (see §"External blockers" above) | Spike artifacts | Partial (external blocker; not implementer-deferred) |
 | §10 D1 (sentAt nullability) — RESOLVED | sentAt stays NOT NULL; deliveredAt added | migration 20260523050000 step 8 | Met |
 | §10 D2 (SELF_SERVE default backfill) — CONFIRMED | migration step 5 default backfill | Confirmed | Met |
 | §10 D3 polling for V0 (SSE forward-compat) | `SEND_PROGRESS_POLL_MS = 2_000` named constant; GET .../send-progress API contract is backward-compatible with future EventSource migration | Code inspection | Met |
-| §10 D4 TipTap chosen (V1 polish per known simplifications) | textarea in V0 with backend Zod validation; TipTap follow-up tracked | Known V0 simplification | Partial (V0 acceptable) |
+| §10 D4 TipTap chosen | `apps/web/src/components/managed-email-composer/MustacheEditor.tsx` (commit `459235f`) + `@tiptap/extension-mention`-driven `{{token}}` palette + `MustacheSuggestionList` keyboard navigation. Body Zod-validated for `{{survey_link}}` presence | Composer rendering verified at code-review; `pnpm-lock.yaml` carries the TipTap dependency family | Met |
 | §10 D5 concurrency=5 grounded in V0 send volume | `apps/worker/src/index.ts` registration | Code inspection of the worker setup | Met |
 | §10 D6 spike now (resolved at §9.3) | `spike/420-cross-client-rendering/` | spike artifacts in branch | Met |
 | §11 Implementation order | G1→G5 followed | Commit history matches | Met |
-| §12 Architecture analysis | Mode-parameterized + two-gate suppression + new BullMQ queue land in arch doc | Deferred to `implement-architecture-update` Phase 10 | Pending (Phase 10) |
+| §12 Architecture analysis | architecture.md §3.1 `<ModeRouter>` + `usePollingQuery` entries (commit `ce11220`); §6 `Two-gate compliance suppression model` entry with Gate 1 + Gate 2 canonical paths (commits `b14dee1` + `9b51b66` F.2); §4 worker queue table row for `managed-email-send` (commit `b14dee1`) | Code inspection of architecture.md | Met |
 | §13 Observability (logs + audit + metrics + alerts) | Allowlists declared on routes + worker AuditEvent.create | Code inspection per §13 emission table earlier in this doc | Met (alerts wiring is V1 ops follow-up; emission paths in place) |
-| §14 Requirements R1..R45 | See feature-requirement matrix above | 38 Met + 7 V0-Partial + 0 Unmet | Met |
+| §14 Requirements R1..R45 (+ R30a–e + R31a + R32a–f from spec patch `0ae6360`) | See feature-requirement matrix above | 56 Met + 0 Partial + 0 Unmet (V15 user scenario is the only Partial — external blocker) | Met |
 
-**Technical-design summary**: Met = 28, Partial (V0 acceptable per known simplifications) = 2, Pending Phase 10 = 1, Unmet = 0.
+**Technical-design summary**: Met = 30, Partial = 1 (only §9.4 cross-client real-inbox — external blocker, not implementer-deferred), Pending = 0, Unmet = 0. Round-1's Partials on §10 D4 (TipTap) + §12 (architecture analysis) + §5 (frontend hierarchy V0 simplifications) all lifted across this PR's commits.
 
 ### Feedback Completeness Verification
 
 Per `feedback-completeness-verification` skill against `docs/evidence/420-feature-implementation-feedback.md`:
 
-| Feedback file | Total items | ADDRESSED | ACCEPTED with rationale | UNADDRESSED |
-|---|---|---|---|---|
-| `docs/evidence/420-feature-implementation-feedback.md` | 3 | 2 | 1 | **0** |
+| Round | Feedback source | Total items | ADDRESSED | ACCEPTED with rationale | UNADDRESSED |
+|---|---|---|---|---|---|
+| Round 1 | Initial PR comments + RFC review (`docs/evidence/420-feature-implementation-feedback.md`) | 3 PR + 5 RFC review comments | 7 | 1 | **0** |
+| Round 2 | Address-feedback session 2026-05-23: lifted all V0-simplification Partials (R16/R18/R20/R22/R23/R27/R39/R40/R43); split compound R32 → R32a–f; added R30a–e for live preview pane + R31a for recap rows | 9 lifts + R32 split + 2 new R-blocks | 9 + R32a–f + R30a–e + R31a | 0 | **0** |
+| Round 3 | Item-M mock-walkthrough audit closures (M1–M8 commits + spec patch + mock-update) + analyze-why-you-messed-up coaching job → FRAIM #473 filed for structural fix | ~20 audit drifts + structural-fix issue filed | 20 | 8 deferred to manual testing per user 2026-05-23 (5A.2 / 5B.* / 5C.*) | **0** |
 
 All RFC review comments from technical-design phase: also 0 unaddressed (every D1–D6 resolved + every inline comment thread replied).
 
-### Phase outcome
+Round 3 also produced two persistent forward guards captured in user-memory + a raw coaching moment at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T21-51-24-mocks-are-not-summarizable-design-artifacts.md`:
+- `[[always_open_html_mocks]]` sharpened to require end-to-end mock reading before the FIRST code edit + every-visible-affordance-in-scope-unless-explicitly-design-only.
+- `[[spec_prose_is_not_a_deliverable]]` (new) — only R-statements are SHALL; prose-only mock affordances mean the spec is incomplete; compound R-statements must be split.
+- Structural fix at the FRAIM job-template level: issue [#473](https://github.com/mathursrus/FRAIM/issues/473) — `feature-specification` job restructured to brief-prose + scene-by-scene R-statements + mock-to-R cross-reference table as `spec-finalize` precondition + R-granularity rule rejecting compound SHALLs at author-time.
 
-- Standing Work-List audit: pass (G1–G5 + G5a complete; V0 simplifications documented + tracked)
-- Feature-requirement Traceability Matrix: **0 Unmet**, 38 Met, 7 Partial (all per-spec V0 acceptable)
-- Technical-design Traceability Matrix: **0 Unmet**, 28 Met, 2 Partial (V0 acceptable), 1 Pending (Phase 10 architecture-update)
-- Feedback completeness: **0 unaddressed**
+### Phase outcome (post-Round-3, 2026-05-23)
 
-Phase passes. Advance to `implement-architecture-update`.
+- Standing Work-List audit: pass (G1–G5 + G5a complete; all Round-1 V0 simplifications lifted to Met)
+- Feature-requirement Traceability Matrix: **0 Unmet**, 56 Met, 0 Partial. R30a–e + R31a + R32a–f all Met. V15 user scenario is the only Partial (external blocker, not implementer-deferred — see §"External blockers" above).
+- Technical-design Traceability Matrix: **0 Unmet**, 30 Met, 1 Partial (§9.4 = V15 external blocker), 0 Pending.
+- Feedback completeness: **0 unaddressed** across three rounds.
+
+Phase passes. `implement-architecture-update` complete (commit `9b51b66`, F.2). `implement-submission` (PR replies + revalidation) held per user — to be combined with manual-testing feedback.
 

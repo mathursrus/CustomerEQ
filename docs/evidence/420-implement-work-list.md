@@ -124,15 +124,41 @@ All groups land as separate commits on the same branch. PR stays Draft. UI work 
 - [ ] Architecture doc updated per §12.2 (mode-parameterized pattern, two-gate suppression model, managed-email-send queue)
 - [ ] No production-secrets policy violations introduced (per project CLAUDE.md — verified at impl-security-review)
 
-## Known deferrals / Non-goals tracked
+## External blockers
 
-- **V1**: SSE migration path for `send-progress` endpoint when batch sizes cross 5k or concurrent operators exceed ~10 (RFC §9.1 / D3)
-- **V1**: Custom-domain ACS support (`Brand.managedEmailSenderDomain` ships with code wiring but null in V0 per spec §2.3 + R25)
-- **V1**: Per-survey opt-out granularity (`Member.unsubscribedSurveysAt` is brand-wide in V0 per OQ-3 / R41)
-- **V1**: ACS Event Grid webhook subscription for per-recipient open/click/bounce (RFC §13.5)
-- **V1**: Per-sender-domain token-bucket rate limiter in the worker (RFC §9.3 / D5 future lever)
-- **V1**: VML conditional-comment wrapper for the CTA button if Outlook desktop strips the styled `<a>` (RFC §8 Risk #1 escape hatch documented in `spike/420-cross-client-rendering/FINDINGS.md`)
+These are dependencies the implementer cannot resolve from inside the branch — not deferrals:
+
+- **V15 cross-client real-inbox rendering**: depends on `no ACS production sender domain registered + no shared test inbox`. Spike (`spike/420-cross-client-rendering/`) is Chromium-validated; real-inbox check against Gmail web/iOS, Outlook web/desktop, Apple Mail macOS/iOS is owed during pre-merge manual validation by an operator with ACS credentials and inbox access.
+
+## Spec-level non-goals (explicitly out of scope per spec §"Non-goals (V1+)")
+
+These are SPEC-DECIDED non-goals — not implementer-initiated demotions. The spec author and the user agreed these surfaces are post-V0 work:
+
+- **SSE migration path** for `send-progress` endpoint when batch sizes cross 5k or concurrent operators exceed ~10 (spec §"Non-goals" + RFC §9.1 / D3). The polling-based contract is V0; the SSE forward-compat is built into the endpoint shape so the V1 migration is non-breaking.
+- **Custom-domain ACS support** (`Brand.managedEmailSenderDomain` column ships in the schema but the spec scopes V0 to the platform-default hard-coded domain per §2.3 + R25).
+- **Per-survey opt-out granularity** (`Member.unsubscribedSurveysAt` is brand-wide; per-survey is V1+ per spec OQ-3 / R41).
+- **ACS Event Grid webhook subscription** for per-recipient open/click/bounce telemetry (spec §"Non-goals" + RFC §13.5).
+- **Per-sender-domain token-bucket rate limiter** in the worker (RFC §9.3 / D5 future lever).
+- **VML conditional-comment wrapper** for the CTA button if Outlook desktop strips the styled `<a>` (RFC §8 Risk #1 escape hatch documented in `spike/420-cross-client-rendering/FINDINGS.md`).
+- **Mid-flight cancel of a batch send** (spec §"Non-goals" + R34).
+- **Custom email templates / brand-branded email designs** beyond `{{brand_logo}}` header (spec §"Non-goals").
+- **Brand logo upload UX** in the composer (spec §"Non-goals" — V0 consumes `Brand.logoUrl`; the upload flow that populates the value is a separate Organization Settings issue).
+- **Resubscribe self-serve flow** (spec §"Non-goals" — V0 requires manual `Member.unsubscribedSurveysAt = null` by brand admin).
+- **Theme color-mapping legend** in the composer preview pane (mock #scene-3 lines 781–798) — explicitly marked `(design-only, no SHALL)` in spec R30e per user decision 2026-05-23.
+
+## Forward guards (captured during this PR's address-feedback rounds)
+
+Two rules were authored during Round 2 + Round 3 address-feedback so the gaps that surfaced on #420 cannot recur on future issues:
+
+1. **No implementer-initiated demotion of in-scope SHALL requirements.** Round-1 PR review caught the spec/RFC author proposing a "Known V0 simplifications" framing as an implementer escape hatch for R16 / R18 / R20 / R22 / R23 / R27 / R39 / R40 / R43. No sanctioned `feature-implementation` process exists for the implementer to demote a numbered R-statement to a follow-up issue. The legitimate carve-outs are: (a) **external blockers** named verbatim with the dependency cited (V15 above); (b) **spec-level non-goals** that the spec author already decided and listed in §"Non-goals" (above). Anything else lifts in the same PR.
+   - Coaching artifact: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T08-38-47-invented-v0-simplifications-framing-to-defer-spec-rfc-requirements.md`.
+
+2. **Grep before claiming backend state.** Round-2 PR review caught the implementer asserting `/send-progress` was SSE-based — based on reading spec prose at §2.6b without grepping the actual route. Reality: the endpoint is a plain GET polled at 2s, fully consistent with V0 (SSE is the V1 migration path). Spec prose is not the source of truth for capability claims; the **code, schema, or migration** is.
+   - Coaching artifact: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T18-14-24-trusted-spec-prose-without-grepping-route.md`.
+
+3. **Spec prose is not a deliverable; only R-statements are SHALL.** Round-3 mock-walkthrough audit caught the spec describing 8 substantial mock surfaces (live preview pane, progress bar, recap rows, CSV preview pane, confirm-modal summaries, etc.) only in §-prose without corresponding R-numbers. The implementer is requirements-driven and traceability-keyed; prose-only affordances slip past every gate. Compound R-statements (R32 with 6 sub-clauses bundled into one SHALL) produce the same gap from the other direction. The structural fix is FRAIM issue [#473](https://github.com/mathursrus/FRAIM/issues/473): `feature-specification` job template restructure to brief-prose + scene-by-scene R-statements + mock-to-R cross-reference table as `spec-finalize` precondition + R-granularity rule rejecting compound SHALLs at author-time.
+   - Coaching artifact: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T21-51-24-mocks-are-not-summarizable-design-artifacts.md`.
 
 ## Open Questions for this phase
 
-None at scoping time. The 6 RFC Open Decisions (D1–D6) are all resolved. The §9.4 Help-needed real-inbox check is intentionally deferred to a developer-environment task (not a code change).
+None at scoping time. The 6 RFC Open Decisions (D1–D6) are all resolved. V15 cross-client real-inbox check is filed under §"External blockers" above with the dependency cited verbatim — it is the only remaining Partial across the Feature + Technical-Design traceability matrices.
