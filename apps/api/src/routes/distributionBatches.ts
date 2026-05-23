@@ -12,14 +12,17 @@
 // existing /v1/surveys/* admin routes.
 
 import type { FastifyPluginAsync, FastifyInstance, FastifyRequest } from 'fastify'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import {
   PreviewBatchRequestSchema,
   GenerateBatchRequestSchema,
   EditExpiryRequestSchema,
   RegenerateTokensRequestSchema,
+  ManagedEmailComposerSchema,
   type AudienceSpecSchema,
+  type ManagedEmailComposer,
 } from '@customerEQ/shared'
+import { enqueueManagedEmailSend } from '../queues/bullmq.js'
 import { z } from 'zod'
 import { mintToken, hashToken } from '@customerEQ/shared/distributionTokens'
 import {
@@ -427,7 +430,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       config: {
         auditAction: 'distribution_batch.create',
         auditResourceType: 'distribution_batch',
-        auditAllowlist: ['surveyId', 'batchId', 'mode', 'tokenCount', 'autoEnrolledCount', 'requestIp'],
+        auditAllowlist: ['surveyId', 'batchId', 'sendMode', 'mode', 'tokenCount', 'autoEnrolledCount', 'requestIp'],
       },
     },
     async (request, reply) => {
@@ -440,6 +443,34 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       const validate = GenerateBatchRequestSchema.safeParse(input)
       if (!validate.success) {
         return reply.status(422).send({ error: 'Validation failed', code: 'INVALID_BODY' })
+      }
+
+      // Issue #420 — detect MANAGED_EMAIL mode via the `sendMode` body field.
+      // Backward-compatible: absent or 'SELF_SERVE' → existing #378 path.
+      const sendMode: 'SELF_SERVE' | 'MANAGED_EMAIL' = (input as { sendMode?: string }).sendMode === 'MANAGED_EMAIL' ? 'MANAGED_EMAIL' : 'SELF_SERVE'
+      let composer: ManagedEmailComposer | null = null
+      let senderDomain: string | null = null
+      if (sendMode === 'MANAGED_EMAIL') {
+        const composerInput = (input as { composer?: unknown }).composer
+        const composerValidate = ManagedEmailComposerSchema.safeParse(composerInput)
+        if (!composerValidate.success) {
+          return reply.status(422).send({ error: 'composer is required for MANAGED_EMAIL', code: 'COMPOSER_REQUIRED' })
+        }
+        composer = composerValidate.data
+        // Resolve sender domain per R25: Brand.managedEmailSenderDomain → env-parsed → hard-coded fallback.
+        const brand = await fastify.prisma.brand.findFirst({
+          where: { id: brandId },
+          select: { managedEmailSenderDomain: true },
+        })
+        const envFrom = (process.env.AZURE_COMMUNICATION_SERVICES_EMAIL_FROM ?? '').trim()
+        const envDomain = envFrom.includes('@') ? envFrom.split('@')[1] : undefined
+        senderDomain = brand?.managedEmailSenderDomain ?? envDomain ?? 'customereq.wellnessatwork.me'
+        if (!brand?.managedEmailSenderDomain && !envDomain) {
+          fastify.log.warn(
+            { event: 'email.sender_domain.fallback', reason: 'acs_env_unset', brandId },
+            'Sender domain fell through to hard-coded fallback',
+          )
+        }
       }
 
       const survey = await fastify.prisma.survey.findFirst({
@@ -504,6 +535,60 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
                 memberCountAtSendTime: resolved.members.length,
               }
 
+        // Issue #420 — composerSnapshot is null for SELF_SERVE; populated for
+        // MANAGED_EMAIL with the fields the worker needs at dispatch time.
+        let composerSnapshot: Prisma.InputJsonValue | null = null
+        if (sendMode === 'MANAGED_EMAIL' && composer && senderDomain) {
+          // Theme snapshot resolved from Survey.themeId → Brand.defaultThemeId → CustomerEQ default.
+          const themeId = (
+            await tx.survey.findUnique({ where: { id: surveyId }, select: { themeId: true } })
+          )?.themeId
+          let theme = themeId ? await tx.brandTheme.findUnique({ where: { id: themeId } }) : null
+          if (!theme) {
+            const brand = await tx.brand.findUnique({
+              where: { id: brandId },
+              select: { defaultThemeId: true, logoUrl: true, name: true },
+            })
+            if (brand?.defaultThemeId) {
+              theme = await tx.brandTheme.findUnique({ where: { id: brand.defaultThemeId } })
+            }
+          }
+          const brandRow = await tx.brand.findUnique({
+            where: { id: brandId },
+            select: { logoUrl: true, name: true },
+          })
+          composerSnapshot = {
+            senderName: composer.senderName,
+            senderAlias: composer.senderAlias,
+            senderDomain,
+            subject: composer.subject,
+            body: composer.body,
+            brandLogoUrl: brandRow?.logoUrl ?? null,
+            brandName: brandRow?.name ?? '',
+            themeSnapshot: theme
+              ? {
+                  primaryColor: theme.primaryColor,
+                  secondaryColor: theme.secondaryColor,
+                  backgroundColor: theme.backgroundColor,
+                  textColor: theme.textColor,
+                  accentColor: theme.accentColor,
+                  buttonColor: theme.buttonColor,
+                  buttonTextColor: theme.buttonTextColor,
+                  fontFamily: theme.fontFamily,
+                }
+              : {
+                  primaryColor: '#6366f1',
+                  secondaryColor: '#818cf8',
+                  backgroundColor: '#ffffff',
+                  textColor: '#111827',
+                  accentColor: '#6366f1',
+                  buttonColor: '#6366f1',
+                  buttonTextColor: '#ffffff',
+                  fontFamily: 'system-ui',
+                },
+          }
+        }
+
         const batch = await tx.distributionBatch.create({
           data: {
             surveyId,
@@ -514,6 +599,8 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             expiresAt,
             samplingSeed: resolved.samplingSeed,
             createdBy: request.clerkUserId ?? 'unknown',
+            sendMode,
+            composerSnapshot: composerSnapshot ?? Prisma.JsonNull,
           },
         })
 
@@ -531,26 +618,74 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
           })),
         })
 
+        // Issue #420 — for MANAGED_EMAIL, also mint a MemberUnsubscribeToken
+        // per recipient so the email footer can carry a per-recipient
+        // unsubscribe URL routable to POST /u/:token/confirm.
+        const unsubMinted: { memberId: string; plaintext: string }[] = []
+        if (sendMode === 'MANAGED_EMAIL') {
+          const unsubTokens = minted.map(({ member }) => ({ member, token: mintToken() }))
+          await tx.memberUnsubscribeToken.createMany({
+            data: unsubTokens.map(({ member, token }) => ({
+              batchId: batch.id,
+              memberId: member.memberId,
+              brandId,
+              tokenHash: token.hash,
+              tokenPrefix: token.prefix,
+            })),
+          })
+          for (const u of unsubTokens) {
+            unsubMinted.push({ memberId: u.member.memberId, plaintext: u.token.plaintext })
+          }
+        }
+
         await tx.surveyDistribution.createMany({
           data: minted.map(({ member }) => ({
             surveyId,
             memberId: member.memberId,
             brandId,
             batchId: batch.id,
+            sendMode,
+            enqueuedAt: sendMode === 'MANAGED_EMAIL' ? new Date() : null,
           })),
         })
 
-        return { batch, minted, resolved }
+        return { batch, minted, resolved, unsubMinted }
       })
+
+      // Issue #420 — Post-commit: enqueue per-recipient managed-email-send jobs.
+      // In QUEUE_MODE=redis this dispatches; in inline mode it's a no-op (see bullmq.ts).
+      if (sendMode === 'MANAGED_EMAIL') {
+        for (const { member } of result.minted) {
+          await enqueueManagedEmailSend({ batchId: result.batch.id, memberId: member.memberId, brandId, surveyId })
+        }
+      }
 
       request.audit = {
         metadata: {
           surveyId,
           batchId: result.batch.id,
+          sendMode,
           mode: input.audience.mode,
           tokenCount: result.minted.length,
           autoEnrolledCount: result.resolved.autoEnrolledMemberIds.length,
         },
+      }
+
+      // Issue #420 — MANAGED_EMAIL: do NOT return survey-link plaintexts in
+      // the response body. The worker renders + dispatches them server-side;
+      // they never transit the API response. Operator-facing payload carries
+      // only batch metadata + a pointer to the send-progress endpoint.
+      if (sendMode === 'MANAGED_EMAIL') {
+        return reply.status(201).send({
+          batchId: result.batch.id,
+          label: result.batch.label,
+          expiresAt: result.batch.expiresAt.toISOString(),
+          recipientCount: result.minted.length,
+          autoEnrolledMemberIds: result.resolved.autoEnrolledMemberIds,
+          unmatched: result.resolved.unmatched,
+          sendMode,
+          sendingStatusUrl: `/v1/surveys/${surveyId}/distribution-batches/${result.batch.id}/send-progress`,
+        })
       }
 
       return reply.status(201).send({
@@ -560,6 +695,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         tokenCount: result.minted.length,
         autoEnrolledMemberIds: result.resolved.autoEnrolledMemberIds,
         unmatched: result.resolved.unmatched,
+        sendMode,
         tokens: result.minted.map(({ member, token }) => ({
           memberId: member.memberId,
           identifier: member.identifier,
