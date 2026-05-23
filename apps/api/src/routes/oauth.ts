@@ -320,7 +320,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
           accounts.map(async (account) => {
             try {
               const locRes = await fetch(
-                `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title,storefrontAddress`,
+                `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title,storefrontAddress,metadata`,
                 { headers: { Authorization: `Bearer ${credentials.accessToken}` } },
               )
               if (!locRes.ok) return []
@@ -329,6 +329,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
                   name: string
                   title: string
                   storefrontAddress?: { addressLines?: string[]; locality?: string; regionCode?: string }
+                  metadata?: { placeId?: string; mapsUri?: string }
                 }>
               }
               return (locData.locations ?? []).map((loc) => {
@@ -342,6 +343,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
                   locationId: loc.name,
                   locationName: loc.title,
                   address,
+                  placeId: loc.metadata?.placeId ?? null,
                 }
               })
             } catch {

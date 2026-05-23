@@ -2,12 +2,12 @@ import pino from 'pino'
 import {
   type ConnectorContext,
   type ConnectorResult,
-  connectorFetch,
   getCredentials,
   mergeEnvCredentials,
   isTokenExpired,
   refreshOAuthToken,
   ConnectorAuthError,
+  ConnectorRateLimitError,
 } from './types.js'
 
 const logger = pino({ name: 'connector:google' })
@@ -38,6 +38,75 @@ interface GoogleReviewsResponse {
   nextPageToken?: string
   totalReviewCount?: number
   averageRating?: number
+}
+
+interface PlacesReview {
+  author_name: string
+  author_url?: string
+  rating: number
+  text?: string
+  time: number
+  relative_time_description?: string
+  profile_photo_url?: string
+}
+
+interface PlacesDetailsResponse {
+  status: string
+  result?: { reviews?: PlacesReview[] }
+  error_message?: string
+}
+
+async function fetchViaPlacesApi(
+  ctx: ConnectorContext,
+  placeId: string,
+  mapsApiKey: string,
+  locationId: string,
+): Promise<ConnectorResult> {
+  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=reviews&key=${mapsApiKey}&language=en`
+  const response = await fetch(url, { headers: { Accept: 'application/json' } })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`[Google Places] HTTP ${response.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = (await response.json()) as PlacesDetailsResponse
+
+  if (data.status !== 'OK') {
+    throw new ConnectorAuthError('Google', `Places API error: ${data.status} ${data.error_message ?? ''}`)
+  }
+
+  const reviews = data.result?.reviews ?? []
+
+  logger.info(
+    { sourceId: ctx.sourceId, count: reviews.length, source: 'places_api' },
+    'google.reviews_fetched',
+  )
+
+  const deliveries = reviews.map((review) => {
+    const contributorId = review.author_url?.split('/contrib/')[1]?.split('/')[0] ?? `${review.time}`
+    return {
+      externalId: `places_${review.time}_${contributorId}`,
+      body: review.text ?? '',
+      rating: review.rating ?? null,
+      externalAuthorLabel: review.author_name ?? null,
+      canonicalUrl: `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`,
+      postedAt: new Date(review.time * 1000).toISOString(),
+      subjectType: 'location',
+      subjectKey: locationId,
+      subjectLabel: (ctx.scopeConfig.locationLabel as string) ?? locationId,
+      providerStatus: 'visible',
+      providerMetadata: {
+        reviewReply: null,
+        relativeTimeDescription: review.relative_time_description,
+        placeId,
+        source: 'places_api',
+      },
+      rawPayload: review,
+    }
+  })
+
+  return { deliveries, nextCursor: null, updatedCredentials: undefined }
 }
 
 export async function fetchGoogleBusinessProfileReviews(
@@ -77,20 +146,48 @@ export async function fetchGoogleBusinessProfileReviews(
     params.set('pageToken', cursor.pageToken)
   }
 
-  // accountId = "accounts/{id}", locationId = "locations/{id}" (from Business Information API).
-  // Compose the parent path "accounts/{id}/locations/{id}" for the Business Profile Reviews API.
-  // NOTE: mybusinessreviews.googleapis.com/v1 requires Google Business Profile API access approval
-  // (https://developers.google.com/my-business/content/prereqs). Until approved this returns 404.
-  const url = `https://mybusinessreviews.googleapis.com/v1/${accountId}/${locationId}/reviews?${params}`
+  // Primary: Google Business Profile API v4 (requires Google partner/elevated API access).
+  // If the project has not yet been approved, this returns 403 SERVICE_DISABLED and we
+  // fall back to the Google Places API (up to 5 reviews) when placeId is configured.
+  const v4Url = `https://mybusiness.googleapis.com/v4/${accountId}/${locationId}/reviews?${params}`
 
-  const response = await connectorFetch('Google', url, {
+  const rawResponse = await fetch(v4Url, {
     headers: {
       Authorization: `Bearer ${credentials.accessToken}`,
       Accept: 'application/json',
     },
   })
 
-  const data = (await response.json()) as GoogleReviewsResponse
+  if (rawResponse.status === 401) {
+    const text = await rawResponse.text().catch(() => '')
+    throw new ConnectorAuthError('Google', `HTTP 401: ${text.slice(0, 200)}`)
+  }
+
+  if (rawResponse.status === 429) {
+    const retryAfter = rawResponse.headers.get('retry-after')
+    const ms = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60_000
+    throw new ConnectorRateLimitError('Google', ms)
+  }
+
+  if (rawResponse.status === 403) {
+    const errText = await rawResponse.text().catch(() => '')
+    const placeId = ctx.scopeConfig.placeId as string | undefined
+    const mapsApiKey = process.env.CEQ_GOOGLE_MAPS_API_KEY
+
+    if (errText.includes('SERVICE_DISABLED') && placeId && mapsApiKey) {
+      logger.info({ sourceId: ctx.sourceId, placeId }, 'google.falling_back_to_places_api')
+      return fetchViaPlacesApi(ctx, placeId, mapsApiKey, locationId)
+    }
+
+    throw new ConnectorAuthError('Google', `HTTP 403: ${errText.slice(0, 200)}`)
+  }
+
+  if (!rawResponse.ok) {
+    const text = await rawResponse.text().catch(() => '')
+    throw new Error(`[Google] HTTP ${rawResponse.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = (await rawResponse.json()) as GoogleReviewsResponse
   const reviews = data.reviews ?? []
 
   logger.info(
