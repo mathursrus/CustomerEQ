@@ -17,18 +17,28 @@ import type {
 } from '@/components/survey-form/types'
 
 import { ConfigurationSummarySection } from './components/ConfigurationSummarySection'
-import { DistributionBatchesFilter } from './components/DistributionBatchesFilter'
 import { DistributionSection } from './components/DistributionSection'
 import { LoopMonitorSection } from './components/LoopMonitorSection'
 import { ResponseSection } from './components/ResponseSection'
 import { SurveyDetailShell } from './components/SurveyDetailShell'
+import type { Wave } from './components/waveTypes'
 
 type SurveyState = SurveyResolved['status']
 
 interface SurveyApiShape extends SurveyResolved {
   _count?: { responses: number }
   responsesCount?: number
+  /** Issue #420 R36 — denormalized lifetime sent count. */
+  sentCount?: number
   updatedAt?: string
+}
+
+interface BatchSummary {
+  id: string
+  label: string
+  createdAt: string
+  sentCount: number
+  respondedCount: number
 }
 
 const DEFAULT_THEME: BrandThemeLite = {
@@ -61,9 +71,11 @@ export default function SurveyDetailPage() {
   const [programName, setProgramName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Issue #423 — wave selection state lifted from DistributionBatchesFilter
-  // to the detail page so ResponseSection can refetch when the wave changes.
-  const [wave, setWave] = useState<'all' | 'direct' | { batchId: string }>('all')
+  // Wave state is owned here (not inside ResponseSection) so any future
+  // page-level surface can read or mutate it without prop-drilling upward.
+  const [wave, setWave] = useState<Wave>('all')
+  // Per-batch sentCount feeds the wave-scoped Sent number in the header strip.
+  const [batches, setBatches] = useState<BatchSummary[]>([])
 
   const callApi = useCallback(
     async (path: string, init?: { method?: string; body?: unknown }) => {
@@ -126,6 +138,25 @@ export default function SurveyDetailPage() {
     loadAll()
   }, [loadAll])
 
+  // Soft-fail: a failed fetch leaves `batches` empty and the strip self-gates
+  // (it renders nothing when there are no batches and no direct responses).
+  useEffect(() => {
+    let cancelled = false
+    async function loadBatches() {
+      const res = await callApi(`/v1/surveys/${surveyId}/distribution-batches?pageSize=50`).catch(
+        () => null,
+      )
+      if (!res || !res.ok || cancelled) return
+      const body = await res.json().catch(() => null)
+      if (cancelled || !body) return
+      setBatches((body.data ?? []) as BatchSummary[])
+    }
+    void loadBatches()
+    return () => {
+      cancelled = true
+    }
+  }, [callApi, surveyId])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -181,18 +212,6 @@ export default function SurveyDetailPage() {
         surveyStatus={status}
         getToken={getToken}
       />
-      {/* Issue #378 — filter row between Loop Monitor and Response. Hidden
-          when no batches and no direct responses exist (component self-gates).
-          Issue #423: wave state lifts to this page; the filter is controlled
-          and the Response section refetches on wave change. */}
-      <DistributionBatchesFilter
-        surveyId={surveyId}
-        brandTimezone={(effectiveBrand as { timezone?: string }).timezone ?? 'UTC'}
-        brandLocale={(effectiveBrand as { locale?: string }).locale ?? 'en-US'}
-        hasDirectResponses={responsesCount > 0}
-        value={wave}
-        onChange={setWave}
-      />
       <ResponseSection
         surveyId={surveyId}
         surveyType={survey.type}
@@ -202,6 +221,10 @@ export default function SurveyDetailPage() {
         responsesCount={responsesCount}
         questions={(survey.questions as Array<{ id: string; text: string; type?: string }>) ?? []}
         wave={wave}
+        onWaveChange={setWave}
+        batches={batches}
+        hasDirectResponses={responsesCount > 0}
+        surveyLifetimeSentCount={survey.sentCount ?? 0}
       />
       <ConfigurationSummarySection
         survey={survey}
