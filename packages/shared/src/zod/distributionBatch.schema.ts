@@ -51,14 +51,37 @@ export type GenerateBatchRequest = z.infer<typeof GenerateBatchRequestSchema>
 
 // ─── Preview response (no DB rows) ────────────────────────────────────────────
 
+/**
+ * Issue #420 R22/R43 — per-row survey-send suppression. The audience-builder
+ * UI uses this to render the Status chip and disable selection of suppressed
+ * rows BEFORE the operator clicks Send. The worker re-checks the same four
+ * conditions at dispatch time (R44) so the preview is safe even if state
+ * drifts between selection and dispatch. emailOptIn is intentionally NOT
+ * surfaced — surveys are exempt from the marketing-channel opt-out per R44.
+ *
+ * Stays in sync with `deriveSurveySuppression` in
+ * packages/shared/src/distributionSuppression.ts.
+ */
+const SurveySuppressionStatusSchema = z.enum([
+  'OK',
+  'UNSUBSCRIBED',
+  'NO_CONSENT',
+  'ERASED',
+  'NO_EMAIL',
+])
+
 const PreviewMemberRow = z.object({
   memberId: z.string().nullable(),                    // null for unmatched / auto-enroll-skipped
   identifier: z.string(),
+  email: z.string().nullable().optional(),            // populated when known (existing-search / random / custom-list match)
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   lastResponseThisSurvey: z.string().datetime().nullable(),
   lastResponseAnySurvey: z.string().datetime().nullable(),
   willAutoEnroll: z.boolean().optional(),             // Custom List + autoEnroll ON + unknown identifier
+  suppressionStatus: SurveySuppressionStatusSchema.default('OK'),
+  /** ISO timestamp tied to the chip when applicable (e.g. unsubscribedSurveysAt). */
+  suppressionSince: z.string().datetime().nullable().optional(),
 })
 
 export const PreviewBatchResponseSchema = z.object({

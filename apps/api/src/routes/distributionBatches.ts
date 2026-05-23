@@ -20,6 +20,7 @@ import {
   RegenerateTokensRequestSchema,
   ManagedEmailComposerSchema,
   FALLBACK_RESPONDENT_THEME,
+  deriveSurveySuppression,
   type AudienceSpecSchema,
   type ManagedEmailComposer,
 } from '@customerEQ/shared'
@@ -122,8 +123,23 @@ function extractAudienceInput(request: FastifyRequest): ExtractedAudienceInput |
 
 // ─── Identifier resolution (existing members + custom list) ───────────────────
 
+interface ResolvedAudienceMember {
+  memberId: string
+  identifier: string
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  /** Issue #420 R22/R43 — fields the audience-builder UI needs to render
+   * the Status chip + disable selection of suppressed rows. Computed via
+   * `deriveSurveySuppression` in the preview handler so the resolver itself
+   * stays focused on "who matched" rather than "who can be sent to". */
+  erased: boolean
+  consentGivenAt: Date | null
+  unsubscribedSurveysAt: Date | null
+}
+
 interface ResolvedAudience {
-  members: { memberId: string; identifier: string; firstName: string | null; lastName: string | null }[]
+  members: ResolvedAudienceMember[]
   autoEnrolledMemberIds: string[]
   unmatched: string[]
   samplingSeed: string | null
@@ -149,9 +165,21 @@ async function resolveExistingMembers(
 
   // Random sample: pull all eligible IDs and Fisher-Yates a deterministic
   // sample seeded with a fresh random string (internal-only — not surfaced).
+  // Pool is non-ERASED + non-deletedAt (spec §2.2 / R18). Suppression status
+  // (unsubscribed / no consent / no email) is surfaced on the returned rows
+  // so the audience-list UI can disable selection of suppressed picks per R22.
   const eligible = await fastify.prisma.member.findMany({
     where: { brandId, erased: false, deletedAt: null },
-    select: { id: true, externalId: true, firstName: true, lastName: true },
+    select: {
+      id: true,
+      externalId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      erased: true,
+      consentGivenAt: true,
+      unsubscribedSurveysAt: true,
+    },
     orderBy: { id: 'asc' },
   })
 
@@ -172,8 +200,12 @@ async function resolveExistingMembers(
     members: picked.map((m) => ({
       memberId: m.id,
       identifier: m.externalId,
+      email: m.email,
       firstName: m.firstName,
       lastName: m.lastName,
+      erased: m.erased,
+      consentGivenAt: m.consentGivenAt,
+      unsubscribedSurveysAt: m.unsubscribedSurveysAt,
     })),
     autoEnrolledMemberIds: [],
     unmatched: [],
@@ -233,14 +265,27 @@ async function resolveCustomList(
     const externalId = row.identifier.toLowerCase()
     const existing = await (tx ?? fastify.prisma).member.findUnique({
       where: { brandId_externalId: { brandId, externalId } },
-      select: { id: true, firstName: true, lastName: true, externalId: true },
+      select: {
+        id: true,
+        externalId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        erased: true,
+        consentGivenAt: true,
+        unsubscribedSurveysAt: true,
+      },
     })
     if (existing) {
       members.push({
         memberId: existing.id,
         identifier: existing.externalId,
+        email: existing.email,
         firstName: existing.firstName,
         lastName: existing.lastName,
+        erased: existing.erased,
+        consentGivenAt: existing.consentGivenAt,
+        unsubscribedSurveysAt: existing.unsubscribedSurveysAt,
       })
       continue
     }
@@ -251,12 +296,18 @@ async function resolveCustomList(
     // Auto-enroll path — only when caller supplied a Prisma client (Generate
     // / Regenerate run inside a transaction). Preview doesn't write members.
     if (!tx) {
-      // Synthesise a preview row without persisting.
+      // Synthesise a preview row without persisting. Auto-enrolled members
+      // start with consentGivenAt = now() (set by resolveOrEnrollMember at
+      // generate time), so the preview optimistically marks them OK.
       members.push({
         memberId: '',
         identifier: row.identifier,
+        email: row.identifierKind === 'email' ? row.identifier : null,
         firstName: row.firstName ?? null,
         lastName: row.lastName ?? null,
+        erased: false,
+        consentGivenAt: new Date(),
+        unsubscribedSurveysAt: null,
       })
       continue
     }
@@ -272,11 +323,25 @@ async function resolveCustomList(
       unmatchedFinal.push(row.identifier)
       continue
     }
+    // Re-fetch with the suppression-relevant fields the resolver doesn't return.
+    const enrolled = await (tx ?? fastify.prisma).member.findUnique({
+      where: { id: enrollResult.member.id },
+      select: {
+        email: true,
+        erased: true,
+        consentGivenAt: true,
+        unsubscribedSurveysAt: true,
+      },
+    })
     members.push({
       memberId: enrollResult.member.id,
       identifier: enrollResult.member.externalId,
+      email: enrolled?.email ?? enrollResult.member.email ?? null,
       firstName: enrollResult.member.firstName,
       lastName: enrollResult.member.lastName,
+      erased: enrolled?.erased ?? false,
+      consentGivenAt: enrolled?.consentGivenAt ?? null,
+      unsubscribedSurveysAt: enrolled?.unsubscribedSurveysAt ?? null,
     })
     if (enrollResult.created) {
       autoEnrolledMemberIds.push(enrollResult.member.id)
@@ -369,11 +434,13 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         throw err
       }
 
-      // Build the preview payload. For Existing Members: cap at 50 visible
-      // rows. For Custom List: cap at 500 visible rows. Total count is
-      // always reported.
-      const isExisting = input.audience.mode === 'existing_members'
-      const previewCap = isExisting ? 50 : 500
+      // Build the preview payload. Issue #420 audience-builder consumes each
+      // visible row (memberId + identifier + suppression annotations) when the
+      // operator clicks Add, so the cap must accommodate the largest realistic
+      // Add: a full Random Sample of up to the CSV_ENTRIES_CAP (10k). The cap
+      // is also the upper bound on a Custom List paste, so a single cap covers
+      // both audience modes.
+      const previewCap = 10_000
       const visible = resolved.members.slice(0, previewCap)
 
       // Fetch last-response timestamps for the visible rows in one query.
@@ -408,15 +475,30 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         willAutoEnrollCount: willAutoEnrollCountPreview,
         unmatchedCount: resolved.unmatched.length,
         parsedRowCount: resolved.parsedRowCount ?? resolved.members.length,
-        members: visible.map((m) => ({
-          memberId: m.memberId.length > 0 ? m.memberId : null,
-          identifier: m.identifier,
-          firstName: m.firstName,
-          lastName: m.lastName,
-          lastResponseThisSurvey: lastThis.get(m.memberId)?.toISOString() ?? null,
-          lastResponseAnySurvey: lastAny.get(m.memberId)?.toISOString() ?? null,
-          willAutoEnroll: m.memberId.length === 0 ? true : undefined,
-        })),
+        members: visible.map((m) => {
+          // Issue #420 R22/R43 — surface the suppression chip the
+          // audience-builder UI uses to disable selection. Resolution rules
+          // (erased → email → consent → unsubscribed) live in the shared
+          // helper so they stay in lockstep with the worker's R44 check.
+          const suppression = deriveSurveySuppression({
+            erased: m.erased,
+            email: m.email,
+            consentGivenAt: m.consentGivenAt,
+            unsubscribedSurveysAt: m.unsubscribedSurveysAt,
+          })
+          return {
+            memberId: m.memberId.length > 0 ? m.memberId : null,
+            identifier: m.identifier,
+            email: m.email,
+            firstName: m.firstName,
+            lastName: m.lastName,
+            lastResponseThisSurvey: lastThis.get(m.memberId)?.toISOString() ?? null,
+            lastResponseAnySurvey: lastAny.get(m.memberId)?.toISOString() ?? null,
+            willAutoEnroll: m.memberId.length === 0 ? true : undefined,
+            suppressionStatus: suppression.status,
+            suppressionSince: suppression.since,
+          }
+        }),
         unmatched: resolved.unmatched,
         totalRows: resolved.members.length,
       })

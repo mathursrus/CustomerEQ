@@ -1,11 +1,14 @@
 // Issue #378 — Self-serve distribution flow (operator generates per-recipient
 // links and downloads a CSV their own email tool will mail-merge).
 //
-// Issue #420 — extracted from the parent distribute/page.tsx as part of the
-// mode-router lift. The internal logic is unchanged from the prior in-page
-// implementation; only the entry shape moves (default export → named export
-// consumed by <ModeRouter>) and the "Switch to managed email" link routes via
-// useModeRouter().switchTo('managed-email') instead of a hard href.
+// Issue #420 — refactored to mount the shared <SurveyBatchDetailsCard> + the
+// shared <AudienceBuilder> above the mode-specific format/Generate area
+// (spec §2 "Define batch attributes → Select members → Send" ordering;
+// audience builder lift per R16/R18/R20/R22/R23/R43). Submission encodes the
+// accumulated audience as a custom_list paste of the selected rows'
+// identifiers — the backend re-resolves them at Generate time using the
+// existing resolveCustomList path, so #378's atomic-write semantics and
+// audit-log shape are preserved unchanged.
 
 'use client'
 
@@ -17,27 +20,16 @@ import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
 
 import type { DistributeMode } from './modes'
+import {
+  SurveyBatchDetailsCard,
+  type ExpiryPreset,
+} from './SurveyBatchDetailsCard'
+import {
+  AudienceBuilder,
+  type AudienceBuilderState,
+} from './audience-builder'
 
-type AudienceMode = 'existing_members' | 'custom_list'
 type DistributionFormat = 'generic' | 'mailchimp' | 'hubspot' | 'klaviyo'
-
-interface PreviewResponse {
-  audienceCount: number
-  willAutoEnrollCount: number
-  unmatchedCount: number
-  parsedRowCount?: number
-  members: {
-    memberId: string | null
-    identifier: string
-    firstName: string | null
-    lastName: string | null
-    lastResponseThisSurvey: string | null
-    lastResponseAnySurvey: string | null
-    willAutoEnroll?: boolean
-  }[]
-  unmatched: string[]
-  totalRows: number
-}
 
 interface GenerateResponse {
   batchId: string
@@ -176,17 +168,12 @@ export function SelfServeFlow() {
   const [brand, setBrand] = useState<BrandContext | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [mode, setMode] = useState<AudienceMode>('existing_members')
-  const [strategy, setStrategy] = useState<'percent' | 'count'>('count')
-  const [strategyValue, setStrategyValue] = useState<number>(0)
-  const [pasteBody, setPasteBody] = useState<string>('')
-  const [autoEnroll, setAutoEnroll] = useState<boolean>(true)
   const [surveyNameInMail, setSurveyNameInMail] = useState<string>('')
-  const [expiryPreset, setExpiryPreset] = useState<'24h' | '7d' | '30d' | '90d' | 'custom'>('7d')
+  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d')
   const [customExpiry, setCustomExpiry] = useState<string>('')
 
-  const [preview, setPreview] = useState<PreviewResponse | null>(null)
-  const [previewing, setPreviewing] = useState<boolean>(false)
+  const [audience, setAudience] = useState<AudienceBuilderState | null>(null)
+
   const [generating, setGenerating] = useState<boolean>(false)
   const [generated, setGenerated] = useState<GenerateResponse | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
@@ -228,7 +215,6 @@ export function SelfServeFlow() {
           memberIdentifierKind: brandKindToClient(brandBody.memberIdentifierKind),
           memberCount,
         })
-        setStrategyValue(memberCount)
         setSurveyNameInMail(surveyBody.title ?? surveyBody.name)
       } catch (err) {
         if (!cancelled) setLoadError((err as Error).message)
@@ -240,77 +226,15 @@ export function SelfServeFlow() {
     }
   }, [surveyId, getToken])
 
-  useEffect(() => {
-    if (!survey || !brand || generated) return
-    const controller = new AbortController()
-    const handle = setTimeout(async () => {
-      const token = await getAuthToken(getToken)
-      if (!token) return
-      setPreviewing(true)
-      try {
-        const body =
-          mode === 'existing_members'
-            ? {
-                surveyNameInMail: surveyNameInMail || survey.title || survey.name,
-                expiresAt:
-                  expiryPreset === 'custom'
-                    ? customExpiry || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
-                    : presetToIsoExpiry(expiryPreset, brand.timezone),
-                audience: {
-                  mode: 'existing_members' as const,
-                  strategy,
-                  value: strategyValue || 0,
-                },
-              }
-            : {
-                surveyNameInMail: surveyNameInMail || survey.title || survey.name,
-                expiresAt:
-                  expiryPreset === 'custom'
-                    ? customExpiry || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
-                    : presetToIsoExpiry(expiryPreset, brand.timezone),
-                audience: { mode: 'custom_list' as const, identifiers: pasteBody, autoEnroll },
-              }
-        const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/distribution-batches/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        })
-        if (controller.signal.aborted) return
-        if (res.ok) {
-          const previewBody = (await res.json()) as PreviewResponse
-          if (!controller.signal.aborted) setPreview(previewBody)
-        }
-      } catch (err) {
-        if ((err as { name?: string }).name === 'AbortError') return
-      } finally {
-        if (!controller.signal.aborted) setPreviewing(false)
-      }
-    }, 250)
-    return () => {
-      clearTimeout(handle)
-      controller.abort()
-    }
-  }, [
-    survey,
-    brand,
-    mode,
-    strategy,
-    strategyValue,
-    pasteBody,
-    autoEnroll,
-    surveyNameInMail,
-    expiryPreset,
-    customExpiry,
-    generated,
-    surveyId,
-    getToken,
-  ])
+  const expiresAtIso =
+    expiryPreset === 'custom'
+      ? customExpiry || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
+      : presetToIsoExpiry(expiryPreset, brand?.timezone ?? 'UTC')
 
   const handleGenerate = useCallback(async () => {
-    if (!survey || !brand) return
+    if (!survey || !brand || !audience) return
     if (!surveyNameInMail.trim()) return
-    if ((preview?.audienceCount ?? 0) < 1) return
+    if (audience.selectedCount < 1) return
     setGenerating(true)
     setGenError(null)
     try {
@@ -319,24 +243,14 @@ export function SelfServeFlow() {
         setGenError('Not authenticated.')
         return
       }
-      const body =
-        mode === 'existing_members'
-          ? {
-              surveyNameInMail,
-              expiresAt:
-                expiryPreset === 'custom' ? customExpiry : presetToIsoExpiry(expiryPreset, brand.timezone),
-              audience: { mode: 'existing_members' as const, strategy, value: strategyValue },
-            }
-          : {
-              surveyNameInMail,
-              expiresAt:
-                expiryPreset === 'custom' ? customExpiry : presetToIsoExpiry(expiryPreset, brand.timezone),
-              audience: { mode: 'custom_list' as const, identifiers: pasteBody, autoEnroll },
-            }
       const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/distribution-batches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          surveyNameInMail,
+          expiresAt: expiresAtIso,
+          audience: audience.submitAudience,
+        }),
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
@@ -350,21 +264,7 @@ export function SelfServeFlow() {
     } finally {
       setGenerating(false)
     }
-  }, [
-    survey,
-    brand,
-    surveyNameInMail,
-    mode,
-    strategy,
-    strategyValue,
-    pasteBody,
-    autoEnroll,
-    expiryPreset,
-    customExpiry,
-    surveyId,
-    getToken,
-    preview,
-  ])
+  }, [survey, brand, audience, surveyNameInMail, expiresAtIso, surveyId, getToken])
 
   const handleDownload = useCallback(() => {
     if (!generated || !survey || !brand) return
@@ -387,7 +287,7 @@ export function SelfServeFlow() {
 
   if (loadError) {
     return (
-      <main className="max-w-3xl mx-auto px-6 py-10">
+      <main className="max-w-5xl mx-auto px-6 py-10">
         <p className="text-red-600">Error loading distribute page: {loadError}</p>
         <a href={`/admin/surveys/${surveyId}`} className="text-indigo-600 hover:underline">
           ← Back to survey
@@ -397,7 +297,7 @@ export function SelfServeFlow() {
   }
   if (!survey || !brand) {
     return (
-      <main className="max-w-3xl mx-auto px-6 py-10">
+      <main className="max-w-5xl mx-auto px-6 py-10">
         <p className="text-gray-500">Loading…</p>
       </main>
     )
@@ -419,17 +319,29 @@ export function SelfServeFlow() {
     )
   }
 
+  const ctaDisabled =
+    generating ||
+    !surveyNameInMail.trim() ||
+    !audience ||
+    audience.selectedCount < 1
+
   return (
-    <main className="max-w-3xl mx-auto px-6 py-10">
+    <main className="max-w-5xl mx-auto px-6 py-10">
       <header className="mb-6">
         <a href={`/admin/surveys/${surveyId}`} className="text-sm text-indigo-600 hover:underline">
           ← Back to survey
         </a>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Send via my email tool</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Send via my email tool
+              <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                Self-serve
+              </span>
+            </h1>
             <p className="mt-1 text-sm text-gray-600">
-              Generate per-recipient links and download a CSV your email tool can mail-merge.
+              Build your audience, set common fields, then download per-recipient links your
+              email tool can mail-merge.
             </p>
           </div>
           <button
@@ -442,25 +354,8 @@ export function SelfServeFlow() {
         </div>
       </header>
 
-      <section className="space-y-6">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Who gets this survey?</h2>
-          <ModeChooser
-            mode={mode}
-            setMode={setMode}
-            brandMemberCount={brand.memberCount}
-            strategy={strategy}
-            setStrategy={setStrategy}
-            strategyValue={strategyValue}
-            setStrategyValue={setStrategyValue}
-            pasteBody={pasteBody}
-            setPasteBody={setPasteBody}
-            autoEnroll={autoEnroll}
-            setAutoEnroll={setAutoEnroll}
-          />
-        </div>
-
-        <CommonFields
+      <div className="space-y-6">
+        <SurveyBatchDetailsCard
           surveyNameInMail={surveyNameInMail}
           setSurveyNameInMail={setSurveyNameInMail}
           expiryPreset={expiryPreset}
@@ -470,7 +365,48 @@ export function SelfServeFlow() {
           brandTimezone={brand.timezone}
         />
 
-        <LivePreview preview={preview} previewing={previewing} mode={mode} brand={brand} />
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2">
+            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
+              Step 2 · Shared · Both modes
+            </span>
+            <h2 className="text-sm font-semibold text-gray-900">Select members</h2>
+          </div>
+          <AudienceBuilder
+            surveyId={surveyId}
+            surveyNameInMail={surveyNameInMail}
+            expiresAtIso={expiresAtIso}
+            totalMemberCount={brand.memberCount}
+            onChange={setAudience}
+          />
+        </div>
+
+        {/* MODE-SPECIFIC: SELF_SERVE format dropdown sits above the Generate CTA */}
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+              Mode-specific · Self-serve
+            </span>
+            <h2 className="text-sm font-semibold text-gray-900">Download format</h2>
+          </div>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-700">CSV column-header format</span>
+            <select
+              value={downloadFormat}
+              onChange={(e) => setDownloadFormat(e.target.value as DistributionFormat)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="generic">Generic</option>
+              <option value="mailchimp">Mailchimp</option>
+              <option value="hubspot">HubSpot</option>
+              <option value="klaviyo">Klaviyo</option>
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-amber-800">
+            The CSV&apos;s column headers + <code>mergeTagUrl</code> wrapping are tuned to the
+            chosen format. You can re-pick the format on the Success state for re-download.
+          </p>
+        </section>
 
         {genError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -482,467 +418,16 @@ export function SelfServeFlow() {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={
-              generating ||
-              !surveyNameInMail.trim() ||
-              (preview?.audienceCount ?? 0) < 1
-            }
+            disabled={ctaDisabled}
             className="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {generating
-              ? `Generating ${preview?.audienceCount ?? 0} links…`
-              : `Generate ${preview?.audienceCount ?? 0} links`}
+              ? `Generating ${audience?.selectedCount ?? 0} links…`
+              : `Generate ${audience?.selectedCount ?? 0} links`}
           </button>
         </div>
-      </section>
-    </main>
-  )
-}
-
-function SegmentedToggle<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (v: T) => void
-  ariaLabel: string
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      className="inline-flex overflow-hidden rounded-md border border-gray-300"
-    >
-      {options.map((opt) => {
-        const active = opt.value === value
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.value)}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {opt.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function ExistingMembersBody({
-  brandMemberCount,
-  strategy,
-  setStrategy,
-  strategyValue,
-  setStrategyValue,
-}: {
-  brandMemberCount: number
-  strategy: 'percent' | 'count'
-  setStrategy: (s: 'percent' | 'count') => void
-  strategyValue: number
-  setStrategyValue: (n: number) => void
-}) {
-  const [raw, setRaw] = useState<string>(String(strategyValue))
-  const max = strategy === 'percent' ? 100 : Math.max(0, brandMemberCount)
-  useEffect(() => {
-    setRaw(String(strategyValue))
-  }, [strategyValue, strategy])
-  const helper =
-    strategy === 'percent'
-      ? `Percent of all eligible non-ERASED members (max ${brandMemberCount} total).`
-      : `Max ${brandMemberCount.toLocaleString()} (all eligible non-ERASED members).`
-  return (
-    <div className="mt-3 space-y-2">
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedToggle
-          ariaLabel="Sampling strategy"
-          options={[
-            { value: 'percent', label: 'Percent' },
-            { value: 'count', label: 'Count' },
-          ]}
-          value={strategy}
-          onChange={setStrategy}
-        />
-        <input
-          type="number"
-          min={0}
-          max={max}
-          value={raw}
-          inputMode="numeric"
-          onChange={(e) => {
-            const next = e.target.value
-            setRaw(next)
-            if (next === '') {
-              setStrategyValue(0)
-              return
-            }
-            const parsed = Number.parseInt(next, 10)
-            if (Number.isNaN(parsed)) return
-            const clamped = Math.min(Math.max(0, parsed), max)
-            setStrategyValue(clamped)
-            if (clamped !== parsed) setRaw(String(clamped))
-          }}
-          onBlur={() => {
-            if (raw === '' || Number.isNaN(Number.parseInt(raw, 10))) setRaw('0')
-          }}
-          className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-        />
-        <span className="text-xs text-gray-500">{strategy === 'percent' ? '%' : 'members'}</span>
       </div>
-      <p className="text-xs text-gray-500">{helper}</p>
-    </div>
-  )
-}
-
-function CustomListBody({
-  pasteBody,
-  setPasteBody,
-  autoEnroll,
-  setAutoEnroll,
-}: {
-  pasteBody: string
-  setPasteBody: (s: string) => void
-  autoEnroll: boolean
-  setAutoEnroll: (b: boolean) => void
-}) {
-  const [inputMode, setInputMode] = useState<'paste' | 'upload'>('paste')
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploadedFilename, setUploadedFilename] = useState<string | null>(null)
-  return (
-    <div className="mt-3 space-y-3">
-      <SegmentedToggle
-        ariaLabel="Custom list input mode"
-        options={[
-          { value: 'paste', label: 'Paste' },
-          { value: 'upload', label: '⤓ Upload CSV' },
-        ]}
-        value={inputMode}
-        onChange={(v) => {
-          setInputMode(v)
-          setUploadError(null)
-        }}
-      />
-      {inputMode === 'paste' ? (
-        <>
-          <textarea
-            value={pasteBody}
-            onChange={(e) => {
-              setPasteBody(e.target.value)
-              if (uploadedFilename) setUploadedFilename(null)
-            }}
-            placeholder="jane@example.com&#10;Jane Mitchell <bob@example.com>&#10;+15551234567"
-            className="w-full rounded border border-gray-300 px-2 py-1 text-sm font-mono"
-            rows={6}
-          />
-          <p className="text-[11px] text-gray-500">
-            Up to 10,000 entries · separate with newline, comma, or semicolon · also accepts{' '}
-            <code className="rounded bg-gray-100 px-1">Name &lt;email&gt;</code> form.
-          </p>
-        </>
-      ) : (
-        <div className="space-y-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <input
-              type="file"
-              accept=".csv,text/csv,text/plain"
-              className="sr-only"
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                e.target.value = ''
-                if (!file) return
-                setUploadError(null)
-                if (file.size > 10 * 1024 * 1024) {
-                  setUploadError(`File is ${(file.size / 1024 / 1024).toFixed(1)} MB; max 10 MB.`)
-                  return
-                }
-                try {
-                  const text = await file.text()
-                  setPasteBody(text)
-                  setUploadedFilename(file.name)
-                } catch (err) {
-                  setUploadError(`Could not read file: ${(err as Error).message}`)
-                }
-              }}
-            />
-            Choose CSV file…
-          </label>
-          {uploadedFilename ? (
-            <p className="text-xs text-gray-600">
-              Loaded <span className="font-mono">{uploadedFilename}</span> ·{' '}
-              {pasteBody.length.toLocaleString()} chars. The CSV header row is auto-detected
-              (recognised column names: <code>email</code>, <code>phone</code>,{' '}
-              <code>customer_id</code>, <code>first_name</code>, <code>last_name</code>).
-            </p>
-          ) : (
-            <p className="text-xs text-gray-500">
-              CSV header row is auto-detected. Recognised columns: <code>email</code>,{' '}
-              <code>phone</code>, <code>customer_id</code>, <code>first_name</code>,{' '}
-              <code>last_name</code>. Max 10 MB / 100,000 rows.
-            </p>
-          )}
-          {uploadError ? <p className="text-xs text-red-600">{uploadError}</p> : null}
-        </div>
-      )}
-      <label className="flex items-center gap-2 text-xs text-gray-700">
-        <input
-          type="checkbox"
-          checked={autoEnroll}
-          onChange={(e) => setAutoEnroll(e.target.checked)}
-        />
-        Auto-enroll members not in this brand
-      </label>
-    </div>
-  )
-}
-
-function ModeChooser({
-  mode,
-  setMode,
-  brandMemberCount,
-  strategy,
-  setStrategy,
-  strategyValue,
-  setStrategyValue,
-  pasteBody,
-  setPasteBody,
-  autoEnroll,
-  setAutoEnroll,
-}: {
-  mode: AudienceMode
-  setMode: (m: AudienceMode) => void
-  brandMemberCount: number
-  strategy: 'percent' | 'count'
-  setStrategy: (s: 'percent' | 'count') => void
-  strategyValue: number
-  setStrategyValue: (n: number) => void
-  pasteBody: string
-  setPasteBody: (s: string) => void
-  autoEnroll: boolean
-  setAutoEnroll: (b: boolean) => void
-}) {
-  const showExisting = brandMemberCount > 0
-  return (
-    <div
-      className={`grid grid-cols-1 gap-3 ${showExisting ? 'sm:grid-cols-2' : ''}`}
-      role="radiogroup"
-      aria-label="Audience mode"
-    >
-      {showExisting ? (
-        <label
-          className={`block cursor-pointer rounded-lg border-2 p-4 transition-colors ${
-            mode === 'existing_members'
-              ? 'border-indigo-500 bg-indigo-50'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <input
-            type="radio"
-            name="audience-mode"
-            checked={mode === 'existing_members'}
-            onChange={() => setMode('existing_members')}
-            className="sr-only"
-          />
-          <p className="text-sm font-medium text-gray-900">
-            Existing Members{' '}
-            <span className="font-normal text-gray-500">· {brandMemberCount.toLocaleString()} total</span>
-          </p>
-          <p className="mt-1 text-xs text-gray-600">Random sample from your member roster.</p>
-          {mode === 'existing_members' ? (
-            <ExistingMembersBody
-              brandMemberCount={brandMemberCount}
-              strategy={strategy}
-              setStrategy={setStrategy}
-              strategyValue={strategyValue}
-              setStrategyValue={setStrategyValue}
-            />
-          ) : null}
-        </label>
-      ) : null}
-      <label
-        className={`block cursor-pointer rounded-lg border-2 p-4 transition-colors ${
-          mode === 'custom_list'
-            ? 'border-indigo-500 bg-indigo-50'
-            : 'border-gray-200 hover:border-gray-300'
-        }`}
-      >
-        <input
-          type="radio"
-          name="audience-mode"
-          checked={mode === 'custom_list'}
-          onChange={() => setMode('custom_list')}
-          className="sr-only"
-        />
-        <p className="text-sm font-medium text-gray-900">Custom List</p>
-        <p className="mt-1 text-xs text-gray-600">
-          Paste identifiers (with optional names) or upload a CSV.
-        </p>
-        {mode === 'custom_list' ? (
-          <CustomListBody
-            pasteBody={pasteBody}
-            setPasteBody={setPasteBody}
-            autoEnroll={autoEnroll}
-            setAutoEnroll={setAutoEnroll}
-          />
-        ) : null}
-      </label>
-    </div>
-  )
-}
-
-function CommonFields({
-  surveyNameInMail,
-  setSurveyNameInMail,
-  expiryPreset,
-  setExpiryPreset,
-  customExpiry,
-  setCustomExpiry,
-  brandTimezone,
-}: {
-  surveyNameInMail: string
-  setSurveyNameInMail: (s: string) => void
-  expiryPreset: '24h' | '7d' | '30d' | '90d' | 'custom'
-  setExpiryPreset: (p: '24h' | '7d' | '30d' | '90d' | 'custom') => void
-  customExpiry: string
-  setCustomExpiry: (s: string) => void
-  brandTimezone: string
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <label className="block">
-        <span className="block text-xs font-medium text-gray-700 mb-1">Survey name in mail</span>
-        <input
-          type="text"
-          value={surveyNameInMail}
-          maxLength={80}
-          onChange={(e) => setSurveyNameInMail(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
-        />
-      </label>
-      <label className="block">
-        <span className="block text-xs font-medium text-gray-700 mb-1">Links expire on</span>
-        <select
-          value={expiryPreset}
-          onChange={(e) => setExpiryPreset(e.target.value as '24h' | '7d' | '30d' | '90d' | 'custom')}
-          className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
-        >
-          <option value="24h">24 hours</option>
-          <option value="7d">7 days</option>
-          <option value="30d">30 days</option>
-          <option value="90d">90 days</option>
-          <option value="custom">Custom date+time</option>
-        </select>
-        {expiryPreset === 'custom' ? (
-          <>
-            <input
-              type="datetime-local"
-              value={customExpiry.replace('Z', '').slice(0, 16)}
-              onChange={(e) => setCustomExpiry(new Date(e.target.value).toISOString())}
-              className="mt-2 w-full rounded border border-gray-300 px-2 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-gray-500">All times in {brandTimezone}</p>
-          </>
-        ) : (
-          <p className="mt-1 text-xs text-gray-500">End of day in {brandTimezone}</p>
-        )}
-      </label>
-    </div>
-  )
-}
-
-function LivePreview({
-  preview,
-  previewing,
-  mode,
-  brand,
-}: {
-  preview: PreviewResponse | null
-  previewing: boolean
-  mode: AudienceMode
-  brand: BrandContext
-}) {
-  if (previewing && !preview) return <p className="text-sm text-gray-500">Loading preview…</p>
-  if (!preview) return null
-  const summaryParts: string[] = [
-    `${preview.audienceCount.toLocaleString()} ${
-      preview.audienceCount === 1 ? 'member' : 'members'
-    } will receive this wave`,
-  ]
-  if (mode === 'custom_list' && preview.willAutoEnrollCount > 0) {
-    summaryParts.push(`${preview.willAutoEnrollCount} will be auto-enrolled`)
-  }
-  if (mode === 'custom_list' && preview.unmatchedCount > 0) {
-    summaryParts.push(
-      `${preview.unmatchedCount} unrecognized identifier${
-        preview.unmatchedCount === 1 ? '' : 's'
-      } skipped`,
-    )
-  }
-  const summary = summaryParts.join(' · ')
-  const parsedLine =
-    mode === 'custom_list' && typeof preview.parsedRowCount === 'number'
-      ? `Parsed ${preview.parsedRowCount.toLocaleString()} entr${preview.parsedRowCount === 1 ? 'y' : 'ies'} from your input.`
-      : null
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm font-medium text-gray-900">
-        {summary}
-        {previewing ? <span className="ml-2 text-xs text-gray-400">updating…</span> : null}
-      </p>
-      {parsedLine ? <p className="mb-3 mt-1 text-xs text-gray-500">{parsedLine}</p> : <div className="mb-3" />}
-      {preview.members.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead className="text-left text-gray-600 border-b border-gray-200">
-              <tr>
-                <th className="py-2 pr-3">Name</th>
-                <th className="py-2 pr-3">Identifier</th>
-                <th className="py-2 pr-3">Last response · this survey</th>
-                <th className="py-2 pr-3">Last response · all surveys</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {preview.members.slice(0, 50).map((m, i) => (
-                <tr key={`${m.memberId ?? 'new'}-${i}`}>
-                  <td className="py-2 pr-3">
-                    {[m.firstName, m.lastName].filter(Boolean).join(' ') || '—'}
-                    {m.willAutoEnroll ? <span className="ml-1 text-amber-600">(new)</span> : null}
-                  </td>
-                  <td className="py-2 pr-3 font-mono">{m.identifier}</td>
-                  <td className="py-2 pr-3">
-                    {m.lastResponseThisSurvey
-                      ? formatDistributionTzDate(m.lastResponseThisSurvey, brand.timezone, brand.locale)
-                      : '—'}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {m.lastResponseAnySurvey
-                      ? formatDistributionTzDate(m.lastResponseAnySurvey, brand.timezone, brand.locale)
-                      : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-      {preview.unmatched.length > 0 ? (
-        <div className="mt-3 border-t border-gray-200 pt-3">
-          <p className="text-xs font-medium text-gray-700">Unmatched ({preview.unmatched.length}):</p>
-          <ul className="mt-1 text-xs text-gray-600 font-mono space-y-1">
-            {preview.unmatched.slice(0, 25).map((u, i) => (
-              <li key={i}>{u}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+    </main>
   )
 }
 

@@ -1,12 +1,16 @@
 // Issue #420 — MANAGED_EMAIL distribution flow.
-// Operator path: configure (audience + composer + survey-batch details) →
-// confirm → POST .../distribution-batches with sendMode=MANAGED_EMAIL →
-// Sending state polls /send-progress every 2s → Sent state with Retry Failed.
+// Operator path: configure (Survey Batch details + shared audience builder +
+// composer) → confirm → POST .../distribution-batches with
+// sendMode=MANAGED_EMAIL → Sending state polls /send-progress every 2s →
+// Sent state with Retry Failed.
 //
 // Composer uses TipTap (MustacheEditor) with a Mention palette for the six
 // mustache tokens defined in components/managed-email-composer/mustacheTokens.
-// Audience reuses #378's /preview endpoint via the same audience spec shape
-// (sendMode discriminator only matters at POST).
+//
+// Round 1 review feedback (lifted into this PR): the audience UI now uses the
+// shared <AudienceBuilder> (spec §2.2 R16/R18/R20/R22/R23/R43) — identical
+// shape across both modes, so the audience picks survive a mode switch and
+// every requirement the spec lists is met on this surface.
 
 'use client'
 
@@ -18,6 +22,14 @@ import { MustacheEditor } from '@/components/managed-email-composer/MustacheEdit
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
 
 import type { DistributeMode } from './modes'
+import {
+  SurveyBatchDetailsCard,
+  type ExpiryPreset,
+} from './SurveyBatchDetailsCard'
+import {
+  AudienceBuilder,
+  type AudienceBuilderState,
+} from './audience-builder'
 
 type SendingStatus = 'queued' | 'sending' | 'sent' | 'failed'
 
@@ -43,19 +55,6 @@ interface SendProgressResponse {
   recipients: SendProgressRecipient[]
 }
 
-interface PreviewResponse {
-  audienceCount: number
-  willAutoEnrollCount: number
-  unmatchedCount: number
-  members: Array<{
-    memberId: string | null
-    identifier: string
-    firstName: string | null
-    lastName: string | null
-  }>
-  unmatched: string[]
-}
-
 interface SurveyContext {
   id: string
   title: string | null
@@ -63,23 +62,19 @@ interface SurveyContext {
   status: string
 }
 
+interface BrandContext {
+  timezone: string
+  memberCount: number
+}
+
 type FlowState = 'configure' | 'confirm' | 'sending' | 'sent'
 
-// HTML-form default body — fed into TipTap as the editor's seed content
-// (R27). The literal `{{...}}` tokens render in-editor as inline chips via
-// the Mention extension and serialize back to plain `{{name}}` strings in
-// getHTML() output, which the backend renderTemplate.ts substitutes at
-// dispatch.
 const DEFAULT_BODY = `<p>Hi {{first_name}},</p><p>We&rsquo;d love your feedback on your recent experience with {{brand_name}}.</p><p>Two minutes. <a href="{{survey_link}}">Take the survey</a>.</p><p>Thanks,<br />{{sender_name}}</p>`
 
 const DEFAULT_SUBJECT_PREFIX = 'A quick survey from'
 
-// Sending-state polling cadence — per RFC §3.4 / §9.1 D3. 2s is the V0 default;
-// see D3 pros/cons table for the long-term migration path to SSE.
+// Sending-state polling cadence — per RFC §3.4 / §9.1 D3. 2s is the V0 default.
 const SEND_PROGRESS_POLL_MS = 2_000
-// Audience-preview debounce — matches the SelfServeFlow's existing cadence so
-// the two modes feel consistent.
-const PREVIEW_DEBOUNCE_MS = 400
 
 function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d'): string {
   const now = new Date()
@@ -94,25 +89,22 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const { getToken } = useAuth()
   const { switchTo } = useModeRouter<DistributeMode>()
 
-  // Survey context
+  // Survey + brand context
   const [survey, setSurvey] = useState<SurveyContext | null>(null)
+  const [brand, setBrand] = useState<BrandContext | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   // Survey Batch details
   const [surveyNameInMail, setSurveyNameInMail] = useState('')
-  const [expiryPreset, setExpiryPreset] = useState<'24h' | '7d' | '30d' | '90d'>('7d')
+  const [expiryPreset, setExpiryPreset] = useState<ExpiryPreset>('7d')
+  const [customExpiry, setCustomExpiry] = useState('')
 
-  // Audience — V0 supports two shapes; existing #378 endpoint validates both.
-  const [audienceMode, setAudienceMode] = useState<'existing_members' | 'custom_list'>('existing_members')
-  const [strategyValue, setStrategyValue] = useState(50)
-  const [pasteBody, setPasteBody] = useState('')
-  const [autoEnroll, setAutoEnroll] = useState(true)
-  const [preview, setPreview] = useState<PreviewResponse | null>(null)
-  const [previewing, setPreviewing] = useState(false)
+  // Audience — shared builder owns its own state and emits upward.
+  const [audience, setAudience] = useState<AudienceBuilderState | null>(null)
 
   // Composer
   const [senderName, setSenderName] = useState('')
-  const [senderAlias, setSenderAlias] = useState('surveys')
+  const [senderAlias, setSenderAlias] = useState('feedback')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState(DEFAULT_BODY)
   const [composerError, setComposerError] = useState<string | null>(null)
@@ -124,7 +116,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const [batchId, setBatchId] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
 
-  // Load survey context
+  // Load survey + brand context
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -134,19 +126,38 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         return
       }
       try {
-        const res = await fetch(`${API_URL}/v1/surveys/${surveyId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) throw new Error(`Survey load failed (${res.status})`)
-        const data = await res.json()
+        const [surveyRes, brandRes, memberCountRes] = await Promise.all([
+          fetch(`${API_URL}/v1/surveys/${surveyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/v1/admin/brand/profile`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/v1/members?pageSize=1`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ])
+        if (!surveyRes.ok) throw new Error(`Survey load failed (${surveyRes.status})`)
+        if (!brandRes.ok) throw new Error(`Brand load failed (${brandRes.status})`)
+        const surveyData = await surveyRes.json()
+        const brandData = await brandRes.json()
+        let memberCount = 0
+        if (memberCountRes.ok) {
+          const mb = await memberCountRes.json()
+          memberCount = mb.total ?? 0
+        }
         if (cancelled) return
         setSurvey({
-          id: data.id,
-          title: data.title ?? null,
-          name: data.name,
-          status: data.status,
+          id: surveyData.id,
+          title: surveyData.title ?? null,
+          name: surveyData.name,
+          status: surveyData.status,
         })
-        const title = data.title ?? data.name
+        setBrand({
+          timezone: brandData.timezone ?? 'UTC',
+          memberCount,
+        })
+        const title = surveyData.title ?? surveyData.name
         setSurveyNameInMail(title)
         setSubject(`${DEFAULT_SUBJECT_PREFIX} ${title}`)
       } catch (err) {
@@ -159,50 +170,12 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
     }
   }, [surveyId, getToken])
 
-  // Audience preview (debounced) — reuses #378 /preview endpoint.
-  useEffect(() => {
-    if (!survey || flow !== 'configure') return
-    const controller = new AbortController()
-    const handle = setTimeout(async () => {
-      const token = await getAuthToken(getToken)
-      if (!token) return
-      setPreviewing(true)
-      try {
-        const audience =
-          audienceMode === 'existing_members'
-            ? { mode: 'existing_members' as const, strategy: 'count' as const, value: strategyValue || 0 }
-            : { mode: 'custom_list' as const, identifiers: pasteBody, autoEnroll }
-        const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/distribution-batches/preview`, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            surveyNameInMail,
-            expiresAt: presetToIsoExpiry(expiryPreset),
-            audience,
-          }),
-        })
-        if (!res.ok) {
-          setPreview(null)
-          return
-        }
-        const data = (await res.json()) as PreviewResponse
-        setPreview(data)
-      } catch {
-        // Preview failures are non-blocking (timeout/AbortError)
-      } finally {
-        setPreviewing(false)
-      }
-    }, PREVIEW_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(handle)
-      controller.abort()
-    }
-  }, [surveyId, getToken, survey, flow, audienceMode, strategyValue, pasteBody, autoEnroll, surveyNameInMail, expiryPreset])
+  const expiresAtIso =
+    expiryPreset === 'custom'
+      ? customExpiry || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
+      : presetToIsoExpiry(expiryPreset)
 
-  // Polling — Sending state. Shared usePollingQuery handles cancellation +
-  // interval lifecycle; we only fetch when the flow is sending and a batchId
-  // has been assigned.
+  // Polling — Sending state.
   const fetchSendProgress = useCallback(async (): Promise<SendProgressResponse> => {
     const token = await getAuthToken(getToken)
     if (!token) throw new Error('Not authenticated.')
@@ -245,23 +218,20 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   }, [validateComposer])
 
   const handleConfirmSend = useCallback(async () => {
+    if (!audience) return
     setSubmitting(true)
     setSubmitError(null)
     try {
       const token = await getAuthToken(getToken)
       if (!token) throw new Error('Not authenticated.')
-      const audience =
-        audienceMode === 'existing_members'
-          ? { mode: 'existing_members' as const, strategy: 'count' as const, value: strategyValue || 0 }
-          : { mode: 'custom_list' as const, identifiers: pasteBody, autoEnroll }
       const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/distribution-batches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           sendMode: 'MANAGED_EMAIL',
           surveyNameInMail,
-          expiresAt: presetToIsoExpiry(expiryPreset),
-          audience,
+          expiresAt: expiresAtIso,
+          audience: audience.submitAudience,
           composer: { senderName, senderAlias, subject, body },
         }),
       })
@@ -278,7 +248,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
     } finally {
       setSubmitting(false)
     }
-  }, [getToken, surveyId, audienceMode, strategyValue, pasteBody, autoEnroll, surveyNameInMail, expiryPreset, senderName, senderAlias, subject, body])
+  }, [getToken, surveyId, audience, surveyNameInMail, expiresAtIso, senderName, senderAlias, subject, body])
 
   const handleRetryFailed = useCallback(async () => {
     if (!batchId) return
@@ -303,20 +273,18 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
+      <div className="mx-auto max-w-5xl p-6">
         <p className="text-sm text-red-700">{loadError}</p>
       </div>
     )
   }
 
-  if (!survey) {
-    return (
-      <div className="mx-auto max-w-3xl p-6 text-sm text-gray-600">Loading…</div>
-    )
+  if (!survey || !brand) {
+    return <div className="mx-auto max-w-5xl p-6 text-sm text-gray-600">Loading…</div>
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-indigo-600">Send via CustomerEQ</p>
@@ -325,7 +293,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         <button
           type="button"
           onClick={() => switchTo('self-serve')}
-          className="text-sm text-indigo-600 hover:text-indigo-800"
+          className="rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
         >
           Switch to my email tool →
         </button>
@@ -333,110 +301,40 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
 
       {flow === 'configure' && (
         <>
-          {/* Survey Batch details */}
-          <section className="rounded-lg border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Survey Batch details</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-gray-700">Survey name in mail</span>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  value={surveyNameInMail}
-                  onChange={(e) => setSurveyNameInMail(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-gray-700">Links expire on</span>
-                <select
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  value={expiryPreset}
-                  onChange={(e) => setExpiryPreset(e.target.value as typeof expiryPreset)}
-                >
-                  <option value="24h">In 24 hours</option>
-                  <option value="7d">In 7 days</option>
-                  <option value="30d">In 30 days</option>
-                  <option value="90d">In 90 days</option>
-                </select>
-              </label>
-            </div>
-          </section>
+          <SurveyBatchDetailsCard
+            surveyNameInMail={surveyNameInMail}
+            setSurveyNameInMail={setSurveyNameInMail}
+            expiryPreset={expiryPreset}
+            setExpiryPreset={setExpiryPreset}
+            customExpiry={customExpiry}
+            setCustomExpiry={setCustomExpiry}
+            brandTimezone={brand.timezone}
+          />
 
-          {/* Audience */}
-          <section className="rounded-lg border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Audience</h2>
-            <div className="mb-3 flex gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={audienceMode === 'existing_members'}
-                  onChange={() => setAudienceMode('existing_members')}
-                />
-                Existing members
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={audienceMode === 'custom_list'}
-                  onChange={() => setAudienceMode('custom_list')}
-                />
-                Custom list
-              </label>
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2">
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
+                Step 2 · Shared · Both modes
+              </span>
+              <h2 className="text-sm font-semibold text-gray-900">Select members</h2>
             </div>
-            {audienceMode === 'existing_members' ? (
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-gray-700">Count</span>
-                <input
-                  type="number"
-                  min={0}
-                  className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  value={strategyValue}
-                  onChange={(e) => setStrategyValue(Number(e.target.value))}
-                />
-              </label>
-            ) : (
-              <>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-gray-700">
-                    Paste emails or member IDs (one per line)
-                  </span>
-                  <textarea
-                    className="h-32 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-xs"
-                    value={pasteBody}
-                    onChange={(e) => setPasteBody(e.target.value)}
-                  />
-                </label>
-                <label className="mt-2 flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={autoEnroll}
-                    onChange={(e) => setAutoEnroll(e.target.checked)}
-                  />
-                  Auto-enroll unknown identifiers as new members
-                </label>
-              </>
-            )}
-            {previewing && <p className="mt-2 text-xs text-gray-500">Previewing…</p>}
-            {preview && (
-              <p className="mt-2 text-sm text-gray-700">
-                {preview.audienceCount} {preview.audienceCount === 1 ? 'recipient' : 'recipients'}
-                {preview.willAutoEnrollCount > 0 && (
-                  <span className="ml-2 text-gray-500">
-                    ({preview.willAutoEnrollCount} will auto-enroll)
-                  </span>
-                )}
-                {preview.unmatchedCount > 0 && (
-                  <span className="ml-2 text-amber-700">
-                    ({preview.unmatchedCount} unmatched)
-                  </span>
-                )}
-              </p>
-            )}
-          </section>
+            <AudienceBuilder
+              surveyId={surveyId}
+              surveyNameInMail={surveyNameInMail}
+              expiresAtIso={expiresAtIso}
+              totalMemberCount={brand.memberCount}
+              onChange={setAudience}
+            />
+          </div>
 
           {/* Composer */}
-          <section className="rounded-lg border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Compose email</h2>
+          <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-800">
+                Step 3 · Mode-specific · CustomerEQ Email
+              </span>
+              <h2 className="text-sm font-semibold text-gray-900">Compose email</h2>
+            </div>
             <div className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label className="block text-sm">
@@ -446,11 +344,13 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
-                    placeholder="Maya at Acme"
+                    placeholder="Acme CX Team"
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-gray-700">Sender alias</span>
+                  <span className="mb-1 block font-medium text-gray-700">
+                    Sender alias (local-part)
+                  </span>
                   <div className="flex items-center rounded-md border border-gray-300">
                     <input
                       type="text"
@@ -509,10 +409,10 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
             <button
               type="button"
               onClick={handleContinueToConfirm}
-              disabled={!preview || preview.audienceCount === 0}
+              disabled={!audience || audience.selectedCount === 0}
               className="inline-flex cursor-pointer items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Send via CustomerEQ →
+              Send {audience?.selectedCount ?? 0} emails →
             </button>
           </div>
         </>
@@ -522,7 +422,8 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         <div role="dialog" className="rounded-lg border border-indigo-200 bg-white p-6">
           <h2 className="mb-2 text-base font-semibold text-gray-900">Confirm send</h2>
           <p className="text-sm text-gray-700">
-            CustomerEQ will dispatch <strong>{preview?.audienceCount}</strong> emails right now from{' '}
+            CustomerEQ will dispatch <strong>{audience?.selectedCount ?? 0}</strong> emails right
+            now from{' '}
             <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">
               {senderAlias}@customereq.wellnessatwork.me
             </code>

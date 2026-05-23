@@ -9,6 +9,7 @@ import {
   UpdateMemberNoteSchema,
   floatToSentimentBucket,
   globToSqlLike,
+  deriveSurveySuppression,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
@@ -885,12 +886,15 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         skip: isSentimentSort ? undefined : (page - 1) * pageSize,
         select: {
           id: true,
+          externalId: true,
           email: true,
           firstName: true,
           lastName: true,
           pointsBalance: true,
           status: true,
           erased: true,
+          consentGivenAt: true,
+          unsubscribedSurveysAt: true,
           createdAt: true,
           healthScore: true,
           healthScoreUpdatedAt: true,
@@ -906,20 +910,38 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     ])
 
     // Post-process: sentiment sort (if needed) + PII masking
-    let results = members.map((m) => ({
-      id: m.id,
-      email: m.erased ? '[ERASED]' : m.email,
-      firstName: m.erased ? '[ERASED]' : m.firstName,
-      lastName: m.erased ? '[ERASED]' : m.lastName,
-      pointsBalance: m.pointsBalance,
-      status: m.status,
-      tierName: m.currentTier?.name ?? null,
-      healthScore: m.healthScore ?? null,
-      healthScoreUpdatedAt: m.healthScoreUpdatedAt ?? null,
-      latestSentiment: m.surveyResponses[0]?.sentiment ?? null,
-      latestNpsScore: m.surveyResponses[0]?.score ?? null,
-      createdAt: m.createdAt,
-    }))
+    let results = members.map((m) => {
+      // Issue #420 R22/R43/R44 — derive a survey-send suppression chip per
+      // member. The audience-builder UI (apps/web/...audience-builder) renders
+      // this chip on Search-tab results and on accumulated-audience rows so the
+      // operator can see who can't be sent to *before* clicking Send. The
+      // worker re-checks all four conditions at dispatch time (R44) — this is
+      // purely a UI preview. emailOptIn is INTENTIONALLY EXCLUDED per R44 (the
+      // marketing-channel opt-out doesn't gate surveys).
+      const suppression = deriveSurveySuppression({
+        erased: m.erased,
+        email: m.email,
+        consentGivenAt: m.consentGivenAt,
+        unsubscribedSurveysAt: m.unsubscribedSurveysAt,
+      })
+      return {
+        id: m.id,
+        externalId: m.externalId,
+        email: m.erased ? '[ERASED]' : m.email,
+        firstName: m.erased ? '[ERASED]' : m.firstName,
+        lastName: m.erased ? '[ERASED]' : m.lastName,
+        pointsBalance: m.pointsBalance,
+        status: m.status,
+        tierName: m.currentTier?.name ?? null,
+        healthScore: m.healthScore ?? null,
+        healthScoreUpdatedAt: m.healthScoreUpdatedAt ?? null,
+        latestSentiment: m.surveyResponses[0]?.sentiment ?? null,
+        latestNpsScore: m.surveyResponses[0]?.score ?? null,
+        createdAt: m.createdAt,
+        suppressionStatus: suppression.status,
+        suppressionSince: suppression.since,
+      }
+    })
 
     if (isSentimentSort) {
       results.sort((a, b) => {
