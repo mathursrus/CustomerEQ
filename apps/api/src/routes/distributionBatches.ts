@@ -19,6 +19,7 @@ import {
   EditExpiryRequestSchema,
   RegenerateTokensRequestSchema,
   ManagedEmailComposerSchema,
+  FALLBACK_RESPONDENT_THEME,
   type AudienceSpecSchema,
   type ManagedEmailComposer,
 } from '@customerEQ/shared'
@@ -565,6 +566,11 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             body: composer.body,
             brandLogoUrl: brandRow?.logoUrl ?? null,
             brandName: brandRow?.name ?? '',
+            // Issue #420 — fall back to the canonical FALLBACK_RESPONDENT_THEME
+            // (shared single-source-of-truth used by every other renderer)
+            // when neither Survey.themeId nor Brand.defaultThemeId resolves.
+            // This keeps a snapshot's hex values identical to the rendering a
+            // respondent would see if the survey had no theme attached.
             themeSnapshot: theme
               ? {
                   primaryColor: theme.primaryColor,
@@ -577,14 +583,14 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
                   fontFamily: theme.fontFamily,
                 }
               : {
-                  primaryColor: '#6366f1',
-                  secondaryColor: '#818cf8',
-                  backgroundColor: '#ffffff',
-                  textColor: '#111827',
-                  accentColor: '#6366f1',
-                  buttonColor: '#6366f1',
-                  buttonTextColor: '#ffffff',
-                  fontFamily: 'system-ui',
+                  primaryColor: FALLBACK_RESPONDENT_THEME.primaryColor,
+                  secondaryColor: FALLBACK_RESPONDENT_THEME.secondaryColor,
+                  backgroundColor: FALLBACK_RESPONDENT_THEME.backgroundColor,
+                  textColor: FALLBACK_RESPONDENT_THEME.textColor,
+                  accentColor: FALLBACK_RESPONDENT_THEME.accentColor,
+                  buttonColor: FALLBACK_RESPONDENT_THEME.buttonColor,
+                  buttonTextColor: FALLBACK_RESPONDENT_THEME.buttonTextColor,
+                  fontFamily: FALLBACK_RESPONDENT_THEME.fontFamily,
                 },
           }
         }

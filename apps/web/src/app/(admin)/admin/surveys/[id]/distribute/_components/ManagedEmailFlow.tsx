@@ -77,6 +77,13 @@ Thanks,
 
 const DEFAULT_SUBJECT_PREFIX = 'A quick survey from'
 
+// Sending-state polling cadence — per RFC §3.4 / §9.1 D3. 2s is the V0 default;
+// see D3 pros/cons table for the long-term migration path to SSE.
+const SEND_PROGRESS_POLL_MS = 2_000
+// Audience-preview debounce — matches the SelfServeFlow's existing cadence so
+// the two modes feel consistent.
+const PREVIEW_DEBOUNCE_MS = 400
+
 function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d'): string {
   const now = new Date()
   const days = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }[preset]
@@ -189,7 +196,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
       } finally {
         setPreviewing(false)
       }
-    }, 400)
+    }, PREVIEW_DEBOUNCE_MS)
     return () => {
       clearTimeout(handle)
       controller.abort()
@@ -221,7 +228,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
       }
     }
     void tick()
-    pollIntervalRef.current = window.setInterval(tick, 2000)
+    pollIntervalRef.current = window.setInterval(tick, SEND_PROGRESS_POLL_MS)
     return () => {
       cancelled = true
       if (pollIntervalRef.current) {
