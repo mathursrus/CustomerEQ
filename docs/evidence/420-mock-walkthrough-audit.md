@@ -188,7 +188,14 @@ These are scoped to the audience builder lifted in Item E — defer formal closu
 
 ---
 
-## Closure status
+## Closure status (final, 2026-05-23)
+
+Updated 2026-05-23 after M1–M8 + spec patch + mock-update landed. Commits on this branch:
+- `0ae6360` — **spec patch**: R32 → R32a–f split; R30a–e added for live preview pane (R30e marks the color-mapping legend `(design-only, no SHALL)` per user); R31a added for pre-submit recap rows; Mock-to-R cross-reference table appended.
+- `8b462e6` — **M7** confirm modals (R32a–f) for both SELF_SERVE + MANAGED_EMAIL.
+- `cbe32db` — **M8** Scene 3 right-column live email preview pane (R30a–d) + brand context name/logoUrl plumbing + 9 EmailPreviewCard tests.
+
+## Earlier closure status
 
 Updated 2026-05-23 after M1–M6 + mock-update landed. Commits on this branch:
 - `fcf60e9` — M1 (Scene 1 outline-primary peers + icon + copy)
@@ -199,21 +206,22 @@ Updated 2026-05-23 after M1–M6 + mock-update landed. Commits on this branch:
 - `7d36b3a` — M6 (Wave Detail Sent-semantics + Self-serve no-platform-log warning)
 - `8d4181b` — Mock-update (Scene 6 R40 caption + Scene 7B Composer/SendLog blocks + V0/V1 framing removed from 7B scene-note)
 
-**CLOSED**: 1.1, 1.2, 1.3, 2.2, 2.3, 3.4, 3.5, 3.6, 3.10, 5A.3, 6.2, 6.3, 6.4 (mock), 6.5, 6.6, 6.7, 7A.2, 7A.5, 7B.1 (mock), 7B.2, 7B.4 (mock).
+**CLOSED**: 1.1, 1.2, 1.3, 2.2, 2.3, 3.4, 3.5, 3.6, **3.8** (drift 3.9's preview pane shows the footer), **3.9** (M8), 3.10, **4.1** (M7), **4.2** (M7), 5A.3, 6.2, 6.3, 6.4 (mock), 6.5, 6.6, 6.7, 7A.2, 7A.5, 7B.1 (mock), 7B.2, 7B.4 (mock).
 
-**STILL OPEN — substantial-drift items needing user discussion before closure**:
-- 3.8 — Auto-appended footer preview in composer
-- 3.9 — Live email preview pane (Scene 3 right column)
-- 3.11 — Theme color-mapping legend (coupled to 3.9)
-- 4.1 — SELF_SERVE confirmation modal
-- 4.2 — MANAGED_EMAIL confirm rendered inline vs modal (verbiage + summary lines)
+**Spec-side closures (commit `0ae6360`)**: R32 split into R32a–f; R30a–e added (R30e explicitly marks the color-mapping legend `(design-only, no SHALL)` per user); R31a added; Mock-to-R cross-reference table appended.
+
+**DEFERRED per user 2026-05-23** (user will revisit during manual testing — not closed in this PR):
 - 5A.2 — CSV preview pane on Success state
 - 5B.1 / 5B.2 / 5B.4 / 5B.5 — Sending headline + progress bar + reassurance copy + per-recipient table column verification
 - 5C.1 / 5C.2 / 5C.3 / 5C.4 — Sent state header + summary line + amber banner + post-action context
-- 6.1 — Loop Monitor 4-card vs 5-stage layout (#241 R32b territory)
-- 6.8 — "Details →" link addition (mock parity vs UX improvement — judgment call)
-- 6.9 — Configuration-summary footnote (needs verification)
-- 7A.1 / 7A.3 / 7A.4 / 7B.3 — Wave Detail counter-strip layout, Audience Spec missing rows (mostly #378-preexisting)
+- (User said: *"2,5,6,7 I will revisit when I do manual testing"*; 3.8 was on that deferred list but is now closed because drift 3.9's preview pane renders the auto-appended footer.)
+
+**Out-of-scope (design-only or pre-existing surfaces — not in #420)**:
+- 3.11 — Theme color-mapping legend (user 2026-05-23: not for V0 → R30e marks this `(design-only, no SHALL)`).
+- 6.1 — Loop Monitor 4-card vs 5-stage layout (#241 R32b territory).
+- 6.8 — "Details →" link addition (mock parity vs UX improvement — judgment call kept).
+- 6.9 — Configuration-summary footnote (needs verification but pre-existing #241 surface).
+- 7A.1 / 7A.3 / 7A.4 / 7B.3 — Wave Detail counter-strip layout, Audience Spec missing rows (#378-preexisting).
 
 **STILL OPEN — visual confirmation owed against seeded data**:
 - 2B.1 / 2B.2 — Custom-list against non-email-keyed brand (audience-builder Item-E surface)
