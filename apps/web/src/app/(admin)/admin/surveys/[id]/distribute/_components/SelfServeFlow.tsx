@@ -178,6 +178,11 @@ export function SelfServeFlow() {
   const [generated, setGenerated] = useState<GenerateResponse | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
   const [downloadFormat, setDownloadFormat] = useState<DistributionFormat>('generic')
+  // Spec R32a + mock #scene-4 lines 818-833 — confirmation modal gates the
+  // Generate-N-links commit so the operator sees the recap + strong-warning
+  // (R32c + R32d) and can cancel before tokens are minted. Clicking the
+  // Generate CTA opens this modal; the modal's "Yes" calls handleGenerate.
+  const [showConfirm, setShowConfirm] = useState<boolean>(false)
 
   useEffect(() => {
     let cancelled = false
@@ -235,6 +240,7 @@ export function SelfServeFlow() {
     if (!survey || !brand || !audience) return
     if (!surveyNameInMail.trim()) return
     if (audience.selectedCount < 1) return
+    setShowConfirm(false)
     setGenerating(true)
     setGenError(null)
     try {
@@ -415,7 +421,7 @@ export function SelfServeFlow() {
         ) : null}
 
         {/* Mock #scene-2 line 530 — pre-submit recap so the operator can scan
-            wave + expiry + format before committing. Spec §2.4a. */}
+            wave + expiry + format before committing. Spec R31a. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
           <p className="text-sm text-gray-700" data-testid="self-serve-pre-submit-recap">
             Ready to generate{' '}
@@ -431,7 +437,7 @@ export function SelfServeFlow() {
           </p>
           <button
             type="button"
-            onClick={handleGenerate}
+            onClick={() => setShowConfirm(true)}
             disabled={ctaDisabled}
             className="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -441,7 +447,140 @@ export function SelfServeFlow() {
           </button>
         </div>
       </div>
+
+      {/* Mock #scene-4 lines 818–833 — SELF_SERVE confirmation modal.
+          Spec R32a (centered modal + backdrop) + R32b (mode-specific heading
+          with Self-Serve tag) + R32c (summary block with Survey name / Links
+          expire / Format / Recipients(+auto-enroll)) + R32d (strong-warning
+          amber block) + R32f (Cancel + primary-confirm). */}
+      {showConfirm && audience && brand ? (
+        <SelfServeConfirmModal
+          surveyNameInMail={surveyNameInMail}
+          expiresAtIso={expiresAtIso}
+          brandTimezone={brand.timezone}
+          brandLocale={brand.locale}
+          downloadFormat={downloadFormat}
+          selectedCount={audience.selectedCount}
+          willAutoEnrollCount={audience.willAutoEnrollCount}
+          generating={generating}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={handleGenerate}
+        />
+      ) : null}
     </main>
+  )
+}
+
+interface SelfServeConfirmModalProps {
+  surveyNameInMail: string
+  expiresAtIso: string
+  brandTimezone: string
+  brandLocale: string
+  downloadFormat: DistributionFormat
+  selectedCount: number
+  willAutoEnrollCount: number
+  generating: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+function SelfServeConfirmModal({
+  surveyNameInMail,
+  expiresAtIso,
+  brandTimezone,
+  brandLocale,
+  downloadFormat,
+  selectedCount,
+  willAutoEnrollCount,
+  generating,
+  onCancel,
+  onConfirm,
+}: SelfServeConfirmModalProps) {
+  const formatLabel = downloadFormat.charAt(0).toUpperCase() + downloadFormat.slice(1)
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="self-serve-confirm-heading"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      data-testid="self-serve-confirm-modal"
+    >
+      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-5 py-4">
+          {/* R32b — mode-specific heading with Self-Serve tag. */}
+          <h3
+            id="self-serve-confirm-heading"
+            className="flex flex-wrap items-center gap-2 text-base font-semibold text-gray-900"
+          >
+            <span>
+              ⚠ Generate {selectedCount} tokenized link{selectedCount === 1 ? '' : 's'}?
+            </span>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              Self-Serve
+            </span>
+          </h3>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          {/* R32c — summary block contents per mock lines 820–825. */}
+          <dl className="space-y-1.5 text-sm">
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Survey name in mail:</dt>
+              <dd className="text-gray-700">{surveyNameInMail || '—'}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Links expire:</dt>
+              <dd className="text-gray-700">
+                {formatDistributionTzDate(expiresAtIso, brandTimezone, brandLocale)}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Format:</dt>
+              <dd className="text-gray-700">{formatLabel}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Recipients:</dt>
+              <dd className="text-gray-700">
+                {selectedCount} selected member{selectedCount === 1 ? '' : 's'}
+                {willAutoEnrollCount > 0 ? (
+                  <span className="ml-1 text-gray-500">
+                    ({willAutoEnrollCount} auto-enroll)
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+          {/* R32d — strong-warning amber block (mock line 827). */}
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+            <strong>⚠ The plaintext URLs are shown only once.</strong> Save the CSV immediately.
+            Re-downloading later requires regenerating all tokens (which invalidates the URLs in
+            this batch).
+          </div>
+        </div>
+        {/* R32f — Cancel + primary-confirm, with mode-specific confirm copy. */}
+        <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={generating}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            data-testid="self-serve-confirm-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={generating}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            data-testid="self-serve-confirm-yes"
+          >
+            {generating
+              ? 'Generating…'
+              : `Yes, generate ${selectedCount} link${selectedCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

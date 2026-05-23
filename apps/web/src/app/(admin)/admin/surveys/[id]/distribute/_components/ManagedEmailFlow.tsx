@@ -457,35 +457,27 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         </>
       )}
 
+      {/* Mock #scene-4 lines 835–849 — MANAGED_EMAIL confirmation modal.
+          Spec R32a (centered modal with backdrop, NOT inline section) +
+          R32b (mode-specific heading "⚠ Send N emails?" with CustomerEQ
+          Email tag) + R32c (summary block: From / Subject / Survey name
+          in mail / Links expire / Recipients(+auto-enroll)) + R32e
+          (informational sub-warning "you cannot cancel a send in
+          progress") + R32f (Cancel + Yes-send-N). */}
       {flow === 'confirm' && (
-        <div role="dialog" className="rounded-lg border border-indigo-200 bg-white p-6">
-          <h2 className="mb-2 text-base font-semibold text-gray-900">Confirm send</h2>
-          <p className="text-sm text-gray-700">
-            CustomerEQ will dispatch <strong>{audience?.selectedCount ?? 0}</strong> emails right
-            now from{' '}
-            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">
-              {senderAlias}@customereq.wellnessatwork.me
-            </code>
-            . Recipients can&apos;t be recalled after dispatch begins.
-          </p>
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setFlow('configure')}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmSend}
-              disabled={submitting}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
-            >
-              {submitting ? 'Dispatching…' : 'Send now'}
-            </button>
-          </div>
-        </div>
+        <ManagedEmailConfirmModal
+          senderName={senderName}
+          senderAlias={senderAlias}
+          subject={subject}
+          surveyNameInMail={surveyNameInMail}
+          expiresAtIso={expiresAtIso}
+          brandTimezone={brand.timezone}
+          selectedCount={audience?.selectedCount ?? 0}
+          willAutoEnrollCount={audience?.willAutoEnrollCount ?? 0}
+          submitting={submitting}
+          onCancel={() => setFlow('configure')}
+          onConfirm={handleConfirmSend}
+        />
       )}
 
       {(flow === 'sending' || flow === 'sent') && (
@@ -535,6 +527,134 @@ function Stat({ label, value, tone = 'neutral' }: { label: string; value: number
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`text-2xl font-semibold ${colors[tone]}`}>{value}</p>
+    </div>
+  )
+}
+
+interface ManagedEmailConfirmModalProps {
+  senderName: string
+  senderAlias: string
+  subject: string
+  surveyNameInMail: string
+  expiresAtIso: string
+  brandTimezone: string
+  selectedCount: number
+  willAutoEnrollCount: number
+  submitting: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+function ManagedEmailConfirmModal({
+  senderName,
+  senderAlias,
+  subject,
+  surveyNameInMail,
+  expiresAtIso,
+  brandTimezone,
+  selectedCount,
+  willAutoEnrollCount,
+  submitting,
+  onCancel,
+  onConfirm,
+}: ManagedEmailConfirmModalProps) {
+  const fromAddress = `${senderAlias}@customereq.wellnessatwork.me`
+  const expiresFormatted = new Date(expiresAtIso).toLocaleString(undefined, {
+    timeZone: brandTimezone,
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="managed-confirm-heading"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      data-testid="managed-email-confirm-modal"
+    >
+      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div className="border-b border-gray-200 px-5 py-4">
+          {/* R32b — mode-specific heading with CustomerEQ Email tag. */}
+          <h3
+            id="managed-confirm-heading"
+            className="flex flex-wrap items-center gap-2 text-base font-semibold text-gray-900"
+          >
+            <span>
+              ⚠ Send {selectedCount} email{selectedCount === 1 ? '' : 's'}?
+            </span>
+            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+              CustomerEQ Email
+            </span>
+          </h3>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          {/* R32c — summary block contents per mock lines 837–843. */}
+          <dl className="space-y-1.5 text-sm">
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium text-gray-900">From:</dt>
+              <dd className="break-all text-gray-700">
+                {senderName || '—'}{' '}
+                <span className="font-mono text-gray-500">&lt;{fromAddress}&gt;</span>
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Subject:</dt>
+              <dd className="text-gray-700">{subject || '—'}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Survey name in mail:</dt>
+              <dd className="text-gray-700">{surveyNameInMail || '—'}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Links expire:</dt>
+              <dd className="text-gray-700">{expiresFormatted}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium text-gray-900">Recipients:</dt>
+              <dd className="text-gray-700">
+                {selectedCount} selected member{selectedCount === 1 ? '' : 's'}
+                {willAutoEnrollCount > 0 ? (
+                  <span className="ml-1 text-gray-500">
+                    ({willAutoEnrollCount} auto-enroll)
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+          {/* R32e — informational sub-warning (mock line 844). */}
+          <p className="text-xs text-gray-600">
+            Emails will be sent in the next few minutes. You can monitor progress on the next
+            screen but <strong className="text-gray-900">you cannot cancel a send in progress</strong>.
+          </p>
+        </div>
+        {/* R32f — Cancel + primary-confirm, with mode-specific confirm copy. */}
+        <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            data-testid="managed-email-confirm-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            data-testid="managed-email-confirm-yes"
+          >
+            {submitting
+              ? 'Dispatching…'
+              : `Yes, send ${selectedCount} email${selectedCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
