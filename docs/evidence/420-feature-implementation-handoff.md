@@ -1,211 +1,216 @@
-# Issue #420 — feature-implementation Phase 12 Handoff
+# Issue #420 — feature-implementation Phase 12 Handoff (manual-testing entry)
 
 **Issue**: [#420](https://github.com/mathursrus/CustomerEQ/issues/420) — Send Survey Emails via CustomerEQ (ACS)
-**PR**: [#497](https://github.com/mathursrus/CustomerEQ/pull/497) (Draft)
-**Branch**: `feature/420-use-azure-communication-services-to-send-survey-emails`
+**PR**: [#497](https://github.com/mathursrus/CustomerEQ/pull/497) (Draft per Rule 27)
+**Branch**: `feature/420-use-azure-communication-services-to-send-survey-emails` (HEAD: `478c809`)
 **Worktree**: `C:\Github\mathursrus\CustomerEQ - Issue 420`
-**FRAIM job**: `feature-implementation`, currently in **Phase 12 `address-feedback`** mid-round.
-**Session paused**: 2026-05-23 ~18:20 UTC. Reason: Items C + D + D.2 landed; remaining work (M / F.2 / G / H) carry over. User explicitly asked to pause before Item M.
+**FRAIM job**: `feature-implementation`. Phase 12 `address-feedback` is **still in progress — NOT complete**. Only `seekMentoring(implement-architecture-update, status='complete')` has been called (post-F.2). The `address-feedback` close and the `implement-submission` (Item H re-validation) are **held** pending user manual-test feedback.
+**Session paused**: 2026-05-23 ~23:00 UTC — user starting manual local-environment testing in a new session.
 
 ---
 
 ## Why the session was paused
 
-User asked Round 2 of Phase 12 to land C + D and pause for review before Item M (the mock-walkthrough UX audit). C + D + D.2 are in (D.2 is a spec §3.2 surface that the prior pause-summary almost demoted to a follow-up; it's now landed).
-
-**Critical context** — the prior session captured a coaching moment at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T08-38-47-invented-v0-simplifications-framing-to-defer-spec-rfc-requirements.md`. There is **no sanctioned `feature-implementation` process for an implementer to demote in-scope SHALL requirements without process authority. Do not re-introduce that framing.** Every in-scope SHALL requirement is either Met or it's still owed in this PR. The only legitimate carve-out is a real external blocker named verbatim (V15 cross-client real-inbox check — no ACS production sender domain registered + no shared test inbox).
-
-**Newer coaching moment** (Round 2, this session) at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T18-14-24-trusted-spec-prose-without-grepping-route.md`. I claimed `/send-progress` was "SSE-only" based on spec prose without grepping the route. Reality: it's a plain GET polled at 2s. User caught it; the lift took 30 minutes. Rule for next session: **any factual claim about backend state must be grepped at source before stating it**, especially when the claim gates a scope decision.
+User instructed: *"Please complete F.2 and G. I will review those. H — you can combine with any other comments and my test results. After you are done with F.2 and G, we will start testing in local environment."* F.2 and G landed (commits `9b51b66` + `478c809`). All `.env` files copied/created in this worktree. User is starting manual testing in a new session — handoff is for that session to pick up cleanly.
 
 ---
 
-## What's landed on the branch (10 commits — all pushed to origin)
+## What's landed since the prior handoff (commit `73533ab`) — 22 new commits, all pushed
 
-| SHA | Summary |
-|---|---|
-| `9237905` | `<ModeRouter>` primitive + 9 tests; refactor of distribute page to 33-line entry; ManagedEmailFlow "Switch" wired via `useModeRouter().switchTo`. (Round 1 R3 lift) |
-| `849ad17` | RFC §11.2 factual fix — real precedent cited; "lift in this PR" framing for ModeRouter / usePollingQuery / two-gate suppression. (Round 1 r3292070992) |
-| `459235f` | TipTap composer + Mention palette; `apps/web/src/components/managed-email-composer/`. 13 tests. |
-| `69f69c1` | **Item A** — `usePollingQuery` hook + 2 callsites refactor + pnpm-lock for TipTap. |
-| `ce11220` | **Item F.1** — architecture doc §3.1 entries for `<ModeRouter>` + `usePollingQuery`. |
-| `703427f` | **Item B** — Loop Monitor R39 per-mode breakdown + drawer-pill breakdown + shared `<SendModePill>`. |
-| `7b8848e` | **Item E** — shared `<AudienceBuilder>` (R16/R18/R20/R22/R23/R43) + lifted `<SurveyBatchDetailsCard>` + new `packages/shared/distributionSuppression.ts` (Gate 1 of the two-gate suppression). 29 new tests. |
-| `2b92502` | (Prior session handoff doc — superseded by THIS file.) |
-| `ed0afac` | **Item C** (R40 / V9) — `<SurveyResponsesHeaderStrip>` consolidates Sent + filtered Responses + Wave dropdown into one row at the top of Responses. Replaces the standalone `<DistributionBatchesFilter>` (deleted). 9 tests. |
-| `1df5cb2` | **Item D** (§3.2) — Wave Detail mode pill (`<SendModePill size="md">`) + read-only `<ComposerSnapshotBlock>` for MANAGED_EMAIL batches + Regenerate-Links hidden for MANAGED_EMAIL. Backend extends `GET /distribution-batches/:batchId` with `sendMode + composerSnapshot`. 5 unit + 1 schema + 2 API integration tests. |
-| `da92799` | **Item D.2** (§3.2) — per-recipient send log on Wave Detail. Extracts `<SendProgressTable>` out of `ManagedEmailFlow` into `apps/web/src/components/surveys/`, reused by both the live Sending state and the new historical `<RecipientSendLogBlock>` on Wave Detail. Polling auto-stops on `isComplete`. 9 new tests. Includes the SSE/polling coaching moment. |
+| SHA | Item | Summary |
+|---|---|---|
+| `8ce04c4` | docs | Item M mock-walkthrough audit doc (261 lines, every drift cited with mock-line + impl file:line) |
+| `fcf60e9` | M1 | Scene 1 entry tile — both buttons outline-primary peers, `📧→📨`, copy aligned with mock framing |
+| `4ae9f0b` | M2 | Scene 6 Responses header — caption + dropdown verbiage match mock; `sendMode` plumbed end-to-end so dropdown shows `(CustomerEQ Email)` / `(Self-serve)` |
+| `7f0198b` | M3 | Scene 2/3/5A pre-submit recap rows + Generate-CTA `→` arrow + Done-button as primary |
+| `97b41ff` | M4 | Scene 3 default subject `Quick question:` + default body with `{{brand_logo}}` + `{{brand_name}}` header |
+| `1be11e1` | M5 | LoopMonitor — `<SendModePill>` inline on Survey-Sent subline + lifetime-anchor note |
+| `7d36b3a` | M6 | Wave Detail — mode-conditional Sent-semantics box + Self-serve "no platform send log" amber warning |
+| `8d4181b` | mock-update | Scene 6 line 1087 R40 fix + Scene 7B extended to depict Composer Snapshot + Send Log blocks + V0/V1 framing removed from 7B scene-note |
+| `8e53190` | docs | audit doc closure-status update (M1–M6) |
+| `0ae6360` | **spec patch** | R32 split into R32a–f; R30a–e added for live preview pane (R30e marks color-mapping legend `(design-only, no SHALL)` per user); R31a added; Mock-to-R cross-reference table appended at end of spec |
+| `8b462e6` | M7 | SELF_SERVE confirmation modal (centered + backdrop + Self-Serve tag heading + summary block + strong-warning + Yes/Cancel) — was missing entirely. MANAGED_EMAIL confirm converted from inline section to centered modal with full From/Subject/Survey-name/Links-expire/Recipients summary block. R32a–f cited in code comments. |
+| `cbe32db` | M8 | Scene 3 right-column live email preview pane (R30a–d) — new EmailPreviewCard.tsx (235 lines) + 9 unit tests. ManagedEmailFlow Compose section now 2-column grid. Brand context plumbed to include name + logoUrl. Sample recipient = first selected audience member. Theme color legend skipped per user (R30e). |
+| `20230c8` | docs | audit doc closure-status update (M7 + M8 + spec-patch + user deferrals on 5A.2 / 5B.* / 5C.*) |
+| `7807a27` | learning | Raw coaching moment file — `mocks-are-not-summarizable-design-artifacts` |
+| `9b51b66` | **F.2** | `architecture.md` §6 two-gate suppression entry extended with Gate 1 canonical paths (shared classifier + API surfaces + frontend disabled-checkbox enforcement). `seekMentoring(implement-architecture-update, status='complete')` called after this commit per handoff procedure. |
+| `478c809` | **G** | evidence-doc rewrite + work-list forward guards. "Known V0 simplifications" → "External blockers" (V15 only). All 9 Round-1 Partials lifted to Met with commit citations. Round 2 + Round 3 added to Feedback Completeness table. Work-list reorganized into External blockers / Spec-level non-goals / Forward guards (3 rules captured from this PR's coaching artifacts). |
 
-**Validation evidence at pause time** (post-`da92799`):
-- `pnpm --filter @customerEQ/shared exec tsc --noEmit` — clean.
-- `pnpm --filter @customerEQ/web exec tsc --noEmit` — clean.
-- `pnpm --filter @customerEQ/api exec tsc --noEmit` — clean.
-- `pnpm --filter @customerEQ/web build` — clean (Next 15.5.18 production build + lint-as-error).
-- Shared vitest — 725/725 passing.
-- Web vitest scoped runs — every new file's tests pass; `page.test.tsx` is the known pre-existing flake (handoff Round 1 noted it; passes in isolation).
-- New tests this session: `SurveyResponsesHeaderStrip` (9), `ComposerSnapshotBlock` (5), `SendProgressTable` (9), `distributionBatch.schema` (+1), `distributionBatches.test.ts` (+2).
+**Plus** earlier in this session: Items C (`ed0afac`), D (`1df5cb2`), D.2 (`da92799`), and the prior-prior handoff doc supersession.
 
 ---
 
-## What's still owed before Phase 12 can complete
+## Coaching events this PR — three artifacts that future you MUST honor
 
-V15 (cross-client real-inbox check) is the only legitimate external blocker. Everything else **must land in this PR** before `address-feedback` can call `seekMentoring(status='failure')` (which triggers re-validation) — and ultimately `seekMentoring(status='complete')` only after the user explicitly approves the round per Rule 25a.
+All three are recorded in user-memory + as raw coaching files committed in `fraim/personalized-employee/learnings/raw/`:
 
-Estimated effort to finish: **~2.5–3 hours of focused work**.
+1. **No implementer-initiated demotion of in-scope SHALL requirements.** Round 1, 2026-05-23.
+   - File: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T08-38-47-invented-v0-simplifications-framing-to-defer-spec-rfc-requirements.md`
+   - Rule: there is no sanctioned `feature-implementation` process to demote a numbered R-statement to a follow-up issue. Legitimate carve-outs only: **external blockers** with the dependency cited verbatim (V15), or **spec-level non-goals** that the spec author already decided. Everything else lifts in the same PR.
 
-### Item M — Mock-walkthrough UX audit (~1–2h)
+2. **Grep before claiming backend state.** Round 2, 2026-05-23.
+   - File: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T18-14-24-trusted-spec-prose-without-grepping-route.md`
+   - Rule: any factual claim about backend state ("X is SSE", "Y already supports Z", "would require a new endpoint") must be verified against code / schema / migration before stating it. Spec prose is NOT a source of truth for capability claims.
 
-**Trigger**: All UX-touching commits (B + C + D + D.2 + E) are now in.
-
-**Procedure**:
-
-1. Open `docs/feature-specs/mocks/420-send-via-customereq-acs.html` in a browser. Walk **every scene** — Scene 1 (entry tiles), Scene 2 (SELF_SERVE audience+batch+CSV), Scene 2B (Custom List + email-routing), Scene 3 (MANAGED_EMAIL composer + audience + confirm + Sending + Sent), Scene 4 (Wave Detail SELF_SERVE — `#scene-7a`), Scene 4B (Wave Detail MANAGED_EMAIL — `#scene-7b`), Scene 5 (Loop Monitor Survey Sent breakdown), Scene 6 (Responses header strip — lines 1077–1104), Scene 7 (Configuration summary post-send line).
-2. Side-by-side compare the actual dev-server pages. Start dev via `pnpm dev` from this worktree (kill stale dev servers from this worktree first per `[[kill_dev_servers_from_top_of_process_tree]]` — filter to processes whose CommandLine contains `Issue 420`; leave other worktrees alone).
-3. File the audit at `docs/evidence/420-mock-walkthrough-audit.md`. For each drift item: scene name, mock line citation, implementation file:line, drift description, severity (verbiage / icon / layout / color / affordance / missing).
-4. Close every drift item proactively on this PR per `[[mock_drift_is_my_responsibility]]`. One commit per scene or per drift class; don't bundle.
-5. Re-run `pnpm --filter @customerEQ/web build` after each commit. Re-walk any edited scene.
-
-**Particular drift to look for** in scenes touched this session:
-- **Scene 6 (Responses strip)**: the mock at line 1087 says *"(lifetime · not affected by Wave filter)"* — that is **mock drift from the spec post-Round-6 clarification**. The implementation correctly follows spec R40 (Wave filter affects BOTH Sent and Responses). Mock should be updated to match spec, not the other way around — file as drift, fix the mock.
-- **Scene 4 (Self-serve Wave Detail)**: SendModePill is new (md size). Verify the pill color matches the mock's `mode-self-serve` chip (amber-50/700).
-- **Scene 4B (Managed Wave Detail)**: ComposerSnapshotBlock + RecipientSendLogBlock are new. The mock at `#scene-7b` cuts off (lines 1265–1335) before depicting these blocks — that's mock incompleteness, not implementation drift. Either extend the mock to depict the new blocks or note the gap in the audit doc.
-- **Scene 5 (Loop Monitor breakdown)**: verify drawer-pill breakdown styling matches the mock at lines 1050–1054.
-
-### Item F.2 — Phase 10 `implement-architecture-update` (complete) (~30m)
-
-`docs/architecture/architecture.md` updates (already committed-to in commit `849ad17` and partially landed in commit `ce11220`):
-- §6 (Compliance) — add subsection naming the **two-gate suppression model** (audience-builder Gate 1 + worker pre-dispatch Gate 2). Gate 1 landed in Item E (`packages/shared/distributionSuppression.ts` + `/v1/members` + `/preview` annotations + frontend disabled-checkbox enforcement). Gate 2 is the worker pre-dispatch check (already implemented in `apps/worker/src/processors/managedEmailSend.ts`).
-
-Doc-only commit. After landing, call `seekMentoring(currentPhase='implement-architecture-update', status='complete')` — this is the **only** seekMentoring transition allowed before Item H.
-
-### Item G — Evidence-doc rewrite (~30m)
-
-`docs/evidence/420-feature-implementation-evidence.md`:
-- **Delete** the entire §"Known V0 simplifications" block.
-- **Replace** with §"External blockers" containing only V15 (cross-client real-inbox check) with the dependency cited verbatim ("no ACS production sender domain registered; no shared test inbox").
-- **Update the Traceability Matrix** — every Partial row that's been lifted must flip to **Met** with the new evidence path. After this session: only V15 remains Partial.
-- Add a Round-2 / Round-3 marker to the §Feedback Completeness Verification table. Round 2 = this session (Items C/D/D.2 + the SSE coaching moment).
-
-Also update `docs/evidence/420-implement-work-list.md` — strip "V0 simplifications" language; document the implementer-no-demotion rule AND the spec-prose-vs-grep rule as forward guards.
-
-### Item H — Per-thread PR replies + revalidation (~30m)
-
-Post per-thread replies to the 5 review comments cited in the Round 1 feedback file at `docs/evidence/420-feature-implementation-feedback.md`. Each reply names the resolving commit SHA + a one-line summary. Per `[[check_pr_comments_before_merge]]`.
-
-Then call `seekMentoring(currentPhase='address-feedback', status='failure', findings={feedbackFile, roundNumber: 2, itemsAddressed: 5+})` to trigger the re-validation loop. **Phase 12 is a hold-point per Rule 25a — only `seekMentoring(status='complete')` after the user explicitly approves the round.**
+3. **Spec prose is not a deliverable; only R-statements are SHALL.** Round 3, 2026-05-23. **This is the load-bearing one for the rest of this PR.**
+   - File: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T21-51-24-mocks-are-not-summarizable-design-artifacts.md`
+   - Rule: mocks are non-summarizable design artifacts; the spec format must enforce mock-to-R traceability with every visible affordance R-numbered or explicitly marked `(design-only, no SHALL)`.
+   - User-memory `[[always_open_html_mocks]]` was sharpened on this turn — read every scene end-to-end before the first code edit, not just the scenes touching the current item.
+   - User-memory `[[spec_prose_is_not_a_deliverable]]` was added — only R-statements are SHALL; prose-only mock affordances mean the spec is incomplete; compound R-statements must be split.
+   - Structural fix at the FRAIM-job-template level: **FRAIM issue #473** — `feature-specification` job template restructure to brief-prose + scene-by-scene R-statements + mock-to-R cross-reference table as `spec-finalize` precondition + R-granularity rule rejecting compound SHALLs at author-time. **NOT in scope for #420 PR #497**; that's a separate piece of work on the FRAIM repo.
 
 ---
 
-## Recommended order for the next session
+## Local-test environment — what's ready
 
-1. **Push order**: M (audit) → F.2 (arch doc complete) → G (evidence rewrite) → H (PR replies + revalidation).
-2. Item M now has the full surface — every UX-touching commit (B/C/D/D.2/E) is in. Don't skip; this is the drift-closure pass.
-3. Run `pnpm --filter @customerEQ/web build` after EVERY commit (per `[[validate_phase_must_run_build]]`).
-4. Push every 2–3 commits.
-5. The handoff doc itself is now in commit history (`2b92502` was the prior version; this file supersedes it).
+`.env` files present (verified 2026-05-23):
 
----
+| Path | Source | Purpose |
+|---|---|---|
+| `.env` (worktree root) | Copied from main worktree | `DATABASE_URL` (Postgres), `QUEUE_MODE=inline`, `EMAIL_PROVIDER=stub`, `CLERK_*` (test mode), `CEQ_*` |
+| `apps/web/.env` | Copied from main worktree | Same env, Next.js dev server picks it up |
+| `apps/api/.env` | Copied from main worktree | API server picks up via `dotenv -e .env -- tsx watch` |
+| `apps/worker/.env` | **Copied from root `.env` this session** | `QUEUE_MODE=inline` here causes the worker to log `Worker not needed in inline mode — exiting cleanly` (apps/worker/src/index.ts:28-31). Without this, `pnpm dev` would fail on the worker subprocess. |
+| `packages/database/.env` | Copied from main worktree | Prisma reads `DATABASE_URL` from here |
 
-## Non-negotiable rules to honor
+**Effect**: `pnpm dev` from the worktree root should bring up:
+- API server on `http://127.0.0.1:4000` (inline queue mode — managed-email jobs run synchronously inside the API process)
+- Web server on `http://localhost:3000` (with Clerk auth in test mode)
+- Worker exits cleanly (no separate worker process needed for inline mode)
+- Stub email connector (no real ACS emails — every send is logged + a fake messageId returned)
 
-- **No "V0 simplifications" / "follow-up issue" framing.** Coaching moment from Round 1, still load-bearing.
-- **Grep before claiming.** Coaching moment from Round 2 — any factual claim about backend state ("X is SSE", "Y already supports Z", "would require a new endpoint") must be verified against code, schema, or migration. Spec prose is NOT a source of truth for capability claims.
-- **V15 cross-client real-inbox check stays in §"External blockers"** with the dependency named (no ACS production sender domain registered + no shared test inbox).
-- **Rule 26 — one PR per issue.** No chore-issue splits.
-- **Rule 25a — address-feedback is a hold-point.** Do not call `seekMentoring(status='complete')` until the user explicitly approves. The F.2 `seekMentoring(implement-architecture-update, status='complete')` is the **only** transition allowed before that point.
-- **Rule 27 — PR stays Draft.** Auto-merge only flips to Ready via `gh pr ready` at `work-completion` time. Don't run `gh pr ready` from address-feedback.
-- **`[[always_open_html_mocks]]`** — open `docs/feature-specs/mocks/420-send-via-customereq-acs.html` BEFORE Item M; don't trust summaries.
-- **`[[mock_drift_is_my_responsibility]]`** — close mock-to-implementation drift proactively after the functional pass. Item M is the explicit pass for this.
-- **`[[validate_phase_must_run_build]]`** — `pnpm build` (not just `tsc --noEmit`) before every commit.
-- **`[[kill_dev_servers_from_top_of_process_tree]]`** — when starting dev for Item M, kill stale dev-server processes from this worktree only (filter CommandLine for `Issue 420`).
-- **`[[check_pr_comments_before_merge]]`** — per-thread replies on PR comments at resolution time, citing the resolving commit SHA.
-- **`[[no_ask_user_question_dialog]]`** — present choices as plain-text lists; never use `AskUserQuestion`.
+**Auth bypass for headless testing**: if the user wants to skip Clerk login for screenshot/playwright work, run the web dev with `NEXT_PUBLIC_DEV_BYPASS_AUTH=true PLAYWRIGHT_TEST=true` set on the web subprocess. Middleware short-circuits Clerk and admin routes render directly. **API still requires `DEV_BYPASS_AUTH=true` on the API process** to grant brand-scope without a Bearer token — set this too if hitting `/v1/...` routes from the bypass-mode web app. The API auto-picks the first Brand in the DB (`apps/api/src/plugins/auth.ts:46-55`) so a Brand row must exist in Postgres.
 
----
-
-## File / path cheat sheet
-
-| Concern | Path |
-|---|---|
-| Mode-router primitive | `apps/web/src/components/mode-router/{ModeRouter.tsx,index.ts,ModeRouter.test.tsx}` |
-| Managed-email composer | `apps/web/src/components/managed-email-composer/{MustacheEditor,MustacheSuggestionList,mustacheTokens}.{ts,tsx}` |
-| Polling hook | `apps/web/src/lib/hooks/usePollingQuery.{ts,test.ts}` |
-| Shared send-mode pill | `apps/web/src/components/surveys/SendModePill.{tsx,test.tsx}` |
-| **Shared send-progress table (Item D.2)** | `apps/web/src/components/surveys/SendProgressTable.{tsx,test.tsx}` |
-| Loop Monitor (R39 breakdown) | `apps/web/src/components/surveys/LoopMonitor.{tsx,test.tsx}` |
-| Audience builder | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/audience-builder/...` |
-| Shared Survey Batch details | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/SurveyBatchDetailsCard.{tsx,test.tsx}` |
-| Shared suppression helper | `packages/shared/src/distributionSuppression.{ts,test.ts}` |
-| Self-serve flow | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/SelfServeFlow.tsx` |
-| Managed-email flow | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/ManagedEmailFlow.tsx` |
-| Distribute page (entry) | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/page.tsx` |
-| **Survey-detail page** (Item C target) | `apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx` |
-| **Responses header strip (Item C)** | `apps/web/src/app/(admin)/admin/surveys/[id]/components/SurveyResponsesHeaderStrip.{tsx,test.tsx}` + `waveTypes.ts` |
-| **Wave Detail page** (Item D target) | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/page.tsx` |
-| **Composer snapshot block (Item D)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/ComposerSnapshotBlock.{tsx,test.tsx}` |
-| **Recipient send log block (Item D.2)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/RecipientSendLogBlock.tsx` |
-| Distribution Batches API | `apps/api/src/routes/distributionBatches.ts` (GET detail at line 848; `/send-progress` GET at line 1172) |
-| Loop Monitor API handler | `apps/api/src/routes/surveys.ts` (`/loop-monitor`) |
-| Members API | `apps/api/src/routes/members.ts` |
-| Batch schemas | `packages/shared/src/zod/distributionBatch.schema.ts` |
-| Spec | `docs/feature-specs/420-send-via-customereq-acs.md` (R1–R45 traceable requirements) |
-| Spec mock | `docs/feature-specs/mocks/420-send-via-customereq-acs.html` (7 scenes) |
-| RFC | `docs/rfcs/420-send-via-customereq-acs.md` |
-| Evidence doc (to rewrite — Item G) | `docs/evidence/420-feature-implementation-evidence.md` |
-| Feedback doc (Round 2) | `docs/evidence/420-feature-implementation-feedback.md` |
-| Work-list (update during Item G) | `docs/evidence/420-implement-work-list.md` |
-| Mock-audit checklist (Item M output — new file) | `docs/evidence/420-mock-walkthrough-audit.md` |
-| Architecture doc (F.2 target) | `docs/architecture/architecture.md` |
-| Coaching moments (this PR has 2) | `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T*-*.md` |
+**Seeding test data**: `pnpm seed:demo` exists at the repo root. It needs an API key (`DEMO_API_KEY` or `MCP_API_KEY` env) or `X-Test-Brand-Id` test bypass. If the dev DB is empty, the simplest paths:
+1. Set `DEV_BYPASS_AUTH=true` + a `DEV_BRAND_ID` env, sign in via Clerk dev mode, navigate to `/admin/surveys/new`, create a survey by hand.
+2. Or seed the demo brand via direct Prisma write (`prisma studio` or a one-off script) — `DEMO_BRAND_ID=cmn689ibu000089tqad1g234t` is the default the seed script assumes.
 
 ---
 
-## PR review-comment cheat sheet (5 comments to reply to during Item H)
+## What I'd test manually if I were the user
 
-| ID | File / line | Comment | Resolving commit(s) |
+The new session should walk every scene of `docs/feature-specs/mocks/420-send-via-customereq-acs.html` and verify the implementation matches. The Item-M audit at `docs/evidence/420-mock-walkthrough-audit.md` is the live closure record; cross-reference it during testing. Items flagged in the audit as **deferred per user 2026-05-23** ("revisit during manual testing") are the highest-priority discovery candidates:
+
+- **5A.2** — CSV preview pane on SELF_SERVE Success state (mock lines 900–911). Is the absence acceptable, or does it impede the operator's workflow?
+- **5B.1 / 5B.2 / 5B.4** — Sending-state headline (`Sending… N of M complete`), visual progress bar, "you can leave this page" reassurance copy (mock lines 947–967). Currently the implementation shows 4 Stat tiles + the SendProgressTable; how does it feel during an actual stub-send?
+- **5C.1 / 5C.2 / 5C.3 / 5C.4** — Sent-state header text, sub-line, amber warning banner for partial failure, post-action context link (mock lines 991–1015).
+- **5B.5** — SendProgressTable column count + visual fidelity vs mock recipient table (mock lines 952–962).
+- **2B** — Custom-list paste against a non-email-keyed brand (mock #scene-2b). The Group headers + recovery hint were noted as needing visual confirmation against a seeded non-email-primary-id brand.
+- **R7 mode-switch preserve-state** — switch mode mid-flow with a built audience; verify the audience + Survey Batch details survive the switch (ModeRouter primitive at `apps/web/src/components/mode-router/`).
+- **R30a–d Live preview pane (M8 new surface)** — keystroke-driven, sample recipient is the first selected audience member. Verify the preview updates instantly on body/subject/sender edits and that `{{first_name}}` substitutes with the real first selected member's name.
+- **R32a–f Confirmation modals (M7 new surfaces)** — both SELF_SERVE and MANAGED_EMAIL. Verify centered backdrop + summary block contents + warnings + Cancel/Yes buttons.
+- **V13 emailOptIn exemption** — create a Member with `emailOptIn=false` and `consentGivenAt=now()` + `unsubscribedSurveysAt=null` and confirm the worker still sends to them (legitimate-interest exemption).
+
+When the manual walkthrough produces issues, file them on this PR (don't split to follow-ups per Rule 26 + `[[fraim_phase11_stay_on_pr]]`). The user explicitly held Item H specifically to combine those findings with the existing 5 PR comments cited in `docs/evidence/420-feature-implementation-feedback.md`.
+
+---
+
+## What's still owed before Phase 12 can close
+
+Only **Item H** remains. From the prior handoff:
+
+> Post per-thread replies to the 5 review comments cited in the Round 1 feedback file at `docs/evidence/420-feature-implementation-feedback.md`. Each reply names the resolving commit SHA + a one-line summary. Per `[[check_pr_comments_before_merge]]`.
+>
+> Then call `seekMentoring(currentPhase='address-feedback', status='failure', findings={feedbackFile, roundNumber: 2, itemsAddressed: 5+})` to trigger the re-validation loop. **Phase 12 is a hold-point per Rule 25a — only `seekMentoring(status='complete')` after the user explicitly approves the round.**
+
+**User's modification on 2026-05-23**: *"H — you can combine with any other comments and my test results."* So H now means: the agent waits for the user to produce a list of manual-test findings, combines that list with the 5 existing PR review comments, posts per-thread replies on each, then calls `seekMentoring(status='failure')` to trigger re-validation. The roundNumber and itemsAddressed counts shift to reflect the combined list.
+
+**PR comments to address** (cheat sheet from the prior handoff — verify each resolution before posting):
+
+| ID | File / line | Comment | Most likely resolving commit(s) |
 |---|---|---|---|
-| `r3292385788` | evidence-doc line 119 | "This needs to be implemented now. Cannot move to v1.1" | `459235f` (TipTap) + `7b8848e` (audience builder) + `1df5cb2` + `da92799` (Wave Detail surfaces) |
-| `r3292386828` | evidence-doc line 120 | "How are scope modification decisions made in feature-implementation?" | Process answer in feedback doc + ALL deferrals lifted across this PR's commits |
-| `r3292070992` | RFC line 565 | "This is factually incorrect..." | `849ad17` |
-| `r3292073383` | RFC line 570 | "Lift it now. Don't punt architectural shortcuts based on 1st usage." | `9237905` (ModeRouter) + `69f69c1` (usePollingQuery) + `ce11220` (arch doc) + `7b8848e` (AudienceBuilder + SurveyBatchDetailsCard) + `da92799` (SendProgressTable extraction) |
-| `r3292074338` | RFC line 571 | "Not as a follow-up issue, but as an end of the feature implementation" | Same as r3292073383 + planned F.2 (arch §6 two-gate suppression) |
+| `r3292385788` | evidence-doc line 119 | "This needs to be implemented now. Cannot move to v1.1" | `459235f` (TipTap) + `7b8848e` (audience builder) + `1df5cb2` + `da92799` + `8b462e6` (M7 confirm modals) + `cbe32db` (M8 live preview) — every Round-1 Partial is now Met |
+| `r3292386828` | evidence-doc line 120 | "How are scope modification decisions made in feature-implementation?" | Process answer in feedback doc + ALL deferrals lifted across this PR's commits + coaching artifacts captured + FRAIM #473 filed for the structural fix |
+| `r3292070992` | RFC line 565 | "This is factually incorrect..." | `849ad17` (RFC factual fix) |
+| `r3292073383` | RFC line 570 | "Lift it now. Don't punt architectural shortcuts based on 1st usage." | `9237905` + `69f69c1` + `ce11220` + `7b8848e` + `da92799` |
+| `r3292074338` | RFC line 571 | "Not as a follow-up issue, but as an end of the feature implementation" | Same as `r3292073383` + `9b51b66` (F.2 §6 entry) |
 
-When replying to `r3292386828` specifically, include:
-1. **Process answer**: no sanctioned implementer-initiated demotion process — coaching moment cited (Round 1 + Round 2).
-2. **Concrete delivery**: enumerate every previously-Partial item and its disposition (Met-this-session via commit SHA, Met-this-PR, or External blocker with dependency named for V15 only).
-3. **Forward guard**: work-list documents the no-demotion rule AND the grep-before-claiming rule so the same gaps can't recur.
-
----
-
-## Round 2 session — bugs surfaced + diagnostic notes
-
-1. **`/send-progress` is plain GET polled at 2s, NOT SSE.** I claimed the opposite in my pause-summary based on spec-prose ("API endpoints describes it as SSE"). User caught it; cost a round. The lift took 30 min. Coaching moment at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T18-14-24-trusted-spec-prose-without-grepping-route.md`. Rule for next session: **grep before claiming backend state**.
-
-2. **`Survey.distributionCount` vs `Survey.sentCount` may be a discrepancy.** Loop Monitor (`apps/api/src/routes/surveys.ts:1142`) reports `surveysSent: survey.distributionCount`, but spec R36 designates `Survey.sentCount` as the canonical denormalized aggregate. The Responses header strip (Item C) uses `survey.sentCount` per spec. If both columns drift, Loop Monitor + Responses-strip will show different lifetime values. Verify during Item M whether they're maintained in lockstep (worker writes to both? or just sentCount? — grep `distributionCount` and `sentCount` writers).
-
-3. **The `DistributionBatchesFilter` standalone row is deleted** (consolidated into the header strip). If any future code/tests reference it, they'll need updating. Grep already confirmed only docs/retrospectives mention it now.
-
----
-
-## Environment state at handoff
-
-- 10 commits on the feature branch, all pushed to `origin/feature/420-...`.
-- Working tree: contains `.claude/scheduled_tasks.lock` (untracked, ignore — harness state).
-- `pnpm-lock.yaml` is in sync with `package.json`. Branch is installable under `--frozen-lockfile`.
-- Prisma client regenerated cleanly via the root `postinstall` hook.
-- **No dev servers running** in this worktree.
+When replying to `r3292386828`, include the coaching artifacts + FRAIM #473 link as evidence of the forward guard at the framework level — the user explicitly asked how scope modification decisions are made; the answer is: they aren't, except via external-blocker or spec-level-non-goal carve-outs documented in `420-implement-work-list.md`.
 
 ---
 
 ## How to resume
 
-1. `cd "C:\Github\mathursrus\CustomerEQ - Issue 420"`
-2. `git pull` (sanity check — should be a no-op since we just pushed).
-3. Read this handoff doc top-to-bottom.
-4. Read `fraim/personalized-employee/rules/project_rules.md` rules 24–27.
-5. Read `MEMORY.md` at `C:\Users\manoh\.claude\projects\C--Github-mathursrus-CustomerEQ\memory\`.
-6. `mcp__fraim__fraim_connect` → `mcp__fraim__seekMentoring({ currentPhase: 'address-feedback', status: 'incomplete' })`.
-7. Open the spec mock at `docs/feature-specs/mocks/420-send-via-customereq-acs.html` in a browser BEFORE starting Item M.
-8. Start with **Item M** — walk every scene, file the audit at `docs/evidence/420-mock-walkthrough-audit.md`, close each drift in its own commit.
-9. After each commit: `pnpm --filter @customerEQ/web build`. Don't skip the build.
-10. Push every 2–3 commits.
-11. After Item M: F.2 → G → H. When everything is done: post the 5 PR replies (Item H), then call `seekMentoring(currentPhase='address-feedback', status='failure', findings={...})` to trigger the re-validation loop. Do NOT call `status='complete'` until the user explicitly approves the round (Rule 25a hold-point).
+1. `cd "C:\Github\mathursrus\CustomerEQ - Issue 420"`.
+2. `git pull` — sanity check; should be a no-op (push completed at session end).
+3. Read **this handoff doc top-to-bottom**.
+4. Read `fraim/personalized-employee/rules/project_rules.md` rules 24–27 (Rule 25a hold-point, Rule 26 one-PR-per-issue, Rule 27 Draft-until-completion).
+5. Read `MEMORY.md` at `C:\Users\manoh\.claude\projects\C--Github-mathursrus-CustomerEQ\memory\` — pay particular attention to `[[always_open_html_mocks]]` (sharpened this session) and `[[spec_prose_is_not_a_deliverable]]` (new this session).
+6. `mcp__fraim__fraim_connect` + `mcp__fraim__seekMentoring({ currentPhase: 'address-feedback', status: 'incomplete' })` (NOT `starting` — we're mid-round).
+7. **Do NOT immediately re-run the audit.** The audit is closed at `docs/evidence/420-mock-walkthrough-audit.md`; the user is now doing manual testing, not Item-M-style walkthrough. Wait for the user's findings before doing anything else.
+8. When the user reports findings:
+   - If a finding lands within the deferred-per-user items (5A.2 / 5B.* / 5C.*), build the fix on the same branch — don't split.
+   - If a finding surfaces drift the audit missed, file it as a row in the audit doc + close it in a commit + push.
+   - Once all findings are addressed: build the combined Item-H reply list (manual-test findings + the 5 existing PR comments above), post per-thread replies citing resolving commits, then call `seekMentoring(currentPhase='address-feedback', status='failure', findings={…})` to trigger re-validation. **Do NOT call `status='complete'` until the user explicitly approves.**
+9. After re-validation passes and user approves, that's when `seekMentoring(status='complete')` runs, which advances the workflow to `implement-submission`, which finally to `work-completion` (where `gh pr ready` flips Draft → Ready and merge is allowed).
+
+---
+
+## Non-negotiable rules to honor
+
+- **No V0/follow-up framing.** Round-1 coaching, load-bearing.
+- **Grep before claiming.** Round-2 coaching. Any factual claim about backend state must be verified against code / schema / migration.
+- **Mocks are non-summarizable.** Round-3 coaching. Read every scene end-to-end before any code edit. Every visible affordance is in-scope unless explicitly flagged design-only.
+- **Spec prose is not a deliverable.** Only R-statements are SHALL.
+- **V15 cross-client real-inbox check** stays in §"External blockers" with the dependency cited verbatim ("no ACS production sender domain registered + no shared test inbox").
+- **Rule 26 — one PR per issue.** No chore-issue splits.
+- **Rule 25a — `address-feedback` is a hold-point.** Do not call `seekMentoring(status='complete')` until the user explicitly approves.
+- **Rule 27 — PR stays Draft.** Auto-merge only flips to Ready via `gh pr ready` at `work-completion` time. Don't run `gh pr ready` from address-feedback.
+- **`[[mock_drift_is_my_responsibility]]`** — close mock-to-implementation drift on this PR proactively. No follow-up issues for drift.
+- **`[[validate_phase_must_run_build]]`** — `pnpm --filter @customerEQ/web build` (not just `tsc --noEmit`) before every commit.
+- **`[[kill_dev_servers_from_top_of_process_tree]]`** — kill stale dev-server processes from this worktree only (filter CommandLine for `Issue 420`); top-of-tree, not listening leaves. `apps/worker/.env` is now present so `pnpm dev` won't crash on the worker subprocess (the worker exits cleanly under `QUEUE_MODE=inline`).
+- **`[[check_pr_comments_before_merge]]`** — per-thread replies on PR comments at resolution time, citing the resolving commit SHA.
+- **`[[no_ask_user_question_dialog]]`** — present choices as plain-text lists in chat; never use `AskUserQuestion`.
+
+---
+
+## File / path cheat sheet (current as of 2026-05-23 23:00 UTC)
+
+| Concern | Path |
+|---|---|
+| **Item M audit doc** | `docs/evidence/420-mock-walkthrough-audit.md` (live closure-status record — read first) |
+| **Item G evidence-doc** | `docs/evidence/420-feature-implementation-evidence.md` (Round-2 + Round-3 markers; 0 Unmet across both matrices; only V15 Partial) |
+| **Item G work-list** | `docs/evidence/420-implement-work-list.md` (External blockers + Spec-level non-goals + Forward guards) |
+| **Spec** | `docs/feature-specs/420-send-via-customereq-acs.md` (R1–R45 + R30a–e + R31a + R32a–f + Mock-to-R cross-reference table at bottom) |
+| **Spec mock** | `docs/feature-specs/mocks/420-send-via-customereq-acs.html` (11 scenes; Scene 7B extended in commit `8d4181b` to depict Composer Snapshot + Send Log) |
+| **RFC** | `docs/rfcs/420-send-via-customereq-acs.md` |
+| **Feedback doc (Round 1 sources)** | `docs/evidence/420-feature-implementation-feedback.md` |
+| **Architecture doc** | `docs/architecture/architecture.md` (§3.1 ModeRouter + usePollingQuery; §6 two-gate suppression with Gate 1 paths) |
+| **Mode-router primitive** | `apps/web/src/components/mode-router/{ModeRouter.tsx,index.ts,ModeRouter.test.tsx}` |
+| **MustacheEditor (TipTap composer)** | `apps/web/src/components/managed-email-composer/{MustacheEditor,MustacheSuggestionList,mustacheTokens}.{ts,tsx}` |
+| **EmailPreviewCard (R30a–d, new in M8)** | `apps/web/src/components/managed-email-composer/EmailPreviewCard.{tsx,test.tsx}` |
+| **Polling hook** | `apps/web/src/lib/hooks/usePollingQuery.{ts,test.ts}` |
+| **Shared send-mode pill** | `apps/web/src/components/surveys/SendModePill.{tsx,test.tsx}` |
+| **Shared send-progress table** | `apps/web/src/components/surveys/SendProgressTable.{tsx,test.tsx}` |
+| **Loop Monitor (R39 + M5)** | `apps/web/src/components/surveys/LoopMonitor.{tsx,test.tsx}` |
+| **Audience builder** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/audience-builder/...` |
+| **Shared Survey Batch details** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/SurveyBatchDetailsCard.{tsx,test.tsx}` |
+| **Shared suppression helper** | `packages/shared/src/distributionSuppression.{ts,test.ts}` |
+| **SelfServeFlow (with M7 confirm modal)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/SelfServeFlow.tsx` |
+| **ManagedEmailFlow (with M7 confirm modal + M8 preview)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/ManagedEmailFlow.tsx` |
+| **Survey-detail page (Scene 6 surfaces)** | `apps/web/src/app/(admin)/admin/surveys/[id]/page.tsx` |
+| **Responses header strip (R40)** | `apps/web/src/app/(admin)/admin/surveys/[id]/components/SurveyResponsesHeaderStrip.{tsx,test.tsx}` |
+| **Wave Detail page (R-Wave-Detail surfaces)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/page.tsx` |
+| **Composer snapshot block (Item D)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/ComposerSnapshotBlock.{tsx,test.tsx}` |
+| **Recipient send log block (Item D.2)** | `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/batches/[batchId]/RecipientSendLogBlock.tsx` |
+| **Distribution Batches API** | `apps/api/src/routes/distributionBatches.ts` (GET list at line 798 with `sendMode` field; GET detail at line 848; `/send-progress` GET at line 1172) |
+| **Loop Monitor API handler** | `apps/api/src/routes/surveys.ts` (`/loop-monitor`) |
+| **Members API (R17 glob + R22 suppression)** | `apps/api/src/routes/members.ts` |
+| **Worker — managed-email-send (Gate 2)** | `apps/worker/src/processors/managedEmailSend.ts` (`checkSuppression`) |
+| **Batch schemas** | `packages/shared/src/zod/distributionBatch.schema.ts` |
+| **Coaching artifacts (3 raw moments from this PR)** | `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T*-*.md` |
+| **FRAIM-level structural fix** | https://github.com/mathursrus/FRAIM/issues/473 (`feature-specification` template restructure — out of #420's scope) |
+
+---
+
+## Environment state at handoff
+
+- 22 commits on the feature branch since prior handoff `73533ab`, all pushed to `origin/feature/420-...`.
+- Working tree: contains `.claude/scheduled_tasks.lock` (untracked, ignore — harness state).
+- `pnpm-lock.yaml` is in sync with `package.json` (TipTap family + `@dnd-kit` deps from prior rounds; nothing new this session).
+- All 5 `.env` files present in the worktree (see local-test environment section above).
+- **No dev servers running** in this worktree at session end.
+- `pnpm --filter @customerEQ/web build` was last run clean after commit `cbe32db` (M8).
+- Vitest scoped runs: `EmailPreviewCard.test.tsx` 9/9, `SurveyResponsesHeaderStrip.test.tsx` 11/11, `LoopMonitor.test.tsx` 4/4, `DistributionSection.test.tsx` 9/9, plus existing suites all green on touched files.
+
+Phase 12 status: **address-feedback INCOMPLETE — held pending user manual-test feedback**. `implement-architecture-update` complete (commit `9b51b66`). Coaching job `analyze-why-you-messed-up` complete in this session (FRAIM #473 filed; 3 raw coaching artifacts committed). PR stays Draft per Rule 27.
