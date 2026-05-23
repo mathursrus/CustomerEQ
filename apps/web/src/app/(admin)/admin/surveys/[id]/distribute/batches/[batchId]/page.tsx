@@ -291,6 +291,32 @@ export default function BatchDetailPage() {
         </div>
       </header>
 
+      {/* Mock #scene-7a lines 1200–1202 + #scene-7b lines 1318–1320 — Sent
+          semantics differ by send mode; surface the explainer prominently
+          near the counters so operators understand what the Sent number
+          counts (CSV-download events vs platform-confirmed delivery). */}
+      {batch.sendMode === 'SELF_SERVE' ? (
+        <div
+          className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-gray-700"
+          data-testid="sent-semantics-self-serve"
+        >
+          <strong className="text-gray-900">Sent semantics on this batch (Self-serve):</strong>{' '}
+          incremented when the operator downloaded the CSV (the dispatch-handoff moment).
+          Re-incremented on Regenerate Links. Failed is n/a because the platform did not dispatch
+          the email — the operator&apos;s own email tool did.
+        </div>
+      ) : (
+        <div
+          className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-gray-700"
+          data-testid="sent-semantics-managed"
+        >
+          <strong className="text-gray-900">Sent semantics on this batch (CustomerEQ Email):</strong>{' '}
+          incremented per-recipient as the platform confirms email delivery. For Self-serve
+          batches, Sent increments at CSV download time and re-increments if Regenerate Links is
+          used.
+        </div>
+      )}
+
       <section className="rounded-lg border border-gray-200 bg-white p-4 mb-4">
         <h2 className="text-sm font-semibold text-gray-900 mb-2">Audience</h2>
         <p className="text-xs text-gray-600">{batch.audienceSpec.description}</p>
@@ -422,6 +448,21 @@ export default function BatchDetailPage() {
           Showing {batch.tokens.data.length} of {batch.tokens.total} tokens
         </p>
       </section>
+
+      {/* Mock #scene-7a lines 1255–1257 — Self-serve has no platform-side
+          per-recipient delivery log. Surface this explicitly so operators
+          looking for failure detail understand why it is absent. */}
+      {batch.sendMode === 'SELF_SERVE' ? (
+        <div
+          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900"
+          data-testid="no-platform-send-log-warning"
+        >
+          <strong>⚠ No platform-side send log for Self-serve batches.</strong> The operator&apos;s
+          own email tool dispatched these — CustomerEQ does not have per-recipient delivery
+          confirmations for Self-serve. The Sent counter reflects CSV-download events; Responded
+          reflects actual respondent submissions; Failed is not applicable.
+        </div>
+      ) : null}
 
       {showRegenerateModal ? (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
