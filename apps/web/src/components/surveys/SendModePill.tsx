@@ -10,11 +10,11 @@ type SendMode = 'MANAGED_EMAIL' | 'SELF_SERVE'
 
 const VARIANTS: Record<SendMode, { label: string; className: string }> = {
   MANAGED_EMAIL: {
-    label: 'Managed',
+    label: 'Sent via CustomerEQ',
     className: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   },
   SELF_SERVE: {
-    label: 'Self-serve',
+    label: 'Sent via my email tool',
     className: 'bg-amber-50 text-amber-700 border-amber-200',
   },
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 
 import LoopMonitor from './LoopMonitor'
 
@@ -51,9 +51,9 @@ describe('<LoopMonitor> — R39 Survey Sent breakdown', () => {
     const subline = screen.getByTestId('surveys-sent-by-mode')
     expect(subline).toHaveTextContent('5 via CustomerEQ')
     expect(subline).toHaveTextContent('6 via my email tool')
-    // Mock #scene-6 line 1053 — pills inline on the subline (not just in the drawer).
-    expect(within(subline).getByTestId('send-mode-pill-MANAGED_EMAIL')).toBeInTheDocument()
-    expect(within(subline).getByTestId('send-mode-pill-SELF_SERVE')).toBeInTheDocument()
+    // G14 — the inline SendModePill was dropped (pill label now reads
+    // "Sent via CustomerEQ" / "Sent via my email tool"; placing it next to
+    // the subline text "5 via CustomerEQ" would be redundant).
   })
 
   it('renders the lifetime-anchor note above the pipeline stages', async () => {
@@ -67,7 +67,7 @@ describe('<LoopMonitor> — R39 Survey Sent breakdown', () => {
     expect(note).toHaveTextContent(/lifetime-wide/i)
   })
 
-  it('opens the Survey Sent drawer with both mode pills on click', async () => {
+  it('opens the Survey Sent drawer with the per-mode breakdown on click', async () => {
     await act(async () => {
       render(<LoopMonitor surveyId="srv_test" surveyStatus="ACTIVE" getToken={stubGetToken} />)
     })
@@ -82,11 +82,8 @@ describe('<LoopMonitor> — R39 Survey Sent breakdown', () => {
     expect(drawer).toHaveTextContent('via CustomerEQ Email')
     expect(drawer).toHaveTextContent('6')
     expect(drawer).toHaveTextContent('via my email tool')
-
-    // Both pills present — scoped to the drawer because the inline subline
-    // now also renders its own pair (mock #scene-6 line 1053).
-    expect(within(drawer).getByTestId('send-mode-pill-MANAGED_EMAIL')).toBeInTheDocument()
-    expect(within(drawer).getByTestId('send-mode-pill-SELF_SERVE')).toBeInTheDocument()
+    // G14 — pill removed from drawer for the same redundancy reason as the
+    // subline; the per-mode count text already labels the mode.
   })
 
   it('falls back to total-only when surveysSentByMode is missing', async () => {

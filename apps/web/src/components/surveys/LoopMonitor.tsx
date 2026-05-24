@@ -3,7 +3,6 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
-import { SendModePill } from './SendModePill'
 
 interface LoopMonitorData {
   surveyId: string
@@ -128,21 +127,17 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
       label: 'Survey Sent',
       value: numOrDash(surveysSentTotal),
       // F12 — split-counts render on separate lines so the tile stays narrow
-      // and the operator can scan each mode's count independently. Each row is
-      // `<count> via <mode-label>` + SendModePill (mock #scene-6 line 1053).
+      // and the operator can scan each mode's count independently. The
+      // inline pill was dropped after G14 (pill label became "Sent via
+      // CustomerEQ" / "Sent via my email tool") because the subline text
+      // already says the same thing — repeating it as a pill is redundant.
       subline: sentByMode ? (
         <span
           className="flex flex-col items-center gap-0.5 text-[10px] text-gray-500 leading-tight mt-1"
           data-testid="surveys-sent-by-mode"
         >
-          <span className="inline-flex items-center gap-1">
-            <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
-            <SendModePill mode="MANAGED_EMAIL" />
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
-            <SendModePill mode="SELF_SERVE" />
-          </span>
+          <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
+          <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
         </span>
       ) : null,
     },
@@ -253,12 +248,10 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-900">{sentByMode.MANAGED_EMAIL.toLocaleString()}</span>
                       <span className="text-xs text-gray-500">via CustomerEQ Email</span>
-                      <SendModePill mode="MANAGED_EMAIL" />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-900">{sentByMode.SELF_SERVE.toLocaleString()}</span>
                       <span className="text-xs text-gray-500">via my email tool</span>
-                      <SendModePill mode="SELF_SERVE" />
                     </div>
                   </div>
                 ) : (

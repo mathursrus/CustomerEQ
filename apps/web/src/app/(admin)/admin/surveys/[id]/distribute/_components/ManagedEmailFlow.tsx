@@ -446,13 +446,19 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
           <p className="text-xs uppercase tracking-wide text-indigo-600">Send via CustomerEQ</p>
           <h1 className="text-2xl font-semibold text-gray-900">{survey.title ?? survey.name}</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => switchTo('self-serve')}
-          className="rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
-        >
-          Switch to my email tool →
-        </button>
+        {/* G6 — mode-switch only makes sense while still configuring; once
+            the operator has clicked Send (flow → 'confirm' / 'sending' /
+            'sent'), switching modes mid-batch is nonsensical and would lose
+            the in-flight send state. Hide the toggle for those states. */}
+        {flow === 'configure' && (
+          <button
+            type="button"
+            onClick={() => switchTo('self-serve')}
+            className="rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            Switch to my email tool →
+          </button>
+        )}
       </header>
 
       {/* F9 — submit-error is rendered at the top so it's always visible after

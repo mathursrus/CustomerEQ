@@ -4,19 +4,19 @@ import { render, screen } from '@testing-library/react'
 import { SendModePill } from './SendModePill'
 
 describe('<SendModePill>', () => {
-  it('renders MANAGED_EMAIL as the Managed label with indigo styling', () => {
+  it('renders MANAGED_EMAIL with the "Sent via CustomerEQ" label and indigo styling', () => {
     render(<SendModePill mode="MANAGED_EMAIL" />)
     const pill = screen.getByTestId('send-mode-pill-MANAGED_EMAIL')
     expect(pill).toBeInTheDocument()
-    expect(pill).toHaveTextContent('Managed')
+    expect(pill).toHaveTextContent('Sent via CustomerEQ')
     expect(pill.className).toMatch(/indigo/)
   })
 
-  it('renders SELF_SERVE as the Self-serve label with amber styling', () => {
+  it('renders SELF_SERVE with the "Sent via my email tool" label and amber styling', () => {
     render(<SendModePill mode="SELF_SERVE" />)
     const pill = screen.getByTestId('send-mode-pill-SELF_SERVE')
     expect(pill).toBeInTheDocument()
-    expect(pill).toHaveTextContent('Self-serve')
+    expect(pill).toHaveTextContent('Sent via my email tool')
     expect(pill.className).toMatch(/amber/)
   })
 

@@ -155,7 +155,7 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
           type="button"
           onClick={handleSearch}
           aria-label="Run search"
-          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
         >
           <span aria-hidden="true">🔍</span>
           Search
