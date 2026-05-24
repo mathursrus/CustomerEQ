@@ -22,6 +22,7 @@ import { EmailPreviewCard } from '@/components/managed-email-composer/EmailPrevi
 import { MustacheEditor } from '@/components/managed-email-composer/MustacheEditor'
 import { SendProgressTable } from '@/components/surveys/SendProgressTable'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
+import { addDaysInBrandTz, endOfDayInBrandTz } from '@customerEQ/shared'
 
 import type { DistributeMode } from './modes'
 import {
@@ -108,13 +109,16 @@ const DEFAULT_SUBJECT_PREFIX = 'Quick question:'
 // Sending-state polling cadence — per RFC §3.4 / §9.1 D3. 2s is the V0 default.
 const SEND_PROGRESS_POLL_MS = 2_000
 
-function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d'): string {
-  const now = new Date()
+// G21 — expiry anchors to end-of-day in the BRAND's timezone, not UTC.
+// Previously the helper used setUTCDate + setUTCHours(23,59,59,999) which
+// resolved to midnight UTC regardless of where the brand operates (a US-East
+// brand seeing "7 days" → 7:59 PM ET on the target day, not 11:59 PM ET).
+// Uses the canonical addDaysInBrandTz + endOfDayInBrandTz helpers from
+// packages/shared/src/datetime.ts (DST-aware, validated by the #378 TZ spike).
+function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d', brandTimezone: string): string {
   const days = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }[preset]
-  const target = new Date(now)
-  target.setUTCDate(target.getUTCDate() + days)
-  target.setUTCHours(23, 59, 59, 999)
-  return target.toISOString()
+  const targetDay = addDaysInBrandTz(new Date(), days, brandTimezone)
+  return endOfDayInBrandTz(targetDay, brandTimezone).toISOString()
 }
 
 export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
@@ -289,7 +293,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const expiresAtIso =
     expiryPreset === 'custom'
       ? customExpiry || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
-      : presetToIsoExpiry(expiryPreset)
+      : presetToIsoExpiry(expiryPreset, brand?.timezone ?? 'UTC')
 
   // Polling — Sending state.
   const fetchSendProgress = useCallback(async (): Promise<SendProgressResponse> => {
