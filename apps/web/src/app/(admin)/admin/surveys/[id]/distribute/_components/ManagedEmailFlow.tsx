@@ -71,6 +71,17 @@ interface BrandContext {
    *  747–800) for {{brand_name}} + {{brand_logo}} substitution. */
   name: string
   logoUrl: string | null
+  /** F14 — default theme colors so the preview matches what the worker
+   *  renders via packages/shared/src/email/renderTemplate.ts. */
+  theme: {
+    primaryColor: string
+    backgroundColor: string
+    textColor: string
+    accentColor: string
+    buttonColor: string
+    buttonTextColor: string
+    fontFamily: string
+  } | null
 }
 
 // MANAGED_EMAIL sender-domain fallback chain — mirrors R25. Surfaced in the
@@ -174,12 +185,31 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
           name: surveyData.name,
           status: surveyData.status,
         })
+        // /v1/admin/brand/profile wraps the brand under `brand` and exposes
+        // themes alongside it (see apps/api/src/routes/admin-brand-profile.ts
+        // — `{ brand, themes, memberCount, supportEmail }`). The previous
+        // unwrap (brandData.timezone / .name / .logoUrl) read the wrong
+        // nesting level and silently fell through to defaults (F5 + F15).
+        const b = brandData.brand ?? brandData
+        const themes = Array.isArray(brandData.themes) ? brandData.themes : []
+        const defaultTheme = themes.find((t: { isDefault?: boolean }) => t.isDefault) ?? themes[0] ?? null
         setBrand({
-          timezone: brandData.timezone ?? 'UTC',
+          timezone: b.timezone ?? 'UTC',
           memberCount,
           // R30c — preview pane substitutes {{brand_name}} + {{brand_logo}}.
-          name: brandData.name ?? '',
-          logoUrl: brandData.logoUrl ?? null,
+          name: b.name ?? '',
+          logoUrl: b.logoUrl ?? null,
+          theme: defaultTheme
+            ? {
+                primaryColor: defaultTheme.primaryColor ?? '#6366f1',
+                backgroundColor: defaultTheme.backgroundColor ?? '#ffffff',
+                textColor: defaultTheme.textColor ?? '#111827',
+                accentColor: defaultTheme.accentColor ?? '#6366f1',
+                buttonColor: defaultTheme.buttonColor ?? '#6366f1',
+                buttonTextColor: defaultTheme.buttonTextColor ?? '#ffffff',
+                fontFamily: defaultTheme.fontFamily ?? 'system-ui',
+              }
+            : null,
         })
         const title = surveyData.title ?? surveyData.name
         setSurveyNameInMail(title)
@@ -443,6 +473,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
               brandLogoUrl={brand.logoUrl}
               surveyTitle={survey.title ?? survey.name}
               surveyId={surveyId}
+              theme={brand.theme}
             />
           </div>
 

@@ -214,10 +214,14 @@ export function SelfServeFlow() {
           name: surveyBody.name,
           status: surveyBody.status,
         })
+        // /v1/admin/brand/profile wraps the brand under `brand` (see
+        // apps/api/src/routes/admin-brand-profile.ts). Reading brandBody.*
+        // directly silently fell through to defaults.
+        const b = brandBody.brand ?? brandBody
         setBrand({
-          timezone: brandBody.timezone ?? 'UTC',
-          locale: brandBody.locale ?? 'en-US',
-          memberIdentifierKind: brandKindToClient(brandBody.memberIdentifierKind),
+          timezone: b.timezone ?? 'UTC',
+          locale: b.locale ?? 'en-US',
+          memberIdentifierKind: brandKindToClient(b.memberIdentifierKind),
           memberCount,
         })
         setSurveyNameInMail(surveyBody.title ?? surveyBody.name)

@@ -242,7 +242,18 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         fastify.prisma.brandTheme.findMany({
           where: { brandId },
-          select: { id: true, name: true, primaryColor: true, secondaryColor: true, backgroundColor: true },
+          select: {
+            id: true,
+            name: true,
+            primaryColor: true,
+            secondaryColor: true,
+            backgroundColor: true,
+            textColor: true,
+            accentColor: true,
+            buttonColor: true,
+            buttonTextColor: true,
+            fontFamily: true,
+          },
           orderBy: { createdAt: 'desc' },
         }),
         fastify.prisma.member.count({ where: { brandId } }),
@@ -251,12 +262,23 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
       // swatches projection is the picker's brand-vibe preview — primary +
       // secondary + page background. accentColor is intentionally NOT shown
       // here (it's used for error/warning emphasis, not brand identity, and
-      // mixing it into the picker chip strip would mislead admins).
+      // mixing it into the picker chip strip would mislead admins). The full
+      // color set is exposed alongside swatches so consumers that render the
+      // theme (e.g. Issue #420 email-preview pane, F14) can read all fields
+      // without a follow-up fetch.
       const themesDecorated = themes.map((t) => ({
         id: t.id,
         name: t.name,
         isDefault: t.id === brand.defaultThemeId,
         swatches: [t.primaryColor, t.secondaryColor, t.backgroundColor] as [string, string, string],
+        primaryColor: t.primaryColor,
+        secondaryColor: t.secondaryColor,
+        backgroundColor: t.backgroundColor,
+        textColor: t.textColor,
+        accentColor: t.accentColor,
+        buttonColor: t.buttonColor,
+        buttonTextColor: t.buttonTextColor,
+        fontFamily: t.fontFamily,
       }))
 
       return reply.status(200).send({

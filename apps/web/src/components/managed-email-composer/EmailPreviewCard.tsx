@@ -27,6 +27,16 @@ export interface SampleRecipient {
   identifier: string
 }
 
+export interface EmailPreviewTheme {
+  primaryColor: string
+  backgroundColor: string
+  textColor: string
+  accentColor: string
+  buttonColor: string
+  buttonTextColor: string
+  fontFamily: string
+}
+
 export interface EmailPreviewCardProps {
   /** Composer state — preview reflects keystroke-by-keystroke (R30d). */
   senderName: string
@@ -51,6 +61,21 @@ export interface EmailPreviewCardProps {
   surveyId: string
 
   /** R30 unsubscribe footer renders unsubscribe link as `/u/<sample-token>`. */
+
+  /** F14 — default brand theme so the preview matches what the worker renders
+   *  in production via packages/shared/src/email/renderTemplate.ts. Falls
+   *  back to neutral defaults when null. */
+  theme?: EmailPreviewTheme | null
+}
+
+const DEFAULT_THEME: EmailPreviewTheme = {
+  primaryColor: '#111827',
+  backgroundColor: '#ffffff',
+  textColor: '#1f2937',
+  accentColor: '#4f46e5',
+  buttonColor: '#4f46e5',
+  buttonTextColor: '#ffffff',
+  fontFamily: 'system-ui',
 }
 
 function escapeHtml(s: string): string {
@@ -87,6 +112,7 @@ interface SubstitutionContext {
   brandName: string
   brandLogoHtml: string
   surveyLink: string
+  accentColor: string
 }
 
 function substituteMustache(html: string, ctx: SubstitutionContext): string {
@@ -99,10 +125,12 @@ function substituteMustache(html: string, ctx: SubstitutionContext): string {
     // brand_logo: emit an <img> referencing Brand.logoUrl, or empty string
     // when logoUrl is null (R28 collapses the header to brand name only).
     .replace(/\{\{\s*brand_logo\s*\}\}/g, ctx.brandLogoHtml)
-    // survey_link: emit a clickable preview-only anchor with the sample URL.
+    // survey_link: emit a clickable preview-only anchor styled with the
+    // theme accent color so the preview matches what the production renderer
+    // applies via rewriteLinksWithAccent() in renderTemplate.ts.
     .replace(
       /\{\{\s*survey_link\s*\}\}/g,
-      `<a href="${escapeHtml(ctx.surveyLink)}" style="color: #4f46e5; text-decoration: underline;">${escapeHtml(ctx.surveyLink)}</a>`,
+      `<a href="${escapeHtml(ctx.surveyLink)}" style="color: ${escapeHtml(ctx.accentColor)}; text-decoration: underline;">${escapeHtml(ctx.surveyLink)}</a>`,
     )
 }
 
@@ -117,10 +145,13 @@ export function EmailPreviewCard({
   brandLogoUrl,
   surveyTitle,
   surveyId,
+  theme,
 }: EmailPreviewCardProps) {
   const recipientLabel = fullName(sampleRecipient)
   const recipientEmail = sampleRecipient?.identifier ?? 'sample@example.com'
   const fromAddress = `${senderAlias}@${senderDomain}`
+  const activeTheme = theme ?? DEFAULT_THEME
+  const brandDisplayName = brandName || 'your brand'
 
   const origin =
     typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : ''
@@ -128,7 +159,7 @@ export function EmailPreviewCard({
   const sampleUnsubscribeLink = `${origin}/u/sample-token-xxxxxxxx`
 
   const brandLogoHtml = brandLogoUrl
-    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)} logo" style="height: 40px; vertical-align: middle;" />`
+    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandDisplayName)} logo" style="height: 40px; vertical-align: middle;" />`
     : ''
 
   const renderedBody = useMemo(
@@ -138,11 +169,15 @@ export function EmailPreviewCard({
         lastName: sampleRecipient?.lastName ?? 'Recipient',
         surveyTitle: surveyTitle || '<survey title>',
         senderName: senderName || '<sender name>',
-        brandName: brandName || '<brand name>',
+        // F5 — substitute even when brand name is empty; the preview's
+        // brand-header strip + disclaimer already surface a visible "your
+        // brand" fallback so a missing brand record is obvious.
+        brandName: brandDisplayName,
         brandLogoHtml,
         surveyLink: sampleSurveyLink,
+        accentColor: activeTheme.accentColor,
       }),
-    [bodyHtml, sampleRecipient, surveyTitle, senderName, brandName, brandLogoHtml, sampleSurveyLink],
+    [bodyHtml, sampleRecipient, surveyTitle, senderName, brandDisplayName, brandLogoHtml, sampleSurveyLink, activeTheme.accentColor],
   )
 
   return (
@@ -169,65 +204,90 @@ export function EmailPreviewCard({
         ) : null}
       </div>
 
-      {/* Email frame — mock lines 758-779 */}
-      <div className="bg-white px-4 py-4 text-sm">
-        <div className="mb-2 text-xs text-gray-600">
+      {/* Email frame — mock lines 758-779. F14: backgroundColor + textColor +
+          fontFamily from the brand's default theme, so the preview matches
+          packages/shared/src/email/renderTemplate.ts rendering. */}
+      <div
+        className="px-4 py-4 text-sm"
+        style={{
+          backgroundColor: activeTheme.backgroundColor,
+          color: activeTheme.textColor,
+          fontFamily: `${activeTheme.fontFamily}, system-ui, -apple-system, sans-serif`,
+        }}
+      >
+        <div className="mb-2 text-xs" style={{ color: activeTheme.textColor, opacity: 0.7 }}>
           <div>
-            <strong className="text-gray-900">From:</strong> {senderName || '—'}{' '}
-            <span className="font-mono text-gray-500">&lt;{fromAddress}&gt;</span>
+            <strong style={{ color: activeTheme.textColor, opacity: 1 }}>From:</strong>{' '}
+            {senderName || '—'}{' '}
+            <span className="font-mono">&lt;{fromAddress}&gt;</span>
           </div>
           <div>
-            <strong className="text-gray-900">To:</strong> {recipientLabel}{' '}
-            <span className="font-mono text-gray-500">&lt;{recipientEmail}&gt;</span>
+            <strong style={{ color: activeTheme.textColor, opacity: 1 }}>To:</strong>{' '}
+            {recipientLabel}{' '}
+            <span className="font-mono">&lt;{recipientEmail}&gt;</span>
           </div>
         </div>
         <div
-          className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900"
+          className="border-b pb-2 text-base font-semibold"
+          style={{ borderColor: 'rgba(0,0,0,0.08)', color: activeTheme.textColor }}
           data-testid="email-preview-subject"
         >
-          {subject || <span className="text-gray-400">&lt;subject&gt;</span>}
+          {subject || <span style={{ opacity: 0.4 }}>&lt;subject&gt;</span>}
         </div>
 
-        {/* Brand-header strip — appears only if the body's leading paragraphs
-            contain {{brand_logo}} / {{brand_name}} (the R28 default), or the
-            operator removed them. We always render the strip; if logoUrl is
-            null the strip degrades to brand-name only (R28). */}
-        <div className="my-3 flex items-center gap-3 border-b border-gray-200 pb-3">
+        {/* Brand-header strip — F14: brand name uses theme primaryColor so the
+            recipient sees the brand identity at the same color the production
+            renderer applies. F15: when brandName is empty we surface a visible
+            "your brand" placeholder rather than the previous em-dash so it
+            reads as something to fix instead of broken rendering. */}
+        <div
+          className="my-3 flex items-center gap-3 border-b pb-3"
+          style={{ borderColor: 'rgba(0,0,0,0.08)' }}
+        >
           {brandLogoUrl ? (
             <img
               src={brandLogoUrl}
-              alt={`${brandName} logo`}
+              alt={`${brandDisplayName} logo`}
               className="h-10 w-auto"
               data-testid="email-preview-brand-logo"
             />
           ) : null}
-          <div className="text-base font-semibold text-gray-900">{brandName || '—'}</div>
+          <div
+            className="text-base font-semibold"
+            style={{ color: activeTheme.primaryColor }}
+            data-testid="email-preview-brand-name"
+          >
+            {brandDisplayName}
+          </div>
         </div>
 
         {/* Rendered body — mustache tokens substituted, HTML rendered. */}
         <div
-          className="prose prose-sm max-w-none text-gray-800"
+          className="prose prose-sm max-w-none"
+          style={{ color: activeTheme.textColor }}
           data-testid="email-preview-body"
           dangerouslySetInnerHTML={{ __html: renderedBody }}
         />
 
         {/* R30 auto-appended unsubscribe footer — non-editable in composer
             and previewed here so the operator sees the legally-required
-            footer recipients will receive. */}
+            footer recipients will receive. F15: brand display name (with
+            fallback) substituted into the disclaimer. */}
         <div
-          className="mt-4 border-t border-gray-200 pt-2 text-xs text-gray-500"
+          className="mt-4 border-t pt-2 text-xs"
+          style={{ borderColor: 'rgba(0,0,0,0.08)', color: activeTheme.textColor, opacity: 0.7 }}
           data-testid="email-preview-footer"
         >
           You received this survey because you&rsquo;re a customer or partner of{' '}
-          {brandName || '—'}.<br />
+          {brandDisplayName}.<br />
           <a
             href={sampleUnsubscribeLink}
-            className="text-indigo-600 underline"
+            style={{ color: activeTheme.accentColor, textDecoration: 'underline' }}
             onClick={(e) => e.preventDefault()}
           >
             Unsubscribe
           </a>{' '}
-          from future survey emails from {brandName || '—'}.
+          from future survey emails from {brandDisplayName}.
         </div>
       </div>
     </aside>
