@@ -124,6 +124,89 @@ No visual/UX bugs found on the rendered sign-in screen.
 
 ---
 
-## Security Review Findings
+## Security Review
 
-*[To be populated in implement-security-review phase]*
+### Executive Summary
+
+- **0 Critical, 0 High, 2 Low, 1 Info** findings.
+- No blocking findings — phase passes.
+- Highest priority: bounded distribution query in `GET /v1/reviews` (Low, accepted for B2B scale).
+
+### Review Scope
+
+- `reviewType`: embedded-diff-review
+- `reviewScope`: diff
+- Branch: `feature/513-feat-customereq-member-mobile-app-react-native` vs `origin/main`
+- `surfaceAreaPaths`: `apps/api/src/routes/mobile.ts`, `apps/api/src/app.ts`, `apps/mobile/**`
+
+### Threat Surface Summary
+
+| Surface | Detected | Evidence |
+|---------|----------|---------|
+| `api` | ✓ | `apps/api/src/routes/mobile.ts` exports `FastifyPluginAsync` with `app.get`/`app.post` calls |
+| `mobile` | ✓ | `apps/mobile/app/**`, `apps/mobile/hooks/**`, `apps/mobile/components/**` |
+| `web` | ✗ | No Next.js pages in diff |
+| `llm-app` | ✗ | No LLM imports in diff |
+| `data-pipeline` | ✗ | No direct DB driver imports (uses Prisma via fastify.prisma) |
+
+Scans applied: `owasp-api-top-10-review`, `secrets-in-code-check`, `privacy-and-pii-review`
+
+### Coverage Matrix
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| API1 — BOLA | Pass | All queries scoped to `brandId` from auth context; reply validates `{id, brandId}` ownership |
+| API2 — Broken Auth | Pass | Routes rely on existing Fastify preHandler auth middleware (`request.brandId`) |
+| API3 — BOPLA | Pass | Reply accepts `text` only; dashboard returns computed aggregates, no raw model dumps |
+| API4 — Resource Consumption | Finding (Low) | `allRatings` fetchAll in `GET /v1/reviews` unbounded; see SEC-01 |
+| API5 — Function-Level AuthZ | Pass | No admin-only capabilities exposed; all routes require authenticated `brandId` |
+| API6 — Business Flow Abuse | Pass | B2B internal tool; existing Fastify rate limiting applies |
+| API7 — SSRF | Pass | No user-controlled server-side URL fetches |
+| API8 — Misconfiguration | Pass | No new Fastify config; no new CORS or header settings |
+| API9 — Inventory | Pass | Routes registered under `/v1` prefix consistent with existing convention |
+| API10 — Unsafe API Consumption | Pass | No new third-party API calls; uses Prisma parameterized queries |
+| Secrets in Code | Pass | No hardcoded keys/tokens in committed files; `.env` is gitignored; `.env.example` uses placeholders |
+| Privacy / PII | Pass | `externalAuthorLabel` is public Google review data; no new PII collected or stored |
+
+### Findings
+
+| ID | Severity | OWASP | Location | Summary |
+|----|----------|-------|----------|---------|
+| SEC-01 | Low | API4 | `apps/api/src/routes/mobile.ts:165` | `allRatings` uses `findMany` without `take` limit to compute rating distribution across all reviews for the brand |
+| SEC-02 | Info | — | `apps/mobile/app/_layout.tsx:10-14` | In-memory token cache loses session on app restart; less secure than `expo-secure-store` for production |
+
+### Prioritized Remediation Queue
+
+| Priority | ID | Action |
+|----------|-----|--------|
+| 1 (Low) | SEC-01 | Add `take: 5000` limit or replace with Prisma `groupBy`/aggregate query to compute distribution server-side |
+| 2 (Info) | SEC-02 | Swap in-memory cache for `expo-secure-store` in production builds; already documented in code comment |
+
+### Verification Evidence
+
+- SEC-01: Grep confirmed no `take` on the `allRatings` query. No fix applied (accepted).
+- SEC-02: Code comment in `_layout.tsx` explicitly documents production swap path. No fix applied (accepted/deferred).
+
+### Applied Fixes and Filed Work Items
+
+No auto-fixes applied. Both findings accepted (see below).
+
+### Accepted / Deferred / Blocked
+
+| ID | Disposition | Rationale |
+|----|-------------|-----------|
+| SEC-01 | Accepted | B2B tool; brand review volume is operationally bounded; `select: {rating: true}` minimal field set; no breach risk |
+| SEC-02 | Deferred to production build | Expo Go 2.32.19 (SDK 52) requires pure-JS token cache; SecureStore swap is the documented production path |
+
+### Compliance Control Mapping
+
+No active compliance framework for this issue.
+
+### Run Metadata
+
+- Date: 2026-05-24
+- Commit: `d12e647`
+- Skills: `threat-surface-classification`, `owasp-api-top-10-review`, `secrets-in-code-check`, `privacy-and-pii-review`, `finding-disposition`
+- Auth/crypto firewall: `(auth)/sign-in.tsx` path detected → auto-fix suppressed for that file (no findings in that file)
+- Auto-fix cap: 0/10 used
+- Skill errors: none
