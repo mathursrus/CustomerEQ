@@ -2,12 +2,12 @@ import pino from 'pino'
 import {
   type ConnectorContext,
   type ConnectorResult,
-  connectorFetch,
   getCredentials,
   mergeEnvCredentials,
   isTokenExpired,
   refreshOAuthToken,
   ConnectorAuthError,
+  ConnectorRateLimitError,
 } from './types.js'
 
 const logger = pino({ name: 'connector:google' })
@@ -40,50 +40,74 @@ interface GoogleReviewsResponse {
   averageRating?: number
 }
 
-// Mock reviews returned when CEQ_MOCK_GOOGLE_REVIEWS=true (used while waiting for
-// Google Business Profile API quota approval — remove this block once approved).
-const MOCK_REVIEWS: GoogleReview[] = [
-  {
-    reviewId: 'mock-review-1',
-    reviewer: { displayName: 'Sarah K.' },
-    starRating: 'FIVE',
-    comment: 'Best meal we have had in Bellevue! The chef came out to greet us and the service was impeccable.',
-    createTime: '2026-04-09T18:30:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-1',
-  },
-  {
-    reviewId: 'mock-review-2',
-    reviewer: { displayName: 'Michael R.' },
-    starRating: 'FOUR',
-    comment: 'Great food and ambience. Slightly long wait for the table even with a reservation, but worth it.',
-    createTime: '2026-04-08T20:15:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-2',
-  },
-  {
-    reviewId: 'mock-review-3',
-    reviewer: { displayName: 'Anonymous' },
-    starRating: 'THREE',
-    comment: 'Food was good but the noise level made it hard to have a conversation. Loud kitchen sounds.',
-    createTime: '2026-04-07T19:00:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-3',
-  },
-  {
-    reviewId: 'mock-review-4',
-    reviewer: { displayName: 'Jennifer L.' },
-    starRating: 'FIVE',
-    comment: 'Absolutely loved the tasting menu. Will definitely be back for our anniversary!',
-    createTime: '2026-04-06T21:45:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-4',
-  },
-  {
-    reviewId: 'mock-review-5',
-    reviewer: { displayName: 'David T.' },
-    starRating: 'TWO',
-    comment: 'Disappointing experience. Order was wrong twice and the manager was not helpful in resolving it.',
-    createTime: '2026-04-05T19:30:00Z',
-    name: 'mock/locations/skb-bellevue/reviews/mock-review-5',
-  },
-]
+interface PlacesReview {
+  author_name: string
+  author_url?: string
+  rating: number
+  text?: string
+  time: number
+  relative_time_description?: string
+  profile_photo_url?: string
+}
+
+interface PlacesDetailsResponse {
+  status: string
+  result?: { reviews?: PlacesReview[] }
+  error_message?: string
+}
+
+async function fetchViaPlacesApi(
+  ctx: ConnectorContext,
+  placeId: string,
+  mapsApiKey: string,
+  locationId: string,
+): Promise<ConnectorResult> {
+  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=reviews&key=${mapsApiKey}&language=en`
+  const response = await fetch(url, { headers: { Accept: 'application/json' } })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`[Google Places] HTTP ${response.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = (await response.json()) as PlacesDetailsResponse
+
+  if (data.status !== 'OK') {
+    throw new ConnectorAuthError('Google', `Places API error: ${data.status} ${data.error_message ?? ''}`)
+  }
+
+  const reviews = data.result?.reviews ?? []
+
+  logger.info(
+    { sourceId: ctx.sourceId, count: reviews.length, source: 'places_api' },
+    'google.reviews_fetched',
+  )
+
+  const deliveries = reviews.map((review) => {
+    const contributorId = review.author_url?.split('/contrib/')[1]?.split('/')[0] ?? `${review.time}`
+    return {
+      externalId: `places_${review.time}_${contributorId}`,
+      body: review.text ?? '',
+      rating: review.rating ?? null,
+      externalAuthorLabel: review.author_name ?? null,
+      canonicalUrl: `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`,
+      postedAt: new Date(review.time * 1000).toISOString(),
+      subjectType: 'location',
+      subjectKey: locationId,
+      subjectLabel: (ctx.scopeConfig.locationLabel as string) ?? locationId,
+      providerStatus: 'visible',
+      providerMetadata: {
+        reviewReply: null,
+        relativeTimeDescription: review.relative_time_description,
+        placeId,
+        source: 'places_api',
+      },
+      rawPayload: review,
+    }
+  })
+
+  return { deliveries, nextCursor: null, updatedCredentials: undefined }
+}
 
 export async function fetchGoogleBusinessProfileReviews(
   ctx: ConnectorContext,
@@ -97,27 +121,6 @@ export async function fetchGoogleBusinessProfileReviews(
   const locationId = ctx.scopeConfig.locationId as string | undefined
   if (!accountId || !locationId) {
     throw new Error('[Google] Missing accountId or locationId in scopeConfig')
-  }
-
-  // Mock mode: return sample reviews instead of calling Google API
-  // Used while waiting for Google Business Profile API quota approval
-  if (process.env.CEQ_MOCK_GOOGLE_REVIEWS === 'true') {
-    logger.info({ sourceId: ctx.sourceId, mock: true }, 'google.mock_mode')
-    const deliveries = MOCK_REVIEWS.map((review) => ({
-      externalId: review.reviewId,
-      body: review.comment ?? '',
-      rating: STAR_RATING_MAP[review.starRating] ?? null,
-      externalAuthorLabel: review.reviewer?.displayName ?? null,
-      canonicalUrl: `https://search.google.com/local/reviews?placeid=${encodeURIComponent(locationId)}`,
-      postedAt: review.createTime,
-      subjectType: 'location',
-      subjectKey: locationId,
-      subjectLabel: (ctx.scopeConfig.locationLabel as string) ?? locationId,
-      providerStatus: 'visible',
-      providerMetadata: { reviewReply: null, name: review.name, mock: true },
-      rawPayload: review as unknown as Record<string, unknown>,
-    }))
-    return { deliveries, nextCursor: null }
   }
 
   let updatedCredentials: Record<string, unknown> | undefined
@@ -143,16 +146,50 @@ export async function fetchGoogleBusinessProfileReviews(
     params.set('pageToken', cursor.pageToken)
   }
 
-  const url = `https://mybusiness.googleapis.com/v4/${accountId}/${locationId}/reviews?${params}`
+  // Primary: Google Business Profile API v4 (requires Google partner/elevated API access).
+  // If the project has not yet been approved, this returns 403 SERVICE_DISABLED and we
+  // fall back to the Google Places API (up to 5 reviews) when placeId is configured.
+  const v4Url = `https://mybusiness.googleapis.com/v4/${accountId}/${locationId}/reviews?${params}`
 
-  const response = await connectorFetch('Google', url, {
+  const rawResponse = await fetch(v4Url, {
     headers: {
       Authorization: `Bearer ${credentials.accessToken}`,
       Accept: 'application/json',
     },
   })
 
-  const data = (await response.json()) as GoogleReviewsResponse
+  if (rawResponse.status === 401) {
+    const text = await rawResponse.text().catch(() => '')
+    throw new ConnectorAuthError('Google', `HTTP 401: ${text.slice(0, 200)}`)
+  }
+
+  if (rawResponse.status === 429) {
+    const retryAfter = rawResponse.headers.get('retry-after')
+    const ms = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60_000
+    throw new ConnectorRateLimitError('Google', ms)
+  }
+
+  if (rawResponse.status === 403) {
+    const errText = await rawResponse.text().catch(() => '')
+    const placeId = ctx.scopeConfig.placeId as string | undefined
+    const mapsApiKey = process.env.CEQ_GOOGLE_MAPS_API_KEY
+
+    const apiDisabled = errText.includes('SERVICE_DISABLED') || errText.includes('has not been used') || errText.includes('is disabled')
+    if (apiDisabled && placeId && mapsApiKey) {
+      logger.info({ sourceId: ctx.sourceId, placeId }, 'google.falling_back_to_places_api')
+      const placesResult = await fetchViaPlacesApi(ctx, placeId, mapsApiKey, locationId)
+      return { ...placesResult, updatedCredentials: updatedCredentials ?? placesResult.updatedCredentials }
+    }
+
+    throw new ConnectorAuthError('Google', `HTTP 403: ${errText.slice(0, 200)}`, updatedCredentials)
+  }
+
+  if (!rawResponse.ok) {
+    const text = await rawResponse.text().catch(() => '')
+    throw new Error(`[Google] HTTP ${rawResponse.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = (await rawResponse.json()) as GoogleReviewsResponse
   const reviews = data.reviews ?? []
 
   logger.info(

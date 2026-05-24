@@ -347,6 +347,9 @@ importers:
         specifier: ^6.33.0
         version: 6.33.0(ws@8.20.0)(zod@3.25.76)
     devDependencies:
+      '@customerEQ/config':
+        specifier: workspace:*
+        version: link:../config
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

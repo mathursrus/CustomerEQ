@@ -17,10 +17,14 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: `node ./node_modules/next/dist/bin/next dev --hostname ${HOST} --port ${PORT}`,
+    // Run E2E against a production build. Next 15 dev mode emits
+    // sync-dynamic-api `headers()` failures through Clerk that leave admin
+    // pages blank under Playwright on Windows; the production server matches
+    // the deployed runtime and avoids the dev-only failure mode.
+    command: `pnpm build && node ./node_modules/next/dist/bin/next start --hostname ${HOST} --port ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    timeout: 240000,
     env: {
       PLAYWRIGHT_TEST: 'true',
       NEXT_PUBLIC_PLAYWRIGHT_TEST: 'true',

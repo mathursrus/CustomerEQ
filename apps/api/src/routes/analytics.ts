@@ -18,8 +18,8 @@ const DateRangeSchema = z.object({
 })
 
 const CxQuerySchema = z.object({
-  startDate: z.string().datetime({ message: 'startDate must be a valid ISO datetime' }),
-  endDate: z.string().datetime({ message: 'endDate must be a valid ISO datetime' }),
+  startDate: z.string().datetime({ message: 'startDate must be a valid ISO datetime' }).optional(),
+  endDate: z.string().datetime({ message: 'endDate must be a valid ISO datetime' }).optional(),
   surveyId: z.string().optional(),
 })
 
@@ -354,14 +354,12 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { startDate: startDateStr, endDate: endDateStr, surveyId: filterSurveyId } = parse.data
     const brandId = request.brandId
-    const startDate = new Date(startDateStr)
-    const endDate = new Date(endDateStr)
+    const startDate = startDateStr ? new Date(startDateStr) : undefined
+    const endDate = endDateStr ? new Date(endDateStr) : undefined
 
     // Build where clause — optionally scoped to a single survey
-    const responseWhere: Record<string, unknown> = {
-      brandId,
-      completedAt: { gte: startDate, lte: endDate },
-    }
+    const responseWhere: Record<string, unknown> = { brandId }
+    if (startDate || endDate) responseWhere.completedAt = { gte: startDate, lte: endDate }
     if (filterSurveyId) responseWhere.surveyId = filterSurveyId
 
     // Get all survey responses in the date range
@@ -373,8 +371,8 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     })
     const externalSignals = await fastify.prisma.externalSignal.findMany({
       where: buildExternalSignalWhere(brandId, {
-        startDate: startDateStr,
-        endDate: endDateStr,
+        ...(startDateStr ? { startDate: startDateStr } : {}),
+        ...(endDateStr ? { endDate: endDateStr } : {}),
         page: 1,
         pageSize: 1000,
       }),
@@ -478,7 +476,10 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    const midpoint = new Date((startDate.getTime() + endDate.getTime()) / 2)
+    const now = new Date()
+    const effectiveStart = startDate ?? new Date(0)
+    const effectiveEnd = endDate ?? now
+    const midpoint = new Date((effectiveStart.getTime() + effectiveEnd.getTime()) / 2)
 
     const clusters = await Promise.all(
       activeClusters.map(async (cluster) => {
@@ -493,14 +494,14 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
             where: {
               clusterId: cluster.id,
               brandId,
-              bucketDate: { gte: startDate, lt: midpoint },
+              bucketDate: { gte: effectiveStart, lt: midpoint },
             },
           }),
           fastify.prisma.clusterSnapshot.findMany({
             where: {
               clusterId: cluster.id,
               brandId,
-              bucketDate: { gte: midpoint, lte: endDate },
+              bucketDate: { gte: midpoint, lte: effectiveEnd },
             },
           }),
         ])
@@ -523,11 +524,9 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     )
 
     // Fetch anomalies in date range
+    const anomalyDateFilter = (startDate || endDate) ? { detectedAt: { gte: startDate, lte: endDate } } : {}
     const anomalies = await fastify.prisma.feedbackAnomaly.findMany({
-      where: {
-        brandId,
-        detectedAt: { gte: startDate, lte: endDate },
-      },
+      where: { brandId, ...anomalyDateFilter },
       orderBy: { detectedAt: 'desc' },
     })
 
@@ -555,7 +554,7 @@ const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         clusterLabel: a.clusterId ? anomalyClusterMap.get(a.clusterId) ?? null : null,
         detectedAt: a.detectedAt.toISOString(),
       })),
-      dateRange: { startDate: startDateStr, endDate: endDateStr },
+      dateRange: startDateStr || endDateStr ? { startDate: startDateStr, endDate: endDateStr } : null,
     })
   })
 

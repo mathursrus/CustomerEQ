@@ -15,7 +15,7 @@ const identityProviderPlugin: FastifyPluginAsync = async (fastify) => {
       ? (() => {
           throw new Error('CLERK_WEBHOOK_SECRET is required in production')
         })()
-      : 'whsec_dev_placeholder_not_used_for_verification')
+      : 'whsec_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=')
 
   // Comma-separated list, e.g. "google,github,microsoft". Empty list ⇒ no
   // OAuth row rendered on /signup; admin can still email/password.

@@ -131,6 +131,96 @@ describe('fetchGoogleBusinessProfileReviews', () => {
     await expect(fetchGoogleBusinessProfileReviews(baseCtx)).rejects.toThrow(ConnectorRateLimitError)
   })
 
+  it('falls back to Places API on 403 SERVICE_DISABLED when placeId and maps key are present', async () => {
+    process.env.CEQ_GOOGLE_MAPS_API_KEY = 'test-maps-key'
+    const ctx = {
+      ...baseCtx,
+      scopeConfig: { ...baseCtx.scopeConfig, placeId: 'ChIJtest123' },
+    }
+
+    // v4 returns 403 SERVICE_DISABLED
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ error: { reason: 'SERVICE_DISABLED', message: 'Google My Business API SERVICE_DISABLED' } }),
+      headers: new Map(),
+    })
+    // Places API returns 2 reviews
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'OK',
+        result: {
+          reviews: [
+            { author_name: 'Alice', author_url: 'https://maps.google.com/maps/contrib/abc123/reviews', rating: 5, text: 'Amazing!', time: 1716000000, relative_time_description: 'a week ago' },
+            { author_name: 'Bob', author_url: 'https://maps.google.com/maps/contrib/def456/reviews', rating: 3, text: 'Decent', time: 1715000000, relative_time_description: '2 weeks ago' },
+          ],
+        },
+      }),
+      headers: new Map(),
+    })
+
+    const result = await fetchGoogleBusinessProfileReviews(ctx)
+
+    expect(result.deliveries).toHaveLength(2)
+    expect(result.deliveries[0]).toMatchObject({
+      externalId: 'places_1716000000_abc123',
+      body: 'Amazing!',
+      rating: 5,
+      externalAuthorLabel: 'Alice',
+    })
+    expect(result.nextCursor).toBeNull()
+    // Places API URL should include the placeId and maps key
+    const placesCall = mockFetch.mock.calls[1][0] as string
+    expect(placesCall).toContain('place_id=ChIJtest123')
+    expect(placesCall).toContain('key=test-maps-key')
+
+    delete process.env.CEQ_GOOGLE_MAPS_API_KEY
+  })
+
+  it('falls back to Places API on 403 "has not been used" variant', async () => {
+    process.env.CEQ_GOOGLE_MAPS_API_KEY = 'test-maps-key'
+    const ctx = {
+      ...baseCtx,
+      scopeConfig: { ...baseCtx.scopeConfig, placeId: 'ChIJtest123' },
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ error: { code: 403, message: 'Google My Business API has not been used in project 123 before or it is disabled.' } }),
+      headers: new Map(),
+    })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'OK',
+        result: { reviews: [{ author_name: 'Test User', rating: 4, text: 'Good', time: 1716000000 }] },
+      }),
+      headers: new Map(),
+    })
+
+    const result = await fetchGoogleBusinessProfileReviews(ctx)
+    expect(result.deliveries).toHaveLength(1)
+    expect(result.nextCursor).toBeNull()
+
+    delete process.env.CEQ_GOOGLE_MAPS_API_KEY
+  })
+
+  it('throws ConnectorAuthError on 403 when no Places API fallback is configured', async () => {
+    delete process.env.CEQ_GOOGLE_MAPS_API_KEY
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => 'SERVICE_DISABLED',
+      headers: new Map(),
+    })
+
+    await expect(fetchGoogleBusinessProfileReviews(baseCtx)).rejects.toThrow(ConnectorAuthError)
+  })
+
   it('uses pageToken cursor for pagination', async () => {
     const ctx = {
       ...baseCtx,
@@ -209,6 +299,32 @@ describe('fetchGoogleBusinessProfileReviews', () => {
 
     delete process.env.CEQ_GOOGLE_CLIENT_ID
     delete process.env.CEQ_GOOGLE_CLIENT_SECRET
+  })
+
+  it('calls the real API even when CEQ_MOCK_GOOGLE_REVIEWS is set', async () => {
+    // Regression guard: once mock mode is removed, this env var must have no effect.
+    // If the env var still short-circuits to mock data, fetch is never called and
+    // the test fails — proving the mock bypass is not gone.
+    const original = process.env.CEQ_MOCK_GOOGLE_REVIEWS
+    try {
+      process.env.CEQ_MOCK_GOOGLE_REVIEWS = 'true'
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ reviews: [] }),
+        headers: new Map(),
+      })
+
+      await fetchGoogleBusinessProfileReviews(baseCtx)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    } finally {
+      if (original === undefined) {
+        delete process.env.CEQ_MOCK_GOOGLE_REVIEWS
+      } else {
+        process.env.CEQ_MOCK_GOOGLE_REVIEWS = original
+      }
+    }
   })
 
   it('maps all star rating values correctly', async () => {

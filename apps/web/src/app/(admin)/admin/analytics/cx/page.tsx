@@ -193,6 +193,10 @@ export default function CXInsightsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Date range (empty = all time)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   // Survey filter
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>('')
   const [signalOrigin, setSignalOrigin] = useState<'all' | 'survey' | 'external'>('all')
@@ -213,11 +217,15 @@ export default function CXInsightsPage() {
   }, [getToken])
 
   const getDateParams = useCallback(() => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(start.getDate() - 30)
-    return new URLSearchParams({ startDate: start.toISOString(), endDate: end.toISOString() })
-  }, [])
+    const params = new URLSearchParams()
+    if (startDate) params.set('startDate', new Date(startDate).toISOString())
+    if (endDate) {
+      const end = new Date(endDate)
+      end.setHours(23, 59, 59, 999)
+      params.set('endDate', end.toISOString())
+    }
+    return params
+  }, [startDate, endDate])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -306,7 +314,7 @@ export default function CXInsightsPage() {
             AI-powered customer experience analysis across all feedback channels
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <select
             value={selectedSurveyId}
             onChange={(e) => setSelectedSurveyId(e.target.value)}
@@ -342,6 +350,30 @@ export default function CXInsightsPage() {
               </option>
             ))}
           </select>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            />
+            <span className="text-xs text-gray-400">–</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => { setStartDate(''); setEndDate('') }}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 whitespace-nowrap"
+              >
+                All time
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
