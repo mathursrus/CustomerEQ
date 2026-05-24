@@ -115,25 +115,34 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
   const lat = data.latency
 
   const sentByMode = p?.surveysSentByMode
+  // F13 — Survey Sent is the sum of the two send modes when the breakdown is
+  // available; falls back to pipeline.surveysSent only when sentByMode is
+  // absent (e.g., older API response shape). The previous direct read of
+  // p.surveysSent displayed 0 alongside non-zero mode-counts.
+  const surveysSentTotal = sentByMode
+    ? sentByMode.MANAGED_EMAIL + sentByMode.SELF_SERVE
+    : p?.surveysSent
   const stages: Array<{ key: DrawerStage; label: string; value: string; detail?: string; subline?: ReactNode }> = [
     {
       key: 'surveysSent',
       label: 'Survey Sent',
-      value: numOrDash(p?.surveysSent),
-      // R39 — per-mode breakdown sub-line (lifetime, not Wave-filtered).
-      // Mock #scene-6 line 1053 places the SendModePill chip inline with each
-      // count so the operator reads "N via CustomerEQ <Managed>" at a glance
-      // without opening the drawer.
+      value: numOrDash(surveysSentTotal),
+      // F12 — split-counts render on separate lines so the tile stays narrow
+      // and the operator can scan each mode's count independently. Each row is
+      // `<count> via <mode-label>` + SendModePill (mock #scene-6 line 1053).
       subline: sentByMode ? (
         <span
-          className="flex flex-wrap items-center justify-center gap-1 text-[10px] text-gray-500 leading-tight mt-1"
+          className="flex flex-col items-center gap-0.5 text-[10px] text-gray-500 leading-tight mt-1"
           data-testid="surveys-sent-by-mode"
         >
-          <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
-          <SendModePill mode="MANAGED_EMAIL" />
-          <span>·</span>
-          <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
-          <SendModePill mode="SELF_SERVE" />
+          <span className="inline-flex items-center gap-1">
+            <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
+            <SendModePill mode="MANAGED_EMAIL" />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
+            <SendModePill mode="SELF_SERVE" />
+          </span>
         </span>
       ) : null,
     },
