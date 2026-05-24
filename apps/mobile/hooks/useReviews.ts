@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-import { API_URL } from '../lib/api'
+import { API_URL, DEV_BYPASS, DEV_TOKEN } from '../lib/api'
 
 interface Review { id: string; author: string; rating: number; text: string; date: string | null; replied: boolean }
 interface ReviewMeta { total: number; page: number; limit: number; hasMore: boolean; overallRating: number | null; distribution: Record<string, number> }
@@ -12,7 +12,7 @@ export function useReviews(page = 1) {
   const query = useQuery({
     queryKey: ['reviews', page],
     queryFn: async () => {
-      const token = await getToken()
+      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/reviews?page=${page}&limit=20`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) throw new Error('Failed to fetch reviews')
       return res.json() as Promise<{ data: Review[]; meta: ReviewMeta }>
@@ -21,7 +21,7 @@ export function useReviews(page = 1) {
 
   const replyMutation = useMutation({
     mutationFn: async ({ reviewId, text }: { reviewId: string; text: string }) => {
-      const token = await getToken()
+      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/reviews/${reviewId}/reply`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

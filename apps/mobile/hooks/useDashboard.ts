@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-import { API_URL } from '../lib/api'
+import { API_URL, DEV_BYPASS, DEV_TOKEN } from '../lib/api'
 
 export function useDashboard() {
   const { getToken } = useAuth()
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
-      const token = await getToken()
+      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/mobile/dashboard`, {
         headers: { Authorization: `Bearer ${token}` },
       })
