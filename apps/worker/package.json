@@ -3,6 +3,12 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    "./processors/managedEmailSend": {
+      "import": "./dist/processors/managedEmailSend.js",
+      "types": "./dist/processors/managedEmailSend.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",

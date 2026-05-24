@@ -330,6 +330,41 @@ describe('Loop Monitor API — GET /v1/surveys/:id/loop-monitor', () => {
     expect(res.body.pipeline.campaignsTriggered).toBe(0)
   })
 
+  // Issue #420 R39 — Survey Sent per-mode breakdown.
+  it('returns pipeline.surveysSentByMode counts per sendMode', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    const prisma = getTestPrisma()
+
+    const seedDistribution = async (sendMode: 'MANAGED_EMAIL' | 'SELF_SERVE') => {
+      const member = await createConsentedMember({ brandId: brand.id })
+      await prisma.surveyDistribution.create({
+        data: {
+          surveyId: survey.id,
+          memberId: member.id,
+          brandId: brand.id,
+          sendMode,
+        },
+      })
+    }
+
+    // 3 MANAGED_EMAIL + 2 SELF_SERVE rows, all with sentAt=now() (default).
+    await seedDistribution('MANAGED_EMAIL')
+    await seedDistribution('MANAGED_EMAIL')
+    await seedDistribution('MANAGED_EMAIL')
+    await seedDistribution('SELF_SERVE')
+    await seedDistribution('SELF_SERVE')
+
+    const res = await authenticatedRequest(brand.id).get(`/v1/surveys/${survey.id}/loop-monitor`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.pipeline.surveysSentByMode).toEqual({
+      MANAGED_EMAIL: 3,
+      SELF_SERVE: 2,
+    })
+  })
+
   it('returns 48h warning when first response > 48h ago with 0 campaigns triggered', async () => {
     const brand = await createBrand()
     const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })

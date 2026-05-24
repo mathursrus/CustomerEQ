@@ -14,6 +14,11 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   enqueueExternalSignalIngestion: vi.fn(async (payload: unknown) => InMemoryQueue.add('external-signal-ingestion', payload)),
   enqueueWebhookDelivery: vi.fn(async (payload: unknown) => InMemoryQueue.add('webhook-delivery', payload)),
   enqueueSurveyImportRow: vi.fn(async (payload: unknown) => InMemoryQueue.add('survey-import', payload)),
+  // Issue #420 — managed-email per-recipient dispatch. Previously the route's
+  // input extraction was strict-rejecting sendMode+composer, so the MANAGED_EMAIL
+  // dispatch path never ran in tests. B7 fixed extraction; this mock entry is
+  // required so the existing MANAGED_EMAIL integration test no longer 500s.
+  enqueueManagedEmailSend: vi.fn(async (payload: unknown) => InMemoryQueue.add('managed-email-send', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection

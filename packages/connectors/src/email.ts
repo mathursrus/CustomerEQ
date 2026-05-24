@@ -119,7 +119,7 @@ export function resetEmailClientCache(): void {
 
 export async function sendEmailMessage(
   message: EmailMessage,
-  opts: { env?: NodeJS.ProcessEnv; logger?: LoggerLike } = {},
+  opts: { env?: NodeJS.ProcessEnv; logger?: LoggerLike; senderAddress?: string } = {},
 ): Promise<EmailSendResult> {
   const env = opts.env ?? process.env
   const log = opts.logger ?? logger
@@ -138,9 +138,11 @@ export async function sendEmailMessage(
     throw new Error('AZURE_COMMUNICATION_SERVICES_CONNECTION_STRING is required when EMAIL_PROVIDER=azure-communication-services')
   }
 
-  const senderAddress = getAzureSenderAddress(env)
+  // Issue #420 — when opts.senderAddress is set (the MANAGED_EMAIL per-batch composer
+  // path), bypass env resolution. Backward-compatible for existing notification callers.
+  const senderAddress = opts.senderAddress?.trim() || getAzureSenderAddress(env)
   if (!senderAddress) {
-    throw new Error('AZURE_COMMUNICATION_SERVICES_EMAIL_FROM is required when EMAIL_PROVIDER=azure-communication-services')
+    throw new Error('AZURE_COMMUNICATION_SERVICES_EMAIL_FROM is required when EMAIL_PROVIDER=azure-communication-services (or pass opts.senderAddress)')
   }
 
   const client = getAzureClient(connectionString)
@@ -162,8 +164,26 @@ export async function sendEmailMessage(
   }
 
   const operationId = typeof response.id === 'string' ? response.id : undefined
-  log.info({ provider, to: message.to, operationId }, 'notification.email_sent')
+  // PII-LOG-1 (security review on #420 diff) — mask the recipient address in
+  // log lines. Member.email is PII; full plaintext at info level lands in
+  // log-aggregation systems we don't fully audit. Mask preserves enough for
+  // operator debugging (local part 1st char + domain TLD) without leaking
+  // the recipient identity. `operationId` is the canonical join key for ACS
+  // delivery-report correlation, not the email address.
+  log.info(
+    { provider, toMasked: maskEmail(message.to), operationId },
+    'notification.email_sent',
+  )
   return { sent: true, provider, operationId }
+}
+
+function maskEmail(addr: string): string {
+  const at = addr.indexOf('@')
+  if (at <= 0) return '***'
+  const local = addr.slice(0, at)
+  const domain = addr.slice(at + 1)
+  const localMasked = local.length <= 1 ? '*' : `${local[0]}***`
+  return `${localMasked}@${domain}`
 }
 
 export async function deliverNotification(
