@@ -439,26 +439,18 @@ export default function BatchDetailPage() {
             NOT yet consume the asynchronous Event Grid delivery-report events
             (Bounced / Failed / Delivered). So "Sent" in the Status column means
             "ACS accepted the message for outbound delivery" — not "recipient
-            mailbox received it". Bounce-handling integration tracked in #515;
-            REMOVE this header when that issue ships (the Status column will
-            then reflect real delivery state). */}
+            mailbox received it". Bounce-handling integration tracked internally
+            (issue ref in commit history); REMOVE this header when that ships
+            (the Status column will then reflect real delivery state).
+            Do NOT add an internal issue link to the user-facing copy here —
+            customer-facing pages must not surface internal ticket refs. */}
         {isManaged ? (
           <div
             className="mb-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-gray-700"
             data-testid="acs-delivery-caveat"
           >
             <strong className="text-gray-900">Note:</strong> Sent indicates accepted by the email
-            service. Actual recipient delivery and receipts polling will come in a subsequent release
-            ({' '}
-            <a
-              href="https://github.com/mathursrus/CustomerEQ/issues/515"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-indigo-700 underline hover:text-indigo-900"
-            >
-              #515
-            </a>
-            ).
+            service. Actual recipient delivery and receipts polling will come in a subsequent release.
           </div>
         ) : null}
         {/* G13 — Tokens + Send Log merged into one table. Status column
