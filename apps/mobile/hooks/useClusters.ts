@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '../lib/api'
 
 interface Cluster { id: string; label: string; description: string | null; responseCount: number; trend: number }
 interface Anomaly { id: string; clusterId: string | null; clusterLabel: string | null; summary: string; severity: string; detectedAt: string }

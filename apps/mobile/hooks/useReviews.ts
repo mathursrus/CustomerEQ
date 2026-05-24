@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '../lib/api'
 
 interface Review { id: string; author: string; rating: number; text: string; date: string | null; replied: boolean }
 interface ReviewMeta { total: number; page: number; limit: number; hasMore: boolean; overallRating: number | null; distribution: Record<string, number> }

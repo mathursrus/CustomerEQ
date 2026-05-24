@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
+import { API_URL } from '../lib/api'
 
 interface Survey {
   id: string; name: string; type: string; status: string
