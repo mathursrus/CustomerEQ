@@ -135,8 +135,11 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const [audience, setAudience] = useState<AudienceBuilderState | null>(null)
 
   // Composer
+  // G17 — default alias is the username Azure ACS pre-allowlists on every
+  // verified custom domain (no portal-side Sender Username add required to
+  // start sending). Operators can override per-batch.
   const [senderName, setSenderName] = useState('')
-  const [senderAlias, setSenderAlias] = useState('feedback')
+  const [senderAlias, setSenderAlias] = useState('donotreply')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState(DEFAULT_BODY)
   const [composerError, setComposerError] = useState<string | null>(null)
@@ -531,14 +534,21 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
                     <span className="mb-1 block font-medium text-gray-700">
                       Sender alias (local-part)
                     </span>
+                    {/* G16 — alias input shrunk so the @domain suffix has room
+                        to render without truncation. The suffix also carries
+                        a title attribute so the full domain is recoverable on
+                        hover when it still doesn't fit. */}
                     <div className="flex items-center rounded-md border border-gray-300">
                       <input
                         type="text"
-                        className="flex-1 rounded-l-md border-0 px-3 py-2 text-sm focus:outline-none"
+                        className="w-1/2 min-w-[6rem] rounded-l-md border-0 px-3 py-2 text-sm focus:outline-none"
                         value={senderAlias}
                         onChange={(e) => setSenderAlias(e.target.value.toLowerCase())}
                       />
-                      <span className="rounded-r-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                      <span
+                        className="flex-1 truncate rounded-r-md bg-gray-50 px-3 py-2 text-xs text-gray-500"
+                        title={`@${SENDER_DOMAIN}`}
+                      >
                         @{SENDER_DOMAIN}
                       </span>
                     </div>
@@ -599,7 +609,12 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
               }
               brandName={brand.name}
               brandLogoUrl={brand.logoUrl}
-              surveyTitle={survey.title ?? survey.name}
+              // G15 — preview's {{survey_title}} substitution tracks the live
+              // "Survey name in mail" field, not the survey's stored title
+              // (which was frozen at component mount). This matches what the
+              // worker uses to render the actual sent email (composer.subject /
+              // worker pipeline; see renderTemplate.ts vars.survey_title).
+              surveyTitle={surveyNameInMail || survey.title || survey.name}
               surveyId={surveyId}
               theme={brand.theme}
             />
