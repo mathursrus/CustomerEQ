@@ -435,6 +435,32 @@ export default function BatchDetailPage() {
             </button>
           ) : null}
         </div>
+        {/* G18 truth-in-labeling header — Issue #420 ships ACS sends but does
+            NOT yet consume the asynchronous Event Grid delivery-report events
+            (Bounced / Failed / Delivered). So "Sent" in the Status column means
+            "ACS accepted the message for outbound delivery" — not "recipient
+            mailbox received it". Bounce-handling integration tracked in #515;
+            REMOVE this header when that issue ships (the Status column will
+            then reflect real delivery state). */}
+        {isManaged ? (
+          <div
+            className="mb-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-gray-700"
+            data-testid="acs-delivery-caveat"
+          >
+            <strong className="text-gray-900">Note:</strong> Sent indicates accepted by the email
+            service. Actual recipient delivery and receipts polling will come in a subsequent release
+            ({' '}
+            <a
+              href="https://github.com/mathursrus/CustomerEQ/issues/515"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-700 underline hover:text-indigo-900"
+            >
+              #515
+            </a>
+            ).
+          </div>
+        ) : null}
         {/* G13 — Tokens + Send Log merged into one table. Status column
             collapses both signals: respond-status wins ("Responded"),
             otherwise per-recipient platform send-state for MANAGED_EMAIL
