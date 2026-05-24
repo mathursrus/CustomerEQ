@@ -4,6 +4,21 @@ Patterns of agent errors, incorrect approaches, and recurring failure modes obse
 
 ---
 
+## ⏳ Pending Review — 2026-05-24
+
+### Proposed new entry
+
+#### [P-HIGH] Auth block during mobile validate accepted as partial validation
+
+**Score**: 9.0
+**Last seen**: 2026-05-24
+**Recurrences**: 1
+**First synthesized**: (pending)
+
+When `mobileValidationRequired: true` or `uiValidationRequired: true`, the scope of validation is **the feature screens listed in the issue ACs** — not the auth gate in front of them. If sign-in fails during the validate phase, this is a **phase blocker**, not an environmental limitation to note and continue past. The agent must either (a) find valid Clerk credentials, (b) implement a dev auth bypass (e.g., `EXPO_PUBLIC_DEV_BYPASS_AUTH`, mirroring the web app's `NEXT_PUBLIC_DEV_BYPASS_AUTH` pattern), or (c) call `seekMentoring` with `status: "incomplete"` and explicitly state which screens were not validated. Advancing past `implement-validate` with only an auth-gate screenshot is invalid. End-of-phase gate: a screenshot or visual record must exist for every screen named in the issue ACs before the phase can be marked complete.
+
+---
+
 ## ⏳ Pending Review — 2026-03-24
 
 ### Proposed new entry
