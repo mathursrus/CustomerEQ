@@ -32,6 +32,7 @@ The platform is a multi-tenant loyalty engine with:
 | **ORM** | Prisma 5.13 | Type-safe queries, migration management, middleware for multi-tenant `brandId` scoping |
 | **Database** | PostgreSQL 16 | ACID transactions for loyalty ledger integrity; JSONB for flexible rule conditions/event payloads |
 | **Cache/Queue (optional)** | Redis 7 + BullMQ v5 | **Performance optimization, not a correctness dependency.** Every queued workflow has two interchangeable execution paths controlled by `QUEUE_MODE`: `redis` (BullMQ + Upstash, used in prod for throughput, retry/backoff, and cross-instance dedup) and `inline` (in-process execution against Postgres, used for single-instance deploys, dev, test, and CI). Both paths must produce the **same functional outcome** — same DB writes, same side effects, same idempotency guarantees, same observable behavior. Redis only changes *when* and *how fast* work happens, never *whether* it happens or *what* it does. The system must continue to work end-to-end with Redis absent (`QUEUE_MODE=inline`). When adding a new queued workflow, both branches in `apps/api/src/queues/bullmq.ts` must be implemented and kept at parity. |
+| **Mobile** | Expo SDK 52 (React Native) + Expo Router 4 | Managed workflow for cross-platform (iOS/Android) B2B operator app; Expo Router mirrors Next.js App Router conventions; `@clerk/clerk-expo` for auth; NativeWind 4 for Tailwind styling in React Native; EAS Build for production — Issue #513 |
 | **Auth** | Clerk | Native Next.js support, multi-tenant organizations (Clerk org = brand), JWT verification |
 | **Testing** | Vitest + Supertest + Playwright | Unit/integration (Vitest), HTTP testing (Supertest), E2E browser (Playwright) |
 | **Build** | Turborepo + pnpm 9 | Monorepo task orchestration with caching; pnpm for strict dependency isolation |
@@ -96,7 +97,26 @@ The platform is a multi-tenant loyalty engine with:
 - **Events**: Components fire custom DOM events (e.g., `ceq:reward-won`) so host pages can react.
 - **No cross-package imports**: Standalone at build time — does not import from `@customerEQ/shared` or other packages.
 
-### 3.8. AI Layer (packages/ai)
+### 3.8. Mobile App Layer (apps/mobile) — Issue #513
+
+- **Responsibility**: React Native companion app for CX managers. Surfaces survey NPS trends, AI feedback clusters, anomaly alerts, and Google Review management in a mobile-first UI optimized for on-the-go operators. This is the **operator app** (B2B subscribers managing their CX program), not a consumer loyalty wallet.
+- **Runtime**: Expo SDK 52, managed workflow. Navigation via Expo Router 4 (file-based, mirrors Next.js App Router conventions). Targets both iOS and Android via Expo Go (development) and EAS Build (production).
+- **Key Modules**:
+  - `apps/mobile/app/_layout.tsx` — `ClerkProvider` + `QueryClientProvider` root; `AuthGate` redirects to `/(auth)/sign-in` when unauthenticated
+  - `apps/mobile/app/(auth)/sign-in.tsx` — Clerk email/password sign-in via `@clerk/clerk-expo`
+  - `apps/mobile/app/(tabs)/` — 5-tab bottom bar (Home, Surveys, Insights, Reviews, Profile)
+  - `apps/mobile/hooks/` — TanStack Query wrappers: `useDashboard`, `useSurveys`, `useSurveyDetail`, `useClusters`, `useReviews`
+  - `apps/mobile/components/NpsSparkline.tsx` — SVG polyline sparkline using `react-native-svg`
+  - `apps/mobile/store/ui.ts` — Zustand store for active sheet / selected item IDs
+  - `apps/mobile/lib/api.ts` — Shared `API_URL` constant (reads `EXPO_PUBLIC_API_URL`)
+- **API Integration**: Calls the same Fastify API under `/v1/`. Three mobile-specific endpoints added in #513: `GET /v1/mobile/dashboard`, `GET /v1/reviews`, `POST /v1/reviews/:reviewId/reply`. Existing endpoints reused: `GET /v1/surveys`, `GET /v1/surveys/:id/responses`, `GET /v1/analytics/cx/clusters`, `GET /v1/analytics/cx/anomalies`.
+- **Auth**: `@clerk/clerk-expo` with in-memory token cache (Expo Go constraint; production builds swap to `expo-secure-store`). All hooks obtain a Clerk JWT via `getToken()` and pass it as `Authorization: Bearer` header.
+- **Multi-tenancy**: All API calls carry the Clerk JWT; API enforces `brandId` from `request.brandId` server-side (see §3.2 — never accepted from mobile request body/query).
+- **Styling**: NativeWind 4 + React Native `StyleSheet`. Brand color `#4F46E5` (indigo-600), background `#f8fafc` (slate-50). No formal design token system — raw hex values consistent across screens.
+- **Token cache note**: In-memory `Map`-based token cache in `_layout.tsx` means sessions are lost on cold restart in Expo Go. EAS production builds should replace this with `expo-secure-store`. See implementation comment.
+- **pnpm monorepo integration**: `metro.config.js` applies the `expo/metro-config` with `withNativeWind`. Jest `transformIgnorePatterns` includes `\.pnpm` to handle pnpm's virtual store path structure.
+
+### 3.9. AI Layer (packages/ai)
 - **Responsibility**: BAML-driven LLM client wrappers and analysis helpers used by the API (synchronous note-creation sentiment per §6) and worker (asynchronous sentiment analysis, intent classification, clustering, anomaly detection).
 - **Key Modules**: `packages/ai/baml_src/*.baml` (BAML function definitions and generator config), `packages/ai/src/analysis/*.ts` (sentiment/intent/cluster wrappers around the generated client), `packages/ai/src/generated/baml_client/` (gitignored — see Build below).
 - **Build pipeline**: `pnpm build` runs `pnpm run generate && tsc`. The `generate` step invokes `npx @boundaryml/baml@<pinned-version> generate` which writes 13 files into `src/generated/baml_client/`. **The generated directory is gitignored** — every Docker build and every fresh checkout regenerates it. `tsc` then compiles the regenerated source into `dist/`.
