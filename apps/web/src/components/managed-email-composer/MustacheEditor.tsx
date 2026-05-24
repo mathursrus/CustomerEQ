@@ -16,8 +16,10 @@
 // HTML it serializes is the plain mustache string. The backend then does its
 // own substitution and never has to know the editor produced a chip.
 
+import { Color } from '@tiptap/extension-color'
 import Link from '@tiptap/extension-link'
 import Mention from '@tiptap/extension-mention'
+import { TextStyle } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, ReactRenderer, useEditor, type Editor } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -70,6 +72,11 @@ export function MustacheEditor({
         // Headings up to H3; H4+ aren't useful for email bodies.
         heading: { levels: [1, 2, 3] },
       }),
+      // G5 — text color picker. TextStyle is the base mark Color extends; both
+      // are official @tiptap extensions in the same 3.23.x family as the rest
+      // of the editor. The picker affordance lives in the ToolbarRow below.
+      TextStyle,
+      Color,
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -271,8 +278,47 @@ function ToolbarRow({
         🔗
       </ToolbarButton>
       <span className="mx-2 h-4 w-px bg-gray-300" aria-hidden="true" />
+      <TextColorControl editor={editor} />
+      <span className="mx-2 h-4 w-px bg-gray-300" aria-hidden="true" />
       <InsertTokenMenu onInsert={onInsertToken} />
     </div>
+  )
+}
+
+// G5 — text color picker. Uses TipTap's official Color + TextStyle extensions
+// (added to the editor's extensions array above). Native <input type="color">
+// keeps the affordance keyboard-accessible and zero-dependency. The "Clear"
+// button removes the textStyle mark so the body falls back to the email
+// frame's themed textColor.
+function TextColorControl({ editor }: { editor: Editor }) {
+  const currentColor = (editor.getAttributes('textStyle')?.color as string | undefined) ?? '#111827'
+  return (
+    <span className="inline-flex items-center gap-1">
+      <label
+        className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-gray-700 hover:bg-white cursor-pointer"
+        title="Text color"
+      >
+        <span aria-hidden="true">🎨</span>
+        <input
+          type="color"
+          aria-label="Text color"
+          value={currentColor}
+          onChange={(e) => {
+            editor.chain().focus().setColor(e.target.value).run()
+          }}
+          className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => editor.chain().focus().unsetColor().run()}
+        className="rounded px-1 py-1 text-[10px] font-medium text-gray-500 hover:bg-white"
+        title="Clear text color"
+        aria-label="Clear text color"
+      >
+        ✕
+      </button>
+    </span>
   )
 }
 
