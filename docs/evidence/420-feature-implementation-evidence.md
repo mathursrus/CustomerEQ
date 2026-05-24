@@ -125,6 +125,37 @@ Per the Phase 12 manual-testing session (reviewer drove the full MANAGED_EMAIL f
 
 **0 critical/high bugs open after Round 2 fixes.** Phase passes the implement-validate Bug Bash guard.
 
+## Regression (implement-regression phase)
+
+Full regression run after the address-feedback Round 2 loop. **Result: no #420-introduced regressions.**
+
+### Suite results
+
+| Run | Command | Result |
+|---|---|---|
+| Build | `pnpm build` | 12/12 packages, 2m17s |
+| Typecheck | `pnpm typecheck` | 20/20 tasks, 0 errors |
+| Lint | `pnpm lint` | 0 errors, 4 pre-existing warnings (`page.test.tsx` any-typed fixture, not #420) |
+| Smoke (CI gate) | `pnpm test:smoke` | exit 0, all packages pass |
+| Full regression | `pnpm test` (turbo run test) | api/shared/connectors/ai/worker/database/ui/consent-text/mcp-server: all pass. **web: 5 tests flake under parallel file execution; 410/410 pass single-threaded** |
+
+### Web-package flakiness triage (NOT a #420 regression)
+
+`pnpm --filter @customerEQ/web test` (50 files, one vitest process, parallel file execution) intermittently fails 5 tests:
+- `PoweredByFooter.test.tsx` — 1 test (5000ms timeout)
+- `page.test.tsx` — 2 tests (5000ms timeout + a transient "multiple elements by [data-testid=response-count-badge]" from cross-file jsdom DOM bleed)
+- `edit/page.test.tsx` — 1 test (5000ms timeout)
+
+**Root cause: test-isolation contention under parallel execution + machine load, not product code.** Evidence:
+1. `pnpm --filter @customerEQ/web test "page.test"` in isolation → **16/16 pass**.
+2. `vitest run --no-file-parallelism` (single-threaded, full web suite) → **50/50 files, 410/410 tests pass**.
+3. Source has exactly ONE `data-testid="response-count-badge"` (`ResponseSection.tsx:287`); the "multiple elements" error is a prior test file's un-unmounted React tree, not a duplicate in production code.
+4. `git log main..HEAD` shows **zero commits on this branch touched `page.test.tsx` or `edit/page.test.tsx`** — #420 did not modify them. (`PoweredByFooter.test.tsx` was touched only by the #413/#500 footer commits riding in this branch's ancestry, not by #420; its failure is a timeout, not an assertion.)
+
+**CI is not blocked**: `.github/workflows/ci.yml:195` runs `pnpm test:smoke` (which passed clean), not the parallel `pnpm test`. The auto-merge gate is green.
+
+The parallel-flakiness is a pre-existing web-package vitest-config characteristic (jsdom render tests sharing global DOM under thread parallelism + a tight 5000ms default timeout). It is orthogonal to #420 and not introduced by this work. Recommend a separate test-infra issue to either bump `testTimeout` or set `fileParallelism: false` for the web package — not folded into #420 per Rule 21.
+
 ## Security Review
 
 ### Executive Summary
