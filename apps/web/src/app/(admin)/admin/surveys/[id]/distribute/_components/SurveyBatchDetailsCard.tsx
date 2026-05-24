@@ -37,10 +37,7 @@ export function SurveyBatchDetailsCard({
 }: SurveyBatchDetailsCardProps) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
-          Step 1 · Shared · Both modes
-        </span>
+      <div className="mb-3">
         <h2 className="text-sm font-semibold text-gray-900">Survey Batch details</h2>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -53,11 +50,6 @@ export function SurveyBatchDetailsCard({
             onChange={(e) => setSurveyNameInMail(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            SELF_SERVE: flows into the CSV&apos;s <code>surveyName</code> column.
-            CustomerEQ Email: provides the default Subject + the{' '}
-            <code className="rounded bg-gray-100 px-1">{`{{survey_title}}`}</code> mustache.
-          </p>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-gray-700">Links expire on</span>

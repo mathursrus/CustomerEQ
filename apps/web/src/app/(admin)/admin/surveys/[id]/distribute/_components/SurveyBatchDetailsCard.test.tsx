@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { SurveyBatchDetailsCard } from './SurveyBatchDetailsCard'
 
 describe('<SurveyBatchDetailsCard>', () => {
-  it('renders the two inputs with Step 1 shared label', () => {
+  it('renders the section heading and the two inputs', () => {
     render(
       <SurveyBatchDetailsCard
         surveyNameInMail="Q2 NPS"
@@ -18,7 +18,7 @@ describe('<SurveyBatchDetailsCard>', () => {
         brandTimezone="America/Los_Angeles"
       />,
     )
-    expect(screen.getByText(/Step 1 · Shared · Both modes/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Survey Batch details/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/Survey name in mail/i)).toHaveValue('Q2 NPS')
     expect(screen.getByLabelText(/Links expire on/i)).toHaveValue('7d')
     expect(screen.getByText(/End of day in America\/Los_Angeles/i)).toBeInTheDocument()

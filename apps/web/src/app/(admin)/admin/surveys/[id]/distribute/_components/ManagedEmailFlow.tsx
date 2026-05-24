@@ -336,10 +336,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
           />
 
           <div>
-            <div className="mb-2 inline-flex items-center gap-2">
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
-                Step 2 · Shared · Both modes
-              </span>
+            <div className="mb-2">
               <h2 className="text-sm font-semibold text-gray-900">Select members</h2>
             </div>
             <AudienceBuilder
@@ -357,10 +354,7 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
               live update). Layout: composer left, sticky preview right. */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-800">
-                  Step 3 · Mode-specific · CustomerEQ Email
-                </span>
+              <div className="mb-3">
                 <h2 className="text-sm font-semibold text-gray-900">Compose email</h2>
               </div>
               <div className="space-y-3">

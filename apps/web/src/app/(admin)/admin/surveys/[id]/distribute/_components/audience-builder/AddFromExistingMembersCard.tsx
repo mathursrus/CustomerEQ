@@ -31,11 +31,8 @@ export function AddFromExistingMembersCard({
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2">
         <h3 className="text-sm font-semibold text-gray-900">Add from Existing Members</h3>
-        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
-          Shared
-        </span>
       </div>
       <p className="mb-3 text-xs text-gray-600">
         Search the roster (wildcards supported) or take a random sample of eligible

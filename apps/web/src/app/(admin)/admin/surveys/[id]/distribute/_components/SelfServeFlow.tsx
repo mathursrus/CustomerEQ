@@ -372,10 +372,7 @@ export function SelfServeFlow() {
         />
 
         <div>
-          <div className="mb-2 inline-flex items-center gap-2">
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
-              Step 2 · Shared · Both modes
-            </span>
+          <div className="mb-2">
             <h2 className="text-sm font-semibold text-gray-900">Select members</h2>
           </div>
           <AudienceBuilder
