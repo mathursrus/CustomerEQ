@@ -125,9 +125,9 @@ Per the Phase 12 manual-testing session (reviewer drove the full MANAGED_EMAIL f
 
 **0 critical/high bugs open after Round 2 fixes.** Phase passes the implement-validate Bug Bash guard.
 
-## Regression (implement-regression phase)
+## Regression — Round 2 (post-feedback re-validation, 2026-05-24)
 
-Full regression run after the address-feedback Round 2 loop. **Result: no #420-introduced regressions.**
+Full regression run after the address-feedback Round 2 loop re-entered implement-regression. **Result: no #420-introduced regressions.** (Round 1's original regression report is further down under "## Regression Test Report — Round 1".)
 
 ### Suite results
 
@@ -156,7 +156,7 @@ Full regression run after the address-feedback Round 2 loop. **Result: no #420-i
 
 The parallel-flakiness is a pre-existing web-package vitest-config characteristic (jsdom render tests sharing global DOM under thread parallelism + a tight 5000ms default timeout). It is orthogonal to #420 and not introduced by this work. Recommend a separate test-infra issue to either bump `testTimeout` or set `fileParallelism: false` for the web package — not folded into #420 per Rule 21.
 
-## Security Review
+## Security Review — Round 2 (post-feedback diff, 2026-05-24)
 
 ### Executive Summary
 
@@ -278,7 +278,7 @@ Ready to advance to `implement-security-review`.
 
 ---
 
-## Security Review
+## Security Review — Round 1 (original implementation, 2026-05-23)
 
 ### Executive Summary
 
@@ -369,7 +369,7 @@ No active compliance framework (SOC2 / GDPR / HIPAA) for this issue beyond the e
 
 ---
 
-## Regression Test Report
+## Regression Test Report — Round 1 (original implementation, 2026-05-23)
 
 ### Test Suite Execution
 
@@ -580,8 +580,9 @@ Per `feedback-completeness-verification` skill against `docs/evidence/420-featur
 | Round 1 | Initial PR comments + RFC review (`docs/evidence/420-feature-implementation-feedback.md`) | 3 PR + 5 RFC review comments | 7 | 1 | **0** |
 | Round 2 | Address-feedback session 2026-05-23: lifted all V0-simplification Partials (R16/R18/R20/R22/R23/R27/R39/R40/R43); split compound R32 → R32a–f; added R30a–e for live preview pane + R31a for recap rows | 9 lifts + R32 split + 2 new R-blocks | 9 + R32a–f + R30a–e + R31a | 0 | **0** |
 | Round 3 | Item-M mock-walkthrough audit closures (M1–M8 commits + spec patch + mock-update) + analyze-why-you-messed-up coaching job → FRAIM #473 filed for structural fix | ~20 audit drifts + structural-fix issue filed | 20 | 8 deferred to manual testing per user 2026-05-23 (5A.2 / 5B.* / 5C.*) | **0** |
+| Round 4 | Operator manual-testing on local env w/ live ACS (2026-05-23 → 2026-05-24). 22 findings, captured as "Round 2 Feedback" in `420-feature-implementation-feedback.md` (per-finding commit map). Re-validation re-ran implement-code → validate → security-review → regression → quality. | 22 findings + 3 quality (Q-004/005/006) | 21 + Q-004 fixed | 2 quality accepted (Q-005/006) + 8 spec deferrals confirmed in operator session | **0** (G1 DEFERRED as Clerk-upstream out-of-scope; G2 DROPPED user-error) |
 
-All RFC review comments from technical-design phase: also 0 unaddressed (every D1–D6 resolved + every inline comment thread replied).
+All RFC review comments from technical-design phase: also 0 unaddressed (every D1–D6 resolved + every inline comment thread replied). The 5 Round-1 PR review comments (r3292070992, r3292073383, r3292074338, r3292385788, r3292386828) received per-thread replies citing resolving commits (comments 3295239044, 3295239864, et al.) during the Round 4 re-validation.
 
 Round 3 also produced two persistent forward guards captured in user-memory + a raw coaching moment at `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T21-51-24-mocks-are-not-summarizable-design-artifacts.md`:
 - `[[always_open_html_mocks]]` sharpened to require end-to-end mock reading before the FIRST code edit + every-visible-affordance-in-scope-unless-explicitly-design-only.
@@ -596,4 +597,18 @@ Round 3 also produced two persistent forward guards captured in user-memory + a 
 - Feedback completeness: **0 unaddressed** across three rounds.
 
 Phase passes. `implement-architecture-update` complete (commit `9b51b66`, F.2). `implement-submission` (PR replies + revalidation) held per user — to be combined with manual-testing feedback.
+
+### Phase outcome (post-manual-testing re-validation, 2026-05-24)
+
+The operator manual-testing round (Round 4 above) drove 22 findings + a re-run of implement-code → validate → security-review → regression → quality. Re-verification of the completeness gates after that round:
+
+- **Standing Work-List audit**: still pass. Round 4 fixed bugs in already-Met implementations + added the `presetToIsoExpiry` shared extraction (Q-004); it did NOT add, remove, or re-scope any R-statement.
+- **Feature-requirement Traceability Matrix**: unchanged — **0 Unmet, 56 Met, 0 Partial** (V15 the only Partial, external blocker). Round 4 changed *how* existing Met requirements behave (e.g., R-Wave-Detail surfaces, R30a–e preview, R39 Loop Monitor) but every row remains Met with the same or improved evidence.
+- **Technical-design Traceability Matrix**: unchanged — **0 Unmet, 30 Met, 1 Partial** (§9.4 = V15 external blocker). The pre-batch `bf322ea` fix (inline ≡ redis invariant for managed-email-send) brought the implementation INTO alignment with the architecture-doc §2/§3.3 invariant — a correctness improvement on an already-Met decision, not a new commitment.
+- **Feedback completeness**: **0 unaddressed** across all four rounds. 21 of 22 Round-4 findings ADDRESSED; G1 DEFERRED (Clerk 5.7 + Next 15 dev-mode RSC incompatibility — out of #420 V0 scope, needs Clerk 5→7 upgrade); G2 DROPPED (user retracted as user-error).
+- **Security review (Round 2)**: 0 Critical/High; 1 Medium auto-fixed (PII-LOG-1); 2 Medium filed as [#516](https://github.com/mathursrus/CustomerEQ/issues/516); 2 Low accepted.
+- **Quality (Round 2)**: Q-004 (DRY) fixed; Q-005 + Q-006 accepted with rationale.
+- **New follow-up issues filed** (out of #420 V0 scope, per Rule 21): [#515](https://github.com/mathursrus/CustomerEQ/issues/515) (ACS bounce-handling Event Grid integration — carries the explicit "remove the J3 truth-in-labeling header" task), [#516](https://github.com/mathursrus/CustomerEQ/issues/516) (email-body sanitization + composer link-protocol filter, defense-in-depth).
+
+**Completeness review passes for the post-manual-testing re-validation.** No Partial/Unmet introduced; no unresolved named design callouts; all feedback addressed or explicitly deferred with documented rationale.
 
