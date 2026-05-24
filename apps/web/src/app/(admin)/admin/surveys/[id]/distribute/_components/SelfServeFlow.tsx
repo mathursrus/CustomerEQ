@@ -177,22 +177,50 @@ export function SelfServeFlow() {
   const [generating, setGenerating] = useState<boolean>(false)
   const [generated, setGenerated] = useState<GenerateResponse | null>(null)
 
-  // F6 — beforeunload guard while there's unsaved configure work and the
-  // operator hasn't yet generated the CSV. Same scope as the ManagedEmailFlow
-  // sibling — covers refresh / close-tab / external-site nav; in-app nav
-  // (sidebar links) and full-state preservation are follow-ups.
+  // F6 — beforeunload guard + in-app click intercept while there's unsaved
+  // configure work and the operator hasn't yet generated the CSV. Same shape
+  // as the ManagedEmailFlow sibling: capture-phase document click listener
+  // beats React's synthetic dispatch so we can preventDefault on Next Link
+  // soft-nav (sidebar, breadcrumb, etc.). Full state preservation across nav
+  // is a separate follow-up.
   const audienceSelectedCount = audience?.selectedCount ?? 0
   const selfServeDirty =
     !generated && (audienceSelectedCount > 0 || surveyNameInMail.trim() !== '')
   useEffect(() => {
     if (!selfServeDirty) return
-    const handler = (e: BeforeUnloadEvent) => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
-    window.addEventListener('beforeunload', handler)
+    const clickCapture = (e: MouseEvent) => {
+      if (e.defaultPrevented) return
+      if (e.button !== 0) return
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
+      const anchor = (e.target as Element | null)?.closest('a')
+      if (!anchor) return
+      if (anchor.hasAttribute('download')) return
+      if (anchor.getAttribute('target') === '_blank') return
+      const href = anchor.getAttribute('href')
+      if (!href) return
+      let url: URL
+      try {
+        url = new URL(href, window.location.href)
+      } catch {
+        return
+      }
+      if (url.origin !== window.location.origin) return
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return
+      const ok = window.confirm('You have unsaved changes in this distribution. Leave anyway?')
+      if (!ok) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    document.addEventListener('click', clickCapture, true)
     return () => {
-      window.removeEventListener('beforeunload', handler)
+      window.removeEventListener('beforeunload', beforeUnload)
+      document.removeEventListener('click', clickCapture, true)
     }
   }, [selfServeDirty])
   const [genError, setGenError] = useState<string | null>(null)

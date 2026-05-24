@@ -162,15 +162,48 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
       body !== DEFAULT_BODY)
   useEffect(() => {
     if (!isDirty) return
-    const handler = (e: BeforeUnloadEvent) => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       // Most browsers ignore the custom string and show their generic prompt,
       // but setting returnValue is still required for the prompt to fire.
       e.returnValue = ''
     }
-    window.addEventListener('beforeunload', handler)
+    // F6 — in-app navigation guard. beforeunload doesn't fire for Next.js
+    // soft-nav (sidebar `Link` → router.push), which was the user's actual
+    // reported case. We capture the click at the document level BEFORE React's
+    // delegated handlers run so we can preventDefault on the native event
+    // (which prevents both browser nav and Next's router.push) when the
+    // operator cancels the confirm. Capture-phase + stopImmediatePropagation
+    // is required to beat React's synthetic-event dispatch.
+    const clickCapture = (e: MouseEvent) => {
+      if (e.defaultPrevented) return
+      if (e.button !== 0) return // left-click only
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return // open-in-new-tab etc.
+      const anchor = (e.target as Element | null)?.closest('a')
+      if (!anchor) return
+      if (anchor.hasAttribute('download')) return
+      if (anchor.getAttribute('target') === '_blank') return
+      const href = anchor.getAttribute('href')
+      if (!href) return
+      let url: URL
+      try {
+        url = new URL(href, window.location.href)
+      } catch {
+        return
+      }
+      if (url.origin !== window.location.origin) return // external — beforeunload handles
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return
+      const ok = window.confirm('You have unsaved changes in this send. Leave anyway?')
+      if (!ok) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    document.addEventListener('click', clickCapture, true)
     return () => {
-      window.removeEventListener('beforeunload', handler)
+      window.removeEventListener('beforeunload', beforeUnload)
+      document.removeEventListener('click', clickCapture, true)
     }
   }, [isDirty])
 
