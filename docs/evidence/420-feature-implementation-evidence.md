@@ -101,6 +101,30 @@ Edge cases + adjacent flows exercised:
 
 **0 critical/high bugs found.** Medium and below: see §Known V0 simplifications.
 
+### Bug Bash Findings — Round 2 (operator-driven, 2026-05-24)
+
+Per the Phase 12 manual-testing session (reviewer drove the full MANAGED_EMAIL flow end-to-end with live ACS dispatch to a real Yahoo inbox), 22 findings surfaced. None at Critical/High severity that would block the phase per the implement-validate guard. Per-finding commit map lives in `docs/evidence/420-feature-implementation-feedback.md` Round 2; this is the bug-bash-side summary.
+
+| Severity | Count | Disposition |
+|---|---|---|
+| Critical/High | 0 | — |
+| Medium (UX correctness, blocking user task) | 7 | Address: F5, F9, F14, F15, G7, G8, G9 (+ G10 same root cause). All ADDRESSED in commits 6ec1c16, 604e9e3, c44d722, c4d779e. |
+| Low (UX polish, naming, hierarchy) | 14 | F1–F4, F6, F7, F8, F10–F13, F16, G3, G4, G6, G11–G17, G19, G20, G21, G22. All ADDRESSED across batches B1–B7, H1–H7, J1–J3, K1, L1–L2. |
+| Deferred | 1 | G1 — Clerk 5.7 + Next 15 dev-mode RSC payload incompatibility. Not in #420 code; needs Clerk 5→7 major upgrade. Dev-mode-only impact; no production effect. |
+| Dropped | 1 | G2 — user retracted (Details button DOES appear when a specific Wave is selected; not a code bug). |
+
+**Adjacent flows exercised** as part of the operator session:
+- Audience search via wildcard glob (R17) against 106 Hiranova members
+- Random-sample audience selection
+- Custom-list paste with auto-enroll
+- Mode switch (Self-serve ↔ Managed-Email) mid-flow
+- Confirm-modal cancel → return to configure with state intact
+- Send-failure → return to configure with state intact (B7 state-preservation fix)
+- Live preview pane keystroke-driven updates
+- Wave Detail merged Tokens/Send-Log table at small batch size
+
+**0 critical/high bugs open after Round 2 fixes.** Phase passes the implement-validate Bug Bash guard.
+
 ## §13 Observability — emissions verified at code-review
 
 | Event | Source | Verified |
