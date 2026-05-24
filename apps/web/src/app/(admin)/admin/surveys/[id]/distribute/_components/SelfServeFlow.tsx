@@ -176,6 +176,25 @@ export function SelfServeFlow() {
 
   const [generating, setGenerating] = useState<boolean>(false)
   const [generated, setGenerated] = useState<GenerateResponse | null>(null)
+
+  // F6 — beforeunload guard while there's unsaved configure work and the
+  // operator hasn't yet generated the CSV. Same scope as the ManagedEmailFlow
+  // sibling — covers refresh / close-tab / external-site nav; in-app nav
+  // (sidebar links) and full-state preservation are follow-ups.
+  const audienceSelectedCount = audience?.selectedCount ?? 0
+  const selfServeDirty =
+    !generated && (audienceSelectedCount > 0 || surveyNameInMail.trim() !== '')
+  useEffect(() => {
+    if (!selfServeDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+    }
+  }, [selfServeDirty])
   const [genError, setGenError] = useState<string | null>(null)
   const [downloadFormat, setDownloadFormat] = useState<DistributionFormat>('generic')
   // Spec R32a + mock #scene-4 lines 818-833 — confirmation modal gates the
@@ -337,10 +356,26 @@ export function SelfServeFlow() {
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-10">
+      <nav aria-label="Breadcrumb" className="mb-3 text-xs text-gray-500">
+        <ol className="flex flex-wrap items-center gap-1">
+          <li>
+            <a href="/admin/surveys" className="hover:text-indigo-700 hover:underline">
+              Surveys
+            </a>
+          </li>
+          <li aria-hidden="true">›</li>
+          <li>
+            <a href={`/admin/surveys/${surveyId}`} className="hover:text-indigo-700 hover:underline">
+              {survey?.title ?? survey?.name ?? 'Survey'}
+            </a>
+          </li>
+          <li aria-hidden="true">›</li>
+          <li aria-current="page" className="font-medium text-gray-700">
+            Distribute
+          </li>
+        </ol>
+      </nav>
       <header className="mb-6">
-        <a href={`/admin/surveys/${surveyId}`} className="text-sm text-indigo-600 hover:underline">
-          ← Back to survey
-        </a>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">

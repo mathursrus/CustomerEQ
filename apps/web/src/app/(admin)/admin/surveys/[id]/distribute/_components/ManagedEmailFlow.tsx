@@ -148,6 +148,32 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
   const [batchId, setBatchId] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
 
+  // F6 — beforeunload guard while the configure step has unsaved work. Catches
+  // refresh / close-tab / typing a new URL / external-site navigation. Does NOT
+  // catch in-app Next router navigation (sidebar links); persisting state across
+  // in-app nav would require lifting the configure form into a context or
+  // serializing into sessionStorage on every keystroke — left as a follow-up.
+  const audienceSelectedCount = audience?.selectedCount ?? 0
+  const isDirty =
+    flow === 'configure' &&
+    (audienceSelectedCount > 0 ||
+      surveyNameInMail.trim() !== '' ||
+      senderName.trim() !== '' ||
+      body !== DEFAULT_BODY)
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      // Most browsers ignore the custom string and show their generic prompt,
+      // but setting returnValue is still required for the prompt to fire.
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+    }
+  }, [isDirty])
+
   // Load survey + brand context
   useEffect(() => {
     let cancelled = false
@@ -339,6 +365,25 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <nav aria-label="Breadcrumb" className="text-xs text-gray-500">
+        <ol className="flex flex-wrap items-center gap-1">
+          <li>
+            <a href="/admin/surveys" className="hover:text-indigo-700 hover:underline">
+              Surveys
+            </a>
+          </li>
+          <li aria-hidden="true">›</li>
+          <li>
+            <a href={`/admin/surveys/${surveyId}`} className="hover:text-indigo-700 hover:underline">
+              {survey.title ?? survey.name}
+            </a>
+          </li>
+          <li aria-hidden="true">›</li>
+          <li aria-current="page" className="font-medium text-gray-700">
+            Distribute
+          </li>
+        </ol>
+      </nav>
       <header className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-indigo-600">Send via CustomerEQ</p>
