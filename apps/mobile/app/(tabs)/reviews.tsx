@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useState } from 'react'
 import { useReviews } from '../../hooks/useReviews'
@@ -17,10 +17,14 @@ export default function ReviewsScreen() {
   async function handleSubmitReply() {
     if (!replyTarget || !replyText.trim()) return
     setSubmitting(true)
-    await submitReply(replyTarget, replyText)
-    setSubmitting(false)
-    setReplyTarget(null)
-    setReplyText('')
+    try {
+      await submitReply(replyTarget, replyText)
+      setReplyTarget(null)
+      setReplyText('')
+      Alert.alert('Reply submitted ✓', 'Your reply has been saved.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

@@ -2,6 +2,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, Activi
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useState } from 'react'
 import { useSurveys } from '../../hooks/useSurveys'
+import { useSurveyDetail } from '../../hooks/useSurveyDetail'
 
 const FILTERS = ['All', 'Active', 'Paused', 'Completed'] as const
 type Filter = typeof FILTERS[number]
@@ -11,10 +12,13 @@ export default function SurveysScreen() {
   const insets = useSafeAreaInsets()
   const [filter, setFilter] = useState<Filter>('All')
   const [createOpen, setCreateOpen] = useState(false)
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null)
+  const [selectedSurveyName, setSelectedSurveyName] = useState('')
   const [step, setStep] = useState(1)
   const [surveyName, setSurveyName] = useState('')
   const [surveyType, setSurveyType] = useState('NPS')
   const { data: surveys = [], isLoading } = useSurveys()
+  const { data: verbatims = [], isLoading: verbatimsLoading } = useSurveyDetail(selectedSurveyId)
 
   const filtered = filter === 'All' ? surveys : surveys.filter((s) => s.status?.toUpperCase() === filter.toUpperCase())
 
@@ -43,7 +47,7 @@ export default function SurveysScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
         {isLoading && <ActivityIndicator color="#4F46E5" />}
         {filtered.map((sv) => (
-          <View key={sv.id} style={s.card}>
+          <Pressable key={sv.id} style={s.card} onPress={() => { setSelectedSurveyId(sv.id); setSelectedSurveyName(sv.name) }}>
             <View style={s.cardTop}>
               <Text style={s.cardName}>{sv.name}</Text>
               <View style={[s.typeBadge, { backgroundColor: TYPE_COLORS[sv.type] ?? '#6b7280' }]}>
@@ -57,9 +61,40 @@ export default function SurveysScreen() {
                 <Text style={[s.statusText, { color: sv.status === 'ACTIVE' ? '#059669' : sv.status === 'PAUSED' ? '#d97706' : '#6b7280' }]}>{sv.status}</Text>
               </View>
             </View>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
+      {/* Survey Detail Sheet — AC3 */}
+      <Modal visible={!!selectedSurveyId} animationType="slide" presentationStyle="pageSheet">
+        <View style={s.modal}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle} numberOfLines={1}>{selectedSurveyName}</Text>
+            <Pressable onPress={() => setSelectedSurveyId(null)}><Text style={s.closeBtn}>✕</Text></Pressable>
+          </View>
+          <ScrollView style={s.modalBody}>
+            <Text style={s.formLabel}>RECENT VERBATIMS</Text>
+            {verbatimsLoading && <ActivityIndicator color="#4F46E5" style={{ marginTop: 20 }} />}
+            {verbatims.length === 0 && !verbatimsLoading && (
+              <Text style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>No responses yet.</Text>
+            )}
+            {verbatims.map((v, i) => (
+              <View key={v.id ?? i} style={s.verbatimCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  {v.score !== null && <Text style={{ fontSize: 22, fontWeight: '800', color: '#4F46E5' }}>{v.score}</Text>}
+                  {v.sentiment && (
+                    <View style={[s.sentimentChip, { backgroundColor: v.sentiment === 'positive' ? '#ecfdf5' : v.sentiment === 'negative' ? '#fef2f2' : '#f3f4f6' }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: v.sentiment === 'positive' ? '#059669' : v.sentiment === 'negative' ? '#dc2626' : '#6b7280' }}>{v.sentiment}</Text>
+                    </View>
+                  )}
+                </View>
+                {v.textResponses?.map((tr, j) => (
+                  tr.text ? <Text key={j} style={s.verbatimText}>&ldquo;{tr.text}&rdquo;</Text> : null
+                ))}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
       {/* Create Survey Modal */}
       <Modal visible={createOpen} animationType="slide" presentationStyle="pageSheet">
         <View style={s.modal}>
@@ -162,4 +197,7 @@ const s = StyleSheet.create({
   npsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   npsBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' },
   npsBtnText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  verbatimCard: { backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f3f4f6' },
+  sentimentChip: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  verbatimText: { fontSize: 13, color: '#374151', lineHeight: 18, fontStyle: 'italic' },
 })
