@@ -18,8 +18,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { API_URL, getAuthToken } from '@/lib/config'
 import { useModeRouter } from '@/components/mode-router'
-import { addDaysInBrandTz, endOfDayInBrandTz } from '@customerEQ/shared'
 
+import { presetToIsoExpiry } from './expiry'
 import type { DistributeMode } from './modes'
 import {
   SurveyBatchDetailsCard,
@@ -90,16 +90,6 @@ function brandKindToClient(
     default:
       return 'email'
   }
-}
-
-// G21 — expiry anchors to end-of-day in the BRAND's timezone, not UTC.
-// Same fix shape as ManagedEmailFlow; both flows now route through the
-// canonical addDaysInBrandTz + endOfDayInBrandTz helpers from
-// packages/shared/src/datetime.ts.
-function presetToIsoExpiry(preset: '24h' | '7d' | '30d' | '90d', brandTimezone: string): string {
-  const days = { '24h': 1, '7d': 7, '30d': 30, '90d': 90 }[preset]
-  const targetDay = addDaysInBrandTz(new Date(), days, brandTimezone)
-  return endOfDayInBrandTz(targetDay, brandTimezone).toISOString()
 }
 
 function identifierHeaderFor(

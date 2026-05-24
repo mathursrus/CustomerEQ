@@ -346,7 +346,39 @@ Six memory-rule entries saved as `feedback_*` files under `~/.claude/projects/..
 
 H6 (G1) is intentionally absent — investigated, no commit on this PR (Clerk-side issue out of scope).
 
-### Phase outcome
+## Round 2 — implement-quality findings (post-feedback re-validation)
+
+Output of `deep-code-quality-checks` against the Round 2 diff (batches B1–B7, H1–H7, J1–J3, K1, L1–L2 + security fix). 3 findings.
+
+### #420-Q-004: `presetToIsoExpiry` duplicated across both distribute flows — QUALITY CHECK FAILURE
+
+- **Severity**: Medium (DRY / Rule 15)
+- **File**: `ManagedEmailFlow.tsx:118` + `SelfServeFlow.tsx:99`
+- **Detail**: After G21/L1 routed both flows' expiry resolver through `addDaysInBrandTz` + `endOfDayInBrandTz`, the two `presetToIsoExpiry` implementations became byte-identical — copy-pasted across two sibling flow files. Rule 15 ("repeated logic across pages → extract to shared utility").
+- **Status**: **ADDRESSED** — extracted to `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/expiry.ts`; both flows import it. The `PRESET_DAYS` map is now a single module-level constant. Web typecheck clean.
+
+### #420-Q-005: `ManagedEmailFlow.tsx` grew to 872 lines — QUALITY CHECK (re-affirm acceptance)
+
+- **Severity**: Low (file size)
+- **File**: `ManagedEmailFlow.tsx` (872 lines, up from 639 at #420-Q-002)
+- **Detail**: Round 2 added the in-app nav guard, live survey-title binding, sender-alias width fix, CTA, and confirm-state preservation. The file is still a single-purpose flow component (configure → confirm → sending → sent) sharing 20+ `useState` hooks.
+- **Status**: **ACCEPTED with rationale** — same as #420-Q-002. Extracting the flow-states into separate files still requires lifting all state + handlers into a shared context, adding complexity without quality benefit. The presetToIsoExpiry extraction (Q-004) shaved the only genuinely-shareable logic. Flagged as a V1 split candidate if the flow gains a 5th state or the helpers gain a second consumer. Sister precedent `distribute/page.tsx` (now a thin ModeRouter shell after the §11.2 lift) confirms the split was done where it added value.
+
+### #420-Q-006: `EmailPreviewCard.DEFAULT_THEME` inline hex literals — QUALITY CHECK (accepted)
+
+- **Severity**: Low (hardcoded values)
+- **File**: `apps/web/src/components/managed-email-composer/EmailPreviewCard.tsx:71-79`
+- **Detail**: `DEFAULT_THEME` carries inline hexes (`#111827`, `#ffffff`, `#1f2937`, `#4f46e5`). #420-Q-001 established that theme hex literals should reference `FALLBACK_RESPONDENT_THEME`.
+- **Status**: **ACCEPTED with rationale** — unlike #420-Q-001 (which duplicated the *respondent theme* values), `DEFAULT_THEME` here is the preview's intentionally-neutral "no brand theme available" baseline (near-black text + indigo accent), used only when the `theme` prop is null (tests / brand-with-no-theme). Coupling it to `FALLBACK_RESPONDENT_THEME` (the indigo respondent identity) would be the wrong coupling — the preview's neutral baseline is a distinct semantic concern from the respondent-theme fallback. Single consumer, client-component-local. No drift risk since it's not duplicating an existing constant's *intent*.
+
+### Round 2 quality phase outcome
+
+- **3 findings**: 1 ADDRESSED inline (#420-Q-004 DRY extraction); 2 ACCEPTED with rationale (#420-Q-005 file size, #420-Q-006 neutral-default hexes).
+- **0 unaddressed.** Phase passes.
+
+---
+
+### Phase outcome (Round 2 feedback)
 
 - **22 findings** reported by reviewer; **21 ADDRESSED**, **1 DEFERRED** (G1 — Clerk + Next 15 dev-mode RSC incompatibility, out of #420 V0 scope), **1 DROPPED** (G2 — user error, not a code bug).
 - **Total commits this round**: 22 (including pre-batch architectural fix, two follow-up cleanup commits, and the J3 link strip).
