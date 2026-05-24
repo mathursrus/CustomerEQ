@@ -125,6 +125,91 @@ Per the Phase 12 manual-testing session (reviewer drove the full MANAGED_EMAIL f
 
 **0 critical/high bugs open after Round 2 fixes.** Phase passes the implement-validate Bug Bash guard.
 
+## Security Review
+
+### Executive Summary
+
+Diff-scoped security review on the #420 implementation (185 files, +23,355/-1,639). 0 Critical, 0 High, 3 Medium, 2 Low findings. One Medium auto-fixed inline (PII-LOG-1 — recipient email masked in connector log); two Medium grouped + filed as follow-up [#516](https://github.com/mathursrus/CustomerEQ/issues/516) (defense-in-depth body sanitization + composer link-protocol filter, both currently self-XSS-only under the operator-author-and-view trust model); two Low accepted with rationale already documented in code. **Phase passes the implement-security-review blocking guard** (no unresolved Critical or High).
+
+### Review Scope
+
+- **reviewType**: `embedded-diff-review`
+- **reviewScope**: `diff` (`git diff main..HEAD`)
+- **surfaceAreaPaths**: 185 files spanning `apps/api/src/**`, `apps/web/src/**`, `apps/worker/src/**`, `packages/shared/src/**`, `packages/connectors/src/**`, `packages/database/prisma/**`, `fraim/personalized-employee/learnings/raw/**`, `docs/**`, `.env.example`, `scripts/test-acs-connection.mts`
+- **Tooling**: surface classification + OWASP web/API top-10 + secrets-in-code + privacy/PII + capability-authoring review delegated to focused scan agent; findings verified by direct read of cited file:line
+
+### Threat Surface Summary
+
+| Surface | Evidence (representative paths) |
+|---|---|
+| `web` | `apps/web/src/components/managed-email-composer/EmailPreviewCard.tsx`, `apps/web/src/components/managed-email-composer/MustacheEditor.tsx`, `apps/web/src/app/u/[token]/page.tsx`, `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/**` |
+| `api` | `apps/api/src/routes/distributionBatches.ts`, `apps/api/src/routes/members.ts`, `apps/api/src/routes/unsubscribe.ts`, `apps/api/src/routes/admin-brand-profile.ts`, `apps/api/src/queues/bullmq.ts` |
+| `capability-authoring` | 10 new `.md` files under `fraim/personalized-employee/learnings/raw/` (raw coaching-moment captures) + 6 new memory rule files under `~/.claude/projects/.../memory/` |
+
+Not detected: `llm-app` (no anthropic/openai imports added), `mobile` (no ios/android paths), `data-pipeline` (Prisma only, no direct mongodb/pg/mysql2 imports), `docs-only` (code files present).
+
+### Coverage Matrix
+
+| Category | Status | Evidence |
+|---|---|---|
+| A03 Injection / XSS | Pass (with DiD notes) | `renderTemplate.ts` escapes all interpolated values via `escapeHtml`; `substituteMustache` in EmailPreviewCard escapes recipient + brand values; one operator-authored DiD finding logged as XSS-DID-1 |
+| A03 SQL Injection | Pass | `members.ts:807,848` use parameterized `$queryRaw` tagged templates with `${request.brandId}` + escaped `globToSqlLike`; `unsubscribe.ts:93` uses parameterized `$executeRaw`; no `$queryRawUnsafe` added in app code |
+| A05 Security Misconfig | Pass | New `target="_blank"` callsites carry `rel="noopener noreferrer"`; no CORS/CSP/cookie changes |
+| A07 Auth Failures | Pass | All admin routes consume `request.brandId` from the auth plugin (never from request body); `unsubscribe.ts` is intentionally public per RFC §3.6 — auth = token hash match |
+| API BOLA / mass-assign | Pass | Every new Prisma query on multi-tenant models (`Survey`, `DistributionBatch`, `Member`, `SurveyDistribution`, `SurveyDistributionToken`, `MemberUnsubscribeToken`) filters by `brandId`; worker re-asserts `{ id, brandId }` |
+| Secrets in code | Pass | `.env.example` placeholders only; `scripts/test-acs-connection.mts` reads from env, no fallback literal; no ACS connection strings in `spike/**`; gitignored `.env` files verified via `git check-ignore` |
+| Privacy / PII | Pass after auto-fix | PII-LOG-1 (recipient email at info level) masked inline this round; audit-event metadata in `managedEmailSend.ts` + `distributionBatches.ts` uses IDs only |
+| Capability-authoring | Pass | All 10 new coaching files + 6 memory rules are reflective behavioral prose; no shell commands, no exfil instructions, no prompt-injection content |
+
+### Findings
+
+| ID | Severity | Category | File:Line | Summary | Disposition |
+|---|---|---|---|---|---|
+| **PII-LOG-1** | Medium | Privacy/PII | `packages/connectors/src/email.ts:167` | Recipient email logged in plaintext at info level on every notification send | **Fix** — auto-fix inline this round |
+| **XSS-DID-1** | Medium | A03 (defense-in-depth) | `apps/web/src/components/managed-email-composer/EmailPreviewCard.tsx:257` | Operator-authored TipTap HTML rendered unsanitized via `dangerouslySetInnerHTML`; self-XSS only in current trust model | **File** as [#516](https://github.com/mathursrus/CustomerEQ/issues/516) |
+| **XSS-DID-2** | Medium | A03 (defense-in-depth) | `apps/web/src/components/managed-email-composer/MustacheEditor.tsx:269-275` | `setLink({ href: url })` accepts `javascript:` / `data:` URLs because `Link.configure({ protocols })` filter doesn't apply to programmatic setLink calls | **File** as [#516](https://github.com/mathursrus/CustomerEQ/issues/516) (grouped with XSS-DID-1) |
+| **MISC-1** | Low | Code quality | `apps/api/src/routes/unsubscribe.ts:107` | `(request as any).brandId = record.brandId` cast to satisfy audit plugin; brandId derived from token record so functionally safe; would benefit from a typed request setter | **Accept** with rationale (functionally safe; refactor scope) |
+| **CRYPTO-1** | Low | Crypto | `apps/api/src/routes/distributionBatches.ts:196,200` | `samplingSeed` + Fisher-Yates use `Math.random()`; comment explicitly notes "not load-bearing for V0" | **Accept** with rationale (documented as non-load-bearing; not a confidentiality control) |
+
+### Prioritized Remediation Queue
+
+1. **PII-LOG-1** — auto-fixed inline this round (commit will be in the security review commit). One-line mask preserves operator-debug value via `toMasked` field; ACS `operationId` remains the canonical join key for delivery-report correlation.
+2. **XSS-DID-1 + XSS-DID-2** — filed together as the body-sanitization + link-protocol-filter follow-up. ~2–3h scope including DOMPurify wiring + tests. Activation conditions documented in [#516](https://github.com/mathursrus/CustomerEQ/issues/516).
+3. **MISC-1, CRYPTO-1** — accepted, no queue entry.
+
+### Verification Evidence
+
+- **PII-LOG-1 after auto-fix**: `packages/connectors/src/email.ts:167` now emits `{ provider, toMasked: maskEmail(message.to), operationId }`. `maskEmail` keeps local-part 1st char + full domain (`m***@yahoo.com`). Connector unit tests 38/38 pass after the change; build clean.
+- **All other Pass-rows**: verified by direct read of cited paths during scan; no failing proof to capture since they're pass-conditions.
+- **XSS-DID findings**: no proof-of-concept attempted (would require constructing an attack payload and operator role). Risk model documented in [#516](https://github.com/mathursrus/CustomerEQ/issues/516).
+
+### Applied Fixes and Filed Work Items
+
+| Item | Commit / Issue |
+|---|---|
+| PII-LOG-1 inline fix (maskEmail helper + log payload swap) | This-section commit (see Round 2 evidence-doc commit chain) |
+| XSS-DID-1 + XSS-DID-2 grouped follow-up | [Issue #516 — Email-body sanitization + composer link-protocol filter (defense-in-depth)](https://github.com/mathursrus/CustomerEQ/issues/516) |
+
+### Accepted / Deferred / Blocked
+
+| Item | Status | Rationale | Approver |
+|---|---|---|---|
+| MISC-1 — `as any` brandId setter cast | Accepted | Functionally safe (brandId derived from token record, never client-trusted); refactor benefit is code clarity not security | rmadhira86 (implicit — covered by user's "Looks good" sign-off on Round 2) |
+| CRYPTO-1 — `Math.random()` for sampling seed | Accepted | Code comment explicitly notes "not load-bearing for V0"; sampling is not a confidentiality control; swap to `crypto.randomBytes` is V1 if fairness/uniqueness guarantees become load-bearing | rmadhira86 (same) |
+
+### Compliance Control Mapping
+
+Not applicable — no active compliance framework (SOC2, HIPAA, PCI) configured for this issue. PII-LOG-1 fix is forward-good for any future privacy framework activation but not gated by one today.
+
+### Run Metadata
+
+- **Date**: 2026-05-24
+- **Commit SHA at scan time**: `a137b61` (head before the PII-LOG-1 auto-fix; auto-fix lands in the next commit of this section)
+- **Scan agent**: focused `general-purpose` sub-agent with scoped OWASP web + API + secrets + privacy + capability-authoring rubric (`135,674` tokens, `41` tool calls, `~165s`)
+- **Auto-fix cap**: 1 fix applied this run (PII-LOG-1); cap is 10 per run, not hit
+- **Skill errors**: none
+- **Environment**: Windows 11, Node 22, pnpm 9, dev servers stopped before the scan
+
 ## §13 Observability — emissions verified at code-review
 
 | Event | Source | Verified |
