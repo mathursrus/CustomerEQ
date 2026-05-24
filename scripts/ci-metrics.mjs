@@ -29,30 +29,16 @@ const STEP_KEYS = {
   'Run migrations':                 'migrations',
 };
 
+// Single-page API call (no --paginate) with retries.
+// Returns parsed JSON or throws after all retries exhausted.
 async function ghApi(path, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const raw = execSync(`gh api --paginate "${path}"`, {
+      const raw = execSync(`gh api "${path}"`, {
         encoding: 'utf8',
         maxBuffer: 20 * 1024 * 1024,
       });
-      try {
-        return JSON.parse(raw);
-      } catch {
-        const pages = [];
-        let depth = 0, start = -1;
-        for (let i = 0; i < raw.length; i++) {
-          const c = raw[i];
-          if (c === '{' || c === '[') { if (depth++ === 0) start = i; }
-          else if (c === '}' || c === ']') {
-            if (--depth === 0 && start !== -1) { pages.push(JSON.parse(raw.slice(start, i + 1))); start = -1; }
-          }
-        }
-        if (!pages.length) throw new Error(`unparseable output for: ${path}`);
-        if (Array.isArray(pages[0])) return pages.flat();
-        const arrayKey = Object.keys(pages[0]).find(k => Array.isArray(pages[0][k]));
-        return arrayKey ? { ...pages[0], [arrayKey]: pages.flatMap(p => p[arrayKey] ?? []) } : pages[0];
-      }
+      return JSON.parse(raw);
     } catch (err) {
       if (attempt === retries) throw err;
       const delay = attempt * 5000;
@@ -60,6 +46,28 @@ async function ghApi(path, retries = 3) {
       await new Promise(r => setTimeout(r, delay));
     }
   }
+}
+
+// Manually paginate workflow runs, stopping as soon as we see a run older
+// than sinceDate. Avoids --paginate which drops query params on subsequent
+// pages and can produce unparseable multi-blob output.
+async function fetchWorkflowRuns(sinceDate) {
+  const results = [];
+  let page = 1;
+  while (true) {
+    const res = await ghApi(`repos/${REPO}/actions/workflows/ci.yml/runs?per_page=100&page=${page}`);
+    const batch = res.workflow_runs ?? res;
+    if (!batch.length) break;
+
+    let reachedCutoff = false;
+    for (const run of batch) {
+      if (new Date(run.created_at) < sinceDate) { reachedCutoff = true; break; }
+      if (run.status === 'completed') results.push(run);
+    }
+    if (reachedCutoff) break;
+    page++;
+  }
+  return results;
 }
 
 function durSec(startedAt, completedAt) {
@@ -84,7 +92,7 @@ function statusIcon(ok) { return ok ? '✅' : '⚠️'; }
 
 // ── 1. Load existing data, determine fetch window ─────────────────────────────
 let existingRuns = [];
-let since = CUTOFF.toISOString();
+let since = CUTOFF;
 
 if (existsSync(OUT_JSON)) {
   try {
@@ -95,8 +103,8 @@ if (existsSync(OUT_JSON)) {
     if (withinWindow.length > 0 && withinWindow[0].id) {
       existingRuns = withinWindow;
       const latest = existingRuns.reduce((max, r) => r.date > max ? r.date : max, '');
-      since = latest || since;
-      console.log(`Incremental: ${existingRuns.length} cached runs, fetching since ${since}`);
+      if (latest) since = new Date(latest);
+      console.log(`Incremental: ${existingRuns.length} cached runs, fetching since ${since.toISOString()}`);
     } else {
       console.log(`Full fetch: cached data lacks run IDs (schema migration), fetching full ${DAYS} days`);
     }
@@ -104,13 +112,12 @@ if (existsSync(OUT_JSON)) {
     console.warn(`Could not read ${OUT_JSON}: ${e.message} — fetching full ${DAYS} days`);
   }
 } else {
-  console.log(`Full fetch: no prior data, fetching since ${since}`);
+  console.log(`Full fetch: no prior data, fetching since ${since.toISOString()}`);
 }
 
 // ── 2. Fetch new runs from GitHub ─────────────────────────────────────────────
-const runsRaw  = await ghApi(`repos/${REPO}/actions/workflows/ci.yml/runs?per_page=100&created=>=${since}`);
-const newRuns  = (runsRaw.workflow_runs ?? runsRaw).filter(r => r.status === 'completed');
-console.log(`Found ${newRuns.length} completed runs since ${since}`);
+const newRuns = await fetchWorkflowRuns(since);
+console.log(`Found ${newRuns.length} completed runs since ${since.toISOString()}`);
 
 // ── 3. Fetch job details for runs not already in cache ────────────────────────
 const existingIds = new Set(existingRuns.map(r => r.id));
@@ -159,7 +166,7 @@ for (let i = 0; i < newRuns.length; i++) {
 }
 
 // ── 4. Merge, deduplicate by id, trim to 30-day window ───────────────────────
-const seen   = new Set();
+const seen    = new Set();
 const allRuns = [...existingRuns, ...newRunData]
   .filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; })
   .filter(r => new Date(r.date) >= CUTOFF)
@@ -237,7 +244,7 @@ writeFileSync(OUT, reportLines.join('\n') + '\n');
 console.log(`Report written to ${OUT}`);
 console.log(`  P50: ${fmt(p50)}  P90: ${fmt(p90)}  Success rate (7d): ${successRate !== null ? (successRate * 100).toFixed(0) + '%' : '—'}`);
 
-// ── 7. Write JSON (includes id + steps for incremental support) ───────────────
+// ── 7. Write JSON (includes id + steps for incremental deduplication) ─────────
 const jsonOut = {
   generatedAt: new Date().toISOString(),
   thresholdS:  P90_THRESHOLD_S,
