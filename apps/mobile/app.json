@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "CustomerEQ",
+    "slug": "customereq-mobile",
+    "version": "1.0.0",
+    "scheme": "customereq",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": { "resizeMode": "contain", "backgroundColor": "#4F46E5" },
+    "ios": { "supportsTablet": false, "bundleIdentifier": "com.customereq.mobile" },
+    "android": { "adaptiveIcon": { "backgroundColor": "#4F46E5" }, "package": "com.customereq.mobile" },
+    "plugins": ["expo-router", "expo-notifications"]
+  }
+}
