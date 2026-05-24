@@ -45,19 +45,57 @@ describe('<EmailPreviewCard>', () => {
     expect(body).toHaveTextContent('Acme CX Team')
   })
 
-  it('renders the brand-logo header strip from Brand.logoUrl', () => {
+  it('substitutes {{brand_logo}} mustache as an <img> inside the body (G4 — no always-on header)', () => {
     render(<EmailPreviewCard {...baseProps} />)
-    const logo = screen.getByTestId('email-preview-brand-logo') as HTMLImageElement
-    expect(logo.src).toBe('https://cdn.example/acme-logo.png')
-    expect(logo.alt).toBe('Acme Coffee logo')
+    const body = screen.getByTestId('email-preview-body')
+    const logo = body.querySelector('img[data-mustache="brand-logo"]') as HTMLImageElement | null
+    expect(logo).not.toBeNull()
+    expect(logo!.src).toBe('https://cdn.example/acme-logo.png')
+    expect(logo!.alt).toBe('Acme Coffee logo')
   })
 
-  it('collapses brand header to brand-name only when Brand.logoUrl is null (R28 graceful degradation)', () => {
+  it('omits the brand-logo img when Brand.logoUrl is null even if the body has {{brand_logo}} (R28 graceful degradation)', () => {
     render(<EmailPreviewCard {...baseProps} brandLogoUrl={null} />)
-    expect(screen.queryByTestId('email-preview-brand-logo')).toBeNull()
-    // Brand name still appears in the header strip (the strip just has no logo).
-    const card = screen.getByTestId('email-preview-card')
-    expect(card).toHaveTextContent('Acme Coffee')
+    const body = screen.getByTestId('email-preview-body')
+    expect(body.querySelector('img[data-mustache="brand-logo"]')).toBeNull()
+    // {{brand_name}} still substitutes; brand identity reads as the name alone.
+    expect(body).toHaveTextContent('Acme Coffee')
+  })
+
+  it('does NOT render brand logo or brand name when the body omits both mustache tokens (G4)', () => {
+    render(
+      <EmailPreviewCard
+        {...baseProps}
+        bodyHtml="<p>Hi {{first_name}}, please respond at {{survey_link}}</p>"
+      />,
+    )
+    const body = screen.getByTestId('email-preview-body')
+    expect(body.querySelector('img[data-mustache="brand-logo"]')).toBeNull()
+    expect(body.querySelector('[data-mustache="brand-name"]')).toBeNull()
+    expect(body).not.toHaveTextContent('Acme Coffee')
+  })
+
+  it('substitutes {{brand_name}} with the theme primaryColor + bold (G4 theme mapping)', () => {
+    render(
+      <EmailPreviewCard
+        {...baseProps}
+        theme={{
+          primaryColor: '#ff00ff',
+          backgroundColor: '#ffffff',
+          textColor: '#111827',
+          accentColor: '#4f46e5',
+          buttonColor: '#4f46e5',
+          buttonTextColor: '#ffffff',
+          fontFamily: 'Inter',
+        }}
+      />,
+    )
+    const body = screen.getByTestId('email-preview-body')
+    const nameSpan = body.querySelector('[data-mustache="brand-name"]') as HTMLSpanElement | null
+    expect(nameSpan).not.toBeNull()
+    expect(nameSpan!.textContent).toBe('Acme Coffee')
+    expect(nameSpan!.getAttribute('style')).toContain('#ff00ff')
+    expect(nameSpan!.getAttribute('style')).toContain('font-weight: 600')
   })
 
   it('shows "<recipient>" label in the header chip (mock line 748)', () => {

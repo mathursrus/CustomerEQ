@@ -111,6 +111,7 @@ interface SubstitutionContext {
   senderName: string
   brandName: string
   brandLogoHtml: string
+  brandNameHtml: string
   surveyLink: string
   accentColor: string
 }
@@ -121,7 +122,10 @@ function substituteMustache(html: string, ctx: SubstitutionContext): string {
     .replace(/\{\{\s*last_name\s*\}\}/g, escapeHtml(ctx.lastName))
     .replace(/\{\{\s*survey_title\s*\}\}/g, escapeHtml(ctx.surveyTitle))
     .replace(/\{\{\s*sender_name\s*\}\}/g, escapeHtml(ctx.senderName))
-    .replace(/\{\{\s*brand_name\s*\}\}/g, escapeHtml(ctx.brandName))
+    // G4 — brand_name substitution wraps the value in a theme-styled span so
+    // recipients see the brand identity at the primaryColor + font weight the
+    // production renderer applies. Previously substituted as plain escaped text.
+    .replace(/\{\{\s*brand_name\s*\}\}/g, ctx.brandNameHtml)
     // brand_logo: emit an <img> referencing Brand.logoUrl, or empty string
     // when logoUrl is null (R28 collapses the header to brand name only).
     .replace(/\{\{\s*brand_logo\s*\}\}/g, ctx.brandLogoHtml)
@@ -158,9 +162,14 @@ export function EmailPreviewCard({
   const sampleSurveyLink = `${origin}/survey/${surveyId}/r/sample-token-xxxxxxxx`
   const sampleUnsubscribeLink = `${origin}/u/sample-token-xxxxxxxx`
 
+  // Mustache → HTML fragments. brand_logo and brand_name are styled inline so
+  // the substituted HTML carries the brand-identity styling itself — there is
+  // no separate always-on brand-header strip (G4: render only when the body
+  // contains the token, not twice).
   const brandLogoHtml = brandLogoUrl
-    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandDisplayName)} logo" style="height: 40px; vertical-align: middle;" />`
+    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandDisplayName)} logo" style="max-height: 60px; max-width: 200px; vertical-align: middle;" data-mustache="brand-logo" />`
     : ''
+  const brandNameHtml = `<span style="color: ${escapeHtml(activeTheme.primaryColor)}; font-weight: 600; font-family: ${escapeHtml(activeTheme.fontFamily)}, system-ui, -apple-system, sans-serif;" data-mustache="brand-name">${escapeHtml(brandDisplayName)}</span>`
 
   const renderedBody = useMemo(
     () =>
@@ -169,15 +178,16 @@ export function EmailPreviewCard({
         lastName: sampleRecipient?.lastName ?? 'Recipient',
         surveyTitle: surveyTitle || '<survey title>',
         senderName: senderName || '<sender name>',
-        // F5 — substitute even when brand name is empty; the preview's
-        // brand-header strip + disclaimer already surface a visible "your
-        // brand" fallback so a missing brand record is obvious.
+        // F5 — substitute even when brand name is empty; substituteMustache
+        // uses brandNameHtml (the themed wrapper) so a missing brand still
+        // reads as branded content.
         brandName: brandDisplayName,
         brandLogoHtml,
+        brandNameHtml,
         surveyLink: sampleSurveyLink,
         accentColor: activeTheme.accentColor,
       }),
-    [bodyHtml, sampleRecipient, surveyTitle, senderName, brandDisplayName, brandLogoHtml, sampleSurveyLink, activeTheme.accentColor],
+    [bodyHtml, sampleRecipient, surveyTitle, senderName, brandDisplayName, brandLogoHtml, brandNameHtml, sampleSurveyLink, activeTheme.accentColor],
   )
 
   return (
@@ -235,31 +245,9 @@ export function EmailPreviewCard({
           {subject || <span style={{ opacity: 0.4 }}>&lt;subject&gt;</span>}
         </div>
 
-        {/* Brand-header strip — F14: brand name uses theme primaryColor so the
-            recipient sees the brand identity at the same color the production
-            renderer applies. F15: when brandName is empty we surface a visible
-            "your brand" placeholder rather than the previous em-dash so it
-            reads as something to fix instead of broken rendering. */}
-        <div
-          className="my-3 flex items-center gap-3 border-b pb-3"
-          style={{ borderColor: 'rgba(0,0,0,0.08)' }}
-        >
-          {brandLogoUrl ? (
-            <img
-              src={brandLogoUrl}
-              alt={`${brandDisplayName} logo`}
-              className="h-10 w-auto"
-              data-testid="email-preview-brand-logo"
-            />
-          ) : null}
-          <div
-            className="text-base font-semibold"
-            style={{ color: activeTheme.primaryColor }}
-            data-testid="email-preview-brand-name"
-          >
-            {brandDisplayName}
-          </div>
-        </div>
+        {/* G4 — no always-on brand-header strip. Brand logo + name appear in
+            the body if and only if the operator inserts {{brand_logo}} /
+            {{brand_name}} tokens — substituted via substituteMustache below. */}
 
         {/* Rendered body — mustache tokens substituted, HTML rendered. */}
         <div
