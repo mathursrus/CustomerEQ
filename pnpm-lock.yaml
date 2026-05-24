@@ -62,6 +62,9 @@ importers:
       '@customerEQ/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@customerEQ/worker':
+        specifier: workspace:*
+        version: link:../worker
       '@fastify/cors':
         specifier: ^11.2.0
         version: 11.2.0

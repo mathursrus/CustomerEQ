@@ -105,10 +105,20 @@ async function writeAudit(args: {
   })
 }
 
-export async function processManagedEmailSend(
-  job: Job<ManagedEmailSendPayload>,
+// dispatchManagedEmailSend is the Job-free core. Both BullMQ (apps/worker) and the
+// inline runtime (apps/api/src/queues/bullmq.ts → scheduleInline) invoke this so
+// QUEUE_MODE=inline ≡ QUEUE_MODE=redis for managed-email dispatch (the invariant
+// every other queue in this codebase upholds — Redis is purely an optimization).
+export interface ManagedEmailAttemptInfo {
+  attemptsMade: number
+  maxAttempts: number
+}
+
+export async function dispatchManagedEmailSend(
+  payload: ManagedEmailSendPayload,
+  attempt: ManagedEmailAttemptInfo,
 ): Promise<ManagedEmailSendResult> {
-  const { batchId, memberId, brandId, surveyId } = job.data
+  const { batchId, memberId, brandId, surveyId } = payload
 
   // 1. Load batch + member + composerSnapshot in parallel
   const [batch, member] = await Promise.all([
@@ -194,7 +204,7 @@ export async function processManagedEmailSend(
   const plainText = renderEmailPlainText(composerSnapshot)
 
   // 5. Dispatch via ACS connector
-  const isFinalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 3)
+  const isFinalAttempt = attempt.attemptsMade + 1 >= attempt.maxAttempts
   try {
     const result = await sendEmailMessage(
       { to: member.email!, subject: composer.subject, plainText, html },
@@ -229,6 +239,17 @@ export async function processManagedEmailSend(
     }
     return { sent: false, reason, retryable: !isFinalAttempt }
   }
+}
+
+// BullMQ adapter — extracts payload + attempt info from the Job and delegates
+// to the shared dispatcher.
+export async function processManagedEmailSend(
+  job: Job<ManagedEmailSendPayload>,
+): Promise<ManagedEmailSendResult> {
+  return dispatchManagedEmailSend(job.data, {
+    attemptsMade: job.attemptsMade,
+    maxAttempts: job.opts.attempts ?? 3,
+  })
 }
 
 async function markDelivered(batchId: string, memberId: string, surveyId: string, deliveredAt: Date): Promise<void> {

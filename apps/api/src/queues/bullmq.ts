@@ -23,6 +23,7 @@ import {
 import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
 import { deliverNotification } from '@customerEQ/connectors'
+import { dispatchManagedEmailSend } from '@customerEQ/worker/processors/managedEmailSend'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
@@ -1153,15 +1154,20 @@ export async function enqueueSurveyImportRow(payload: SurveyImportRowPayload): P
 }
 
 // Issue #420 — managed-email per-recipient dispatch.
-// In QUEUE_MODE=redis: enqueue to the dedicated BullMQ queue; worker processes.
-// In QUEUE_MODE=inline: structured-log a warning and return the stub job.
-// (Inline mode doesn't run the dispatcher — that's the worker's job. Tests
-// validate the API contract; end-to-end dispatch is a worker-mode concern.)
+// Inline mode runs the same dispatcher the worker uses (dispatchManagedEmailSend
+// from @customerEQ/worker/processors/managedEmailSend), under scheduleInline so
+// retry semantics match BullMQ's attempts=3 + exponential backoff. This keeps
+// the inline ≡ redis functional-equivalence invariant — Redis is purely a
+// throughput/cross-instance optimization, not a behavioral mode (see
+// docs/architecture/architecture.md §2 + §3.3, and inlineRuntime.ts header).
 export async function enqueueManagedEmailSend(payload: ManagedEmailSendPayload): Promise<Job> {
   if (QUEUE_MODE === 'inline') {
-    log.warn(
-      { event: 'managed_email_send.inline_noop', batchId: payload.batchId, memberId: payload.memberId },
-      'Managed-email-send enqueue in inline mode — no-op (use QUEUE_MODE=redis for dispatch)',
+    scheduleInline(
+      'managed-email-send',
+      payload,
+      async (p) =>
+        dispatchManagedEmailSend(p, { attemptsMade: 0, maxAttempts: 3 }),
+      { attempts: 3, backoffMs: 2000 },
     )
     return INLINE_STUB
   }
