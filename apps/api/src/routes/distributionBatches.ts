@@ -15,7 +15,6 @@ import type { FastifyPluginAsync, FastifyInstance, FastifyRequest } from 'fastif
 import { Prisma } from '@prisma/client'
 import {
   PreviewBatchRequestSchema,
-  GenerateBatchRequestSchema,
   EditExpiryRequestSchema,
   RegenerateTokensRequestSchema,
   ManagedEmailComposerSchema,
@@ -115,10 +114,17 @@ function extractAudienceInput(request: FastifyRequest): ExtractedAudienceInput |
       },
     }
   }
-  // JSON body
-  const parse = PreviewBatchRequestSchema.safeParse(request.body)
+  // JSON body. PreviewBatchRequestSchema is .strict() to keep the preview
+  // shape tight, but MANAGED_EMAIL Generate requests legitimately carry extra
+  // top-level fields (sendMode + composer — validated separately downstream).
+  // Use .passthrough() here so those keys flow through; the strict checks are
+  // applied per-mode after extraction.
+  const parse = PreviewBatchRequestSchema.passthrough().safeParse(request.body)
   if (!parse.success) return null
-  return parse.data
+  // Surface sendMode + composer back to callers that need them (MANAGED_EMAIL
+  // route reads them via cast). Keeping the typed Extract narrow on
+  // surveyNameInMail/expiresAt/audience preserves the existing contract.
+  return parse.data as ExtractedAudienceInput
 }
 
 // ─── Identifier resolution (existing members + custom list) ───────────────────
@@ -521,11 +527,15 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       const brandId = request.brandId
       const input = extractAudienceInput(request)
       if (!input) {
-        return reply.status(422).send({ error: 'Validation failed', code: 'INVALID_BODY' })
-      }
-      const validate = GenerateBatchRequestSchema.safeParse(input)
-      if (!validate.success) {
-        return reply.status(422).send({ error: 'Validation failed', code: 'INVALID_BODY' })
+        // Re-parse against the same shape to surface the field-level reason —
+        // extractAudienceInput swallows the Zod error.
+        const detail = PreviewBatchRequestSchema.passthrough().safeParse(request.body)
+        const fieldErrors = !detail.success ? detail.error.flatten().fieldErrors : undefined
+        return reply.status(422).send({
+          error: 'Request body is missing required fields or contains invalid types.',
+          code: 'INVALID_BODY',
+          fieldErrors,
+        })
       }
 
       // Issue #420 — detect MANAGED_EMAIL mode via the `sendMode` body field.
@@ -537,7 +547,11 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         const composerInput = (input as { composer?: unknown }).composer
         const composerValidate = ManagedEmailComposerSchema.safeParse(composerInput)
         if (!composerValidate.success) {
-          return reply.status(422).send({ error: 'composer is required for MANAGED_EMAIL', code: 'COMPOSER_REQUIRED' })
+          return reply.status(422).send({
+            error: 'Composer is missing or invalid. Check sender name, alias, subject, and body.',
+            code: 'COMPOSER_REQUIRED',
+            fieldErrors: composerValidate.error.flatten().fieldErrors,
+          })
         }
         composer = composerValidate.data
         // Resolve sender domain per R25: Brand.managedEmailSenderDomain → env-parsed → hard-coded fallback.

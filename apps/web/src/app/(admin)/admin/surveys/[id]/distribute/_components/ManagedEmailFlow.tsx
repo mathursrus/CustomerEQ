@@ -290,6 +290,14 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
     return null
   }, [senderName, senderAlias, subject, body])
 
+  // F16 — composer validity recomputed live so the Send button can disable
+  // immediately when the operator removes a required token (e.g. {{survey_link}})
+  // and the inline error appears without requiring a click-through attempt.
+  const liveComposerError = validateComposer()
+  useEffect(() => {
+    setComposerError(liveComposerError)
+  }, [liveComposerError])
+
   const handleContinueToConfirm = useCallback(() => {
     const err = validateComposer()
     setComposerError(err)
@@ -317,12 +325,28 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? `Send failed (${res.status})`)
+        // F9 — surface the API's field-level Zod errors (when present) so the
+        // operator sees what specifically failed instead of just "Validation
+        // failed". The route exposes `fieldErrors: Record<string, string[]>`
+        // on the 422 response. Flatten the first error per field for display.
+        const fe = err.fieldErrors as Record<string, string[]> | undefined
+        const detail = fe
+          ? Object.entries(fe)
+              .flatMap(([field, msgs]) => msgs.map((m) => `${field}: ${m}`))
+              .slice(0, 4)
+              .join(' · ')
+          : null
+        const headline = err.error ?? `Send failed (${res.status})`
+        throw new Error(detail ? `${headline} — ${detail}` : headline)
       }
       const data = await res.json()
       setBatchId(data.batchId)
       setFlow('sending')
     } catch (err) {
+      // F9 — keep flow at 'confirm' so the configure UI doesn't get unmounted
+      // (which would blow away the audience-builder's internal state). The
+      // modal closes itself on error via the submitError surface, but the
+      // form behind it stays mounted with selections + composer intact.
       setSubmitError((err as Error).message)
       setFlow('configure')
     } finally {
@@ -398,8 +422,28 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
         </button>
       </header>
 
-      {flow === 'configure' && (
-        <>
+      {/* F9 — submit-error is rendered at the top so it's always visible after
+          a send failure (was previously wedged between the editor section and
+          the recap panel). */}
+      {submitError && (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          data-testid="managed-email-submit-error"
+        >
+          <p className="font-medium">Send failed</p>
+          <p className="mt-1">{submitError}</p>
+        </div>
+      )}
+
+      {/* F9 — the configure subtree stays MOUNTED through 'confirm' / 'sending'
+          / 'sent' (visibility-toggled via CSS) so the AudienceBuilder's internal
+          state (selected rows, search results, pasted lists) is preserved when
+          the operator cancels the confirm modal or the API rejects the send.
+          Previously the conditional `{flow === 'configure' && ...}` unmount
+          blew this state away on every flow transition. */}
+      <div className={flow === 'configure' || flow === 'confirm' ? '' : 'hidden'}>
+        <div className="space-y-6">
           <SurveyBatchDetailsCard
             surveyNameInMail={surveyNameInMail}
             setSurveyNameInMail={setSurveyNameInMail}
@@ -522,12 +566,6 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
             />
           </div>
 
-          {submitError && (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              {submitError}
-            </div>
-          )}
-
           {/* Mock #scene-3 line 803 — pre-submit recap; sender + survey name +
               expiry surfaced one last time before the confirm dialog. Mirror
               of the SELF_SERVE recap (mock #scene-2 line 530). */}
@@ -562,14 +600,15 @@ export function ManagedEmailFlow({ surveyId }: { surveyId: string }) {
             <button
               type="button"
               onClick={handleContinueToConfirm}
-              disabled={!audience || audience.selectedCount === 0}
+              disabled={!audience || audience.selectedCount === 0 || Boolean(liveComposerError)}
+              title={liveComposerError ?? undefined}
               className="inline-flex cursor-pointer items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Send {audience?.selectedCount ?? 0} emails →
             </button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {/* Mock #scene-4 lines 835–849 — MANAGED_EMAIL confirmation modal.
           Spec R32a (centered modal with backdrop, NOT inline section) +
