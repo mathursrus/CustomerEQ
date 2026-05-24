@@ -72,16 +72,25 @@ export function renderEmailHtml(theme: BrandThemeSnapshot, composer: ComposerSna
   // G4/G7/G8 — mustache substitutions for {{brand_logo}} and {{brand_name}}
   // emit theme-styled HTML fragments (not bare strings) so the rendered email
   // matches the preview and so the operator's body controls WHERE brand identity
-  // appears. The always-on brand header + always-on "Take the survey" button
-  // are removed: the operator can compose the email with whatever mustache
-  // tokens they need, and only those positions render brand-identity content.
+  // appears. The always-on brand header is removed: the operator can compose
+  // the email with whatever mustache tokens they need, and only those
+  // positions render brand-identity content.
+  //
+  // G19 (a) — "Take the survey" CTA button always-on below the body. Operators
+  // want a recognizable themed call-to-action; the body's {{survey_link}}
+  // substitution can still place an inline link wherever the operator wants.
+  // G19 (b) — {{survey_link}} substitutes to a clickable themed <a> so even a
+  // standalone token in the body becomes a working link (was previously bare
+  // URL text — recipient saw the URL but couldn't click it in many email
+  // clients that don't auto-linkify).
   const brandLogoFragment = composer.brandLogoUrl
     ? `<img src="${escapeHtml(composer.brandLogoUrl)}" alt="${escapeHtml(composer.brandName)}" style="max-height: 60px; max-width: 200px; border: 0; vertical-align: middle;" />`
     : ''
   const brandNameFragment = `<span style="color: ${theme.primaryColor}; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">${escapeHtml(composer.brandName)}</span>`
+  const surveyLinkAnchor = `<a href="${escapeHtml(composer.surveyLink)}" style="color: ${theme.accentColor}; text-decoration: underline;">${escapeHtml(composer.surveyLink)}</a>`
 
   const vars: Record<string, string> = {
-    survey_link: composer.surveyLink,
+    survey_link: surveyLinkAnchor,
     survey_title: escapeHtml(composer.surveyTitle),
     sender_name: escapeHtml(composer.senderName),
     brand_name: brandNameFragment,
@@ -105,6 +114,11 @@ export function renderEmailHtml(theme: BrandThemeSnapshot, composer: ComposerSna
           <tr>
             <td style="padding: 16px 24px; color: ${theme.textColor}; font-size: 15px; line-height: 1.6; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">
               ${rewriteLinksWithAccent(renderedBody, theme.accentColor)}
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 8px 24px 16px 24px;">
+              <a href="${escapeHtml(composer.surveyLink)}" style="display: inline-block; background-color: ${theme.buttonColor}; color: ${theme.buttonTextColor}; padding: 12px 24px; text-decoration: none; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">Take the survey</a>
             </td>
           </tr>
           <tr>

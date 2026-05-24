@@ -48,9 +48,18 @@ describe('renderEmailHtml — mustache substitution', () => {
     expect(html).toContain("you're a customer or partner of Acme")
   })
 
-  it('replaces {{survey_link}} with the resolved per-recipient URL', () => {
+  it('replaces {{survey_link}} with a clickable themed <a> wrapping the resolved URL (G19)', () => {
     const html = renderEmailHtml(defaultTheme, baseComposer)
+    // The body's <a href="{{survey_link}}"> form keeps the operator-wrapped
+    // anchor; the standalone {{survey_link}} token substitutes to its own
+    // anchor. Both contain the resolved URL.
     expect(html).toContain('https://app/s/r/xyz789')
+    expect(html).toMatch(/<a href="https:\/\/app\/s\/r\/xyz789" style="color: #6366f1/)
+  })
+
+  it('always-on themed "Take the survey" CTA below the body (G19)', () => {
+    const html = renderEmailHtml(defaultTheme, baseComposer)
+    expect(html).toMatch(/<a href="https:\/\/app\/s\/r\/xyz789"[^>]*background-color: #6366f1[^>]*>Take the survey<\/a>/)
   })
 
   it('renders empty string for missing first_name (does not leak {{first_name}} literal)', () => {

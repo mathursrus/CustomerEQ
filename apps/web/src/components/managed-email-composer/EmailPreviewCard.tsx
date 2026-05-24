@@ -257,6 +257,29 @@ export function EmailPreviewCard({
           dangerouslySetInnerHTML={{ __html: renderedBody }}
         />
 
+        {/* G19 — always-on themed "Take the survey" CTA below the body.
+            Mirrors what the worker renders in production (see
+            packages/shared/src/email/renderTemplate.ts). The body's
+            {{survey_link}} can still place an inline link wherever the
+            operator wants — this CTA is in addition, not a replacement. */}
+        <div className="mt-4 text-center" data-testid="email-preview-cta">
+          <a
+            href={sampleSurveyLink}
+            onClick={(e) => e.preventDefault()}
+            style={{
+              display: 'inline-block',
+              backgroundColor: activeTheme.buttonColor,
+              color: activeTheme.buttonTextColor,
+              padding: '12px 24px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontFamily: `${activeTheme.fontFamily}, system-ui, -apple-system, sans-serif`,
+            }}
+          >
+            Take the survey
+          </a>
+        </div>
+
         {/* R30 auto-appended unsubscribe footer — non-editable in composer
             and previewed here so the operator sees the legally-required
             footer recipients will receive. F15: brand display name (with
