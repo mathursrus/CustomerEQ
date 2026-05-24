@@ -1,45 +1,64 @@
 #!/usr/bin/env node
 // Nightly CI metrics trend report generator.
-// Reads the last 30 days of CI workflow runs via the GitHub Actions API,
-// computes P50/P90 wall clocks, per-step averages, and success rates,
-// then writes docs/ci-cd-metrics.md with ⚠️ flags for threshold breaches.
+// On the first run (or after schema changes) fetches the full 30-day window.
+// On subsequent runs reads docs/ci-metrics.json and fetches only new runs
+// since the last recorded date, then merges and trims to 30 days.
 //
 // Called by .github/workflows/ci-metrics.yml on a daily schedule.
 // Requires: GH_TOKEN env var (provided automatically in Actions jobs).
 import { execSync } from 'node:child_process';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO   = process.env.GITHUB_REPOSITORY ?? 'mathursrus/CustomerEQ';
-const OUT    = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'ci-cd-metrics.md');
-const DAYS   = 30;
-const SINCE  = new Date(Date.now() - DAYS * 864e5).toISOString();
+const REPO     = process.env.GITHUB_REPOSITORY ?? 'mathursrus/CustomerEQ';
+const __dir    = dirname(fileURLToPath(import.meta.url));
+const OUT      = join(__dir, '..', 'docs', 'ci-cd-metrics.md');
+const OUT_JSON = join(__dir, '..', 'docs', 'ci-metrics.json');
+const DAYS     = 30;
+const CUTOFF   = new Date(Date.now() - DAYS * 864e5);
 
-// Thresholds for ⚠️ flags
-const P90_THRESHOLD_S    = 14 * 60;   // 14m B&T wall clock
-const FAILURE_RATE_LIMIT = 0.10;       // 10% over 7 days
-const CACHE_HIT_MIN      = 0.50;       // 50% Turbo cache hit rate (future)
+const P90_THRESHOLD_S    = 14 * 60;
+const FAILURE_RATE_LIMIT = 0.10;
 
-function ghApi(path) {
-  const raw = execSync(`gh api --paginate "${path}"`, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
-  // gh api --paginate emits one JSON blob per page (not merged). Handle both cases.
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const pages = [];
-    let depth = 0, start = -1;
-    for (let i = 0; i < raw.length; i++) {
-      const c = raw[i];
-      if (c === '{' || c === '[') { if (depth++ === 0) start = i; }
-      else if (c === '}' || c === ']') {
-        if (--depth === 0 && start !== -1) { pages.push(JSON.parse(raw.slice(start, i + 1))); start = -1; }
+const STEP_KEYS = {
+  'Build':                         'build',
+  'Verify BAML module resolution':  'bamlProbe',
+  'Type check':                     'typecheck',
+  'Smoke Test Suite':               'smoke',
+  'Run migrations':                 'migrations',
+};
+
+async function ghApi(path, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const raw = execSync(`gh api --paginate "${path}"`, {
+        encoding: 'utf8',
+        maxBuffer: 20 * 1024 * 1024,
+      });
+      try {
+        return JSON.parse(raw);
+      } catch {
+        const pages = [];
+        let depth = 0, start = -1;
+        for (let i = 0; i < raw.length; i++) {
+          const c = raw[i];
+          if (c === '{' || c === '[') { if (depth++ === 0) start = i; }
+          else if (c === '}' || c === ']') {
+            if (--depth === 0 && start !== -1) { pages.push(JSON.parse(raw.slice(start, i + 1))); start = -1; }
+          }
+        }
+        if (!pages.length) throw new Error(`unparseable output for: ${path}`);
+        if (Array.isArray(pages[0])) return pages.flat();
+        const arrayKey = Object.keys(pages[0]).find(k => Array.isArray(pages[0][k]));
+        return arrayKey ? { ...pages[0], [arrayKey]: pages.flatMap(p => p[arrayKey] ?? []) } : pages[0];
       }
+    } catch (err) {
+      if (attempt === retries) throw err;
+      const delay = attempt * 5000;
+      console.warn(`  Attempt ${attempt}/${retries} failed, retrying in ${delay / 1000}s: ${err.message.split('\n')[0]}`);
+      await new Promise(r => setTimeout(r, delay));
     }
-    if (!pages.length) throw new Error(`gh api returned unparseable output for: ${path}`);
-    if (Array.isArray(pages[0])) return pages.flat();
-    const arrayKey = Object.keys(pages[0]).find(k => Array.isArray(pages[0][k]));
-    return arrayKey ? { ...pages[0], [arrayKey]: pages.flatMap(p => p[arrayKey] ?? []) } : pages[0];
   }
 }
 
@@ -60,40 +79,51 @@ function percentile(sorted, p) {
   return sorted[Math.max(0, idx)];
 }
 
-function flag(condition) { return condition ? ' ⚠️' : ''; }
+function flag(cond) { return cond ? ' ⚠️' : ''; }
 function statusIcon(ok) { return ok ? '✅' : '⚠️'; }
 
-// ── 1. Fetch runs ─────────────────────────────────────────────────────────────
-console.log(`Fetching CI runs since ${SINCE}…`);
-const runsRaw = ghApi(
-  `repos/${REPO}/actions/workflows/ci.yml/runs?per_page=100&created=>=${SINCE}`
-);
-const runs = (runsRaw.workflow_runs ?? runsRaw).filter(r => r.status === 'completed');
-console.log(`Found ${runs.length} completed CI runs in the last ${DAYS} days.`);
+// ── 1. Load existing data, determine fetch window ─────────────────────────────
+let existingRuns = [];
+let since = CUTOFF.toISOString();
 
-if (!runs.length) {
-  console.log('No runs found — skipping report.');
-  process.exit(0);
+if (existsSync(OUT_JSON)) {
+  try {
+    const stored = JSON.parse(readFileSync(OUT_JSON, 'utf8'));
+    const withinWindow = (stored.runs ?? []).filter(r => new Date(r.date) >= CUTOFF);
+    // Only use incremental if stored runs have `id` (post-migration schema).
+    // Without id we can't deduplicate, so fall back to a full fetch.
+    if (withinWindow.length > 0 && withinWindow[0].id) {
+      existingRuns = withinWindow;
+      const latest = existingRuns.reduce((max, r) => r.date > max ? r.date : max, '');
+      since = latest || since;
+      console.log(`Incremental: ${existingRuns.length} cached runs, fetching since ${since}`);
+    } else {
+      console.log(`Full fetch: cached data lacks run IDs (schema migration), fetching full ${DAYS} days`);
+    }
+  } catch (e) {
+    console.warn(`Could not read ${OUT_JSON}: ${e.message} — fetching full ${DAYS} days`);
+  }
+} else {
+  console.log(`Full fetch: no prior data, fetching since ${since}`);
 }
 
-// ── 2. Fetch job details for each run (batch, log progress) ───────────────────
-const STEP_KEYS = {
-  'Build':                        'build',
-  'Verify BAML module resolution': 'bamlProbe',
-  'Type check':                    'typecheck',
-  'Smoke Test Suite':              'smoke',
-  'Run migrations':                'migrations',
-};
+// ── 2. Fetch new runs from GitHub ─────────────────────────────────────────────
+const runsRaw  = await ghApi(`repos/${REPO}/actions/workflows/ci.yml/runs?per_page=100&created=>=${since}`);
+const newRuns  = (runsRaw.workflow_runs ?? runsRaw).filter(r => r.status === 'completed');
+console.log(`Found ${newRuns.length} completed runs since ${since}`);
 
-const runData = [];
+// ── 3. Fetch job details for runs not already in cache ────────────────────────
+const existingIds = new Set(existingRuns.map(r => r.id));
+const newRunData  = [];
 
-for (let i = 0; i < runs.length; i++) {
-  const run = runs[i];
-  if (i % 10 === 0) console.log(`  Processing run ${i + 1}/${runs.length}…`);
+for (let i = 0; i < newRuns.length; i++) {
+  const run = newRuns[i];
+  if (existingIds.has(run.id)) continue;
+  if (i % 10 === 0) console.log(`  Processing run ${i + 1}/${newRuns.length}…`);
 
   let btJob, lintJob;
   try {
-    const jobsRes = ghApi(`repos/${REPO}/actions/runs/${run.id}/jobs`);
+    const jobsRes = await ghApi(`repos/${REPO}/actions/runs/${run.id}/jobs`);
     const jobs = jobsRes.jobs ?? jobsRes;
     btJob   = jobs.find(j => j.name === 'Build & Test');
     lintJob = jobs.find(j => j.name === 'Lint');
@@ -101,59 +131,64 @@ for (let i = 0; i < runs.length; i++) {
     continue;
   }
 
-  const btTotal = btJob ? durSec(btJob.started_at, btJob.completed_at) : null;
+  const btTotal   = btJob   ? durSec(btJob.started_at,   btJob.completed_at)   : null;
   const lintTotal = lintJob ? durSec(lintJob.started_at, lintJob.completed_at) : null;
 
   const steps = {};
   if (btJob) {
-    for (const [stepPrefix, key] of Object.entries(STEP_KEYS)) {
-      const step = btJob.steps?.find(s => s.name.startsWith(stepPrefix));
+    for (const [prefix, key] of Object.entries(STEP_KEYS)) {
+      const step = btJob.steps?.find(s => s.name.startsWith(prefix));
       steps[key] = step ? durSec(step.started_at, step.completed_at) : null;
     }
   }
 
-  // Doc-only skip: all steps were skipped in B&T (changes.outputs.build == false)
-  const docOnly = btJob?.steps?.every(s => s.conclusion === 'skipped' || s.name === 'Set up job' || s.name === 'Checkout' || s.name === 'Determine if CI is needed' || s.name === 'Skip if doc-only' || s.name === 'Initialize containers' || s.name === 'Stop containers' || s.name === 'Complete job') ?? false;
+  const INFRA_STEPS = new Set(['Set up job','Checkout','Determine if CI is needed','Skip if doc-only','Initialize containers','Stop containers','Complete job']);
+  const docOnly = btJob?.steps?.every(s => s.conclusion === 'skipped' || INFRA_STEPS.has(s.name)) ?? false;
 
-  runData.push({
-    id:          run.id,
-    date:        run.created_at,
-    trigger:     run.event === 'pull_request' ? 'PR' : run.event === 'push' ? 'push→main' : run.event,
-    conclusion:  run.conclusion,
+  newRunData.push({
+    id:         run.id,
+    date:       run.created_at,
+    trigger:    run.event === 'pull_request' ? 'PR' : run.event === 'push' ? 'push→main' : run.event,
+    conclusion: run.conclusion,
     btTotal,
     lintTotal,
     steps,
     docOnly,
-    url:         run.html_url,
+    url:        run.html_url,
   });
 }
 
-// ── 3. Compute stats ──────────────────────────────────────────────────────────
-const nonSkipped = runData.filter(r => !r.docOnly && r.btTotal !== null);
-const btTimes    = nonSkipped.map(r => r.btTotal).sort((a, b) => a - b);
+// ── 4. Merge, deduplicate by id, trim to 30-day window ───────────────────────
+const seen   = new Set();
+const allRuns = [...existingRuns, ...newRunData]
+  .filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; })
+  .filter(r => new Date(r.date) >= CUTOFF)
+  .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-const p50 = percentile(btTimes, 0.50);
-const p90 = percentile(btTimes, 0.90);
+console.log(`Total runs in 30d window: ${allRuns.length} (${newRunData.length} new)`);
 
-const last7Days = new Date(Date.now() - 7 * 864e5);
-const recent    = nonSkipped.filter(r => new Date(r.date) >= last7Days);
+// ── 5. Compute stats ──────────────────────────────────────────────────────────
+const nonSkipped  = allRuns.filter(r => !r.docOnly && r.btTotal !== null);
+const btTimes     = nonSkipped.map(r => r.btTotal).sort((a, b) => a - b);
+const p50         = percentile(btTimes, 0.50);
+const p90         = percentile(btTimes, 0.90);
+
+const last7Days   = new Date(Date.now() - 7 * 864e5);
+const recent      = nonSkipped.filter(r => new Date(r.date) >= last7Days);
 const successRate = recent.length
   ? recent.filter(r => r.conclusion === 'success').length / recent.length
   : null;
+const docOnlyCount7d = allRuns.filter(r => r.docOnly && new Date(r.date) >= last7Days).length;
 
-const docOnlyCount7d = runData.filter(r => r.docOnly && new Date(r.date) >= last7Days).length;
-
-// Per-step averages
 const stepAvgs = {};
 for (const key of Object.values(STEP_KEYS)) {
-  const vals = nonSkipped.map(r => r.steps[key]).filter(v => v !== null && v > 0);
+  const vals = nonSkipped.map(r => r.steps?.[key]).filter(v => v != null && v > 0);
   stepAvgs[key] = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
 }
 
-// ── 4. Render markdown ────────────────────────────────────────────────────────
-const ts = new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-
-const last20 = [...runData].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+// ── 6. Render markdown ────────────────────────────────────────────────────────
+const ts     = new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+const last20 = [...allRuns].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
 
 const reportLines = [
   `# CI Pipeline Metrics`,
@@ -187,11 +222,11 @@ const reportLines = [
   `| Date (UTC) | Trigger | B&T | Lint | Outcome | Notes |`,
   `|------------|---------|-----|------|---------|-------|`,
   ...last20.map(r => {
-    const d = r.date.replace('T', ' ').slice(0, 16);
-    const icon = r.conclusion === 'success' ? '✅' : r.conclusion === 'failure' ? '❌' : '⏭️';
-    const btStr = r.docOnly ? '(skipped)' : (r.btTotal !== null ? fmt(r.btTotal) + (r.btTotal > P90_THRESHOLD_S ? ' ⚠️' : '') : '—');
+    const d       = r.date.replace('T', ' ').slice(0, 16);
+    const icon    = r.conclusion === 'success' ? '✅' : r.conclusion === 'failure' ? '❌' : '⏭️';
+    const btStr   = r.docOnly ? '(skipped)' : (r.btTotal !== null ? fmt(r.btTotal) + (r.btTotal > P90_THRESHOLD_S ? ' ⚠️' : '') : '—');
     const lintStr = r.docOnly ? '(skipped)' : fmt(r.lintTotal);
-    const notes = r.docOnly ? 'doc-only skip' : '';
+    const notes   = r.docOnly ? 'doc-only skip' : '';
     return `| [${d}](${r.url}) | ${r.trigger} | ${btStr} | ${lintStr} | ${icon} | ${notes} |`;
   }),
   ``,
@@ -202,16 +237,16 @@ writeFileSync(OUT, reportLines.join('\n') + '\n');
 console.log(`Report written to ${OUT}`);
 console.log(`  P50: ${fmt(p50)}  P90: ${fmt(p90)}  Success rate (7d): ${successRate !== null ? (successRate * 100).toFixed(0) + '%' : '—'}`);
 
-// ── 5. Write JSON for dashboard ───────────────────────────────────────────────
-const OUT_JSON = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'ci-metrics.json');
+// ── 7. Write JSON (includes id + steps for incremental support) ───────────────
 const jsonOut = {
   generatedAt: new Date().toISOString(),
-  thresholdS: P90_THRESHOLD_S,
-  summary: { p50, p90, successRate7d: successRate, docOnlySkips7d: docOnlyCount7d, totalRuns30d: nonSkipped.length },
+  thresholdS:  P90_THRESHOLD_S,
+  summary:     { p50, p90, successRate7d: successRate, docOnlySkips7d: docOnlyCount7d, totalRuns30d: nonSkipped.length },
   stepAvgs,
-  runs: [...runData].sort((a, b) => new Date(a.date) - new Date(b.date)).map(r => ({
-    date: r.date, btTotal: r.btTotal, lintTotal: r.lintTotal,
+  runs: allRuns.map(r => ({
+    id: r.id, date: r.date, btTotal: r.btTotal, lintTotal: r.lintTotal,
     conclusion: r.conclusion, trigger: r.trigger, url: r.url, docOnly: r.docOnly,
+    steps: r.steps,
   })),
 };
 writeFileSync(OUT_JSON, JSON.stringify(jsonOut));
