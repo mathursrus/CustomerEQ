@@ -39,17 +39,18 @@ export function AddFromExistingMembersCard({
         non-erased members.
       </p>
 
-      <div className="mb-3 inline-flex overflow-hidden rounded-md border border-gray-300">
+      <div role="tablist" aria-label="Add-method" className="mb-3 inline-flex overflow-hidden rounded-md border border-gray-200 bg-gray-50">
         {(['search', 'random'] as const).map((t) => {
           const active = tab === t
           return (
             <button
               key={t}
               type="button"
-              aria-pressed={active}
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(t)}
-              className={`px-3 py-1 text-xs font-medium ${
-                active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              className={`px-3 py-1 text-xs font-medium transition ${
+                active ? 'bg-indigo-100 text-indigo-800' : 'bg-transparent text-gray-700 hover:bg-gray-100'
               }`}
             >
               {t === 'search' ? 'Search' : 'Random sample'}

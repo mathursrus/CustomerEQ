@@ -154,8 +154,10 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
         <button
           type="button"
           onClick={handleSearch}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          aria-label="Run search"
+          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
+          <span aria-hidden="true">🔍</span>
           Search
         </button>
       </div>

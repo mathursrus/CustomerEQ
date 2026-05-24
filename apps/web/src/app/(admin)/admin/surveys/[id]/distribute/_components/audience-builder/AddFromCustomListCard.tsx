@@ -119,23 +119,24 @@ export function AddFromCustomListCard({
         form accepted.
       </p>
 
-      <div className="mb-3 inline-flex overflow-hidden rounded-md border border-gray-300">
+      <div role="tablist" aria-label="Input method" className="mb-3 inline-flex overflow-hidden rounded-md border border-gray-200 bg-gray-50">
         {(['paste', 'upload'] as const).map((m) => {
           const active = inputMode === m
           return (
             <button
               key={m}
               type="button"
-              aria-pressed={active}
+              role="tab"
+              aria-selected={active}
               onClick={() => {
                 setInputMode(m)
                 setUploadError(null)
               }}
-              className={`px-3 py-1 text-xs font-medium ${
-                active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              className={`px-3 py-1 text-xs font-medium transition ${
+                active ? 'bg-indigo-100 text-indigo-800' : 'bg-transparent text-gray-700 hover:bg-gray-100'
               }`}
             >
-              {m === 'paste' ? 'Paste' : '⤓ Upload CSV'}
+              {m === 'paste' ? 'Paste' : '↑ Upload CSV'}
             </button>
           )
         })}
