@@ -1,14 +1,16 @@
 import '../global.css'
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
-import * as SecureStore from 'expo-secure-store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
+// In-memory cache — no native dependencies, works in Expo Go and production.
+// For production builds, swap this out for expo-secure-store.
+const _tokenStore = new Map<string, string>()
 const tokenCache = {
-  async getToken(key: string) { return SecureStore.getItemAsync(key) },
-  async saveToken(key: string, value: string) { return SecureStore.setItemAsync(key, value) },
+  async getToken(key: string) { return _tokenStore.get(key) ?? null },
+  async saveToken(key: string, value: string) { _tokenStore.set(key, value) },
 }
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
