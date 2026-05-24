@@ -2,7 +2,7 @@ import '../global.css'
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 // In-memory cache — no native dependencies, works in Expo Go and production.
@@ -15,11 +15,21 @@ const tokenCache = {
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
+const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
   const segments = useSegments()
   const router = useRouter()
+  const bypassed = useRef(false)
   useEffect(() => {
+    if (DEV_BYPASS) {
+      if (!bypassed.current && segments.length > 0) {
+        bypassed.current = true
+        router.replace('/(tabs)')
+      }
+      return
+    }
     if (!isLoaded) return
     const inAuth = segments[0] === '(auth)'
     if (!isSignedIn && !inAuth) router.replace('/(auth)/sign-in')
