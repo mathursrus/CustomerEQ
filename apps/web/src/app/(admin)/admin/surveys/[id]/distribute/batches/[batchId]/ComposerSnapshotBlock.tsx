@@ -19,6 +19,9 @@ export interface ComposerSnapshot {
   senderAlias: string
   senderDomain: string
   subject: string
+  /** G20 — operator-edited "Survey name in mail" field. Drives {{survey_title}}
+   *  substitution in the preview. Optional for batches persisted before G20. */
+  surveyNameInMail?: string
   body: string
   brandLogoUrl: string | null
   brandName: string
@@ -78,7 +81,9 @@ export function ComposerSnapshotBlock({
         sampleRecipient={null}
         brandName={snapshot.brandName}
         brandLogoUrl={snapshot.brandLogoUrl}
-        surveyTitle={snapshot.subject}
+        // G20 — preview substitutes {{survey_title}} against the operator's
+        // surveyNameInMail. Fall back to subject only for pre-G20 batches.
+        surveyTitle={snapshot.surveyNameInMail ?? snapshot.subject}
         surveyId={surveyId}
         theme={previewTheme}
       />

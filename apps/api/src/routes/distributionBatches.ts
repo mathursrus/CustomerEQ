@@ -659,6 +659,11 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             senderAlias: composer.senderAlias,
             senderDomain,
             subject: composer.subject,
+            // G20 — persist the operator's surveyNameInMail so the worker can
+            // substitute {{survey_title}} against it (NOT against the email
+            // Subject, which is a separate operator-facing field). The
+            // Composer Snapshot view on Wave Detail also reads this field.
+            surveyNameInMail: input.surveyNameInMail,
             body: composer.body,
             brandLogoUrl: brandRow?.logoUrl ?? null,
             brandName: brandRow?.name ?? '',

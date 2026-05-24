@@ -37,6 +37,10 @@ interface ComposerSnapshotJson {
   senderAlias: string
   senderDomain: string
   subject: string
+  /** G20 — persisted alongside subject so {{survey_title}} substitutes against
+   *  the operator's "Survey name in mail" field, NOT against the email Subject.
+   *  Optional for back-compat with batches persisted before G20 landed. */
+  surveyNameInMail?: string
   body: string
   brandLogoUrl?: string | null
   brandName: string
@@ -208,7 +212,10 @@ export async function dispatchManagedEmailSend(
     bodyHtml: composer.body,
     senderName: composer.senderName,
     senderEmail: `${composer.senderAlias}@${composer.senderDomain}`,
-    surveyTitle: composer.subject,
+    // G20 — {{survey_title}} substitutes against the operator's
+    // surveyNameInMail field. Fall back to subject only for pre-G20 batches
+    // whose persisted snapshot doesn't carry the field.
+    surveyTitle: composer.surveyNameInMail ?? composer.subject,
     unsubscribeUrl,
     surveyLink,
     recipientFirstName: member.firstName,
