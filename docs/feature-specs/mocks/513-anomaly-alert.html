@@ -63,6 +63,31 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
 .chip-neg{background:#fef2f2;color:#dc2626;}
 .chip-neu{background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;}
 .qtext{font-size:13px;color:#374151;line-height:1.4;}
+/* Survey question breakdown */
+.survey-ctx{background:#fff;border-radius:16px;padding:15px;border:1px solid #f3f4f6;margin:0 16px 12px;}
+.sqhdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.sqtitle{font-size:14px;font-weight:700;color:#111827;}
+.sq-badge{background:#eef2ff;color:#4f46e5;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;}
+.sq-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f9fafb;}
+.sq-row:last-child{border-bottom:none;}
+.sq-num{width:22px;height:22px;border-radius:50%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#6b7280;flex-shrink:0;margin-top:1px;}
+.sq-num.anomaly{background:#fef2f2;color:#dc2626;}
+.sq-body{flex:1;}
+.sq-qtext{font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;}
+.sq-type{font-size:10px;color:#9ca3af;}
+.sq-result{display:flex;align-items:center;gap:8px;margin-top:4px;}
+.sq-score{font-size:16px;font-weight:800;color:#111827;}
+.sq-baseline{font-size:11px;color:#9ca3af;}
+.sq-delta{font-size:11px;font-weight:700;}
+.sq-delta.bad{color:#dc2626;}
+.sq-delta.ok{color:#059669;}
+.mc-bars{margin-top:6px;}
+.mc-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.mc-lbl{font-size:11px;color:#374151;width:110px;flex-shrink:0;}
+.mc-bar-w{flex:1;height:7px;background:#f3f4f6;border-radius:3px;overflow:hidden;}
+.mc-bar{height:100%;border-radius:3px;}
+.mc-pct{font-size:10px;color:#6b7280;width:26px;}
+.anomaly-q-banner{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:7px 10px;margin-top:6px;font-size:11px;color:#dc2626;font-weight:600;}
 /* Actions */
 .actions{padding:12px 16px 24px;display:flex;flex-direction:column;gap:8px;}
 .action-btn{border:none;border-radius:14px;padding:14px 20px;font-size:14px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;}
@@ -121,6 +146,52 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
       <div style="display:flex;gap:16px;margin-top:10px;">
         <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280;"><div style="width:12px;height:3px;background:#94a3b8;border-radius:2px;"></div>Baseline avg</div>
         <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280;"><div style="width:12px;height:3px;background:#dc2626;border-radius:2px;"></div>This cluster</div>
+      </div>
+    </div>
+
+    <!-- Multi-Question Survey Breakdown -->
+    <div class="survey-ctx">
+      <div class="sqhdr">
+        <span class="sqtitle">Post-Purchase NPS Survey</span>
+        <span class="sq-badge">3 Questions</span>
+      </div>
+      <!-- Q1: NPS -->
+      <div class="sq-row">
+        <div class="sq-num">Q1</div>
+        <div class="sq-body">
+          <div class="sq-qtext">How likely are you to recommend us? <span style="font-size:10px;background:#eef2ff;color:#4f46e5;border-radius:6px;padding:1px 6px;font-weight:700;margin-left:2px;">NPS 0–10</span></div>
+          <div class="sq-result">
+            <span class="sq-score">62</span>
+            <span class="sq-baseline">NPS · baseline 58</span>
+            <span class="sq-delta ok">↑4</span>
+          </div>
+        </div>
+      </div>
+      <!-- Q2: Checkout rating — ANOMALY SOURCE -->
+      <div class="sq-row">
+        <div class="sq-num anomaly">Q2</div>
+        <div class="sq-body">
+          <div class="sq-qtext">Rate your checkout experience <span style="font-size:10px;background:#fef2f2;color:#dc2626;border-radius:6px;padding:1px 6px;font-weight:700;margin-left:2px;">1–5 Stars</span></div>
+          <div class="sq-result">
+            <span class="sq-score" style="color:#dc2626;">2.1★</span>
+            <span class="sq-baseline">vs baseline 3.8★</span>
+            <span class="sq-delta bad">↓46% ← spike source</span>
+          </div>
+          <div class="anomaly-q-banner">⚠ This question's avg score dropped 46% — anomaly cluster source</div>
+        </div>
+      </div>
+      <!-- Q3: Multiple choice -->
+      <div class="sq-row">
+        <div class="sq-num">Q3</div>
+        <div class="sq-body">
+          <div class="sq-qtext">Which aspect needs the most improvement? <span style="font-size:10px;background:#f3f4f6;color:#6b7280;border-radius:6px;padding:1px 6px;font-weight:700;margin-left:2px;">Multiple Choice</span></div>
+          <div class="mc-bars" style="margin-top:6px;">
+            <div class="mc-row"><span class="mc-lbl" style="font-weight:700;color:#dc2626;">Checkout Speed</span><div class="mc-bar-w"><div class="mc-bar" style="width:42%;background:#dc2626;"></div></div><span class="mc-pct" style="color:#dc2626;font-weight:700;">42%</span></div>
+            <div class="mc-row"><span class="mc-lbl">Service Quality</span><div class="mc-bar-w"><div class="mc-bar" style="width:28%;background:#94a3b8;"></div></div><span class="mc-pct">28%</span></div>
+            <div class="mc-row"><span class="mc-lbl">App Experience</span><div class="mc-bar-w"><div class="mc-bar" style="width:18%;background:#94a3b8;"></div></div><span class="mc-pct">18%</span></div>
+            <div class="mc-row"><span class="mc-lbl">Product Range</span><div class="mc-bar-w"><div class="mc-bar" style="width:12%;background:#94a3b8;"></div></div><span class="mc-pct">12%</span></div>
+          </div>
+        </div>
       </div>
     </div>
 

@@ -156,6 +156,66 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
 .toast{position:absolute;top:68px;left:16px;right:16px;background:#111827;color:#fff;border-radius:14px;padding:11px 16px;font-size:14px;font-weight:600;text-align:center;z-index:300;opacity:0;transform:translateY(-6px);transition:all 0.25s;pointer-events:none;}
 .toast.show{opacity:1;transform:translateY(0);}
 .scontent{padding-bottom:14px;}
+/* FAB */
+.fab{position:absolute;bottom:16px;right:16px;width:50px;height:50px;border-radius:50%;background:#4f46e5;border:none;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 4px 16px rgba(79,70,229,0.45);display:flex;align-items:center;justify-content:center;z-index:80;}
+/* Step indicator */
+.step-dots{display:flex;gap:5px;justify-content:center;margin-bottom:14px;}
+.sdot{width:8px;height:8px;border-radius:50%;background:#e5e7eb;transition:all 0.2s;}
+.sdot.active{width:20px;border-radius:4px;background:#4f46e5;}
+.step-wrap{display:none;}.step-wrap.active{display:block;}
+/* Create survey */
+.form-label{font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;display:block;}
+.form-input{width:100%;border:1.5px solid #e5e7eb;border-radius:12px;padding:11px 13px;font-size:14px;font-family:inherit;outline:none;color:#111827;transition:border-color 0.2s;}
+.form-input:focus{border-color:#4f46e5;}
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;}
+.type-opt{background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:12px;padding:11px 10px;cursor:pointer;text-align:center;transition:all 0.15s;}
+.type-opt.sel{border-color:#4f46e5;background:#eef2ff;}
+.type-opt-icon{font-size:20px;margin-bottom:3px;}
+.type-opt-name{font-size:12px;font-weight:700;color:#374151;}
+.type-opt-sub{font-size:10px;color:#9ca3af;margin-top:1px;}
+/* Question builder */
+.q-list{margin-bottom:10px;}
+.qb-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;}
+.qb-num{width:22px;height:22px;border-radius:50%;background:#4f46e5;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.qb-body{flex:1;}
+.qb-qtext{font-size:13px;font-weight:600;color:#374151;margin-bottom:3px;}
+.qb-type{background:#eef2ff;color:#4f46e5;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:700;}
+.qb-del{background:none;border:none;color:#d1d5db;font-size:16px;cursor:pointer;padding:0;flex-shrink:0;}
+.add-q-btn{width:100%;border:1.5px dashed #d1d5db;border-radius:12px;padding:11px;font-size:13px;font-weight:700;color:#6b7280;background:none;cursor:pointer;margin-bottom:2px;}
+/* Preview survey */
+.preview-q{background:#fff;border-radius:14px;padding:14px;border:1px solid #f3f4f6;margin-bottom:10px;}
+.preview-q-num{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+.preview-q-text{font-size:14px;font-weight:600;color:#111827;margin-bottom:10px;line-height:1.4;}
+.nps-scale{display:flex;gap:3px;}
+.nps-btn{flex:1;height:34px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;font-size:12px;font-weight:700;color:#374151;cursor:pointer;transition:all 0.15s;}
+.nps-btn:hover{background:#eef2ff;border-color:#4f46e5;color:#4f46e5;}
+.nps-labels{display:flex;justify-content:space-between;margin-top:5px;}
+.nps-lbl{font-size:10px;color:#9ca3af;}
+.preview-textarea{width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;resize:none;outline:none;height:72px;color:#374151;}
+.choice-opt{width:100%;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;color:#374151;cursor:pointer;text-align:left;margin-bottom:6px;transition:all 0.15s;}
+.choice-opt:hover{border-color:#4f46e5;background:#eef2ff;color:#4f46e5;}
+.step-btns{display:flex;gap:8px;margin-top:12px;}
+.step-btn{flex:1;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;}
+.btn-back{background:#f3f4f6;color:#374151;}
+.btn-next{background:#4f46e5;color:#fff;}
+/* Multi-question accordion */
+.mq-section{margin-top:14px;}
+.mq-row{background:#f9fafb;border-radius:12px;padding:11px 13px;margin-bottom:6px;cursor:pointer;border:1px solid #f3f4f6;transition:all 0.15s;}
+.mq-row.expanded{border-color:#e0e7ff;background:#f5f7ff;}
+.mq-hdr{display:flex;align-items:center;gap:10px;}
+.mq-num{width:22px;height:22px;border-radius:50%;background:#eef2ff;color:#4f46e5;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mq-qtext{font-size:13px;font-weight:600;color:#374151;flex:1;}
+.mq-arrow{color:#9ca3af;font-size:14px;transition:transform 0.2s;}
+.mq-row.expanded .mq-arrow{transform:rotate(90deg);}
+.mq-detail{display:none;padding-top:10px;}
+.mq-row.expanded .mq-detail{display:block;}
+.mc-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.mc-lbl{font-size:12px;color:#374151;width:130px;flex-shrink:0;}
+.mc-bar-w{flex:1;height:7px;background:#e5e7eb;border-radius:3px;overflow:hidden;}
+.mc-bar{height:100%;border-radius:3px;background:#4f46e5;}
+.mc-pct{font-size:11px;color:#6b7280;width:26px;text-align:right;}
+.word-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.word-chip{background:#eef2ff;color:#4f46e5;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;}
 .ai-box{background:#f0f4ff;border-left:3px solid #4f46e5;border-radius:8px;padding:10px 12px;margin-bottom:12px;}
 .ai-lbl{font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;}
 .ai-text{font-size:13px;color:#374151;line-height:1.5;}
@@ -220,8 +280,8 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
       </div>
     </div>
     <!-- SURVEYS -->
-    <div id="screen-surveys" class="screen">
-      <div class="screen-header"><span class="screen-title">Surveys</span><button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg></button></div>
+    <div id="screen-surveys" class="screen" style="position:relative;">
+      <div class="screen-header"><span class="screen-title">Surveys</span><button class="icon-btn" onclick="openCreateSurvey()" style="background:#eef2ff;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>
       <div class="filter-chips"><button class="fchip active">All</button><button class="fchip">Active</button><button class="fchip">Paused</button><button class="fchip">Completed</button></div>
       <div class="scontent">
         <div class="scard" onclick="openSurveyDetail('nps1')"><div class="scard-hdr"><span class="sname">Post-Purchase NPS</span><span class="tbadge tb-nps">NPS</span></div><div class="scard-bot"><div><div class="snum">62</div><div class="snuml">NPS Score</div></div><div style="text-align:center;"><div class="snum">142</div><div class="snuml">Responses</div></div><div><span class="schip-act">● Active</span><div style="font-size:10px;color:#9ca3af;margin-top:4px;text-align:right;">2h ago</div></div></div></div>
@@ -289,6 +349,77 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
   <div class="sheet" id="ss"><div class="sheet-handle"></div><div class="shdr"><span class="stitle" id="ss-title">Survey</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody" id="ss-body"></div></div>
   <div class="sheet" id="cs"><div class="sheet-handle"></div><div class="shdr"><span class="stitle" id="cs-title">Cluster</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody" id="cs-body"></div></div>
   <div class="sheet" id="rs"><div class="sheet-handle"></div><div class="shdr"><span class="stitle">Respond to Review</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody"><div class="rquote" id="rq"></div><textarea class="rtextarea" id="rta" placeholder="Write your response..." rows="4" oninput="updateCC()"></textarea><div class="rfoot"><span class="rcc" id="rcc">0 / 1500</span><button class="rsub" onclick="submitReply()">Submit Reply</button></div></div></div>
+
+  <!-- CREATE SURVEY SHEET -->
+  <div class="sheet" id="create-sheet" style="max-height:92%;">
+    <div class="sheet-handle"></div>
+    <div class="shdr"><span class="stitle" id="cs-step-title">New Survey</span><button class="sclose" onclick="closeAll()">✕</button></div>
+    <div class="step-dots"><div class="sdot active" id="sd1"></div><div class="sdot" id="sd2"></div><div class="sdot" id="sd3"></div></div>
+    <div class="sbody" style="padding-top:0;">
+
+      <!-- STEP 1: survey setup -->
+      <div class="step-wrap active" id="step1">
+        <label class="form-label">Survey Name</label>
+        <input class="form-input" id="survey-name-input" type="text" placeholder="e.g. Post-Purchase NPS" style="margin-bottom:14px;">
+        <label class="form-label">Survey Type</label>
+        <div class="type-grid">
+          <div class="type-opt sel" onclick="selectSurveyType(this,'NPS')"><div class="type-opt-icon">📊</div><div class="type-opt-name">NPS</div><div class="type-opt-sub">Recommend score 0–10</div></div>
+          <div class="type-opt" onclick="selectSurveyType(this,'CSAT')"><div class="type-opt-icon">⭐</div><div class="type-opt-name">CSAT</div><div class="type-opt-sub">1–5 star satisfaction</div></div>
+          <div class="type-opt" onclick="selectSurveyType(this,'Custom')"><div class="type-opt-icon">🛠</div><div class="type-opt-name">Custom</div><div class="type-opt-sub">Mix question types</div></div>
+          <div class="type-opt" onclick="selectSurveyType(this,'CES')"><div class="type-opt-icon">💪</div><div class="type-opt-name">CES</div><div class="type-opt-sub">Effort score 1–7</div></div>
+        </div>
+        <div class="step-btns"><button class="step-btn btn-next" onclick="gotoStep(2)">Next: Add Questions →</button></div>
+      </div>
+
+      <!-- STEP 2: question builder -->
+      <div class="step-wrap" id="step2">
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">Drag to reorder · tap ✕ to remove</div>
+        <div class="q-list" id="q-list">
+          <div class="qb-card"><div class="qb-num">1</div><div class="qb-body"><div class="qb-qtext">How likely are you to recommend us to a friend?</div><span class="qb-type">NPS 0–10</span></div><button class="qb-del" style="color:#e5e7eb;cursor:default;">✕</button></div>
+          <div class="qb-card"><div class="qb-num">2</div><div class="qb-body"><div class="qb-qtext">Rate your checkout experience today</div><span class="qb-type" style="background:#fef3c7;color:#d97706;">1–5 Stars</span></div><button class="qb-del" onclick="this.closest('.qb-card').remove();renumberQs()">✕</button></div>
+          <div class="qb-card"><div class="qb-num">3</div><div class="qb-body"><div class="qb-qtext">Which aspect needs the most improvement?</div><span class="qb-type" style="background:#f0fdf4;color:#059669;">Multiple Choice</span></div><button class="qb-del" onclick="this.closest('.qb-card').remove();renumberQs()">✕</button></div>
+          <div class="qb-card"><div class="qb-num">4</div><div class="qb-body"><div class="qb-qtext">Any other comments or suggestions?</div><span class="qb-type" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;">Open Text</span></div><button class="qb-del" onclick="this.closest('.qb-card').remove();renumberQs()">✕</button></div>
+        </div>
+        <button class="add-q-btn" onclick="addQuestion()">+ Add Question</button>
+        <div class="step-btns"><button class="step-btn btn-back" onclick="gotoStep(1)">← Back</button><button class="step-btn btn-next" onclick="gotoStep(3)">Preview →</button></div>
+      </div>
+
+      <!-- STEP 3: preview -->
+      <div class="step-wrap" id="step3">
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">How respondents will see this survey</div>
+        <div class="preview-q">
+          <div class="preview-q-num">Question 1 of 4 · NPS</div>
+          <div class="preview-q-text">How likely are you to recommend us to a friend?</div>
+          <div class="nps-scale" id="nps-preview">
+            <button class="nps-btn" onclick="selectNPS(this)">0</button><button class="nps-btn" onclick="selectNPS(this)">1</button><button class="nps-btn" onclick="selectNPS(this)">2</button><button class="nps-btn" onclick="selectNPS(this)">3</button><button class="nps-btn" onclick="selectNPS(this)">4</button><button class="nps-btn" onclick="selectNPS(this)">5</button><button class="nps-btn" onclick="selectNPS(this)">6</button><button class="nps-btn" onclick="selectNPS(this)">7</button><button class="nps-btn" onclick="selectNPS(this)">8</button><button class="nps-btn" onclick="selectNPS(this)">9</button><button class="nps-btn" onclick="selectNPS(this)">10</button>
+          </div>
+          <div class="nps-labels"><span class="nps-lbl">Not at all</span><span class="nps-lbl">Extremely</span></div>
+        </div>
+        <div class="preview-q">
+          <div class="preview-q-num">Question 2 of 4 · 1–5 Stars</div>
+          <div class="preview-q-text">Rate your checkout experience today</div>
+          <div style="display:flex;gap:8px;justify-content:center;" id="star-preview">
+            <span onclick="selectStar(this)" style="font-size:28px;cursor:pointer;transition:transform 0.1s;">☆</span><span onclick="selectStar(this)" style="font-size:28px;cursor:pointer;transition:transform 0.1s;">☆</span><span onclick="selectStar(this)" style="font-size:28px;cursor:pointer;transition:transform 0.1s;">☆</span><span onclick="selectStar(this)" style="font-size:28px;cursor:pointer;transition:transform 0.1s;">☆</span><span onclick="selectStar(this)" style="font-size:28px;cursor:pointer;transition:transform 0.1s;">☆</span>
+          </div>
+        </div>
+        <div class="preview-q">
+          <div class="preview-q-num">Question 3 of 4 · Multiple Choice</div>
+          <div class="preview-q-text">Which aspect needs the most improvement?</div>
+          <button class="choice-opt" onclick="selectChoice(this)">Checkout Speed</button>
+          <button class="choice-opt" onclick="selectChoice(this)">Service Quality</button>
+          <button class="choice-opt" onclick="selectChoice(this)">App Experience</button>
+          <button class="choice-opt" onclick="selectChoice(this)">Product Range</button>
+        </div>
+        <div class="preview-q">
+          <div class="preview-q-num">Question 4 of 4 · Open Text</div>
+          <div class="preview-q-text">Any other comments or suggestions?</div>
+          <textarea class="preview-textarea" placeholder="Your answer..."></textarea>
+        </div>
+        <div class="step-btns"><button class="step-btn btn-back" onclick="gotoStep(2)">← Back</button><button class="step-btn btn-next" onclick="publishSurvey()">🚀 Publish Survey</button></div>
+      </div>
+
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
   <nav class="bottom-nav">
     <button class="nav-btn active" id="nav-home" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nav-label">Home</span></button>
@@ -300,7 +431,40 @@ body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;m
   <div class="home-indicator"></div>
 </div>
 <script>
-const surveys={nps1:{name:'Post-Purchase NPS',type:'NPS',responses:142,score:62,promoters:74,passives:14,detractors:12,verbatims:[{s:5,sent:'pos',t:'Really enjoying the rewards program integration with the app.'},{s:2,sent:'neg',t:'App crashes sometimes during checkout, very frustrating.'},{s:5,sent:'pos',t:'Staff are always friendly and my order is always right.'},{s:2,sent:'neg',t:'Waited 15 minutes for a simple coffee. Need more staff at lunch.'},{s:5,sent:'pos',t:'Love the personalized offers I get through the app!'}]},csat1:{name:'Monthly CSAT',type:'CSAT',responses:89,score:4.2,dist:[3,8,14,31,44],verbatims:[{s:5,sent:'pos',t:'Consistently excellent. Never disappointed.'},{s:3,sent:'neu',t:'Good most of the time but inconsistent at peak hours.'},{s:4,sent:'pos',t:'Great coffee and atmosphere, minor wait times.'},{s:2,sent:'neg',t:'Quality dipped last week, hopefully a one-off.'},{s:5,sent:'pos',t:'Best coffee shop in the area, hands down.'}]},nps2:{name:'Store Experience Q2',type:'NPS',responses:231,score:58,promoters:68,passives:22,detractors:10,verbatims:[{s:4,sent:'pos',t:'Overall a great experience, store is always clean.'},{s:3,sent:'neu',t:'Mid-day it gets crowded and service slows.'},{s:5,sent:'pos',t:'Love the new seating area and ambient music.'},{s:2,sent:'neg',t:'Mobile ordering often falls behind.'},{s:4,sent:'pos',t:'Baristas remember regulars — very nice touch.'}]},nps3:{name:'Onboarding Feedback',type:'NPS',responses:67,score:71,promoters:82,passives:7,detractors:11,verbatims:[{s:5,sent:'pos',t:'Setup was seamless, loved the welcome reward.'},{s:5,sent:'pos',t:'App onboarding was clear and easy to follow.'},{s:4,sent:'pos',t:'Quick to get started, could explain tiers better.'},{s:3,sent:'neu',t:'Took a few tries to scan my card correctly.'},{s:5,sent:'pos',t:'Got a free coffee on day one — instant fan!'}]}};
+const surveys={
+nps1:{name:'Post-Purchase NPS',type:'Multi-question',responses:142,score:62,
+  questions:[
+    {n:'Q1',text:'How likely are you to recommend us?',type:'NPS',promoters:74,passives:14,detractors:12,score:62},
+    {n:'Q2',text:'Rate your checkout experience',type:'Stars',score:2.1,baseline:3.8,anomaly:true},
+    {n:'Q3',text:'Which aspect needs the most improvement?',type:'Choice',options:[{l:'Checkout Speed',p:42},{l:'Service Quality',p:28},{l:'App Experience',p:18},{l:'Product Range',p:12}]},
+    {n:'Q4',text:'Any other comments?',type:'Text',words:['slow','wait','staff','friendly','app','coffee','lunch','queue','great','order']}
+  ],
+  verbatims:[{s:5,sent:'pos',t:'Staff are always friendly and my order is always right.'},{s:2,sent:'neg',t:'Checkout took 15 minutes during lunch — unacceptable.'},{s:5,sent:'pos',t:'Love the personalized offers through the app!'},{s:2,sent:'neg',t:'App crashes during checkout sometimes.'},{s:4,sent:'pos',t:'Overall great, just fix the lunch rush queue.'}]},
+csat1:{name:'Monthly CSAT',type:'Multi-question',responses:89,score:4.2,
+  questions:[
+    {n:'Q1',text:'Rate your overall satisfaction today',type:'Stars',score:4.2,baseline:4.0},
+    {n:'Q2',text:'How was the product quality?',type:'Stars',score:4.5,baseline:4.3},
+    {n:'Q3',text:'How satisfied were you with wait time?',type:'Stars',score:3.1,baseline:3.8},
+    {n:'Q4',text:'What could we do better?',type:'Text',words:['faster','wait','quality','staff','more','options','seating','app','parking','price']}
+  ],
+  verbatims:[{s:5,sent:'pos',t:'Consistently excellent. Never disappointed.'},{s:3,sent:'neu',t:'Good most of the time but slow at peak hours.'},{s:4,sent:'pos',t:'Great coffee and atmosphere.'},{s:2,sent:'neg',t:'Quality dipped last week, hopefully a one-off.'},{s:5,sent:'pos',t:'Best coffee shop in the area, hands down.'}]},
+nps2:{name:'Store Experience Q2',type:'Multi-question',responses:231,score:58,
+  questions:[
+    {n:'Q1',text:'How likely are you to recommend this location?',type:'NPS',promoters:68,passives:22,detractors:10,score:58},
+    {n:'Q2',text:'How would you rate the store ambience?',type:'Stars',score:4.3,baseline:4.1},
+    {n:'Q3',text:'What brings you in most often?',type:'Choice',options:[{l:'Coffee quality',p:48},{l:'Convenient location',p:30},{l:'Loyalty rewards',p:14},{l:'WiFi / workspace',p:8}]},
+    {n:'Q4',text:'Anything you\'d like us to know?',type:'Text',words:['clean','comfortable','busy','seating','music','parking','mobile','wifi','staff','quick']}
+  ],
+  verbatims:[{s:4,sent:'pos',t:'Store is always clean, love the new seating.'},{s:3,sent:'neu',t:'Mid-day it gets crowded and service slows.'},{s:5,sent:'pos',t:'Love the new seating area and ambient music.'},{s:2,sent:'neg',t:'Mobile ordering often falls behind.'},{s:4,sent:'pos',t:'Baristas remember regulars — very nice touch.'}]},
+nps3:{name:'Onboarding Feedback',type:'Multi-question',responses:67,score:71,
+  questions:[
+    {n:'Q1',text:'How easy was it to sign up?',type:'NPS',promoters:82,passives:7,detractors:11,score:71},
+    {n:'Q2',text:'How clear was the rewards program explained?',type:'Stars',score:4.1,baseline:3.9},
+    {n:'Q3',text:'What motivated you to join?',type:'Choice',options:[{l:'Welcome reward',p:52},{l:'Points earning',p:26},{l:'Exclusive offers',p:14},{l:'Friend referral',p:8}]},
+    {n:'Q4',text:'Any feedback on getting started?',type:'Text',words:['easy','simple','welcome','reward','clear','quick','app','coffee','friend','invite']}
+  ],
+  verbatims:[{s:5,sent:'pos',t:'Setup was seamless, loved the welcome reward.'},{s:5,sent:'pos',t:'App onboarding was clear and easy.'},{s:4,sent:'pos',t:'Quick to get started, could explain tiers better.'},{s:3,sent:'neu',t:'Took a few tries to scan my card correctly.'},{s:5,sent:'pos',t:'Got a free coffee on day one — instant fan!'}]}
+};
 const clusters={checkout:{name:'Checkout Speed',count:47,trend:'↑23%',tColor:'#dc2626',summary:'Customers report extended wait times during peak hours, particularly at the register and mobile order pickup station.',sentiment:{pos:11,neu:21,neg:68},verbatims:[{s:2,sent:'neg',t:'Waited 15+ minutes for a simple coffee order.'},{s:3,sent:'neg',t:'Lunch rush is always backed up, need more staff or a better system.'},{s:2,sent:'neg',t:'Morning orders fine but afternoon is complete chaos.'},{s:2,sent:'neg',t:'They really need a better queuing system for mobile orders.'},{s:3,sent:'neu',t:'Staff are clearly trying their best with the long line.'}]},staff:{name:'Staff Friendliness',count:38,trend:'↑5%',tColor:'#d97706',summary:'Customers consistently praise staff warmth and personalization — a clear brand strength across all locations.',sentiment:{pos:82,neu:13,neg:5},verbatims:[{s:5,sent:'pos',t:'Staff remembered my usual order without me saying — amazing!'},{s:5,sent:'pos',t:'Always greeted by name. Makes every visit feel special.'},{s:4,sent:'pos',t:'Super friendly team, they make the whole experience.'},{s:5,sent:'pos',t:'Best customer service I have experienced at a coffee shop.'},{s:3,sent:'neu',t:'Most staff are great, one person seemed a bit rushed.'}]},app:{name:'Mobile App Experience',count:28,trend:'↑12%',tColor:'#d97706',summary:'Mobile app feedback is mostly positive but a subset reports crashes during checkout and order tracking lag.',sentiment:{pos:54,neu:21,neg:25},verbatims:[{s:5,sent:'pos',t:'Love ordering ahead, saves so much time!'},{s:2,sent:'neg',t:'App crashed twice when I tried to pay.'},{s:4,sent:'pos',t:'Rewards tracking is accurate and motivating.'},{s:3,sent:'neu',t:'Good overall, order tracking can lag a few minutes.'},{s:2,sent:'neg',t:'Had to re-add my card twice this week.'}]},quality:{name:'Product Quality',count:24,trend:'↑2%',tColor:'#6b7280',summary:'Product quality receives consistently high marks with customers citing consistency across locations as a standout.',sentiment:{pos:79,neu:17,neg:4},verbatims:[{s:5,sent:'pos',t:'Best espresso in the city, consistently.'},{s:5,sent:'pos',t:'Pastries are always fresh and delicious.'},{s:4,sent:'pos',t:'Quality is reliably high, no matter which location.'},{s:4,sent:'pos',t:'Seasonal drinks are creative and well balanced.'},{s:3,sent:'neu',t:'Coffee is great, food options could be expanded.'}]},loyalty:{name:'Loyalty Rewards',count:19,trend:'↓8%',tColor:'#059669',summary:'Volume declining as customers who recently redeemed rewards report high satisfaction — a positive churn signal.',sentiment:{pos:68,neu:26,neg:6},verbatims:[{s:5,sent:'pos',t:'Finally redeemed my Gold reward — totally worth the wait!'},{s:4,sent:'pos',t:'Points accumulate quickly, love the program.'},{s:4,sent:'pos',t:'Tier upgrade notification was a nice surprise.'},{s:3,sent:'neu',t:'Wish there were more reward options to choose from.'},{s:5,sent:'pos',t:'Free birthday drink made my whole day!'}]}};
 function showScreen(n){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById('screen-'+n).classList.add('active');document.getElementById('nav-'+n).classList.add('active');closeAll();}
 function cc(s){return s==='pos'?'chip chip-pos':s==='neg'?'chip chip-neg':'chip chip-neu';}
@@ -308,11 +472,33 @@ function cl(s){return s==='pos'?'Positive':s==='neg'?'Negative':'Neutral';}
 function st(n){return '★'.repeat(n)+'☆'.repeat(5-n);}
 function openSurveyDetail(id){
   const sv=surveys[id];document.getElementById('ss-title').textContent=sv.name;
-  let h=`<div class="stat-box"><div class="stat-card"><div class="stat-val">${sv.score}${sv.type==='CSAT'?'<span style="font-size:12px;color:#9ca3af;">/5</span>':''}</div><div class="stat-lbl">${sv.type==='CSAT'?'Avg Score':'NPS Score'}</div></div><div class="stat-card"><div class="stat-val">${sv.responses}</div><div class="stat-lbl">Responses</div></div></div>`;
-  if(sv.type==='NPS'){h+=`<div class="dist-lbl">Score Distribution</div><div class="nps-dist"><div class="ds dp" style="width:${sv.promoters}%">${sv.promoters}%</div><div class="ds dn" style="width:${sv.passives}%">${sv.passives}%</div><div class="ds dd" style="width:${sv.detractors}%">${sv.detractors}%</div></div><div class="dist-leg"><div class="dli"><div class="dld" style="background:#059669;"></div>Promoters ${sv.promoters}%</div><div class="dli"><div class="dld" style="background:#d97706;"></div>Passives ${sv.passives}%</div><div class="dli"><div class="dld" style="background:#dc2626;"></div>Detractors ${sv.detractors}%</div></div>`;}
-  else{const tot=sv.dist.reduce((a,b)=>a+b,0);h+=`<div class="dist-lbl">Rating Distribution</div>`;for(let i=4;i>=0;i--){const p=Math.round(sv.dist[i]/tot*100);h+=`<div class="star-row" style="margin-bottom:5px;"><span class="star-lbl">${i+1}★</span><div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${p}%;height:100%;"></div></div><span class="star-pct">${p}%</span></div>`;}}
+  let h=`<div class="stat-box"><div class="stat-card"><div class="stat-val">${sv.score}${sv.type==='CSAT'?'<span style="font-size:12px;color:#9ca3af;">/5</span>':''}</div><div class="stat-lbl">Overall Score</div></div><div class="stat-card"><div class="stat-val">${sv.responses}</div><div class="stat-lbl">Responses</div></div></div>`;
+  if(sv.questions){
+    h+=`<div class="dist-lbl" style="margin-bottom:6px;">Questions (${sv.questions.length})</div><div class="mq-section">`;
+    sv.questions.forEach((q,i)=>{
+      let detail='';
+      if(q.type==='NPS'){detail=`<div class="nps-dist" style="height:22px;"><div class="ds dp" style="width:${q.promoters}%">${q.promoters}%</div><div class="ds dn" style="width:${q.passives}%">${q.passives}%</div><div class="ds dd" style="width:${q.detractors}%">${q.detractors}%</div></div><div class="dist-leg" style="margin-top:5px;"><div class="dli"><div class="dld" style="background:#059669;"></div>Promoters</div><div class="dli"><div class="dld" style="background:#d97706;"></div>Passives</div><div class="dli"><div class="dld" style="background:#dc2626;"></div>Detractors</div></div>`;}
+      else if(q.type==='Stars'){const delta=q.score-q.baseline;const dc=delta<-0.3?'#dc2626':delta>0.2?'#059669':'#d97706';detail=`<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px;"><span style="font-size:22px;font-weight:800;color:${q.anomaly?'#dc2626':'#111827'};">${q.score}★</span><span style="font-size:12px;color:#9ca3af;">vs baseline ${q.baseline}★</span><span style="font-size:12px;font-weight:700;color:${dc};">${delta>0?'+':''}${delta.toFixed(1)}</span></div>${q.anomaly?'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:5px 8px;margin-top:6px;font-size:11px;color:#dc2626;font-weight:600;">⚠ Below baseline — anomaly source</div>':''}`;}
+      else if(q.type==='Choice'){detail=q.options.map(o=>`<div class="mc-row"><span class="mc-lbl">${o.l}</span><div class="mc-bar-w"><div class="mc-bar" style="width:${o.p}%;background:${o.p===Math.max(...q.options.map(x=>x.p))?'#4f46e5':'#94a3b8'};"></div></div><span class="mc-pct">${o.p}%</span></div>`).join('');}
+      else if(q.type==='Text'){detail=`<div class="word-chips">${q.words.map(w=>`<span class="word-chip">${w}</span>`).join('')}</div><div style="font-size:10px;color:#9ca3af;margin-top:5px;">Top keywords from open responses</div>`;}
+      const anomalyBorder=q.anomaly?'border:1.5px solid #fecaca;background:#fff7f7;':'';
+      h+=`<div class="mq-row" id="mq-${id}-${i}" style="${anomalyBorder}" onclick="toggleMQ('mq-${id}-${i}')"><div class="mq-hdr"><div class="mq-num" style="${q.anomaly?'background:#fef2f2;color:#dc2626;':''}">${q.n}</div><div class="mq-qtext">${q.text}</div><span class="mq-arrow">›</span></div><div class="mq-detail">${detail}</div></div>`;
+    });
+    h+=`</div>`;
+  }
   h+=`<div class="dist-lbl" style="margin-top:14px;">Recent Verbatims</div>`;sv.verbatims.forEach(v=>{h+=`<div class="vcard" style="margin-bottom:8px;"><div class="vmeta"><span style="font-size:12px;color:#f59e0b;">${st(v.s)}</span><span class="${cc(v.sent)}">${cl(v.sent)}</span></div><div class="vtext" style="-webkit-line-clamp:3;">"${v.t}"</div></div>`;});
-  document.getElementById('ss-body').innerHTML=h;openSheet('ss');}
+  document.getElementById('ss-body').innerHTML=h;openSheet('ss');
+}
+function toggleMQ(id){const el=document.getElementById(id);el.classList.toggle('expanded');}
+function openCreateSurvey(){gotoStep(1);document.getElementById('survey-name-input').value='';openSheet('create-sheet');}
+function gotoStep(n){for(let i=1;i<=3;i++)document.getElementById('sd'+i).classList.toggle('active',i===n);document.querySelectorAll('.step-wrap').forEach((s,idx)=>s.classList.toggle('active',idx+1===n));const titles=['New Survey','Add Questions','Preview'];document.getElementById('cs-step-title').textContent=titles[n-1];}
+function selectSurveyType(el,type){el.closest('.type-grid').querySelectorAll('.type-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');}
+function selectNPS(btn){btn.closest('.nps-scale').querySelectorAll('.nps-btn').forEach(b=>{b.style.background='';b.style.borderColor='';b.style.color='';});const v=parseInt(btn.textContent);btn.style.background=v>=9?'#059669':v>=7?'#d97706':'#dc2626';btn.style.borderColor='transparent';btn.style.color='#fff';}
+function selectStar(el){const stars=[...el.closest('div').querySelectorAll('span')];const idx=stars.indexOf(el);stars.forEach((s,i)=>{s.textContent=i<=idx?'★':'☆';s.style.color=i<=idx?'#f59e0b':'#d1d5db';});}
+function selectChoice(btn){btn.closest('.preview-q').querySelectorAll('.choice-opt').forEach(b=>{b.style.background='';b.style.borderColor='';b.style.color='';});btn.style.background='#eef2ff';btn.style.borderColor='#4f46e5';btn.style.color='#4f46e5';}
+function addQuestion(){const list=document.getElementById('q-list');const n=list.querySelectorAll('.qb-card').length+1;const div=document.createElement('div');div.className='qb-card';div.innerHTML=`<div class="qb-num">${n}</div><div class="qb-body"><div class="qb-qtext">New question ${n}</div><span class="qb-type">Open Text</span></div><button class="qb-del" onclick="this.closest('.qb-card').remove();renumberQs()">✕</button>`;list.appendChild(div);}
+function renumberQs(){document.querySelectorAll('#q-list .qb-card').forEach((c,i)=>{const num=c.querySelector('.qb-num');if(num)num.textContent=i+1;});}
+function publishSurvey(){closeAll();showToast('🚀 Survey published successfully');}
 function openClusterDetail(id){
   const c=clusters[id];document.getElementById('cs-title').textContent=c.name;
   let h=`<div class="stat-box"><div class="stat-card"><div class="stat-val">${c.count}</div><div class="stat-lbl">Responses</div></div><div class="stat-card"><div class="stat-val" style="font-size:20px;color:${c.tColor};">${c.trend}</div><div class="stat-lbl">This Week</div></div></div>`;
