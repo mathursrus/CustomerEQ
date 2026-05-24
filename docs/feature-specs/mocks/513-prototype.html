@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CustomerEQ Member App — Interactive Prototype</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f172a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    padding: 20px;
+  }
+
+  .prototype-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .prototype-label {
+    color: #94a3b8;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* iPhone 14 Pro frame */
+  .phone {
+    width: 393px;
+    height: 852px;
+    background: #000;
+    border-radius: 48px;
+    border: 2px solid #2d3748;
+    box-shadow: 0 0 0 8px #1a1a2e, 0 40px 120px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.08);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Dynamic island */
+  .dynamic-island {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 34px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+    border: 1.5px solid #1a1a1a;
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 54px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 28px 8px;
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  .status-bar .time { font-size: 15px; font-weight: 600; color: #fff; }
+  .status-bar .icons { display: flex; gap: 6px; align-items: center; }
+  .status-bar .icons svg { color: #fff; }
+
+  /* Screen container */
+  .screen-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Individual screens */
+  .screen {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    scrollbar-width: none;
+  }
+  .screen::-webkit-scrollbar { display: none; }
+  .screen.active { transform: translateX(0); }
+  .screen.prev { transform: translateX(-30%); }
+
+  /* Sign-in screen */
+  #screen-signin {
+    background: linear-gradient(160deg, #064e3b 0%, #065f46 50%, #047857 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 32px;
+    gap: 0;
+    transform: translateX(0);
+  }
+  .signin-logo {
+    width: 80px;
+    height: 80px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+  }
+  .signin-brand { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .signin-sub { font-size: 15px; color: rgba(255,255,255,0.7); margin-bottom: 48px; text-align: center; }
+  .signin-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  .signin-btn-primary { background: #fff; color: #064e3b; }
+  .signin-btn-primary:hover { background: #f0fdf4; transform: scale(0.99); }
+  .signin-btn-secondary { background: rgba(255,255,255,0.15); color: #fff; backdrop-filter: blur(10px); }
+  .signin-swipe { margin-top: 40px; display: flex; gap: 20px; }
+  .signin-swipe-card {
+    background: rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 16px 12px;
+    text-align: center;
+    width: 90px;
+    backdrop-filter: blur(10px);
+  }
+  .signin-swipe-card .emoji { font-size: 24px; margin-bottom: 6px; }
+  .signin-swipe-card .label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 500; line-height: 1.3; }
+
+  /* Home screen */
+  #screen-home { background: #f8fafc; }
+  .home-header {
+    background: linear-gradient(160deg, #064e3b 0%, #065f46 60%, #059669 100%);
+    padding: 16px 20px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .home-header::after {
+    content: '';
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    top: -60px;
+    right: -40px;
+  }
+  .home-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+  }
+  .home-brand-name { font-size: 17px; font-weight: 700; color: #fff; }
+  .home-greeting { font-size: 13px; color: rgba(255,255,255,0.7); }
+  .notif-btn {
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border: none;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+  .notif-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: #ef4444;
+    border-radius: 50%;
+    font-size: 10px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    border: 2px solid #065f46;
+  }
+
+  .points-hero {
+    background: rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .points-label { font-size: 12px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .points-value {
+    font-size: 48px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 4px;
+    letter-spacing: -1px;
+  }
+  .points-unit { font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.8); }
+  .tier-row { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+  .tier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fbbf24;
+  }
+  .tier-progress-section { margin-top: 12px; }
+  .tier-progress-label { font-size: 11px; color: rgba(255,255,255,0.7); margin-bottom: 6px; }
+  .tier-bar { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+  .tier-bar-fill { height: 100%; background: #fbbf24; border-radius: 3px; transition: width 1s ease; }
+
+  .quick-actions {
+    padding: 20px 20px 0;
+    display: flex;
+    gap: 10px;
+  }
+  .quick-action {
+    flex: 1;
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .quick-action:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .quick-action .icon { font-size: 22px; }
+  .quick-action .label { font-size: 11px; font-weight: 600; color: #475569; }
+
+  .section-header {
+    padding: 20px 20px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .section-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+  .see-all { font-size: 13px; color: #059669; font-weight: 600; cursor: pointer; }
+
+  .activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #fff;
+    margin-bottom: 1px;
+  }
+  .activity-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .activity-icon.earn { background: #f0fdf4; }
+  .activity-icon.burn { background: #fff7ed; }
+  .activity-icon.tier { background: #fefce8; }
+  .activity-content { flex: 1; }
+  .activity-label { font-size: 14px; font-weight: 500; color: #0f172a; }
+  .activity-time { font-size: 12px; color: #94a3b8; margin-top: 1px; }
+  .activity-points { font-size: 15px; font-weight: 700; }
+  .activity-points.earn { color: #059669; }
+  .activity-points.burn { color: #f97316; }
+
+  .campaign-card {
+    margin: 16px 20px;
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    border-radius: 20px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .campaign-card:hover { transform: scale(0.99); }
+  .campaign-card::after {
+    content: '🎰';
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 48px;
+    opacity: 0.4;
+  }
+  .campaign-tag { font-size: 11px; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .campaign-name { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .campaign-cta {
+    display: inline-block;
+    background: #6366f1;
+    color: #fff;
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* Rewards screen */
+  #screen-rewards { background: #f8fafc; }
+  .rewards-header {
+    background: #fff;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .rewards-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
+  .filter-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1.5px solid transparent;
+  }
+  .chip.active { background: #059669; color: #fff; }
+  .chip.inactive { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+
+  .rewards-grid {
+    padding: 16px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .reward-card {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .reward-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+  .reward-card.locked { opacity: 0.7; }
+  .reward-img {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 44px;
+    position: relative;
+  }
+  .reward-lock {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    padding: 3px 6px;
+    font-size: 12px;
+    color: #fff;
+    backdrop-filter: blur(4px);
+  }
+  .reward-info { padding: 10px 12px 12px; }
+  .reward-name { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 6px; line-height: 1.3; }
+  .reward-footer { display: flex; align-items: center; justify-content: space-between; }
+  .reward-cost { font-size: 13px; font-weight: 700; color: #059669; }
+  .reward-tier { font-size: 11px; color: #94a3b8; background: #f1f5f9; border-radius: 6px; padding: 2px 6px; }
+  .redeem-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    background: #059669;
+    color: #fff;
+    border-radius: 10px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .redeem-btn:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+  .redeem-btn:not(:disabled):hover { background: #047857; }
+
+  /* QR Code modal */
+  .qr-modal {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .qr-modal.visible { opacity: 1; pointer-events: all; }
+  .qr-sheet {
+    background: #fff;
+    border-radius: 28px 28px 0 0;
+    padding: 24px 24px 40px;
+    width: 100%;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .qr-modal.visible .qr-sheet { transform: translateY(0); }
+  .qr-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto 20px; }
+  .qr-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+  .qr-subtitle { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+  .qr-code-wrapper {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 16px;
+    background: #0f172a;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .qr-grid {
+    width: 160px;
+    height: 160px;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 2px;
+  }
+  .qr-cell { border-radius: 1px; }
+  .timer-ring-wrapper {
+    position: absolute;
+    inset: -8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .timer-ring circle.track { fill: none; stroke: #e2e8f0; stroke-width: 4; }
+  .timer-ring circle.progress {
+    fill: none;
+    stroke: #059669;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 660;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 1s linear;
+  }
+  .qr-timer { font-size: 22px; font-weight: 700; color: #059669; text-align: center; margin-bottom: 20px; }
+  .qr-inst { text-align: center; font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 24px; }
+  .qr-close-btn {
+    width: 100%;
+    padding: 16px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  /* Activity screen */
+  #screen-activity { background: #f8fafc; }
+  .activity-header {
+    background: #fff;
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .activity-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+  .activity-balance-strip {
+    display: flex;
+    gap: 20px;
+    padding: 12px 0 0;
+  }
+  .balance-stat { }
+  .balance-stat-val { font-size: 20px; font-weight: 800; color: #059669; }
+  .balance-stat-lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+  .activity-filters {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 12px 20px;
+    scrollbar-width: none;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 73px;
+    z-index: 9;
+  }
+  .activity-filters::-webkit-scrollbar { display: none; }
+  .activity-list { padding: 8px 0; }
+  .activity-date-group { padding: 8px 20px 4px; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+  /* Survey screen */
+  #screen-surveys { background: #f8fafc; }
+  .surveys-header {
+    background: #fff;
+    padding: 20px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .surveys-title { font-size: 20px; font-weight: 700; color: #0f172a; }
+  .survey-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    margin: 12px 16px 0;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .survey-card:hover { border-color: #059669; box-shadow: 0 4px 16px rgba(5,150,105,0.1); }
+  .survey-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+  .survey-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .survey-type-badge.nps { background: #f0fdf4; color: #059669; }
+  .survey-type-badge.csat { background: #eff6ff; color: #3b82f6; }
+  .survey-points { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: #f59e0b; }
+  .survey-title { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+  .survey-meta { font-size: 13px; color: #94a3b8; }
+  .start-survey-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: #059669;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .start-survey-btn:hover { background: #047857; }
+
+  /* Inline survey */
+  .survey-screen-overlay {
+    position: absolute;
+    inset: 0;
+    background: #f8fafc;
+    z-index: 30;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+  }
+  .survey-screen-overlay.open { transform: translateY(0); }
+  .survey-progress-bar { height: 4px; background: #e2e8f0; }
+  .survey-progress-fill { height: 100%; background: #059669; transition: width 0.4s ease; }
+  .survey-content { flex: 1; padding: 32px 24px; display: flex; flex-direction: column; }
+  .survey-q-header { margin-bottom: 32px; }
+  .survey-q-brand { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+  .survey-q-text { font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.4; }
+  .nps-scale { display: flex; gap: 6px; margin-bottom: 20px; }
+  .nps-btn {
+    flex: 1;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nps-btn:hover, .nps-btn.selected { border-color: #059669; background: #059669; color: #fff; }
+  .nps-labels { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 24px; }
+  .nps-emoji-row { display: flex; justify-content: space-between; padding: 0 4px; margin-bottom: 8px; font-size: 20px; }
+  .survey-textarea {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    font-size: 15px;
+    font-family: inherit;
+    resize: none;
+    height: 100px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .survey-textarea:focus { border-color: #059669; }
+  .survey-submit-btn {
+    padding: 16px;
+    background: #059669;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: auto;
+    transition: all 0.2s;
+  }
+  .survey-submit-btn:hover { background: #047857; }
+  .survey-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    font-size: 15px;
+    color: #059669;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 12px 20px;
+  }
+
+  /* Survey thank you */
+  .survey-thankyou {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .survey-thankyou .check { font-size: 64px; margin-bottom: 16px; }
+  .survey-thankyou .ty-title { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+  .survey-thankyou .ty-sub { font-size: 15px; color: #64748b; margin-bottom: 24px; }
+  .survey-thankyou .points-toast {
+    background: #f0fdf4;
+    border: 1.5px solid #bbf7d0;
+    border-radius: 14px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .survey-thankyou .points-toast .emoji { font-size: 28px; }
+  .survey-thankyou .points-toast .text { text-align: left; }
+  .survey-thankyou .points-toast .earned { font-size: 20px; font-weight: 800; color: #059669; }
+  .survey-thankyou .points-toast .desc { font-size: 13px; color: #64748b; }
+  .done-btn {
+    width: 100%;
+    padding: 16px;
+    background: #0f172a;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Profile screen */
+  #screen-profile { background: #f8fafc; }
+  .profile-header-bg {
+    height: 130px;
+    background: linear-gradient(160deg, #064e3b 0%, #065f46 100%);
+    position: relative;
+  }
+  .profile-avatar-wrapper {
+    position: absolute;
+    bottom: -36px;
+    left: 20px;
+  }
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(135deg, #059669 0%, #34d399 100%);
+    border-radius: 22px;
+    border: 3px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .profile-info { padding: 48px 20px 0; }
+  .profile-name { font-size: 22px; font-weight: 700; color: #0f172a; }
+  .profile-email { font-size: 14px; color: #64748b; margin-top: 2px; }
+  .tier-progress-card {
+    background: #fff;
+    border-radius: 20px;
+    margin: 20px 16px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .tier-progress-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+  .tier-ring-wrapper { display: flex; align-items: center; gap: 20px; }
+  .tier-ring { position: relative; width: 100px; height: 100px; }
+  .tier-ring svg { transform: rotate(-90deg); }
+  .tier-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .tier-ring-pts { font-size: 18px; font-weight: 800; color: #0f172a; line-height: 1; }
+  .tier-ring-lbl { font-size: 10px; color: #94a3b8; font-weight: 500; }
+  .tier-info { flex: 1; }
+  .current-tier { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .tier-name { font-size: 16px; font-weight: 700; color: #fbbf24; }
+  .tier-next { font-size: 13px; color: #64748b; }
+  .tier-gap-label { font-size: 13px; color: #059669; font-weight: 600; margin-top: 8px; }
+
+  .settings-card {
+    background: #fff;
+    border-radius: 20px;
+    margin: 0 16px 12px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+  }
+  .settings-section-header { padding: 16px 16px 8px; font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    padding: 13px 16px;
+    border-top: 1px solid #f1f5f9;
+    cursor: pointer;
+  }
+  .settings-row .icon { font-size: 20px; margin-right: 12px; width: 24px; text-align: center; }
+  .settings-row .text { flex: 1; font-size: 15px; color: #0f172a; }
+  .settings-row .arrow { color: #94a3b8; font-size: 14px; }
+  .toggle {
+    width: 44px;
+    height: 26px;
+    background: #059669;
+    border-radius: 13px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 22px;
+    transition: left 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .toggle.off { background: #e2e8f0; }
+  .toggle.off::after { left: 2px; }
+
+  /* Tab bar */
+  .tab-bar {
+    height: 82px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 0.5px solid rgba(0,0,0,0.1);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 8px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 20;
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    background: none;
+  }
+  .tab-icon { font-size: 22px; transition: transform 0.2s; }
+  .tab-item.active .tab-icon { transform: scale(1.1); }
+  .tab-label { font-size: 10px; font-weight: 600; color: #94a3b8; }
+  .tab-item.active .tab-label { color: #059669; }
+  .tab-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: #059669;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .tab-item.active .tab-dot { opacity: 1; }
+
+  /* Responsive for smaller screens */
+  @media (max-width: 480px) {
+    .phone { width: 100%; max-width: 393px; height: 80vh; }
+  }
+</style>
+</head>
+<body>
+<div class="prototype-wrapper">
+  <div class="prototype-label">CustomerEQ · Member App Prototype · Issue #513</div>
+
+  <div class="phone">
+    <!-- Dynamic Island -->
+    <div class="dynamic-island"></div>
+
+    <!-- Status bar -->
+    <div class="status-bar" id="statusBar">
+      <span class="time" id="clock">9:41</span>
+      <div class="icons">
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="white"><rect x="0" y="4" width="3" height="8" rx="1"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1"/><rect x="9" y="0.5" width="3" height="11.5" rx="1"/><rect x="13.5" y="1" width="2" height="11" rx="1" opacity="0.3"/></svg>
+        <svg width="16" height="12" viewBox="0 0 18 14" fill="white"><path d="M9 2.5C11.5 2.5 13.8 3.5 15.5 5.2L17 3.7C14.9 1.4 12.1 0 9 0C5.9 0 3.1 1.4 1 3.7L2.5 5.2C4.2 3.5 6.5 2.5 9 2.5Z" opacity="0.3"/><path d="M9 5.5C10.7 5.5 12.3 6.2 13.5 7.4L15 5.9C13.4 4.3 11.3 3.3 9 3.3C6.7 3.3 4.6 4.3 3 5.9L4.5 7.4C5.7 6.2 7.3 5.5 9 5.5Z" opacity="0.6"/><path d="M9 8.5C10 8.5 10.9 8.9 11.5 9.5L13 8C12.0 6.8 10.6 6 9 6C7.4 6 6.0 6.8 5 8L6.5 9.5C7.1 8.9 8 8.5 9 8.5Z"/><circle cx="9" cy="12" r="1.5"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="white"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="white" stroke-opacity="0.35" fill="none"/><rect x="1.5" y="1.5" width="17" height="9" rx="2.5" fill="white"/><path d="M23 4v4a2 2 0 000-4z" fill="white" fill-opacity="0.4"/></svg>
+      </div>
+    </div>
+
+    <!-- Screen container -->
+    <div class="screen-container">
+
+      <!-- SIGN IN SCREEN -->
+      <div class="screen active" id="screen-signin">
+        <div class="signin-logo">☕</div>
+        <div class="signin-brand">ACME Coffee</div>
+        <div class="signin-sub">Sign in to your loyalty account to earn<br>points and unlock exclusive rewards</div>
+        <button class="signin-btn signin-btn-primary" onclick="navigateTo('home')">Continue with Email</button>
+        <button class="signin-btn signin-btn-secondary">Continue with Google</button>
+        <div class="signin-swipe">
+          <div class="signin-swipe-card"><div class="emoji">⭐</div><div class="label">Earn Points</div></div>
+          <div class="signin-swipe-card"><div class="emoji">🏆</div><div class="label">Reach Tiers</div></div>
+          <div class="signin-swipe-card"><div class="emoji">🎁</div><div class="label">Get Rewards</div></div>
+        </div>
+      </div>
+
+      <!-- HOME SCREEN -->
+      <div class="screen" id="screen-home">
+        <!-- Header -->
+        <div class="home-header">
+          <div class="home-topbar">
+            <div>
+              <div class="home-brand-name">ACME Coffee</div>
+              <div class="home-greeting">Good morning, Sarah ☀️</div>
+            </div>
+            <button class="notif-btn" onclick="alert('3 new notifications')">
+              🔔
+              <span class="notif-badge">3</span>
+            </button>
+          </div>
+          <div class="points-hero">
+            <div class="points-label">Your Balance</div>
+            <div>
+              <span class="points-value" id="pointsCounter">2,450</span>
+              <span class="points-unit"> pts</span>
+            </div>
+            <div class="tier-row">
+              <span class="tier-badge">🥈 Silver Member</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.7)">Since Jan 2026</span>
+            </div>
+            <div class="tier-progress-section">
+              <div class="tier-progress-label">550 pts to Gold 🥇</div>
+              <div class="tier-bar"><div class="tier-bar-fill" id="tierBarFill" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-actions">
+          <div class="quick-action" onclick="switchTab('rewards')"><span class="icon">🎁</span><span class="label">Redeem</span></div>
+          <div class="quick-action" onclick="switchTab('surveys')"><span class="icon">📊</span><span class="label">Survey</span></div>
+          <div class="quick-action" onclick="openCampaign()"><span class="icon">🎰</span><span class="label">Play</span></div>
+          <div class="quick-action" onclick="switchTab('activity')"><span class="icon">📜</span><span class="label">History</span></div>
+        </div>
+
+        <!-- Active campaign -->
+        <div class="campaign-card" onclick="openCampaign()">
+          <div class="campaign-tag">🎰 Active Campaign</div>
+          <div class="campaign-name">Spin & Win<br>Up to 500 pts!</div>
+          <span class="campaign-cta">Play now →</span>
+        </div>
+
+        <!-- Recent activity -->
+        <div class="section-header">
+          <span class="section-title">Recent Activity</span>
+          <span class="see-all" onclick="switchTab('activity')">See all</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon earn">⬆️</div>
+          <div class="activity-content">
+            <div class="activity-label">Survey response bonus</div>
+            <div class="activity-time">Today, 8:42 AM</div>
+          </div>
+          <div class="activity-points earn">+75 pts</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon earn">⬆️</div>
+          <div class="activity-content">
+            <div class="activity-label">Purchase at ACME on Pike</div>
+            <div class="activity-time">Yesterday, 3:15 PM</div>
+          </div>
+          <div class="activity-points earn">+120 pts</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon burn">🎁</div>
+          <div class="activity-content">
+            <div class="activity-label">Redeemed: Free Drip Coffee</div>
+            <div class="activity-time">May 20, 2026</div>
+          </div>
+          <div class="activity-points burn">-300 pts</div>
+        </div>
+        <div style="height:16px"></div>
+      </div>
+
+      <!-- REWARDS SCREEN -->
+      <div class="screen" id="screen-rewards">
+        <div class="rewards-header">
+          <div class="rewards-title">Rewards Catalog</div>
+          <div class="filter-chips">
+            <span class="chip active" onclick="setFilter(this)">All</span>
+            <span class="chip inactive" onclick="setFilter(this)">Reachable</span>
+            <span class="chip inactive" onclick="setFilter(this)">Silver</span>
+            <span class="chip inactive" onclick="setFilter(this)">Gold</span>
+            <span class="chip inactive" onclick="setFilter(this)">Platinum</span>
+          </div>
+        </div>
+        <div class="rewards-grid">
+          <div class="reward-card" onclick="showQR('Free Drip Coffee', 300)">
+            <div class="reward-img" style="background:#f0fdf4">☕</div>
+            <div class="reward-info">
+              <div class="reward-name">Free Drip Coffee</div>
+              <div class="reward-footer">
+                <span class="reward-cost">300 pts</span>
+                <span class="reward-tier">Silver+</span>
+              </div>
+              <button class="redeem-btn">Redeem</button>
+            </div>
+          </div>
+          <div class="reward-card" onclick="showQR('Oat Milk Upgrade', 150)">
+            <div class="reward-img" style="background:#fff7ed">🥛</div>
+            <div class="reward-info">
+              <div class="reward-name">Oat Milk Upgrade</div>
+              <div class="reward-footer">
+                <span class="reward-cost">150 pts</span>
+                <span class="reward-tier">All tiers</span>
+              </div>
+              <button class="redeem-btn">Redeem</button>
+            </div>
+          </div>
+          <div class="reward-card" onclick="showQR('Specialty Latte', 500)">
+            <div class="reward-img" style="background:#fffbeb">🍵</div>
+            <div class="reward-info">
+              <div class="reward-name">Free Specialty Latte</div>
+              <div class="reward-footer">
+                <span class="reward-cost">500 pts</span>
+                <span class="reward-tier">Silver+</span>
+              </div>
+              <button class="redeem-btn">Redeem</button>
+            </div>
+          </div>
+          <div class="reward-card locked">
+            <div class="reward-img" style="background:#f8fafc">
+              🎂
+              <span class="reward-lock">🔒 Gold</span>
+            </div>
+            <div class="reward-info">
+              <div class="reward-name">Birthday Cake Slice</div>
+              <div class="reward-footer">
+                <span class="reward-cost">0 pts</span>
+                <span class="reward-tier">Gold only</span>
+              </div>
+              <button class="redeem-btn" disabled>Unlock at Gold</button>
+            </div>
+          </div>
+          <div class="reward-card locked">
+            <div class="reward-img" style="background:#faf5ff">
+              ☕🎁
+              <span class="reward-lock">🔒 Platinum</span>
+            </div>
+            <div class="reward-info">
+              <div class="reward-name">Monthly Coffee Box</div>
+              <div class="reward-footer">
+                <span class="reward-cost">1,200 pts</span>
+                <span class="reward-tier">Platinum</span>
+              </div>
+              <button class="redeem-btn" disabled>Unlock at Platinum</button>
+            </div>
+          </div>
+          <div class="reward-card" onclick="showQR('Pastry of the Day', 200)">
+            <div class="reward-img" style="background:#fef3c7">🥐</div>
+            <div class="reward-info">
+              <div class="reward-name">Pastry of the Day</div>
+              <div class="reward-footer">
+                <span class="reward-cost">200 pts</span>
+                <span class="reward-tier">All tiers</span>
+              </div>
+              <button class="redeem-btn">Redeem</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- QR Modal -->
+        <div class="qr-modal" id="qrModal" onclick="closeQR(event)">
+          <div class="qr-sheet">
+            <div class="qr-handle"></div>
+            <div class="qr-title" id="qrRewardName">Free Drip Coffee</div>
+            <div class="qr-subtitle">Show this QR code to the barista at checkout</div>
+            <div class="qr-code-wrapper">
+              <div class="qr-grid" id="qrGrid"></div>
+              <div class="timer-ring-wrapper">
+                <svg width="216" height="216" viewBox="0 0 216 216">
+                  <circle class="track" cx="108" cy="108" r="105"/>
+                  <circle class="progress" cx="108" cy="108" r="105" id="timerRing"/>
+                </svg>
+              </div>
+            </div>
+            <div class="qr-timer" id="qrTimer">1:30</div>
+            <div class="qr-inst">Present this code to the barista.<br>Valid for 90 seconds only.</div>
+            <button class="qr-close-btn" onclick="closeQR()">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY SCREEN -->
+      <div class="screen" id="screen-activity">
+        <div class="activity-header">
+          <div class="activity-title">Activity</div>
+          <div class="activity-balance-strip">
+            <div class="balance-stat"><div class="balance-stat-val">2,450</div><div class="balance-stat-lbl">Current Balance</div></div>
+            <div class="balance-stat"><div class="balance-stat-val" style="color:#64748b">12,340</div><div class="balance-stat-lbl">Total Earned</div></div>
+          </div>
+        </div>
+        <div class="activity-filters">
+          <span class="chip active" onclick="setFilter(this)">All</span>
+          <span class="chip inactive" onclick="setFilter(this)">Earn</span>
+          <span class="chip inactive" onclick="setFilter(this)">Redeem</span>
+          <span class="chip inactive" onclick="setFilter(this)">Campaign</span>
+          <span class="chip inactive" onclick="setFilter(this)">Tier</span>
+        </div>
+        <div class="activity-list">
+          <div class="activity-date-group">Today</div>
+          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Survey response bonus</div><div class="activity-time">8:42 AM · NPS Survey</div></div><div class="activity-points earn">+75 pts</div></div>
+          <div class="activity-date-group">Yesterday</div>
+          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Purchase at ACME on Pike</div><div class="activity-time">3:15 PM · $12.40 purchase</div></div><div class="activity-points earn">+120 pts</div></div>
+          <div class="activity-item"><div class="activity-icon" style="background:#f0f9ff;font-size:18px;">🏅</div><div class="activity-content"><div class="activity-label">Reached Silver tier!</div><div class="activity-time">11:00 AM · Tier upgrade</div></div><div class="activity-points" style="color:#64748b">Tier ↑</div></div>
+          <div class="activity-date-group">May 20</div>
+          <div class="activity-item"><div class="activity-icon burn">🎁</div><div class="activity-content"><div class="activity-label">Redeemed: Free Drip Coffee</div><div class="activity-time">9:30 AM · ACME Pike St</div></div><div class="activity-points burn">−300 pts</div></div>
+          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Spin Wheel: Lucky win!</div><div class="activity-time">2:10 PM · Campaign reward</div></div><div class="activity-points earn">+200 pts</div></div>
+          <div class="activity-date-group">May 18</div>
+          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Purchase at ACME Bellevue</div><div class="activity-time">7:55 AM · $8.90 purchase</div></div><div class="activity-points earn">+89 pts</div></div>
+          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Referral bonus — invited Alex</div><div class="activity-time">4:30 PM · Referral</div></div><div class="activity-points earn">+150 pts</div></div>
+          <div style="height:16px"></div>
+        </div>
+      </div>
+
+      <!-- SURVEYS SCREEN -->
+      <div class="screen" id="screen-surveys">
+        <div class="surveys-header">
+          <div class="surveys-title">Surveys</div>
+        </div>
+
+        <div style="padding:12px 16px 4px;font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">Pending (1)</div>
+
+        <div class="survey-card" onclick="openSurvey()">
+          <div class="survey-card-top">
+            <span class="survey-type-badge nps">📊 NPS</span>
+            <span class="survey-points">⭐ +50 pts</span>
+          </div>
+          <div class="survey-title">How likely are you to recommend ACME Coffee?</div>
+          <div class="survey-meta">~1 min · Triggered by your last visit</div>
+          <button class="start-survey-btn">Take Survey →</button>
+        </div>
+
+        <div style="padding:16px 16px 4px;font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">Completed</div>
+
+        <div class="survey-card" style="opacity:0.7;cursor:default">
+          <div class="survey-card-top">
+            <span class="survey-type-badge csat">⭐ CSAT</span>
+            <span style="font-size:13px;color:#94a3b8">May 15</span>
+          </div>
+          <div class="survey-title">Rate your last ACME Coffee visit</div>
+          <div class="survey-meta">Completed · Score: 5/5</div>
+        </div>
+
+        <!-- Inline survey overlay -->
+        <div class="survey-screen-overlay" id="surveyOverlay">
+          <button class="survey-back-btn" onclick="closeSurvey()">← Back</button>
+          <div class="survey-progress-bar"><div class="survey-progress-fill" id="surveyProgress" style="width:33%"></div></div>
+          <div class="survey-content" id="surveyStep1">
+            <div class="survey-q-header">
+              <div class="survey-q-brand">ACME Coffee · NPS Survey · Q1 of 2</div>
+              <div class="survey-q-text">How likely are you to recommend ACME Coffee to a friend or colleague?</div>
+            </div>
+            <div class="nps-emoji-row"><span>😟</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span>😐</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span>😊</span><span>🤩</span></div>
+            <div class="nps-scale" id="npsScale"></div>
+            <div class="nps-labels"><span>Not likely</span><span>Extremely likely</span></div>
+            <button class="survey-submit-btn" id="npsNextBtn" onclick="goToSurveyStep2()" style="opacity:0.4;pointer-events:none">Next →</button>
+          </div>
+          <div class="survey-content" id="surveyStep2" style="display:none">
+            <div class="survey-q-header">
+              <div class="survey-q-brand">ACME Coffee · NPS Survey · Q2 of 2</div>
+              <div class="survey-q-text">What's the main reason for your score?</div>
+            </div>
+            <textarea class="survey-textarea" placeholder="Tell us what you think…" rows="4"></textarea>
+            <button class="survey-submit-btn" onclick="submitSurvey()" style="margin-top:24px">Submit & earn 50 pts ⭐</button>
+          </div>
+          <div class="survey-content survey-thankyou" id="surveyThankyou" style="display:none">
+            <div class="check">✅</div>
+            <div class="ty-title">Thanks, Sarah!</div>
+            <div class="ty-sub">Your feedback helps ACME Coffee improve for everyone.</div>
+            <div class="points-toast">
+              <span class="emoji">⭐</span>
+              <div class="text">
+                <div class="earned">+50 pts earned</div>
+                <div class="desc">Added to your balance · Now 2,500 pts</div>
+              </div>
+            </div>
+            <button class="done-btn" onclick="closeSurveyDone()">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFILE SCREEN -->
+      <div class="screen" id="screen-profile">
+        <div class="profile-header-bg">
+          <div class="profile-avatar-wrapper">
+            <div class="profile-avatar">S</div>
+          </div>
+        </div>
+        <div class="profile-info">
+          <div class="profile-name">Sarah Johnson</div>
+          <div class="profile-email">sarah.j@example.com</div>
+        </div>
+
+        <div class="tier-progress-card">
+          <div class="tier-progress-title">Tier Progress</div>
+          <div class="tier-ring-wrapper">
+            <div class="tier-ring">
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="44" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+                <circle cx="50" cy="50" r="44" fill="none" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"
+                  stroke-dasharray="276.5" stroke-dashoffset="76.6"/>
+              </svg>
+              <div class="tier-ring-center">
+                <div class="tier-ring-pts">2,450</div>
+                <div class="tier-ring-lbl">pts</div>
+              </div>
+            </div>
+            <div class="tier-info">
+              <div class="current-tier">
+                <span style="font-size:20px">🥈</span>
+                <span class="tier-name">Silver</span>
+              </div>
+              <div class="tier-next">Next: Gold at 3,000 pts</div>
+              <div class="tier-gap-label">550 pts to go</div>
+              <div style="margin-top:12px;display:flex;gap:6px">
+                <span style="font-size:11px;background:#f0fdf4;color:#059669;padding:3px 8px;border-radius:6px;font-weight:600">Bronze ✓</span>
+                <span style="font-size:11px;background:#f8fafc;color:#fbbf24;padding:3px 8px;border-radius:6px;font-weight:600;border:1.5px solid #fbbf24">Silver ●</span>
+                <span style="font-size:11px;background:#f8fafc;color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:500">Gold</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section-header">Notifications</div>
+          <div class="settings-row">
+            <span class="icon">🔔</span>
+            <span class="text">Push Notifications</span>
+            <div class="toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+          <div class="settings-row">
+            <span class="icon">⭐</span>
+            <span class="text">Points Earned</span>
+            <div class="toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+          <div class="settings-row">
+            <span class="icon">🏆</span>
+            <span class="text">Tier Changes</span>
+            <div class="toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+          <div class="settings-row">
+            <span class="icon">⏰</span>
+            <span class="text">Expiring Rewards</span>
+            <div class="toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-section-header">Account</div>
+          <div class="settings-row"><span class="icon">✏️</span><span class="text">Edit Profile</span><span class="arrow">›</span></div>
+          <div class="settings-row"><span class="icon">🔐</span><span class="text">Privacy & Data</span><span class="arrow">›</span></div>
+          <div class="settings-row"><span class="icon">📥</span><span class="text">Download My Data</span><span class="arrow">›</span></div>
+          <div class="settings-row" style="color:#ef4444"><span class="icon">🗑️</span><span class="text" style="color:#ef4444">Delete Account</span><span class="arrow">›</span></div>
+        </div>
+
+        <div class="settings-card" style="margin-bottom:24px">
+          <div class="settings-row"><span class="icon">🚪</span><span class="text">Sign Out</span><span class="arrow">›</span></div>
+        </div>
+      </div>
+
+    </div><!-- /screen-container -->
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <button class="tab-item" id="tab-home" onclick="switchTab('home')">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-label">Home</span>
+        <div class="tab-dot"></div>
+      </button>
+      <button class="tab-item" id="tab-rewards" onclick="switchTab('rewards')">
+        <span class="tab-icon">🎁</span>
+        <span class="tab-label">Rewards</span>
+        <div class="tab-dot"></div>
+      </button>
+      <button class="tab-item" id="tab-activity" onclick="switchTab('activity')">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Activity</span>
+        <div class="tab-dot"></div>
+      </button>
+      <button class="tab-item" id="tab-surveys" onclick="switchTab('surveys')">
+        <span class="tab-icon">📝</span>
+        <span class="tab-label">Surveys</span>
+        <div class="tab-dot"></div>
+      </button>
+      <button class="tab-item" id="tab-profile" onclick="switchTab('profile')">
+        <span class="tab-icon">👤</span>
+        <span class="tab-label">Profile</span>
+        <div class="tab-dot"></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="prototype-label" style="max-width:393px;text-align:center;line-height:1.6">
+    Click tabs to navigate · Tap "Redeem" for QR code · Tap survey to complete inline NPS
+  </div>
+</div>
+
+<script>
+  // Clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0');
+  }
+  updateClock();
+  setInterval(updateClock, 10000);
+
+  // Navigation
+  let currentTab = 'signin';
+
+  function navigateTo(screen) {
+    document.getElementById('screen-' + currentTab).classList.remove('active');
+    document.getElementById('screen-' + currentTab).classList.add('prev');
+    setTimeout(() => {
+      document.getElementById('screen-' + currentTab).classList.remove('prev');
+    }, 400);
+    currentTab = screen;
+    document.getElementById('screen-' + screen).classList.add('active');
+
+    if (screen !== 'signin') {
+      document.getElementById('tab-' + screen).classList.add('active');
+      animatePointsBar();
+    }
+  }
+
+  function switchTab(tab) {
+    // Remove active from all tabs and screens
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => {
+      s.classList.remove('active');
+    });
+
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('screen-' + tab).classList.add('active');
+    currentTab = tab;
+  }
+
+  // Tier bar animation
+  function animatePointsBar() {
+    setTimeout(() => {
+      document.getElementById('tierBarFill').style.width = '82%';
+    }, 300);
+  }
+
+  // QR Code
+  let qrTimer = null;
+  let qrSeconds = 90;
+
+  function generateQRGrid() {
+    const grid = document.getElementById('qrGrid');
+    grid.innerHTML = '';
+    const pattern = [
+      [1,1,1,1,1,1,1,0,0,0],
+      [1,0,0,0,0,0,1,0,1,1],
+      [1,0,1,1,1,0,1,0,0,1],
+      [1,0,1,1,1,0,1,0,1,0],
+      [1,0,1,1,1,0,1,0,1,1],
+      [1,0,0,0,0,0,1,1,0,0],
+      [1,1,1,1,1,1,1,0,1,0],
+      [0,0,0,0,0,0,0,1,1,1],
+      [1,0,1,1,0,1,1,0,1,0],
+      [0,1,0,0,1,0,1,1,0,1],
+    ];
+    pattern.forEach(row => {
+      row.forEach(cell => {
+        const div = document.createElement('div');
+        div.className = 'qr-cell';
+        div.style.background = cell ? '#fff' : 'transparent';
+        grid.appendChild(div);
+      });
+    });
+  }
+
+  function showQR(rewardName, pts) {
+    document.getElementById('qrRewardName').textContent = rewardName + ' — ' + pts + ' pts';
+    generateQRGrid();
+    document.getElementById('qrModal').classList.add('visible');
+    qrSeconds = 90;
+    updateQRTimer();
+    qrTimer = setInterval(() => {
+      qrSeconds--;
+      if (qrSeconds <= 0) {
+        clearInterval(qrTimer);
+        qrSeconds = 0;
+        document.getElementById('timerRing').style.strokeDashoffset = '660';
+      }
+      updateQRTimer();
+    }, 1000);
+  }
+
+  function updateQRTimer() {
+    const mins = Math.floor(qrSeconds / 60);
+    const secs = qrSeconds % 60;
+    document.getElementById('qrTimer').textContent = mins + ':' + String(secs).padStart(2,'0');
+    const progress = (qrSeconds / 90);
+    const circumference = 660;
+    document.getElementById('timerRing').style.strokeDashoffset = circumference * (1 - progress);
+    if (qrSeconds <= 15) {
+      document.getElementById('timerRing').style.stroke = '#ef4444';
+      document.getElementById('qrTimer').style.color = '#ef4444';
+    }
+  }
+
+  function closeQR(event) {
+    if (event && event.target !== document.getElementById('qrModal')) return;
+    clearInterval(qrTimer);
+    document.getElementById('timerRing').style.stroke = '#059669';
+    document.getElementById('qrTimer').style.color = '#059669';
+    document.getElementById('qrModal').classList.remove('visible');
+  }
+  window.closeQR = function() {
+    clearInterval(qrTimer);
+    document.getElementById('timerRing').style.stroke = '#059669';
+    document.getElementById('qrTimer').style.color = '#059669';
+    document.getElementById('qrModal').classList.remove('visible');
+  };
+
+  // Filter chips
+  function setFilter(el) {
+    el.parentNode.querySelectorAll('.chip').forEach(c => {
+      c.classList.remove('active');
+      c.classList.add('inactive');
+    });
+    el.classList.remove('inactive');
+    el.classList.add('active');
+  }
+
+  // NPS Scale
+  function buildNPSScale() {
+    const scale = document.getElementById('npsScale');
+    for (let i = 0; i <= 9; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'nps-btn';
+      btn.textContent = i;
+      btn.onclick = function() {
+        document.querySelectorAll('.nps-btn').forEach(b => b.classList.remove('selected'));
+        this.classList.add('selected');
+        document.getElementById('npsNextBtn').style.opacity = '1';
+        document.getElementById('npsNextBtn').style.pointerEvents = 'auto';
+      };
+      scale.appendChild(btn);
+    }
+  }
+  buildNPSScale();
+
+  // Survey
+  function openSurvey() {
+    document.getElementById('surveyOverlay').classList.add('open');
+  }
+  function closeSurvey() {
+    document.getElementById('surveyOverlay').classList.remove('open');
+    resetSurvey();
+  }
+  function goToSurveyStep2() {
+    document.getElementById('surveyStep1').style.display = 'none';
+    document.getElementById('surveyStep2').style.display = 'flex';
+    document.getElementById('surveyProgress').style.width = '66%';
+  }
+  function submitSurvey() {
+    document.getElementById('surveyStep2').style.display = 'none';
+    document.getElementById('surveyThankyou').style.display = 'flex';
+    document.getElementById('surveyProgress').style.width = '100%';
+  }
+  function closeSurveyDone() {
+    document.getElementById('surveyOverlay').classList.remove('open');
+    resetSurvey();
+    // Update points display
+    document.getElementById('pointsCounter').textContent = '2,500';
+  }
+  function resetSurvey() {
+    document.getElementById('surveyStep1').style.display = 'flex';
+    document.getElementById('surveyStep2').style.display = 'none';
+    document.getElementById('surveyThankyou').style.display = 'none';
+    document.getElementById('surveyProgress').style.width = '33%';
+    document.querySelectorAll('.nps-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('npsNextBtn').style.opacity = '0.4';
+    document.getElementById('npsNextBtn').style.pointerEvents = 'none';
+  }
+
+  // Campaign
+  function openCampaign() {
+    alert('🎰 Spin Wheel Campaign\n\nIn the full app: full-screen animated wheel with haptic feedback.\nSpins and reveals: "You won 200 pts!"\n\n(See 513-campaign-spin.html for the high-fidelity static mock)');
+  }
+
+  // Init
+  setTimeout(() => animatePointsBar(), 800);
+</script>
+</body>
+</html>
