@@ -90,6 +90,12 @@ export type EnrollMemberResponse = z.infer<typeof EnrollMemberResponseSchema>
 export const SearchMembersQuerySchema = z.object({
   q: z.string().optional(),
   tier: z.string().optional(),
+  // Issue #420 G22 — when set, the API includes lastResponseThisSurvey (the
+  // member's most recent response to THIS survey) + lastResponseAnySurvey
+  // (their most recent response to any survey) on each row, so the audience
+  // builder can surface them as columns. Omitting `surveyId` keeps the
+  // original Customer-360 search shape (no extra fields, no extra query cost).
+  surveyId: z.string().cuid().optional(),
   sentimentMin: z.coerce.number().min(-1).max(1).optional(),
   sentimentMax: z.coerce.number().min(-1).max(1).optional(),
   npsMin: z.coerce.number().min(0).max(10).optional(),

@@ -15,6 +15,7 @@ const mk = (overrides: Partial<AudienceRow>): AudienceRow => ({
   firstName: 'A',
   lastName: 'Person',
   lastResponseThisSurvey: null,
+  lastResponseAnySurvey: null,
   source: 'EXISTING_SEARCH',
   willAutoEnroll: false,
   suppressionStatus: 'OK',

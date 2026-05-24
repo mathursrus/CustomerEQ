@@ -23,7 +23,12 @@ export interface AudienceRow {
   email: string | null
   firstName: string | null
   lastName: string | null
+  /** ISO timestamp of the member's most recent response to THIS survey, or null. */
   lastResponseThisSurvey: string | null
+  /** Issue #420 G22 — ISO timestamp of the member's most recent response to
+   *  any survey (including this one), or null. Restored from the pre-#420 spec
+   *  which had both columns; #420 dropped lastResponseAnySurvey by mistake. */
+  lastResponseAnySurvey: string | null
 
   source: 'EXISTING_SEARCH' | 'EXISTING_RANDOM' | 'CUSTOM_LIST'
   /** Custom-List rows that will be auto-created on Generate (no existing match). */
@@ -67,6 +72,10 @@ export interface MembersSearchResponse {
     lastName: string | null
     suppressionStatus: SurveySuppressionStatus
     suppressionSince: string | null
+    // Issue #420 G22 — present when the route is called with ?surveyId=...
+    // (the audience builder always does); absent for Customer-360 search calls.
+    lastResponseThisSurvey?: string | null
+    lastResponseAnySurvey?: string | null
   }>
   total: number
   page: number

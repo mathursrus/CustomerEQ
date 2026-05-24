@@ -97,6 +97,7 @@ export function RandomSampleTab({
       firstName: m.firstName,
       lastName: m.lastName,
       lastResponseThisSurvey: m.lastResponseThisSurvey,
+      lastResponseAnySurvey: m.lastResponseAnySurvey,
       source: 'EXISTING_RANDOM',
       willAutoEnroll: false,
       suppressionStatus: m.suppressionStatus,

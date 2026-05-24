@@ -60,7 +60,7 @@ export function AddFromExistingMembersCard({
       </div>
 
       {tab === 'search' ? (
-        <SearchTab alreadyAddedKeys={alreadyAddedKeys} onAddRows={onAddRows} />
+        <SearchTab surveyId={surveyId} alreadyAddedKeys={alreadyAddedKeys} onAddRows={onAddRows} />
       ) : (
         <RandomSampleTab
           surveyId={surveyId}

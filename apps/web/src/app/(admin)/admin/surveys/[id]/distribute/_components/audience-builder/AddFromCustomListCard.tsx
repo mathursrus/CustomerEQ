@@ -84,6 +84,7 @@ export function AddFromCustomListCard({
           firstName: m.firstName,
           lastName: m.lastName,
           lastResponseThisSurvey: m.lastResponseThisSurvey,
+          lastResponseAnySurvey: m.lastResponseAnySurvey,
           source: 'CUSTOM_LIST',
           willAutoEnroll: m.willAutoEnroll === true,
           suppressionStatus: m.suppressionStatus,

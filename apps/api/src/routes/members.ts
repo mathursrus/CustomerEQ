@@ -784,7 +784,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     const { q, tier, sentimentMin, sentimentMax, npsMin, npsMax,
             balanceMin, balanceMax, healthScoreMin, healthScoreMax,
             status, enrolledAfter, enrolledBefore,
-            page, pageSize, sortBy, sortOrder } = query
+            page, pageSize, sortBy, sortOrder, surveyId } = query
 
     // Build Prisma where clause
     const where: Prisma.MemberWhereInput = {
@@ -899,15 +899,37 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
           healthScore: true,
           healthScoreUpdatedAt: true,
           currentTier: { select: { name: true } },
+          // Latest response across ANY survey — drives latestSentiment +
+          // latestNpsScore (Customer-360) AND, when surveyId is provided
+          // (Issue #420 G22), lastResponseAnySurvey for the audience builder.
           surveyResponses: {
             orderBy: { completedAt: 'desc' },
             take: 1,
-            select: { sentiment: true, score: true },
+            select: { sentiment: true, score: true, completedAt: true },
           },
         },
       }),
       fastify.prisma.member.count({ where }),
     ])
+
+    // Issue #420 G22 — when surveyId is set, batch-fetch each member's
+    // latest response to THAT specific survey. One round trip via groupBy
+    // keeps it cheap even at pageSize=50. Map keyed by memberId so the
+    // result mapper below can look up O(1).
+    const lastResponseThisSurveyByMemberId = new Map<string, string>()
+    if (surveyId && members.length > 0) {
+      const memberIds = members.map((m) => m.id)
+      const grouped = await fastify.prisma.surveyResponse.groupBy({
+        by: ['memberId'],
+        where: { brandId: request.brandId, surveyId, memberId: { in: memberIds } },
+        _max: { completedAt: true },
+      })
+      for (const row of grouped) {
+        if (row.memberId && row._max.completedAt) {
+          lastResponseThisSurveyByMemberId.set(row.memberId, row._max.completedAt.toISOString())
+        }
+      }
+    }
 
     // Post-process: sentiment sort (if needed) + PII masking
     let results = members.map((m) => {
@@ -940,6 +962,15 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: m.createdAt,
         suppressionStatus: suppression.status,
         suppressionSince: suppression.since,
+        // Issue #420 G22 — only included when surveyId was on the query;
+        // omitted otherwise so Customer-360 search responses keep their
+        // existing shape and bytes.
+        ...(surveyId
+          ? {
+              lastResponseThisSurvey: lastResponseThisSurveyByMemberId.get(m.id) ?? null,
+              lastResponseAnySurvey: m.surveyResponses[0]?.completedAt?.toISOString() ?? null,
+            }
+          : {}),
       }
     })
 

@@ -150,6 +150,9 @@ export function AudienceList({
               <th className="px-3 py-2 font-medium text-gray-700">Name</th>
               <th className="px-3 py-2 font-medium text-gray-700">Identifier</th>
               <th className="px-3 py-2 font-medium text-gray-700">Source</th>
+              {/* G22 — pre-#420 spec surfaced these two columns; restored here. */}
+              <th className="px-3 py-2 font-medium text-gray-700">Last response (this survey)</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Last response (any survey)</th>
               <th className="px-3 py-2 font-medium text-gray-700">Status</th>
             </tr>
           </thead>
@@ -187,6 +190,8 @@ export function AudienceList({
                   <td className="px-3 py-2">
                     <SourceChip row={r} />
                   </td>
+                  <td className="px-3 py-2 text-gray-700">{formatResponseDate(r.lastResponseThisSurvey)}</td>
+                  <td className="px-3 py-2 text-gray-700">{formatResponseDate(r.lastResponseAnySurvey)}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${chip.bg} ${chip.text}`}
@@ -226,6 +231,23 @@ export function AudienceList({
       </div>
     </div>
   )
+}
+
+// G22 — short date format for the "Last response" columns. Browser-locale,
+// no timezone bind (the audience-builder isn't a deadline surface where
+// brand-timezone precision matters — the operator just needs "did this
+// person respond recently"). Em-dash when the field is null/undefined.
+function formatResponseDate(iso: string | null): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    })
+  } catch {
+    return '—'
+  }
 }
 
 function SourceChip({ row }: { row: AudienceRow }) {

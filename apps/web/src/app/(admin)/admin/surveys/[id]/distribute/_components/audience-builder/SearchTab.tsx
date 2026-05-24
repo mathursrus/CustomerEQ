@@ -14,11 +14,15 @@ import { suppressionChipStyle } from './suppressionChips'
 import type { AudienceRow, MembersSearchResponse } from './types'
 
 interface SearchTabProps {
+  // G22 — surveyId is forwarded to /v1/members so the API can include
+  // lastResponseThisSurvey + lastResponseAnySurvey on each row. The audience
+  // list table renders both as columns.
+  surveyId: string
   alreadyAddedKeys: Set<string>
   onAddRows: (rows: AudienceRow[]) => void
 }
 
-export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
+export function SearchTab({ surveyId, alreadyAddedKeys, onAddRows }: SearchTabProps) {
   const { getToken } = useAuth()
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
@@ -48,6 +52,9 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
         url.searchParams.set('q', submittedQuery)
         url.searchParams.set('page', String(page))
         url.searchParams.set('pageSize', String(pageSize))
+        // G22 — including surveyId opts the response into the
+        // lastResponseThisSurvey + lastResponseAnySurvey fields.
+        url.searchParams.set('surveyId', surveyId)
         const res = await fetch(url.toString(), {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -66,7 +73,7 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
     return () => {
       cancelled = true
     }
-  }, [submittedQuery, page, pageSize, getToken])
+  }, [submittedQuery, page, pageSize, getToken, surveyId])
 
   const handleSearch = () => {
     setPage(1)
@@ -102,7 +109,8 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
         email: m.email,
         firstName: m.firstName,
         lastName: m.lastName,
-        lastResponseThisSurvey: null,
+        lastResponseThisSurvey: m.lastResponseThisSurvey ?? null,
+        lastResponseAnySurvey: m.lastResponseAnySurvey ?? null,
         source: 'EXISTING_SEARCH',
         willAutoEnroll: false,
         suppressionStatus: m.suppressionStatus,
@@ -122,7 +130,8 @@ export function SearchTab({ alreadyAddedKeys, onAddRows }: SearchTabProps) {
       email: m.email,
       firstName: m.firstName,
       lastName: m.lastName,
-      lastResponseThisSurvey: null,
+      lastResponseThisSurvey: m.lastResponseThisSurvey ?? null,
+      lastResponseAnySurvey: m.lastResponseAnySurvey ?? null,
       source: 'EXISTING_SEARCH',
       willAutoEnroll: false,
       suppressionStatus: m.suppressionStatus,
