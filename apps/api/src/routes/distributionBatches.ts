@@ -755,10 +755,21 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       // Issue #420 — Post-commit: enqueue per-recipient managed-email-send jobs.
-      // In QUEUE_MODE=redis this dispatches; in inline mode it's a no-op (see bullmq.ts).
+      // In QUEUE_MODE=redis this dispatches; in inline mode it runs via scheduleInline.
+      // G9/G10 — pass the plaintext survey-link + unsubscribe tokens through the
+      // queue payload so the worker builds VALID URLs (previously used the
+      // 8-char tokenPrefix from DB, which the public route rejected).
       if (sendMode === 'MANAGED_EMAIL') {
-        for (const { member } of result.minted) {
-          await enqueueManagedEmailSend({ batchId: result.batch.id, memberId: member.memberId, brandId, surveyId })
+        const unsubByMemberId = new Map(result.unsubMinted.map((u) => [u.memberId, u.plaintext]))
+        for (const { member, token } of result.minted) {
+          await enqueueManagedEmailSend({
+            batchId: result.batch.id,
+            memberId: member.memberId,
+            brandId,
+            surveyId,
+            surveyLinkToken: token.plaintext,
+            unsubscribeToken: unsubByMemberId.get(member.memberId) ?? null,
+          })
         }
       }
 
@@ -1303,9 +1314,21 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         })
         // Enqueue managed-email-send jobs for each. Producer call is dynamic
         // import to avoid circular dependency between routes and queues.
+        // G9/G10 — retry-failed cannot recover the original plaintext tokens
+        // (hash-only at rest). Pass null; the worker uses its tokenPrefix
+        // fallback for the URL (best-effort — these recipients ideally need
+        // a regenerate-tokens flow which mints fresh tokens for them; out of
+        // scope for the H4 batch).
         const { enqueueManagedEmailSend } = await import('../queues/bullmq.js')
         for (const row of retryable) {
-          await enqueueManagedEmailSend({ batchId, memberId: row.memberId, brandId, surveyId })
+          await enqueueManagedEmailSend({
+            batchId,
+            memberId: row.memberId,
+            brandId,
+            surveyId,
+            surveyLinkToken: '',
+            unsubscribeToken: null,
+          })
         }
       }
 

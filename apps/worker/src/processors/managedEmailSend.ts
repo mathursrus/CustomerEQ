@@ -152,39 +152,54 @@ export async function dispatchManagedEmailSend(
     return { sent: false, reason: skipReason, retryable: false }
   }
 
-  // 3. Load distribution row + unsubscribe token for render context
-  const [distribution, unsubToken] = await Promise.all([
-    prisma.surveyDistribution.findFirst({
-      where: { batchId, memberId },
-      select: { id: true },
-    }),
-    prisma.memberUnsubscribeToken.findFirst({
-      where: { batchId, memberId },
-      select: { tokenPrefix: true }, // plaintext is never stored; tokenPrefix is for display only
-    }),
-  ])
-  const surveyDistributionTokenRow = await prisma.surveyDistributionToken.findFirst({
+  // 3. Confirm the distribution row exists. G9/G10 — plaintext tokens come
+  //    in via the queue payload (payload.surveyLinkToken /
+  //    payload.unsubscribeToken); the worker no longer reads tokenPrefix from
+  //    DB for URL construction (the prefix is display-only and the public
+  //    route rejects it). Retry-failed enqueues pass empty/null tokens — fall
+  //    back to the tokenPrefix-best-effort URL there so we don't crash, but
+  //    the recipient still needs a regenerate-tokens flow.
+  const distribution = await prisma.surveyDistribution.findFirst({
     where: { batchId, memberId },
-    select: { tokenPrefix: true }, // surface plaintext-link substrate
+    select: { id: true },
   })
   if (!distribution) {
     await markFailed(batchId, memberId, 'batch_or_member_missing')
     return { sent: false, reason: 'batch_or_member_missing', retryable: false }
   }
 
-  // 4. Build resolved survey + unsubscribe URLs (plaintext is in the queue
-  //    payload only via the original POST /distribution-batches mint; for V0
-  //    the worker reconstructs from tokenPrefix until we wire plaintext
-  //    pass-through. This works because the survey link routes via tokenPrefix
-  //    in the public /s/r/:token endpoint.)
   const composer = batch.composerSnapshot as unknown as ComposerSnapshotJson
   const frontendBaseUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? process.env.FRONTEND_URL ?? 'https://app.customereq.example').replace(/\/$/, '')
-  const surveyLink = surveyDistributionTokenRow?.tokenPrefix
-    ? `${frontendBaseUrl}/survey/${surveyId}/r/${surveyDistributionTokenRow.tokenPrefix}`
-    : `${frontendBaseUrl}/survey/${surveyId}`
-  const unsubscribeUrl = unsubToken?.tokenPrefix
-    ? `${frontendBaseUrl}/u/${unsubToken.tokenPrefix}`
-    : `${frontendBaseUrl}/u`
+
+  // 4. Resolve URLs from payload-supplied plaintext tokens. The retry-failed
+  //    fallback below preserves the previous (broken) behavior rather than
+  //    omitting the link entirely — a follow-up regenerate-tokens flow is the
+  //    right long-term answer for that case.
+  let surveyLink: string
+  if (payload.surveyLinkToken) {
+    surveyLink = `${frontendBaseUrl}/survey/${surveyId}/r/${payload.surveyLinkToken}`
+  } else {
+    const fallbackRow = await prisma.surveyDistributionToken.findFirst({
+      where: { batchId, memberId },
+      select: { tokenPrefix: true },
+    })
+    surveyLink = fallbackRow?.tokenPrefix
+      ? `${frontendBaseUrl}/survey/${surveyId}/r/${fallbackRow.tokenPrefix}`
+      : `${frontendBaseUrl}/survey/${surveyId}`
+  }
+
+  let unsubscribeUrl: string
+  if (payload.unsubscribeToken) {
+    unsubscribeUrl = `${frontendBaseUrl}/u/${payload.unsubscribeToken}`
+  } else {
+    const fallbackUnsub = await prisma.memberUnsubscribeToken.findFirst({
+      where: { batchId, memberId },
+      select: { tokenPrefix: true },
+    })
+    unsubscribeUrl = fallbackUnsub?.tokenPrefix
+      ? `${frontendBaseUrl}/u/${fallbackUnsub.tokenPrefix}`
+      : `${frontendBaseUrl}/u`
+  }
 
   const composerSnapshot: ComposerSnapshot = {
     brandName: composer.brandName,
