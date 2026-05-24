@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CustomerEQ — Anomaly Alert Deep-Dive</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+.phone{position:relative;width:393px;height:852px;background:#f8fafc;border-radius:47px;overflow:hidden;box-shadow:0 0 0 10px #1c1c1e,0 40px 80px rgba(0,0,0,0.7),0 0 0 11px #3a3a3c;}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:100;}
+.status-bar{position:absolute;top:0;left:0;right:0;height:59px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 8px;z-index:99;pointer-events:none;}
+.status-time{font-size:15px;font-weight:600;color:#fff;}
+.status-icons{display:flex;align-items:center;gap:5px;}
+/* Push notification banner */
+.push-notif{position:absolute;top:68px;left:12px;right:12px;background:rgba(30,30,40,0.92);backdrop-filter:blur(20px);border-radius:16px;padding:12px 14px;z-index:200;display:flex;gap:12px;align-items:flex-start;border:1px solid rgba(255,255,255,0.1);animation:slideDown 0.4s ease-out forwards,fadeOut 0.4s ease-in 3.5s forwards;}
+@keyframes slideDown{from{transform:translateY(-20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes fadeOut{from{opacity:1;}to{opacity:0;pointer-events:none;}}
+.push-app-icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.push-text .push-app{font-size:11px;font-weight:600;color:rgba(255,255,255,0.55);margin-bottom:1px;}
+.push-text .push-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;}
+.push-text .push-body{font-size:12px;color:rgba(255,255,255,0.65);line-height:1.4;}
+.push-time{font-size:11px;color:rgba(255,255,255,0.4);flex-shrink:0;}
+/* Alert header */
+.alert-header{background:linear-gradient(140deg,#7f1d1d 0%,#dc2626 100%);padding:22px 20px 26px;}
+.alert-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;}
+.alert-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.alert-title{font-size:28px;font-weight:800;color:#fff;letter-spacing:-0.8px;margin-bottom:4px;}
+.alert-sub{color:rgba(255,255,255,0.65);font-size:13px;}
+.alert-stats{display:flex;gap:10px;margin-top:18px;}
+.astat{flex:1;background:rgba(255,255,255,0.14);border-radius:12px;padding:10px;text-align:center;}
+.astat-val{font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.5px;}
+.astat-lbl{font-size:10px;color:rgba(255,255,255,0.6);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-top:1px;}
+/* Content area */
+.content{overflow-y:auto;position:absolute;top:59px;left:0;right:0;bottom:0;scrollbar-width:none;}
+.content::-webkit-scrollbar{display:none;}
+.section{padding:16px 16px 4px;}
+.sec-title{font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:10px;}
+/* Trend chart */
+.chart-wrap{background:#fff;border-radius:16px;padding:16px;border:1px solid #f3f4f6;margin:0 16px 12px;}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.chart-title{font-size:14px;font-weight:700;color:#111827;}
+.chart-period{font-size:11px;color:#9ca3af;}
+.chart-canvas{width:100%;height:120px;position:relative;}
+.chart-canvas canvas{width:100%;height:100%;}
+.spike-label{position:absolute;top:0;right:0;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:3px 8px;font-size:10px;font-weight:700;color:#dc2626;}
+/* AI analysis */
+.ai-card{background:#fff;border-radius:16px;padding:15px;border:1px solid #f3f4f6;margin:0 16px 12px;}
+.ai-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.ai-icon{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;}
+.ai-title{font-size:14px;font-weight:700;color:#111827;}
+.ai-badge{background:#eef2ff;color:#4f46e5;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;margin-left:auto;}
+.insight-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f9fafb;}
+.insight-row:last-child{border-bottom:none;}
+.insight-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.insight-text{font-size:13px;color:#374151;line-height:1.45;flex:1;}
+.insight-pct{font-size:12px;font-weight:700;color:#dc2626;flex-shrink:0;}
+/* Quotes */
+.qcard{background:#fff;border-radius:14px;padding:12px 14px;border:1px solid #f3f4f6;margin:0 16px 8px;}
+.qmeta{display:flex;align-items:center;gap:7px;margin-bottom:6px;}
+.qstars{font-size:11px;color:#f59e0b;}
+.chip{border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;}
+.chip-neg{background:#fef2f2;color:#dc2626;}
+.chip-neu{background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;}
+.qtext{font-size:13px;color:#374151;line-height:1.4;}
+/* Actions */
+.actions{padding:12px 16px 24px;display:flex;flex-direction:column;gap:8px;}
+.action-btn{border:none;border-radius:14px;padding:14px 20px;font-size:14px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;}
+.btn-primary{background:#4f46e5;color:#fff;}
+.btn-secondary{background:#fff;color:#374151;border:1.5px solid #e5e7eb;}
+.btn-danger{background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;}
+.btn-icon{font-size:18px;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="island"></div>
+  <!-- status bar — white text for dark header -->
+  <div class="status-bar" style="z-index:101;">
+    <span class="status-time">9:47</span>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><rect x="0" y="4" width="3" height="8" rx="1" opacity="0.4"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1" opacity="0.6"/><rect x="9" y="0.5" width="3" height="11.5" rx="1"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="1"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><path d="M8 2.4C5.6 2.4 3.5 3.4 2 5L0.5 3.5C2.5 1.3 5.1 0 8 0s5.5 1.3 7.5 3.5L14 5c-1.5-1.6-3.6-2.6-6-2.6z" opacity="0.4"/><path d="M8 5.6C6.4 5.6 5 6.3 4 7.4L2.5 5.9C3.9 4.4 5.8 3.5 8 3.5s4.1.9 5.5 2.4L12 7.4C11 6.3 9.6 5.6 8 5.6z" opacity="0.7"/><circle cx="8" cy="10" r="2"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="#fff"><rect x="0" y="1" width="21" height="10" rx="3" stroke="#fff" stroke-width="1" fill="none" opacity="0.4"/><rect x="22" y="4" width="2.5" height="4" rx="1" opacity="0.4"/><rect x="1.5" y="2.5" width="16" height="7" rx="2"/></svg>
+    </div>
+  </div>
+  <!-- Push notification -->
+  <div class="push-notif" id="push">
+    <div class="push-app-icon">📊</div>
+    <div class="push-text">
+      <div class="push-app">CustomerEQ</div>
+      <div class="push-title">🔴 Anomaly Detected</div>
+      <div class="push-body">Checkout Speed: 47 new mentions in 24h — 3.2σ above baseline</div>
+    </div>
+    <div class="push-time">now</div>
+  </div>
+  <!-- Scrollable content -->
+  <div class="content">
+    <!-- Red alert header -->
+    <div class="alert-header" style="padding-top:68px;">
+      <div class="alert-badge">🔴 Critical Anomaly</div>
+      <div class="alert-title">Checkout Speed</div>
+      <div class="alert-sub">Detected 18 hours ago · Post-Purchase NPS survey</div>
+      <div class="alert-stats">
+        <div class="astat"><div class="astat-val">47</div><div class="astat-lbl">New mentions</div></div>
+        <div class="astat"><div class="astat-val">3.2σ</div><div class="astat-lbl">Above baseline</div></div>
+        <div class="astat"><div class="astat-val">↑23%</div><div class="astat-lbl">Week over week</div></div>
+      </div>
+    </div>
+
+    <!-- Trend chart -->
+    <div class="chart-wrap" style="margin-top:14px;">
+      <div class="chart-header">
+        <span class="chart-title">14-Day Mention Volume</span>
+        <span class="chart-period">May 9–23</span>
+      </div>
+      <div class="chart-canvas" style="position:relative;">
+        <canvas id="trendChart" width="329" height="120"></canvas>
+        <div class="spike-label">+47 today</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:10px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280;"><div style="width:12px;height:3px;background:#94a3b8;border-radius:2px;"></div>Baseline avg</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280;"><div style="width:12px;height:3px;background:#dc2626;border-radius:2px;"></div>This cluster</div>
+      </div>
+    </div>
+
+    <!-- AI Root Cause -->
+    <div class="ai-card">
+      <div class="ai-header">
+        <div class="ai-icon">✦</div>
+        <span class="ai-title">AI Root Cause Analysis</span>
+        <span class="ai-badge">GPT-4o</span>
+      </div>
+      <div class="insight-row">
+        <span class="insight-icon">🕐</span>
+        <span class="insight-text">Peak hours (12pm–2pm) account for most spike mentions</span>
+        <span class="insight-pct">76%</span>
+      </div>
+      <div class="insight-row">
+        <span class="insight-icon">📍</span>
+        <span class="insight-text">Downtown location disproportionately mentioned</span>
+        <span class="insight-pct">89%</span>
+      </div>
+      <div class="insight-row">
+        <span class="insight-icon">📱</span>
+        <span class="insight-text">Mobile order pickup mentioned alongside checkout wait</span>
+        <span class="insight-pct">61%</span>
+      </div>
+      <div class="insight-row">
+        <span class="insight-icon">📅</span>
+        <span class="insight-text">Spike began Tuesday — correlates with 1 staff member absent</span>
+        <span class="insight-pct">–</span>
+      </div>
+    </div>
+
+    <!-- Sample verbatims -->
+    <div class="section"><div class="sec-title">Spike Verbatims</div></div>
+    <div class="qcard"><div class="qmeta"><span class="qstars">★★☆☆☆</span><span class="chip chip-neg">Negative</span><span style="font-size:10px;color:#9ca3af;margin-left:auto;">3h ago</span></div><div class="qtext">"Waited 15+ minutes during lunch. This keeps happening at the downtown location."</div></div>
+    <div class="qcard"><div class="qmeta"><span class="qstars">★★★☆☆</span><span class="chip chip-neg">Negative</span><span style="font-size:10px;color:#9ca3af;margin-left:auto;">5h ago</span></div><div class="qtext">"Lunch rush is unmanageable — mobile order pickup and register both backed up."</div></div>
+    <div class="qcard"><div class="qmeta"><span class="qstars">★★☆☆☆</span><span class="chip chip-neu">Neutral</span><span style="font-size:10px;color:#9ca3af;margin-left:auto;">7h ago</span></div><div class="qtext">"Staff are doing their best but the system can't handle peak volume right now."</div></div>
+
+    <!-- Actions -->
+    <div class="section" style="padding-bottom:8px;"><div class="sec-title">Recommended Actions</div></div>
+    <div class="actions">
+      <button class="action-btn btn-primary"><span class="btn-icon">⚡</span><div><div>Create Alert Rule</div><div style="font-size:11px;font-weight:500;opacity:0.75;margin-top:1px;">Auto-notify when Checkout Speed > 20/day</div></div></button>
+      <button class="action-btn btn-secondary"><span class="btn-icon">📊</span><div><div>View Full Analysis</div><div style="font-size:11px;font-weight:500;color:#9ca3af;margin-top:1px;">Open in web dashboard</div></div></button>
+      <button class="action-btn btn-danger"><span class="btn-icon">🔕</span><div><div>Dismiss Alert</div><div style="font-size:11px;font-weight:500;color:#dc2626;opacity:0.7;margin-top:1px;">Mark as reviewed</div></div></button>
+    </div>
+  </div>
+</div>
+<script>
+// Draw trend chart
+const canvas = document.getElementById('trendChart');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+// 14 days of data — last entry is the spike
+const data = [8, 10, 9, 11, 8, 12, 9, 10, 11, 13, 10, 12, 14, 47];
+const baseline = 11;
+const maxVal = 50;
+const pad = { top: 10, right: 10, bottom: 24, left: 28 };
+const cW = W - pad.left - pad.right;
+const cH = H - pad.top - pad.bottom;
+function xPos(i) { return pad.left + (i / (data.length - 1)) * cW; }
+function yPos(v) { return pad.top + cH - (v / maxVal) * cH; }
+
+// Baseline line
+ctx.strokeStyle = '#94a3b8';
+ctx.lineWidth = 1;
+ctx.setLineDash([4, 4]);
+ctx.beginPath();
+ctx.moveTo(pad.left, yPos(baseline));
+ctx.lineTo(pad.left + cW, yPos(baseline));
+ctx.stroke();
+ctx.setLineDash([]);
+
+// Area fill
+ctx.fillStyle = 'rgba(220,38,38,0.08)';
+ctx.beginPath();
+ctx.moveTo(xPos(0), yPos(data[0]));
+data.forEach((v, i) => ctx.lineTo(xPos(i), yPos(v)));
+ctx.lineTo(xPos(data.length - 1), yPos(0));
+ctx.lineTo(xPos(0), yPos(0));
+ctx.closePath();
+ctx.fill();
+
+// Main line
+ctx.strokeStyle = '#dc2626';
+ctx.lineWidth = 2.5;
+ctx.lineJoin = 'round';
+ctx.beginPath();
+ctx.moveTo(xPos(0), yPos(data[0]));
+data.forEach((v, i) => ctx.lineTo(xPos(i), yPos(v)));
+ctx.stroke();
+
+// Spike dot
+ctx.fillStyle = '#dc2626';
+ctx.beginPath();
+ctx.arc(xPos(13), yPos(47), 5, 0, Math.PI * 2);
+ctx.fill();
+ctx.fillStyle = '#fff';
+ctx.beginPath();
+ctx.arc(xPos(13), yPos(47), 2.5, 0, Math.PI * 2);
+ctx.fill();
+
+// X-axis labels
+ctx.fillStyle = '#9ca3af';
+ctx.font = '10px -apple-system, sans-serif';
+ctx.textAlign = 'center';
+const labels = ['May 9','','','May 12','','','May 15','','','May 18','','','May 21','Today'];
+labels.forEach((l, i) => { if (l) ctx.fillText(l, xPos(i), H - 4); });
+
+// Y-axis labels
+ctx.textAlign = 'right';
+[0, 10, 20, 30, 40, 50].forEach(v => { ctx.fillText(v, pad.left - 4, yPos(v) + 4); });
+
+// Dismiss push after animation
+setTimeout(() => { document.getElementById('push').remove(); }, 4000);
+</script>
+</body>
+</html>

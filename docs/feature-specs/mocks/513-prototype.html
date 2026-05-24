@@ -2,1469 +2,334 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CustomerEQ Member App — Interactive Prototype</title>
+<title>CustomerEQ — CX Manager App Prototype</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0f172a;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
-    padding: 20px;
-  }
-
-  .prototype-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-  }
-
-  .prototype-label {
-    color: #94a3b8;
-    font-size: 13px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  /* iPhone 14 Pro frame */
-  .phone {
-    width: 393px;
-    height: 852px;
-    background: #000;
-    border-radius: 48px;
-    border: 2px solid #2d3748;
-    box-shadow: 0 0 0 8px #1a1a2e, 0 40px 120px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.08);
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Dynamic island */
-  .dynamic-island {
-    position: absolute;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 120px;
-    height: 34px;
-    background: #000;
-    border-radius: 20px;
-    z-index: 100;
-    border: 1.5px solid #1a1a1a;
-  }
-
-  /* Status bar */
-  .status-bar {
-    height: 54px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    padding: 0 28px 8px;
-    position: relative;
-    z-index: 10;
-    flex-shrink: 0;
-  }
-  .status-bar .time { font-size: 15px; font-weight: 600; color: #fff; }
-  .status-bar .icons { display: flex; gap: 6px; align-items: center; }
-  .status-bar .icons svg { color: #fff; }
-
-  /* Screen container */
-  .screen-container {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* Individual screens */
-  .screen {
-    position: absolute;
-    inset: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    transform: translateX(100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    scrollbar-width: none;
-  }
-  .screen::-webkit-scrollbar { display: none; }
-  .screen.active { transform: translateX(0); }
-  .screen.prev { transform: translateX(-30%); }
-
-  /* Sign-in screen */
-  #screen-signin {
-    background: linear-gradient(160deg, #064e3b 0%, #065f46 50%, #047857 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 32px;
-    gap: 0;
-    transform: translateX(0);
-  }
-  .signin-logo {
-    width: 80px;
-    height: 80px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    margin-bottom: 24px;
-    backdrop-filter: blur(10px);
-  }
-  .signin-brand { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 6px; }
-  .signin-sub { font-size: 15px; color: rgba(255,255,255,0.7); margin-bottom: 48px; text-align: center; }
-  .signin-btn {
-    width: 100%;
-    padding: 16px;
-    border-radius: 14px;
-    border: none;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 12px;
-  }
-  .signin-btn-primary { background: #fff; color: #064e3b; }
-  .signin-btn-primary:hover { background: #f0fdf4; transform: scale(0.99); }
-  .signin-btn-secondary { background: rgba(255,255,255,0.15); color: #fff; backdrop-filter: blur(10px); }
-  .signin-swipe { margin-top: 40px; display: flex; gap: 20px; }
-  .signin-swipe-card {
-    background: rgba(255,255,255,0.12);
-    border-radius: 16px;
-    padding: 16px 12px;
-    text-align: center;
-    width: 90px;
-    backdrop-filter: blur(10px);
-  }
-  .signin-swipe-card .emoji { font-size: 24px; margin-bottom: 6px; }
-  .signin-swipe-card .label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 500; line-height: 1.3; }
-
-  /* Home screen */
-  #screen-home { background: #f8fafc; }
-  .home-header {
-    background: linear-gradient(160deg, #064e3b 0%, #065f46 60%, #059669 100%);
-    padding: 16px 20px 32px;
-    position: relative;
-    overflow: hidden;
-  }
-  .home-header::after {
-    content: '';
-    position: absolute;
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.06);
-    top: -60px;
-    right: -40px;
-  }
-  .home-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    position: relative;
-    z-index: 1;
-  }
-  .home-brand-name { font-size: 17px; font-weight: 700; color: #fff; }
-  .home-greeting { font-size: 13px; color: rgba(255,255,255,0.7); }
-  .notif-btn {
-    width: 36px;
-    height: 36px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    border: none;
-    cursor: pointer;
-    backdrop-filter: blur(10px);
-  }
-  .notif-badge {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 16px;
-    height: 16px;
-    background: #ef4444;
-    border-radius: 50%;
-    font-size: 10px;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    border: 2px solid #065f46;
-  }
-
-  .points-hero {
-    background: rgba(255,255,255,0.12);
-    border-radius: 20px;
-    padding: 20px;
-    position: relative;
-    z-index: 1;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.15);
-  }
-  .points-label { font-size: 12px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .points-value {
-    font-size: 48px;
-    font-weight: 800;
-    color: #fff;
-    line-height: 1;
-    margin-bottom: 4px;
-    letter-spacing: -1px;
-  }
-  .points-unit { font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.8); }
-  .tier-row { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
-  .tier-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 20px;
-    padding: 5px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #fbbf24;
-  }
-  .tier-progress-section { margin-top: 12px; }
-  .tier-progress-label { font-size: 11px; color: rgba(255,255,255,0.7); margin-bottom: 6px; }
-  .tier-bar { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
-  .tier-bar-fill { height: 100%; background: #fbbf24; border-radius: 3px; transition: width 1s ease; }
-
-  .quick-actions {
-    padding: 20px 20px 0;
-    display: flex;
-    gap: 10px;
-  }
-  .quick-action {
-    flex: 1;
-    background: #fff;
-    border-radius: 16px;
-    padding: 14px 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid #e2e8f0;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  }
-  .quick-action:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
-  .quick-action .icon { font-size: 22px; }
-  .quick-action .label { font-size: 11px; font-weight: 600; color: #475569; }
-
-  .section-header {
-    padding: 20px 20px 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .section-title { font-size: 16px; font-weight: 700; color: #0f172a; }
-  .see-all { font-size: 13px; color: #059669; font-weight: 600; cursor: pointer; }
-
-  .activity-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    background: #fff;
-    margin-bottom: 1px;
-  }
-  .activity-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-  .activity-icon.earn { background: #f0fdf4; }
-  .activity-icon.burn { background: #fff7ed; }
-  .activity-icon.tier { background: #fefce8; }
-  .activity-content { flex: 1; }
-  .activity-label { font-size: 14px; font-weight: 500; color: #0f172a; }
-  .activity-time { font-size: 12px; color: #94a3b8; margin-top: 1px; }
-  .activity-points { font-size: 15px; font-weight: 700; }
-  .activity-points.earn { color: #059669; }
-  .activity-points.burn { color: #f97316; }
-
-  .campaign-card {
-    margin: 16px 20px;
-    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-    border-radius: 20px;
-    padding: 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  .campaign-card:hover { transform: scale(0.99); }
-  .campaign-card::after {
-    content: '🎰';
-    position: absolute;
-    right: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 48px;
-    opacity: 0.4;
-  }
-  .campaign-tag { font-size: 11px; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .campaign-name { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-  .campaign-cta {
-    display: inline-block;
-    background: #6366f1;
-    color: #fff;
-    border-radius: 20px;
-    padding: 6px 16px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  /* Rewards screen */
-  #screen-rewards { background: #f8fafc; }
-  .rewards-header {
-    background: #fff;
-    padding: 16px 20px;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .rewards-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
-  .filter-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .filter-chips::-webkit-scrollbar { display: none; }
-  .chip {
-    flex-shrink: 0;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1.5px solid transparent;
-  }
-  .chip.active { background: #059669; color: #fff; }
-  .chip.inactive { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
-
-  .rewards-grid {
-    padding: 16px 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .reward-card {
-    background: #fff;
-    border-radius: 16px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    cursor: pointer;
-    transition: all 0.25s;
-  }
-  .reward-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
-  .reward-card.locked { opacity: 0.7; }
-  .reward-img {
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 44px;
-    position: relative;
-  }
-  .reward-lock {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(0,0,0,0.5);
-    border-radius: 8px;
-    padding: 3px 6px;
-    font-size: 12px;
-    color: #fff;
-    backdrop-filter: blur(4px);
-  }
-  .reward-info { padding: 10px 12px 12px; }
-  .reward-name { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 6px; line-height: 1.3; }
-  .reward-footer { display: flex; align-items: center; justify-content: space-between; }
-  .reward-cost { font-size: 13px; font-weight: 700; color: #059669; }
-  .reward-tier { font-size: 11px; color: #94a3b8; background: #f1f5f9; border-radius: 6px; padding: 2px 6px; }
-  .redeem-btn {
-    width: 100%;
-    margin-top: 8px;
-    padding: 8px;
-    background: #059669;
-    color: #fff;
-    border-radius: 10px;
-    border: none;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .redeem-btn:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
-  .redeem-btn:not(:disabled):hover { background: #047857; }
-
-  /* QR Code modal */
-  .qr-modal {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(4px);
-    z-index: 50;
-    display: flex;
-    align-items: flex-end;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  .qr-modal.visible { opacity: 1; pointer-events: all; }
-  .qr-sheet {
-    background: #fff;
-    border-radius: 28px 28px 0 0;
-    padding: 24px 24px 40px;
-    width: 100%;
-    transform: translateY(100%);
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .qr-modal.visible .qr-sheet { transform: translateY(0); }
-  .qr-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto 20px; }
-  .qr-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-  .qr-subtitle { font-size: 14px; color: #64748b; margin-bottom: 24px; }
-  .qr-code-wrapper {
-    width: 200px;
-    height: 200px;
-    margin: 0 auto 16px;
-    background: #0f172a;
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-  .qr-grid {
-    width: 160px;
-    height: 160px;
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
-    grid-template-rows: repeat(10, 1fr);
-    gap: 2px;
-  }
-  .qr-cell { border-radius: 1px; }
-  .timer-ring-wrapper {
-    position: absolute;
-    inset: -8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .timer-ring svg { transform: rotate(-90deg); }
-  .timer-ring circle.track { fill: none; stroke: #e2e8f0; stroke-width: 4; }
-  .timer-ring circle.progress {
-    fill: none;
-    stroke: #059669;
-    stroke-width: 4;
-    stroke-linecap: round;
-    stroke-dasharray: 660;
-    stroke-dashoffset: 0;
-    transition: stroke-dashoffset 1s linear;
-  }
-  .qr-timer { font-size: 22px; font-weight: 700; color: #059669; text-align: center; margin-bottom: 20px; }
-  .qr-inst { text-align: center; font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 24px; }
-  .qr-close-btn {
-    width: 100%;
-    padding: 16px;
-    background: #f1f5f9;
-    border: none;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-  }
-
-  /* Activity screen */
-  #screen-activity { background: #f8fafc; }
-  .activity-header {
-    background: #fff;
-    padding: 20px 20px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .activity-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-  .activity-balance-strip {
-    display: flex;
-    gap: 20px;
-    padding: 12px 0 0;
-  }
-  .balance-stat { }
-  .balance-stat-val { font-size: 20px; font-weight: 800; color: #059669; }
-  .balance-stat-lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-  .activity-filters {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 12px 20px;
-    scrollbar-width: none;
-    background: #fff;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 73px;
-    z-index: 9;
-  }
-  .activity-filters::-webkit-scrollbar { display: none; }
-  .activity-list { padding: 8px 0; }
-  .activity-date-group { padding: 8px 20px 4px; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-
-  /* Survey screen */
-  #screen-surveys { background: #f8fafc; }
-  .surveys-header {
-    background: #fff;
-    padding: 20px;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .surveys-title { font-size: 20px; font-weight: 700; color: #0f172a; }
-  .survey-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 16px;
-    margin: 12px 16px 0;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .survey-card:hover { border-color: #059669; box-shadow: 0 4px 16px rgba(5,150,105,0.1); }
-  .survey-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
-  .survey-type-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .survey-type-badge.nps { background: #f0fdf4; color: #059669; }
-  .survey-type-badge.csat { background: #eff6ff; color: #3b82f6; }
-  .survey-points { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: #f59e0b; }
-  .survey-title { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
-  .survey-meta { font-size: 13px; color: #94a3b8; }
-  .start-survey-btn {
-    width: 100%;
-    margin-top: 12px;
-    padding: 10px;
-    background: #059669;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .start-survey-btn:hover { background: #047857; }
-
-  /* Inline survey */
-  .survey-screen-overlay {
-    position: absolute;
-    inset: 0;
-    background: #f8fafc;
-    z-index: 30;
-    transform: translateY(100%);
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    flex-direction: column;
-  }
-  .survey-screen-overlay.open { transform: translateY(0); }
-  .survey-progress-bar { height: 4px; background: #e2e8f0; }
-  .survey-progress-fill { height: 100%; background: #059669; transition: width 0.4s ease; }
-  .survey-content { flex: 1; padding: 32px 24px; display: flex; flex-direction: column; }
-  .survey-q-header { margin-bottom: 32px; }
-  .survey-q-brand { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
-  .survey-q-text { font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.4; }
-  .nps-scale { display: flex; gap: 6px; margin-bottom: 20px; }
-  .nps-btn {
-    flex: 1;
-    aspect-ratio: 1;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-    background: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .nps-btn:hover, .nps-btn.selected { border-color: #059669; background: #059669; color: #fff; }
-  .nps-labels { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 24px; }
-  .nps-emoji-row { display: flex; justify-content: space-between; padding: 0 4px; margin-bottom: 8px; font-size: 20px; }
-  .survey-textarea {
-    width: 100%;
-    padding: 14px;
-    border-radius: 12px;
-    border: 1.5px solid #e2e8f0;
-    font-size: 15px;
-    font-family: inherit;
-    resize: none;
-    height: 100px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .survey-textarea:focus { border-color: #059669; }
-  .survey-submit-btn {
-    padding: 16px;
-    background: #059669;
-    color: #fff;
-    border: none;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: auto;
-    transition: all 0.2s;
-  }
-  .survey-submit-btn:hover { background: #047857; }
-  .survey-back-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: none;
-    border: none;
-    font-size: 15px;
-    color: #059669;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 12px 20px;
-  }
-
-  /* Survey thank you */
-  .survey-thankyou {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 24px;
-    text-align: center;
-  }
-  .survey-thankyou .check { font-size: 64px; margin-bottom: 16px; }
-  .survey-thankyou .ty-title { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
-  .survey-thankyou .ty-sub { font-size: 15px; color: #64748b; margin-bottom: 24px; }
-  .survey-thankyou .points-toast {
-    background: #f0fdf4;
-    border: 1.5px solid #bbf7d0;
-    border-radius: 14px;
-    padding: 14px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 32px;
-  }
-  .survey-thankyou .points-toast .emoji { font-size: 28px; }
-  .survey-thankyou .points-toast .text { text-align: left; }
-  .survey-thankyou .points-toast .earned { font-size: 20px; font-weight: 800; color: #059669; }
-  .survey-thankyou .points-toast .desc { font-size: 13px; color: #64748b; }
-  .done-btn {
-    width: 100%;
-    padding: 16px;
-    background: #0f172a;
-    color: #fff;
-    border: none;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  /* Profile screen */
-  #screen-profile { background: #f8fafc; }
-  .profile-header-bg {
-    height: 130px;
-    background: linear-gradient(160deg, #064e3b 0%, #065f46 100%);
-    position: relative;
-  }
-  .profile-avatar-wrapper {
-    position: absolute;
-    bottom: -36px;
-    left: 20px;
-  }
-  .profile-avatar {
-    width: 72px;
-    height: 72px;
-    background: linear-gradient(135deg, #059669 0%, #34d399 100%);
-    border-radius: 22px;
-    border: 3px solid #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 26px;
-    font-weight: 800;
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  }
-  .profile-info { padding: 48px 20px 0; }
-  .profile-name { font-size: 22px; font-weight: 700; color: #0f172a; }
-  .profile-email { font-size: 14px; color: #64748b; margin-top: 2px; }
-  .tier-progress-card {
-    background: #fff;
-    border-radius: 20px;
-    margin: 20px 16px;
-    padding: 20px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  }
-  .tier-progress-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
-  .tier-ring-wrapper { display: flex; align-items: center; gap: 20px; }
-  .tier-ring { position: relative; width: 100px; height: 100px; }
-  .tier-ring svg { transform: rotate(-90deg); }
-  .tier-ring-center {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-  .tier-ring-pts { font-size: 18px; font-weight: 800; color: #0f172a; line-height: 1; }
-  .tier-ring-lbl { font-size: 10px; color: #94a3b8; font-weight: 500; }
-  .tier-info { flex: 1; }
-  .current-tier { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-  .tier-name { font-size: 16px; font-weight: 700; color: #fbbf24; }
-  .tier-next { font-size: 13px; color: #64748b; }
-  .tier-gap-label { font-size: 13px; color: #059669; font-weight: 600; margin-top: 8px; }
-
-  .settings-card {
-    background: #fff;
-    border-radius: 20px;
-    margin: 0 16px 12px;
-    padding: 0;
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
-  }
-  .settings-section-header { padding: 16px 16px 8px; font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
-  .settings-row {
-    display: flex;
-    align-items: center;
-    padding: 13px 16px;
-    border-top: 1px solid #f1f5f9;
-    cursor: pointer;
-  }
-  .settings-row .icon { font-size: 20px; margin-right: 12px; width: 24px; text-align: center; }
-  .settings-row .text { flex: 1; font-size: 15px; color: #0f172a; }
-  .settings-row .arrow { color: #94a3b8; font-size: 14px; }
-  .toggle {
-    width: 44px;
-    height: 26px;
-    background: #059669;
-    border-radius: 13px;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .toggle::after {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    top: 3px;
-    left: 22px;
-    transition: left 0.2s;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-  }
-  .toggle.off { background: #e2e8f0; }
-  .toggle.off::after { left: 2px; }
-
-  /* Tab bar */
-  .tab-bar {
-    height: 82px;
-    background: rgba(255,255,255,0.95);
-    backdrop-filter: blur(20px);
-    border-top: 0.5px solid rgba(0,0,0,0.1);
-    display: flex;
-    align-items: flex-start;
-    padding-top: 8px;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 20;
-  }
-  .tab-item {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    padding: 4px 8px;
-    cursor: pointer;
-    transition: all 0.15s;
-    border: none;
-    background: none;
-  }
-  .tab-icon { font-size: 22px; transition: transform 0.2s; }
-  .tab-item.active .tab-icon { transform: scale(1.1); }
-  .tab-label { font-size: 10px; font-weight: 600; color: #94a3b8; }
-  .tab-item.active .tab-label { color: #059669; }
-  .tab-dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 2px;
-    background: #059669;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .tab-item.active .tab-dot { opacity: 1; }
-
-  /* Responsive for smaller screens */
-  @media (max-width: 480px) {
-    .phone { width: 100%; max-width: 393px; height: 80vh; }
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0f0f1a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+.phone{position:relative;width:393px;height:852px;background:#f8fafc;border-radius:47px;overflow:hidden;box-shadow:0 0 0 10px #1c1c1e,0 40px 80px rgba(0,0,0,0.7),0 0 0 11px #3a3a3c;}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:100;}
+.status-bar{position:absolute;top:0;left:0;right:0;height:59px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 8px;z-index:99;pointer-events:none;}
+.status-time{font-size:15px;font-weight:600;color:#111827;}
+.status-icons{display:flex;align-items:center;gap:5px;}
+.screen-wrap{position:absolute;top:59px;left:0;right:0;bottom:84px;overflow:hidden;}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;background:#f8fafc;display:none;scrollbar-width:none;}
+.screen::-webkit-scrollbar{display:none;}
+.screen.active{display:block;}
+.bottom-nav{position:absolute;bottom:0;left:0;right:0;height:84px;background:rgba(255,255,255,0.97);backdrop-filter:blur(20px);border-top:1px solid #e5e7eb;display:flex;align-items:flex-start;justify-content:space-around;padding-top:8px;z-index:90;}
+.nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:4px 10px;color:#9ca3af;min-width:56px;}
+.nav-btn.active{color:#4f46e5;}
+.nav-btn svg{width:24px;height:24px;}
+.nav-label{font-size:10px;font-weight:500;}
+.home-indicator{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;background:#111827;border-radius:3px;opacity:0.18;z-index:91;}
+.screen-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;background:#fff;border-bottom:1px solid #f3f4f6;}
+.screen-title{font-size:20px;font-weight:700;color:#111827;}
+.icon-btn{width:34px;height:34px;border-radius:50%;background:#f3f4f6;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.home-header{background:linear-gradient(140deg,#4338ca 0%,#7c3aed 100%);padding:18px 20px 26px;}
+.nps-card{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.22);border-radius:20px;padding:18px 20px;}
+.nps-top-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.nps-label{color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;}
+.nps-delta{background:rgba(16,185,129,0.28);color:#6ee7b7;border:1px solid rgba(16,185,129,0.4);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;}
+.nps-score-row{display:flex;align-items:flex-end;gap:14px;margin-bottom:8px;}
+.nps-score{font-size:66px;font-weight:800;color:#fff;line-height:1;letter-spacing:-3px;}
+.nps-sub{color:rgba(255,255,255,0.58);font-size:11px;}
+.anomaly-banner{margin:12px 16px;background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:12px;padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;animation:pulse-border 2s infinite;}
+@keyframes pulse-border{0%,100%{border-left-color:#f97316;}50%{border-left-color:#ef4444;}}
+.at{font-size:10px;font-weight:800;color:#c2410c;text-transform:uppercase;letter-spacing:0.5px;}
+.ab{font-size:13px;color:#374151;font-weight:600;margin-top:1px;}
+.section{padding:14px 16px 2px;}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.section-title{font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.7px;}
+.section-link{font-size:12px;color:#4f46e5;font-weight:700;cursor:pointer;}
+.vcard{background:#fff;border-radius:14px;padding:11px 13px;margin-bottom:7px;border:1px solid #f3f4f6;}
+.vmeta{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.vtext{font-size:13px;color:#374151;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.chip{border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;}
+.chip-pos{background:#ecfdf5;color:#059669;}
+.chip-neu{background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;}
+.chip-neg{background:#fef2f2;color:#dc2626;}
+.quick-links{display:flex;gap:8px;padding:10px 16px 14px;}
+.ql-btn{flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:9px 6px;text-align:center;font-size:11px;font-weight:700;color:#4f46e5;cursor:pointer;}
+.filter-chips{display:flex;gap:8px;padding:11px 16px;overflow-x:auto;scrollbar-width:none;}
+.filter-chips::-webkit-scrollbar{display:none;}
+.fchip{white-space:nowrap;background:#f3f4f6;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#6b7280;border:none;cursor:pointer;}
+.fchip.active{background:#eef2ff;color:#4f46e5;}
+.scard{background:#fff;border-radius:16px;padding:13px 15px;margin:0 16px 10px;border:1px solid #f3f4f6;cursor:pointer;transition:transform 0.1s;}
+.scard:active{transform:scale(0.98);}
+.scard-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.sname{font-size:14px;font-weight:700;color:#111827;flex:1;}
+.tbadge{border-radius:8px;padding:3px 7px;font-size:10px;font-weight:700;text-transform:uppercase;}
+.tb-nps{background:#eef2ff;color:#4f46e5;}
+.tb-csat{background:#e0f2fe;color:#0369a1;}
+.scard-bot{display:flex;align-items:center;justify-content:space-between;}
+.snum{font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.8px;}
+.snuml{font-size:10px;color:#9ca3af;font-weight:500;margin-top:1px;}
+.schip-act{background:#ecfdf5;color:#059669;border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;}
+.schip-pau{background:#fffbeb;color:#d97706;border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;}
+.schip-don{background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;}
+.acard-full{margin:12px 16px;background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:14px;padding:13px 15px;cursor:pointer;animation:pulse-red 2.5s infinite;}
+@keyframes pulse-red{0%,100%{border-left-color:#dc2626;box-shadow:0 0 0 0 rgba(220,38,38,0);}50%{border-left-color:#ef4444;box-shadow:0 0 0 4px rgba(220,38,38,0.07);}}
+.acard-label{font-size:10px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:3px;}
+.acard-name{font-size:15px;font-weight:700;color:#111827;}
+.acard-meta{font-size:11px;color:#6b7280;margin-top:2px;}
+.cluster-cta{font-size:12px;color:#dc2626;font-weight:700;margin-top:6px;}
+.ccard{background:#fff;border-radius:16px;padding:13px 15px;margin:0 16px 10px;border:1px solid #f3f4f6;cursor:pointer;transition:transform 0.1s;}
+.ccard:active{transform:scale(0.98);}
+.ccard-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;}
+.cname{font-size:14px;font-weight:700;color:#111827;flex:1;}
+.ccount{font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.8px;}
+.ccountl{font-size:10px;color:#9ca3af;text-align:right;}
+.trend-row{display:flex;align-items:center;gap:7px;}
+.tr{border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;}
+.tr-bad{background:#fef2f2;color:#dc2626;}
+.tr-warn{background:#fffbeb;color:#d97706;}
+.tr-ok{background:#f9fafb;color:#6b7280;}
+.tr-good{background:#ecfdf5;color:#059669;}
+.sbadge{border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;}
+.sb-spike{background:#fef2f2;color:#dc2626;}
+.sb-grow{background:#fffbeb;color:#d97706;}
+.sb-stable{background:#ecfdf5;color:#059669;}
+.sb-dec{background:#f9fafb;color:#6b7280;}
+.ptabs{display:flex;border-bottom:1px solid #f3f4f6;padding:0 16px;}
+.ptab{flex:1;padding:10px 0;text-align:center;font-size:13px;font-weight:600;color:#9ca3af;border-bottom:2px solid transparent;cursor:pointer;}
+.ptab.active{color:#4f46e5;border-bottom-color:#4f46e5;}
+.score-card{margin:12px 16px;background:#fff;border-radius:16px;padding:15px;border:1px solid #f3f4f6;}
+.score-main{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+.score-num{font-size:48px;font-weight:800;color:#111827;letter-spacing:-2px;line-height:1;}
+.score-stars{font-size:18px;color:#f59e0b;margin-bottom:2px;}
+.score-ct{font-size:12px;color:#9ca3af;}
+.star-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+.star-lbl{font-size:11px;color:#6b7280;width:18px;text-align:right;}
+.bar-wrap{flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;background:#f59e0b;}
+.star-pct{font-size:10px;color:#9ca3af;width:28px;}
+.rcard{background:#fff;border-radius:16px;padding:13px 15px;margin:0 16px 10px;border:1px solid #f3f4f6;}
+.rcard-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.ravatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;}
+.rname{font-size:13px;font-weight:700;color:#111827;}
+.rdate{font-size:11px;color:#9ca3af;}
+.rstars{font-size:13px;color:#f59e0b;}
+.rtext{font-size:13px;color:#374151;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:9px;}
+.replied-chip{background:#ecfdf5;color:#059669;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;}
+.reply-btn{background:#eef2ff;color:#4f46e5;border:none;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;}
+.psec{background:#fff;border-radius:16px;margin:10px 16px;overflow:hidden;border:1px solid #f3f4f6;}
+.psec-title{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.8px;padding:12px 16px 4px;}
+.prow{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid #f9fafb;gap:11px;}
+.prow:last-child{border-bottom:none;}
+.plabel{flex:1;font-size:14px;color:#374151;font-weight:500;}
+.brand-pill{background:#eef2ff;color:#4f46e5;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:700;}
+.cdot{width:7px;height:7px;border-radius:50%;background:#059669;}
+.xdot{width:7px;height:7px;border-radius:50%;background:#d1d5db;}
+.toggle{width:44px;height:26px;background:#4f46e5;border-radius:13px;position:relative;flex-shrink:0;}
+.toggle::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;background:#fff;border-radius:50%;}
+.toggle.off{background:#e5e7eb;}
+.toggle.off::after{right:auto;left:3px;}
+.cs-row{display:flex;align-items:center;padding:11px 16px;gap:11px;opacity:0.42;border-bottom:1px solid #f9fafb;}
+.cs-row:last-child{border-bottom:none;}
+.cs-lbl{font-size:14px;font-weight:600;color:#374151;}
+.cs-sub{font-size:11px;color:#9ca3af;margin-top:1px;}
+.sheet-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.42);z-index:200;display:none;}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;z-index:201;transform:translateY(100%);transition:transform 0.32s cubic-bezier(0.32,0.72,0,1);max-height:88%;display:flex;flex-direction:column;}
+.sheet.open{transform:translateY(0);}
+.sheet-handle{width:36px;height:4px;background:#d1d5db;border-radius:2px;margin:12px auto 4px;flex-shrink:0;}
+.shdr{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 12px;flex-shrink:0;}
+.stitle{font-size:17px;font-weight:700;color:#111827;}
+.sclose{width:28px;height:28px;border-radius:50%;background:#f3f4f6;border:none;cursor:pointer;font-size:14px;color:#6b7280;display:flex;align-items:center;justify-content:center;}
+.sbody{overflow-y:auto;padding:0 20px 24px;scrollbar-width:none;}
+.sbody::-webkit-scrollbar{display:none;}
+.dist-lbl{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 7px;}
+.nps-dist{display:flex;border-radius:8px;overflow:hidden;height:26px;gap:2px;}
+.ds{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.dp{background:#059669;}.dn{background:#d97706;}.dd{background:#dc2626;}
+.dist-leg{display:flex;gap:14px;margin-top:7px;flex-wrap:wrap;}
+.dli{display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;}
+.dld{width:8px;height:8px;border-radius:50%;}
+.sent-bar{display:flex;border-radius:8px;overflow:hidden;height:22px;gap:2px;margin:7px 0;}
+.sleg{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+.sli{display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;}
+.sld{width:7px;height:7px;border-radius:50%;}
+.rquote{background:#f9fafb;border-left:3px solid #e5e7eb;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:12px;color:#6b7280;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.rtextarea{width:100%;border:1.5px solid #e5e7eb;border-radius:12px;padding:11px 13px;font-size:14px;font-family:inherit;resize:none;outline:none;min-height:96px;color:#374151;transition:border-color 0.2s;}
+.rtextarea:focus{border-color:#4f46e5;}
+.rfoot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.rcc{font-size:11px;color:#9ca3af;}
+.rsub{background:#4f46e5;color:#fff;border:none;border-radius:12px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;}
+.toast{position:absolute;top:68px;left:16px;right:16px;background:#111827;color:#fff;border-radius:14px;padding:11px 16px;font-size:14px;font-weight:600;text-align:center;z-index:300;opacity:0;transform:translateY(-6px);transition:all 0.25s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.scontent{padding-bottom:14px;}
+.ai-box{background:#f0f4ff;border-left:3px solid #4f46e5;border-radius:8px;padding:10px 12px;margin-bottom:12px;}
+.ai-lbl{font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;}
+.ai-text{font-size:13px;color:#374151;line-height:1.5;}
+.stat-box{display:flex;gap:10px;margin-bottom:12px;}
+.stat-card{flex:1;background:#f9fafb;border-radius:12px;padding:10px;text-align:center;}
+.stat-val{font-size:24px;font-weight:800;color:#111827;letter-spacing:-0.8px;}
+.stat-lbl{font-size:10px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-top:1px;}
 </style>
 </head>
 <body>
-<div class="prototype-wrapper">
-  <div class="prototype-label">CustomerEQ · Member App Prototype · Issue #513</div>
-
-  <div class="phone">
-    <!-- Dynamic Island -->
-    <div class="dynamic-island"></div>
-
-    <!-- Status bar -->
-    <div class="status-bar" id="statusBar">
-      <span class="time" id="clock">9:41</span>
-      <div class="icons">
-        <svg width="16" height="12" viewBox="0 0 16 12" fill="white"><rect x="0" y="4" width="3" height="8" rx="1"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1"/><rect x="9" y="0.5" width="3" height="11.5" rx="1"/><rect x="13.5" y="1" width="2" height="11" rx="1" opacity="0.3"/></svg>
-        <svg width="16" height="12" viewBox="0 0 18 14" fill="white"><path d="M9 2.5C11.5 2.5 13.8 3.5 15.5 5.2L17 3.7C14.9 1.4 12.1 0 9 0C5.9 0 3.1 1.4 1 3.7L2.5 5.2C4.2 3.5 6.5 2.5 9 2.5Z" opacity="0.3"/><path d="M9 5.5C10.7 5.5 12.3 6.2 13.5 7.4L15 5.9C13.4 4.3 11.3 3.3 9 3.3C6.7 3.3 4.6 4.3 3 5.9L4.5 7.4C5.7 6.2 7.3 5.5 9 5.5Z" opacity="0.6"/><path d="M9 8.5C10 8.5 10.9 8.9 11.5 9.5L13 8C12.0 6.8 10.6 6 9 6C7.4 6 6.0 6.8 5 8L6.5 9.5C7.1 8.9 8 8.5 9 8.5Z"/><circle cx="9" cy="12" r="1.5"/></svg>
-        <svg width="25" height="12" viewBox="0 0 25 12" fill="white"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="white" stroke-opacity="0.35" fill="none"/><rect x="1.5" y="1.5" width="17" height="9" rx="2.5" fill="white"/><path d="M23 4v4a2 2 0 000-4z" fill="white" fill-opacity="0.4"/></svg>
-      </div>
+<div class="phone">
+  <div class="island"></div>
+  <div class="status-bar">
+    <span class="status-time" id="clock">9:41</span>
+    <div class="status-icons">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#111827"><rect x="0" y="4" width="3" height="8" rx="1" opacity="0.3"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1" opacity="0.5"/><rect x="9" y="0.5" width="3" height="11.5" rx="1"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="1"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="#111827"><path d="M8 2.4C5.6 2.4 3.5 3.4 2 5L0.5 3.5C2.5 1.3 5.1 0 8 0s5.5 1.3 7.5 3.5L14 5c-1.5-1.6-3.6-2.6-6-2.6z" opacity="0.4"/><path d="M8 5.6C6.4 5.6 5 6.3 4 7.4L2.5 5.9C3.9 4.4 5.8 3.5 8 3.5s4.1.9 5.5 2.4L12 7.4C11 6.3 9.6 5.6 8 5.6z" opacity="0.7"/><circle cx="8" cy="10" r="2"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="#111827"><rect x="0" y="1" width="21" height="10" rx="3" stroke="#111827" stroke-width="1" fill="none" opacity="0.4"/><rect x="22" y="4" width="2.5" height="4" rx="1" opacity="0.4"/><rect x="1.5" y="2.5" width="16" height="7" rx="2"/></svg>
     </div>
-
-    <!-- Screen container -->
-    <div class="screen-container">
-
-      <!-- SIGN IN SCREEN -->
-      <div class="screen active" id="screen-signin">
-        <div class="signin-logo">☕</div>
-        <div class="signin-brand">ACME Coffee</div>
-        <div class="signin-sub">Sign in to your loyalty account to earn<br>points and unlock exclusive rewards</div>
-        <button class="signin-btn signin-btn-primary" onclick="navigateTo('home')">Continue with Email</button>
-        <button class="signin-btn signin-btn-secondary">Continue with Google</button>
-        <div class="signin-swipe">
-          <div class="signin-swipe-card"><div class="emoji">⭐</div><div class="label">Earn Points</div></div>
-          <div class="signin-swipe-card"><div class="emoji">🏆</div><div class="label">Reach Tiers</div></div>
-          <div class="signin-swipe-card"><div class="emoji">🎁</div><div class="label">Get Rewards</div></div>
+  </div>
+  <div class="screen-wrap">
+    <!-- HOME -->
+    <div id="screen-home" class="screen active">
+      <div class="home-header">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="color:rgba(255,255,255,0.45);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;">CustomerEQ</div>
+          <div style="position:relative;cursor:pointer;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:#ef4444;border-radius:50%;border:1.5px solid #5b21b6;"></div></div>
         </div>
-      </div>
-
-      <!-- HOME SCREEN -->
-      <div class="screen" id="screen-home">
-        <!-- Header -->
-        <div class="home-header">
-          <div class="home-topbar">
-            <div>
-              <div class="home-brand-name">ACME Coffee</div>
-              <div class="home-greeting">Good morning, Sarah ☀️</div>
-            </div>
-            <button class="notif-btn" onclick="alert('3 new notifications')">
-              🔔
-              <span class="notif-badge">3</span>
-            </button>
-          </div>
-          <div class="points-hero">
-            <div class="points-label">Your Balance</div>
-            <div>
-              <span class="points-value" id="pointsCounter">2,450</span>
-              <span class="points-unit"> pts</span>
-            </div>
-            <div class="tier-row">
-              <span class="tier-badge">🥈 Silver Member</span>
-              <span style="font-size:13px;color:rgba(255,255,255,0.7)">Since Jan 2026</span>
-            </div>
-            <div class="tier-progress-section">
-              <div class="tier-progress-label">550 pts to Gold 🥇</div>
-              <div class="tier-bar"><div class="tier-bar-fill" id="tierBarFill" style="width:0%"></div></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick actions -->
-        <div class="quick-actions">
-          <div class="quick-action" onclick="switchTab('rewards')"><span class="icon">🎁</span><span class="label">Redeem</span></div>
-          <div class="quick-action" onclick="switchTab('surveys')"><span class="icon">📊</span><span class="label">Survey</span></div>
-          <div class="quick-action" onclick="openCampaign()"><span class="icon">🎰</span><span class="label">Play</span></div>
-          <div class="quick-action" onclick="switchTab('activity')"><span class="icon">📜</span><span class="label">History</span></div>
-        </div>
-
-        <!-- Active campaign -->
-        <div class="campaign-card" onclick="openCampaign()">
-          <div class="campaign-tag">🎰 Active Campaign</div>
-          <div class="campaign-name">Spin & Win<br>Up to 500 pts!</div>
-          <span class="campaign-cta">Play now →</span>
-        </div>
-
-        <!-- Recent activity -->
-        <div class="section-header">
-          <span class="section-title">Recent Activity</span>
-          <span class="see-all" onclick="switchTab('activity')">See all</span>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon earn">⬆️</div>
-          <div class="activity-content">
-            <div class="activity-label">Survey response bonus</div>
-            <div class="activity-time">Today, 8:42 AM</div>
-          </div>
-          <div class="activity-points earn">+75 pts</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon earn">⬆️</div>
-          <div class="activity-content">
-            <div class="activity-label">Purchase at ACME on Pike</div>
-            <div class="activity-time">Yesterday, 3:15 PM</div>
-          </div>
-          <div class="activity-points earn">+120 pts</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon burn">🎁</div>
-          <div class="activity-content">
-            <div class="activity-label">Redeemed: Free Drip Coffee</div>
-            <div class="activity-time">May 20, 2026</div>
-          </div>
-          <div class="activity-points burn">-300 pts</div>
-        </div>
-        <div style="height:16px"></div>
-      </div>
-
-      <!-- REWARDS SCREEN -->
-      <div class="screen" id="screen-rewards">
-        <div class="rewards-header">
-          <div class="rewards-title">Rewards Catalog</div>
-          <div class="filter-chips">
-            <span class="chip active" onclick="setFilter(this)">All</span>
-            <span class="chip inactive" onclick="setFilter(this)">Reachable</span>
-            <span class="chip inactive" onclick="setFilter(this)">Silver</span>
-            <span class="chip inactive" onclick="setFilter(this)">Gold</span>
-            <span class="chip inactive" onclick="setFilter(this)">Platinum</span>
-          </div>
-        </div>
-        <div class="rewards-grid">
-          <div class="reward-card" onclick="showQR('Free Drip Coffee', 300)">
-            <div class="reward-img" style="background:#f0fdf4">☕</div>
-            <div class="reward-info">
-              <div class="reward-name">Free Drip Coffee</div>
-              <div class="reward-footer">
-                <span class="reward-cost">300 pts</span>
-                <span class="reward-tier">Silver+</span>
-              </div>
-              <button class="redeem-btn">Redeem</button>
-            </div>
-          </div>
-          <div class="reward-card" onclick="showQR('Oat Milk Upgrade', 150)">
-            <div class="reward-img" style="background:#fff7ed">🥛</div>
-            <div class="reward-info">
-              <div class="reward-name">Oat Milk Upgrade</div>
-              <div class="reward-footer">
-                <span class="reward-cost">150 pts</span>
-                <span class="reward-tier">All tiers</span>
-              </div>
-              <button class="redeem-btn">Redeem</button>
-            </div>
-          </div>
-          <div class="reward-card" onclick="showQR('Specialty Latte', 500)">
-            <div class="reward-img" style="background:#fffbeb">🍵</div>
-            <div class="reward-info">
-              <div class="reward-name">Free Specialty Latte</div>
-              <div class="reward-footer">
-                <span class="reward-cost">500 pts</span>
-                <span class="reward-tier">Silver+</span>
-              </div>
-              <button class="redeem-btn">Redeem</button>
-            </div>
-          </div>
-          <div class="reward-card locked">
-            <div class="reward-img" style="background:#f8fafc">
-              🎂
-              <span class="reward-lock">🔒 Gold</span>
-            </div>
-            <div class="reward-info">
-              <div class="reward-name">Birthday Cake Slice</div>
-              <div class="reward-footer">
-                <span class="reward-cost">0 pts</span>
-                <span class="reward-tier">Gold only</span>
-              </div>
-              <button class="redeem-btn" disabled>Unlock at Gold</button>
-            </div>
-          </div>
-          <div class="reward-card locked">
-            <div class="reward-img" style="background:#faf5ff">
-              ☕🎁
-              <span class="reward-lock">🔒 Platinum</span>
-            </div>
-            <div class="reward-info">
-              <div class="reward-name">Monthly Coffee Box</div>
-              <div class="reward-footer">
-                <span class="reward-cost">1,200 pts</span>
-                <span class="reward-tier">Platinum</span>
-              </div>
-              <button class="redeem-btn" disabled>Unlock at Platinum</button>
-            </div>
-          </div>
-          <div class="reward-card" onclick="showQR('Pastry of the Day', 200)">
-            <div class="reward-img" style="background:#fef3c7">🥐</div>
-            <div class="reward-info">
-              <div class="reward-name">Pastry of the Day</div>
-              <div class="reward-footer">
-                <span class="reward-cost">200 pts</span>
-                <span class="reward-tier">All tiers</span>
-              </div>
-              <button class="redeem-btn">Redeem</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- QR Modal -->
-        <div class="qr-modal" id="qrModal" onclick="closeQR(event)">
-          <div class="qr-sheet">
-            <div class="qr-handle"></div>
-            <div class="qr-title" id="qrRewardName">Free Drip Coffee</div>
-            <div class="qr-subtitle">Show this QR code to the barista at checkout</div>
-            <div class="qr-code-wrapper">
-              <div class="qr-grid" id="qrGrid"></div>
-              <div class="timer-ring-wrapper">
-                <svg width="216" height="216" viewBox="0 0 216 216">
-                  <circle class="track" cx="108" cy="108" r="105"/>
-                  <circle class="progress" cx="108" cy="108" r="105" id="timerRing"/>
-                </svg>
-              </div>
-            </div>
-            <div class="qr-timer" id="qrTimer">1:30</div>
-            <div class="qr-inst">Present this code to the barista.<br>Valid for 90 seconds only.</div>
-            <button class="qr-close-btn" onclick="closeQR()">Done</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ACTIVITY SCREEN -->
-      <div class="screen" id="screen-activity">
-        <div class="activity-header">
-          <div class="activity-title">Activity</div>
-          <div class="activity-balance-strip">
-            <div class="balance-stat"><div class="balance-stat-val">2,450</div><div class="balance-stat-lbl">Current Balance</div></div>
-            <div class="balance-stat"><div class="balance-stat-val" style="color:#64748b">12,340</div><div class="balance-stat-lbl">Total Earned</div></div>
-          </div>
-        </div>
-        <div class="activity-filters">
-          <span class="chip active" onclick="setFilter(this)">All</span>
-          <span class="chip inactive" onclick="setFilter(this)">Earn</span>
-          <span class="chip inactive" onclick="setFilter(this)">Redeem</span>
-          <span class="chip inactive" onclick="setFilter(this)">Campaign</span>
-          <span class="chip inactive" onclick="setFilter(this)">Tier</span>
-        </div>
-        <div class="activity-list">
-          <div class="activity-date-group">Today</div>
-          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Survey response bonus</div><div class="activity-time">8:42 AM · NPS Survey</div></div><div class="activity-points earn">+75 pts</div></div>
-          <div class="activity-date-group">Yesterday</div>
-          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Purchase at ACME on Pike</div><div class="activity-time">3:15 PM · $12.40 purchase</div></div><div class="activity-points earn">+120 pts</div></div>
-          <div class="activity-item"><div class="activity-icon" style="background:#f0f9ff;font-size:18px;">🏅</div><div class="activity-content"><div class="activity-label">Reached Silver tier!</div><div class="activity-time">11:00 AM · Tier upgrade</div></div><div class="activity-points" style="color:#64748b">Tier ↑</div></div>
-          <div class="activity-date-group">May 20</div>
-          <div class="activity-item"><div class="activity-icon burn">🎁</div><div class="activity-content"><div class="activity-label">Redeemed: Free Drip Coffee</div><div class="activity-time">9:30 AM · ACME Pike St</div></div><div class="activity-points burn">−300 pts</div></div>
-          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Spin Wheel: Lucky win!</div><div class="activity-time">2:10 PM · Campaign reward</div></div><div class="activity-points earn">+200 pts</div></div>
-          <div class="activity-date-group">May 18</div>
-          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Purchase at ACME Bellevue</div><div class="activity-time">7:55 AM · $8.90 purchase</div></div><div class="activity-points earn">+89 pts</div></div>
-          <div class="activity-item"><div class="activity-icon earn">⬆️</div><div class="activity-content"><div class="activity-label">Referral bonus — invited Alex</div><div class="activity-time">4:30 PM · Referral</div></div><div class="activity-points earn">+150 pts</div></div>
-          <div style="height:16px"></div>
-        </div>
-      </div>
-
-      <!-- SURVEYS SCREEN -->
-      <div class="screen" id="screen-surveys">
-        <div class="surveys-header">
-          <div class="surveys-title">Surveys</div>
-        </div>
-
-        <div style="padding:12px 16px 4px;font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">Pending (1)</div>
-
-        <div class="survey-card" onclick="openSurvey()">
-          <div class="survey-card-top">
-            <span class="survey-type-badge nps">📊 NPS</span>
-            <span class="survey-points">⭐ +50 pts</span>
-          </div>
-          <div class="survey-title">How likely are you to recommend ACME Coffee?</div>
-          <div class="survey-meta">~1 min · Triggered by your last visit</div>
-          <button class="start-survey-btn">Take Survey →</button>
-        </div>
-
-        <div style="padding:16px 16px 4px;font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">Completed</div>
-
-        <div class="survey-card" style="opacity:0.7;cursor:default">
-          <div class="survey-card-top">
-            <span class="survey-type-badge csat">⭐ CSAT</span>
-            <span style="font-size:13px;color:#94a3b8">May 15</span>
-          </div>
-          <div class="survey-title">Rate your last ACME Coffee visit</div>
-          <div class="survey-meta">Completed · Score: 5/5</div>
-        </div>
-
-        <!-- Inline survey overlay -->
-        <div class="survey-screen-overlay" id="surveyOverlay">
-          <button class="survey-back-btn" onclick="closeSurvey()">← Back</button>
-          <div class="survey-progress-bar"><div class="survey-progress-fill" id="surveyProgress" style="width:33%"></div></div>
-          <div class="survey-content" id="surveyStep1">
-            <div class="survey-q-header">
-              <div class="survey-q-brand">ACME Coffee · NPS Survey · Q1 of 2</div>
-              <div class="survey-q-text">How likely are you to recommend ACME Coffee to a friend or colleague?</div>
-            </div>
-            <div class="nps-emoji-row"><span>😟</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span>😐</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span style="opacity:0.3">·</span><span>😊</span><span>🤩</span></div>
-            <div class="nps-scale" id="npsScale"></div>
-            <div class="nps-labels"><span>Not likely</span><span>Extremely likely</span></div>
-            <button class="survey-submit-btn" id="npsNextBtn" onclick="goToSurveyStep2()" style="opacity:0.4;pointer-events:none">Next →</button>
-          </div>
-          <div class="survey-content" id="surveyStep2" style="display:none">
-            <div class="survey-q-header">
-              <div class="survey-q-brand">ACME Coffee · NPS Survey · Q2 of 2</div>
-              <div class="survey-q-text">What's the main reason for your score?</div>
-            </div>
-            <textarea class="survey-textarea" placeholder="Tell us what you think…" rows="4"></textarea>
-            <button class="survey-submit-btn" onclick="submitSurvey()" style="margin-top:24px">Submit & earn 50 pts ⭐</button>
-          </div>
-          <div class="survey-content survey-thankyou" id="surveyThankyou" style="display:none">
-            <div class="check">✅</div>
-            <div class="ty-title">Thanks, Sarah!</div>
-            <div class="ty-sub">Your feedback helps ACME Coffee improve for everyone.</div>
-            <div class="points-toast">
-              <span class="emoji">⭐</span>
-              <div class="text">
-                <div class="earned">+50 pts earned</div>
-                <div class="desc">Added to your balance · Now 2,500 pts</div>
-              </div>
-            </div>
-            <button class="done-btn" onclick="closeSurveyDone()">Done</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- PROFILE SCREEN -->
-      <div class="screen" id="screen-profile">
-        <div class="profile-header-bg">
-          <div class="profile-avatar-wrapper">
-            <div class="profile-avatar">S</div>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-name">Sarah Johnson</div>
-          <div class="profile-email">sarah.j@example.com</div>
-        </div>
-
-        <div class="tier-progress-card">
-          <div class="tier-progress-title">Tier Progress</div>
-          <div class="tier-ring-wrapper">
-            <div class="tier-ring">
-              <svg width="100" height="100" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="44" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-                <circle cx="50" cy="50" r="44" fill="none" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"
-                  stroke-dasharray="276.5" stroke-dashoffset="76.6"/>
+        <div style="color:rgba(255,255,255,0.7);font-size:13px;font-weight:500;margin-bottom:1px;">Good morning, Sarah 👋</div>
+        <div style="color:rgba(255,255,255,0.45);font-size:11px;margin-bottom:18px;">Friday, May 23, 2026</div>
+        <div class="nps-card">
+          <div class="nps-top-row"><span class="nps-label">NPS Score</span><span class="nps-delta">↑4 pts this week</span></div>
+          <div class="nps-score-row">
+            <span class="nps-score">62</span>
+            <div style="flex:1;">
+              <svg width="100%" height="50" viewBox="0 0 160 50" preserveAspectRatio="none">
+                <defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.28)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+                <path d="M0,28 L23,24 L46,26 L69,20 L92,18 L115,16 L138,5 L160,5" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M0,28 L23,24 L46,26 L69,20 L92,18 L115,16 L138,5 L160,5 V50 H0 Z" fill="url(#sg)"/>
+                <circle cx="0" cy="28" r="3" fill="rgba(255,255,255,0.5)"/><circle cx="160" cy="5" r="4.5" fill="#fff"/>
               </svg>
-              <div class="tier-ring-center">
-                <div class="tier-ring-pts">2,450</div>
-                <div class="tier-ring-lbl">pts</div>
-              </div>
-            </div>
-            <div class="tier-info">
-              <div class="current-tier">
-                <span style="font-size:20px">🥈</span>
-                <span class="tier-name">Silver</span>
-              </div>
-              <div class="tier-next">Next: Gold at 3,000 pts</div>
-              <div class="tier-gap-label">550 pts to go</div>
-              <div style="margin-top:12px;display:flex;gap:6px">
-                <span style="font-size:11px;background:#f0fdf4;color:#059669;padding:3px 8px;border-radius:6px;font-weight:600">Bronze ✓</span>
-                <span style="font-size:11px;background:#f8fafc;color:#fbbf24;padding:3px 8px;border-radius:6px;font-weight:600;border:1.5px solid #fbbf24">Silver ●</span>
-                <span style="font-size:11px;background:#f8fafc;color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:500">Gold</span>
-              </div>
             </div>
           </div>
-        </div>
-
-        <div class="settings-card">
-          <div class="settings-section-header">Notifications</div>
-          <div class="settings-row">
-            <span class="icon">🔔</span>
-            <span class="text">Push Notifications</span>
-            <div class="toggle" onclick="this.classList.toggle('off')"></div>
-          </div>
-          <div class="settings-row">
-            <span class="icon">⭐</span>
-            <span class="text">Points Earned</span>
-            <div class="toggle" onclick="this.classList.toggle('off')"></div>
-          </div>
-          <div class="settings-row">
-            <span class="icon">🏆</span>
-            <span class="text">Tier Changes</span>
-            <div class="toggle" onclick="this.classList.toggle('off')"></div>
-          </div>
-          <div class="settings-row">
-            <span class="icon">⏰</span>
-            <span class="text">Expiring Rewards</span>
-            <div class="toggle" onclick="this.classList.toggle('off')"></div>
-          </div>
-        </div>
-
-        <div class="settings-card">
-          <div class="settings-section-header">Account</div>
-          <div class="settings-row"><span class="icon">✏️</span><span class="text">Edit Profile</span><span class="arrow">›</span></div>
-          <div class="settings-row"><span class="icon">🔐</span><span class="text">Privacy & Data</span><span class="arrow">›</span></div>
-          <div class="settings-row"><span class="icon">📥</span><span class="text">Download My Data</span><span class="arrow">›</span></div>
-          <div class="settings-row" style="color:#ef4444"><span class="icon">🗑️</span><span class="text" style="color:#ef4444">Delete Account</span><span class="arrow">›</span></div>
-        </div>
-
-        <div class="settings-card" style="margin-bottom:24px">
-          <div class="settings-row"><span class="icon">🚪</span><span class="text">Sign Out</span><span class="arrow">›</span></div>
+          <div class="nps-sub">142 responses · 38% response rate this week</div>
         </div>
       </div>
-
-    </div><!-- /screen-container -->
-
-    <!-- Tab Bar -->
-    <div class="tab-bar">
-      <button class="tab-item" id="tab-home" onclick="switchTab('home')">
-        <span class="tab-icon">🏠</span>
-        <span class="tab-label">Home</span>
-        <div class="tab-dot"></div>
-      </button>
-      <button class="tab-item" id="tab-rewards" onclick="switchTab('rewards')">
-        <span class="tab-icon">🎁</span>
-        <span class="tab-label">Rewards</span>
-        <div class="tab-dot"></div>
-      </button>
-      <button class="tab-item" id="tab-activity" onclick="switchTab('activity')">
-        <span class="tab-icon">📊</span>
-        <span class="tab-label">Activity</span>
-        <div class="tab-dot"></div>
-      </button>
-      <button class="tab-item" id="tab-surveys" onclick="switchTab('surveys')">
-        <span class="tab-icon">📝</span>
-        <span class="tab-label">Surveys</span>
-        <div class="tab-dot"></div>
-      </button>
-      <button class="tab-item" id="tab-profile" onclick="switchTab('profile')">
-        <span class="tab-icon">👤</span>
-        <span class="tab-label">Profile</span>
-        <div class="tab-dot"></div>
-      </button>
+      <div class="anomaly-banner" onclick="showScreen('insights')">
+        <span style="font-size:18px;">⚠️</span>
+        <div><div class="at">Anomaly Detected</div><div class="ab">Checkout Speed spiked 47% in 24h</div></div>
+        <span style="color:#9ca3af;font-size:18px;margin-left:auto;">›</span>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Recent Responses</span><span class="section-link" onclick="showScreen('surveys')">All →</span></div>
+        <div class="vcard"><div class="vmeta"><span style="font-size:11px;color:#f59e0b;">★★★★★</span><span class="chip chip-pos">Positive</span></div><div class="vtext">"Love the loyalty app — super convenient, staff always remember my order!"</div></div>
+        <div class="vcard"><div class="vmeta"><span style="font-size:11px;color:#f59e0b;">★★☆☆☆</span><span class="chip chip-neg">Negative</span></div><div class="vtext">"Checkout took forever during lunch rush. 15 minutes for a simple coffee."</div></div>
+        <div class="vcard"><div class="vmeta"><span style="font-size:11px;color:#f59e0b;">★★★★☆</span><span class="chip chip-neu">Neutral</span></div><div class="vtext">"Staff were great, just wish the mobile order pickup was a bit faster."</div></div>
+      </div>
+      <div class="quick-links">
+        <div class="ql-btn" onclick="showScreen('surveys')">Surveys →</div>
+        <div class="ql-btn" onclick="showScreen('insights')">AI Insights →</div>
+        <div class="ql-btn" onclick="showScreen('reviews')">Reviews →</div>
+      </div>
+    </div>
+    <!-- SURVEYS -->
+    <div id="screen-surveys" class="screen">
+      <div class="screen-header"><span class="screen-title">Surveys</span><button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg></button></div>
+      <div class="filter-chips"><button class="fchip active">All</button><button class="fchip">Active</button><button class="fchip">Paused</button><button class="fchip">Completed</button></div>
+      <div class="scontent">
+        <div class="scard" onclick="openSurveyDetail('nps1')"><div class="scard-hdr"><span class="sname">Post-Purchase NPS</span><span class="tbadge tb-nps">NPS</span></div><div class="scard-bot"><div><div class="snum">62</div><div class="snuml">NPS Score</div></div><div style="text-align:center;"><div class="snum">142</div><div class="snuml">Responses</div></div><div><span class="schip-act">● Active</span><div style="font-size:10px;color:#9ca3af;margin-top:4px;text-align:right;">2h ago</div></div></div></div>
+        <div class="scard" onclick="openSurveyDetail('csat1')"><div class="scard-hdr"><span class="sname">Monthly CSAT</span><span class="tbadge tb-csat">CSAT</span></div><div class="scard-bot"><div><div class="snum">4.2<span style="font-size:11px;color:#9ca3af;">/5</span></div><div class="snuml">Avg Score</div></div><div style="text-align:center;"><div class="snum">89</div><div class="snuml">Responses</div></div><div><span class="schip-act">● Active</span><div style="font-size:10px;color:#9ca3af;margin-top:4px;text-align:right;">5h ago</div></div></div></div>
+        <div class="scard" onclick="openSurveyDetail('nps2')"><div class="scard-hdr"><span class="sname">Store Experience Q2</span><span class="tbadge tb-nps">NPS</span></div><div class="scard-bot"><div><div class="snum">58</div><div class="snuml">NPS Score</div></div><div style="text-align:center;"><div class="snum">231</div><div class="snuml">Responses</div></div><div><span class="schip-pau">⏸ Paused</span><div style="font-size:10px;color:#9ca3af;margin-top:4px;text-align:right;">2d ago</div></div></div></div>
+        <div class="scard" onclick="openSurveyDetail('nps3')"><div class="scard-hdr"><span class="sname">Onboarding Feedback</span><span class="tbadge tb-nps">NPS</span></div><div class="scard-bot"><div><div class="snum">71</div><div class="snuml">NPS Score</div></div><div style="text-align:center;"><div class="snum">67</div><div class="snuml">Responses</div></div><div><span class="schip-don">✓ Done</span><div style="font-size:10px;color:#9ca3af;margin-top:4px;text-align:right;">1w ago</div></div></div></div>
+      </div>
+    </div>
+    <!-- INSIGHTS -->
+    <div id="screen-insights" class="screen">
+      <div class="screen-header"><span class="screen-title">AI Insights</span><button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg></button></div>
+      <div class="scontent">
+        <div class="acard-full" onclick="openClusterDetail('checkout')"><div class="acard-label">🔴 Anomaly Detected</div><div class="acard-name">Checkout Speed</div><div class="acard-meta">47 new mentions · 3.2σ above baseline · 18h ago</div><div class="cluster-cta">View Cluster Detail →</div></div>
+        <div style="padding:2px 16px 8px;"><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.7px;">Feedback Clusters · This Week</div></div>
+        <div class="ccard" onclick="openClusterDetail('checkout')"><div class="ccard-hdr"><span class="cname">Checkout Speed</span><div style="text-align:right;"><div class="ccount">47</div><div class="ccountl">responses</div></div></div><div class="trend-row"><span class="tr tr-bad">↑23% this week</span><span class="sbadge sb-spike">🔴 Spiking</span></div></div>
+        <div class="ccard" onclick="openClusterDetail('staff')"><div class="ccard-hdr"><span class="cname">Staff Friendliness</span><div style="text-align:right;"><div class="ccount">38</div><div class="ccountl">responses</div></div></div><div class="trend-row"><span class="tr tr-ok">↑5%</span><span class="sbadge sb-stable">🟢 Stable</span></div></div>
+        <div class="ccard" onclick="openClusterDetail('app')"><div class="ccard-hdr"><span class="cname">Mobile App Experience</span><div style="text-align:right;"><div class="ccount">28</div><div class="ccountl">responses</div></div></div><div class="trend-row"><span class="tr tr-warn">↑12%</span><span class="sbadge sb-grow">🟡 Growing</span></div></div>
+        <div class="ccard" onclick="openClusterDetail('quality')"><div class="ccard-hdr"><span class="cname">Product Quality</span><div style="text-align:right;"><div class="ccount">24</div><div class="ccountl">responses</div></div></div><div class="trend-row"><span class="tr tr-ok">↑2%</span><span class="sbadge sb-stable">🟢 Stable</span></div></div>
+        <div class="ccard" onclick="openClusterDetail('loyalty')"><div class="ccard-hdr"><span class="cname">Loyalty Rewards</span><div style="text-align:right;"><div class="ccount">19</div><div class="ccountl">responses</div></div></div><div class="trend-row"><span class="tr tr-good">↓8%</span><span class="sbadge sb-dec">⬇ Declining</span></div></div>
+      </div>
+    </div>
+    <!-- REVIEWS -->
+    <div id="screen-reviews" class="screen">
+      <div class="screen-header"><span class="screen-title">Reviews</span><button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button></div>
+      <div class="ptabs"><div class="ptab active">Google</div><div class="ptab" style="opacity:0.5;">Yelp <span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:1px 5px;font-size:9px;font-weight:700;">Soon</span></div></div>
+      <div class="score-card">
+        <div class="score-main"><div class="score-num">4.3</div><div><div class="score-stars">★★★★☆</div><div class="score-ct">127 reviews</div></div></div>
+        <div class="star-row"><span class="star-lbl">5★</span><div class="bar-wrap"><div class="bar-fill" style="width:58%"></div></div><span class="star-pct">58%</span></div>
+        <div class="star-row"><span class="star-lbl">4★</span><div class="bar-wrap"><div class="bar-fill" style="width:22%"></div></div><span class="star-pct">22%</span></div>
+        <div class="star-row"><span class="star-lbl">3★</span><div class="bar-wrap"><div class="bar-fill" style="width:11%"></div></div><span class="star-pct">11%</span></div>
+        <div class="star-row"><span class="star-lbl">2★</span><div class="bar-wrap"><div class="bar-fill" style="width:5%"></div></div><span class="star-pct">5%</span></div>
+        <div class="star-row"><span class="star-lbl">1★</span><div class="bar-wrap"><div class="bar-fill" style="width:4%"></div></div><span class="star-pct">4%</span></div>
+      </div>
+      <div class="scontent">
+        <div class="rcard"><div class="rcard-hdr"><div class="ravatar" style="background:#7c3aed;">S</div><div><div class="rname">Sarah M.</div><div class="rdate">2 days ago</div></div><div style="flex:1;"></div><div class="rstars">★★★★★</div></div><div class="rtext">"Fantastic coffee and the loyalty app is so convenient! My go-to spot every morning."</div><div style="display:flex;justify-content:flex-end;"><button class="reply-btn" onclick="openReplySheet('Fantastic coffee and the loyalty app is so convenient! My go-to spot every morning.')">Reply</button></div></div>
+        <div class="rcard"><div class="rcard-hdr"><div class="ravatar" style="background:#0369a1;">J</div><div><div class="rname">James L.</div><div class="rdate">3 days ago</div></div><div style="flex:1;"></div><div class="rstars">★★★☆☆</div></div><div class="rtext">"Service a bit slow during lunch but the coffee was great as always."</div><div style="display:flex;justify-content:flex-end;"><span class="replied-chip">✓ Replied</span></div></div>
+        <div class="rcard"><div class="rcard-hdr"><div class="ravatar" style="background:#059669;">E</div><div><div class="rname">Emma R.</div><div class="rdate">1 week ago</div></div><div style="flex:1;"></div><div class="rstars">★★★★★</div></div><div class="rtext">"Love this place! Rewards points add up fast and the staff are always friendly."</div><div style="display:flex;justify-content:flex-end;"><button class="reply-btn" onclick="openReplySheet('Love this place! Rewards points add up fast and the staff are always friendly.')">Reply</button></div></div>
+        <div class="rcard"><div class="rcard-hdr"><div class="ravatar" style="background:#dc2626;">M</div><div><div class="rname">Michael T.</div><div class="rdate">1 week ago</div></div><div style="flex:1;"></div><div class="rstars">★★☆☆☆</div></div><div class="rtext">"Waited over 20 minutes for my order. Really need more staff during peak hours."</div><div style="display:flex;justify-content:flex-end;"><button class="reply-btn" onclick="openReplySheet('Waited over 20 minutes for my order. Really need more staff during peak hours.')">Reply</button></div></div>
+      </div>
+    </div>
+    <!-- PROFILE -->
+    <div id="screen-profile" class="screen">
+      <div class="screen-header"><span class="screen-title">Profile</span></div>
+      <div class="scontent" style="padding-top:4px;">
+        <div class="psec"><div class="psec-title">Brand</div><div class="prow"><span class="plabel">Current Brand</span><div class="brand-pill">ACME Coffee ▾</div></div></div>
+        <div class="psec"><div class="psec-title">Account</div><div class="prow"><div style="width:42px;height:42px;border-radius:50%;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700;">SC</div><div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#111827;">Sarah Chen</div><div style="font-size:12px;color:#9ca3af;margin-top:1px;">sarah@acmecoffee.com</div></div></div></div>
+        <div class="psec"><div class="psec-title">Integrations</div>
+          <div class="prow"><span style="font-size:16px;font-weight:800;color:#4285f4;font-family:serif;">G</span><span class="plabel">Google Business</span><div style="display:flex;align-items:center;gap:4px;"><div class="cdot"></div><span style="font-size:12px;color:#059669;font-weight:600;">Connected</span></div></div>
+          <div class="prow"><span style="font-size:14px;">⚡</span><span class="plabel">Zapier</span><div style="display:flex;align-items:center;gap:4px;"><div class="xdot"></div><span style="font-size:12px;color:#9ca3af;font-weight:600;">Not connected</span></div></div>
+        </div>
+        <div class="psec"><div class="psec-title">Notifications</div>
+          <div class="prow"><span class="plabel">Anomaly alerts</span><div class="toggle"></div></div>
+          <div class="prow"><span class="plabel">Weekly NPS digest</span><div class="toggle"></div></div>
+          <div class="prow"><span class="plabel">New review received</span><div class="toggle off"></div></div>
+        </div>
+        <div class="psec"><div class="psec-title">Coming Soon</div>
+          <div class="cs-row"><span style="font-size:20px;">🎁</span><div style="flex:1;"><div class="cs-lbl">Loyalty Program Management</div><div class="cs-sub">Points ledger, campaigns, tier config</div></div><span style="font-size:16px;color:#d1d5db;">🔒</span></div>
+          <div class="cs-row"><span style="font-size:20px;">💬</span><div style="flex:1;"><div class="cs-lbl">Support Queue</div><div class="cs-sub">Cases, SLA monitor, assignments</div></div><span style="font-size:16px;color:#d1d5db;">🔒</span></div>
+        </div>
+        <div style="padding:16px;text-align:center;"><button style="background:none;border:none;color:#dc2626;font-size:15px;font-weight:600;cursor:pointer;">Sign Out</button></div>
+      </div>
     </div>
   </div>
-
-  <div class="prototype-label" style="max-width:393px;text-align:center;line-height:1.6">
-    Click tabs to navigate · Tap "Redeem" for QR code · Tap survey to complete inline NPS
-  </div>
+  <div class="sheet-backdrop" id="bd" onclick="closeAll()"></div>
+  <div class="sheet" id="ss"><div class="sheet-handle"></div><div class="shdr"><span class="stitle" id="ss-title">Survey</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody" id="ss-body"></div></div>
+  <div class="sheet" id="cs"><div class="sheet-handle"></div><div class="shdr"><span class="stitle" id="cs-title">Cluster</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody" id="cs-body"></div></div>
+  <div class="sheet" id="rs"><div class="sheet-handle"></div><div class="shdr"><span class="stitle">Respond to Review</span><button class="sclose" onclick="closeAll()">✕</button></div><div class="sbody"><div class="rquote" id="rq"></div><textarea class="rtextarea" id="rta" placeholder="Write your response..." rows="4" oninput="updateCC()"></textarea><div class="rfoot"><span class="rcc" id="rcc">0 / 1500</span><button class="rsub" onclick="submitReply()">Submit Reply</button></div></div></div>
+  <div class="toast" id="toast"></div>
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="nav-home" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nav-label">Home</span></button>
+    <button class="nav-btn" id="nav-surveys" onclick="showScreen('surveys')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg><span class="nav-label">Surveys</span></button>
+    <button class="nav-btn" id="nav-insights" onclick="showScreen('insights')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z"/></svg><span class="nav-label">Insights</span></button>
+    <button class="nav-btn" id="nav-reviews" onclick="showScreen('reviews')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span class="nav-label">Reviews</span></button>
+    <button class="nav-btn" id="nav-profile" onclick="showScreen('profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nav-label">Profile</span></button>
+  </nav>
+  <div class="home-indicator"></div>
 </div>
-
 <script>
-  // Clock
-  function updateClock() {
-    const now = new Date();
-    document.getElementById('clock').textContent =
-      now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0');
-  }
-  updateClock();
-  setInterval(updateClock, 10000);
-
-  // Navigation
-  let currentTab = 'signin';
-
-  function navigateTo(screen) {
-    document.getElementById('screen-' + currentTab).classList.remove('active');
-    document.getElementById('screen-' + currentTab).classList.add('prev');
-    setTimeout(() => {
-      document.getElementById('screen-' + currentTab).classList.remove('prev');
-    }, 400);
-    currentTab = screen;
-    document.getElementById('screen-' + screen).classList.add('active');
-
-    if (screen !== 'signin') {
-      document.getElementById('tab-' + screen).classList.add('active');
-      animatePointsBar();
-    }
-  }
-
-  function switchTab(tab) {
-    // Remove active from all tabs and screens
-    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.screen').forEach(s => {
-      s.classList.remove('active');
-    });
-
-    document.getElementById('tab-' + tab).classList.add('active');
-    document.getElementById('screen-' + tab).classList.add('active');
-    currentTab = tab;
-  }
-
-  // Tier bar animation
-  function animatePointsBar() {
-    setTimeout(() => {
-      document.getElementById('tierBarFill').style.width = '82%';
-    }, 300);
-  }
-
-  // QR Code
-  let qrTimer = null;
-  let qrSeconds = 90;
-
-  function generateQRGrid() {
-    const grid = document.getElementById('qrGrid');
-    grid.innerHTML = '';
-    const pattern = [
-      [1,1,1,1,1,1,1,0,0,0],
-      [1,0,0,0,0,0,1,0,1,1],
-      [1,0,1,1,1,0,1,0,0,1],
-      [1,0,1,1,1,0,1,0,1,0],
-      [1,0,1,1,1,0,1,0,1,1],
-      [1,0,0,0,0,0,1,1,0,0],
-      [1,1,1,1,1,1,1,0,1,0],
-      [0,0,0,0,0,0,0,1,1,1],
-      [1,0,1,1,0,1,1,0,1,0],
-      [0,1,0,0,1,0,1,1,0,1],
-    ];
-    pattern.forEach(row => {
-      row.forEach(cell => {
-        const div = document.createElement('div');
-        div.className = 'qr-cell';
-        div.style.background = cell ? '#fff' : 'transparent';
-        grid.appendChild(div);
-      });
-    });
-  }
-
-  function showQR(rewardName, pts) {
-    document.getElementById('qrRewardName').textContent = rewardName + ' — ' + pts + ' pts';
-    generateQRGrid();
-    document.getElementById('qrModal').classList.add('visible');
-    qrSeconds = 90;
-    updateQRTimer();
-    qrTimer = setInterval(() => {
-      qrSeconds--;
-      if (qrSeconds <= 0) {
-        clearInterval(qrTimer);
-        qrSeconds = 0;
-        document.getElementById('timerRing').style.strokeDashoffset = '660';
-      }
-      updateQRTimer();
-    }, 1000);
-  }
-
-  function updateQRTimer() {
-    const mins = Math.floor(qrSeconds / 60);
-    const secs = qrSeconds % 60;
-    document.getElementById('qrTimer').textContent = mins + ':' + String(secs).padStart(2,'0');
-    const progress = (qrSeconds / 90);
-    const circumference = 660;
-    document.getElementById('timerRing').style.strokeDashoffset = circumference * (1 - progress);
-    if (qrSeconds <= 15) {
-      document.getElementById('timerRing').style.stroke = '#ef4444';
-      document.getElementById('qrTimer').style.color = '#ef4444';
-    }
-  }
-
-  function closeQR(event) {
-    if (event && event.target !== document.getElementById('qrModal')) return;
-    clearInterval(qrTimer);
-    document.getElementById('timerRing').style.stroke = '#059669';
-    document.getElementById('qrTimer').style.color = '#059669';
-    document.getElementById('qrModal').classList.remove('visible');
-  }
-  window.closeQR = function() {
-    clearInterval(qrTimer);
-    document.getElementById('timerRing').style.stroke = '#059669';
-    document.getElementById('qrTimer').style.color = '#059669';
-    document.getElementById('qrModal').classList.remove('visible');
-  };
-
-  // Filter chips
-  function setFilter(el) {
-    el.parentNode.querySelectorAll('.chip').forEach(c => {
-      c.classList.remove('active');
-      c.classList.add('inactive');
-    });
-    el.classList.remove('inactive');
-    el.classList.add('active');
-  }
-
-  // NPS Scale
-  function buildNPSScale() {
-    const scale = document.getElementById('npsScale');
-    for (let i = 0; i <= 9; i++) {
-      const btn = document.createElement('button');
-      btn.className = 'nps-btn';
-      btn.textContent = i;
-      btn.onclick = function() {
-        document.querySelectorAll('.nps-btn').forEach(b => b.classList.remove('selected'));
-        this.classList.add('selected');
-        document.getElementById('npsNextBtn').style.opacity = '1';
-        document.getElementById('npsNextBtn').style.pointerEvents = 'auto';
-      };
-      scale.appendChild(btn);
-    }
-  }
-  buildNPSScale();
-
-  // Survey
-  function openSurvey() {
-    document.getElementById('surveyOverlay').classList.add('open');
-  }
-  function closeSurvey() {
-    document.getElementById('surveyOverlay').classList.remove('open');
-    resetSurvey();
-  }
-  function goToSurveyStep2() {
-    document.getElementById('surveyStep1').style.display = 'none';
-    document.getElementById('surveyStep2').style.display = 'flex';
-    document.getElementById('surveyProgress').style.width = '66%';
-  }
-  function submitSurvey() {
-    document.getElementById('surveyStep2').style.display = 'none';
-    document.getElementById('surveyThankyou').style.display = 'flex';
-    document.getElementById('surveyProgress').style.width = '100%';
-  }
-  function closeSurveyDone() {
-    document.getElementById('surveyOverlay').classList.remove('open');
-    resetSurvey();
-    // Update points display
-    document.getElementById('pointsCounter').textContent = '2,500';
-  }
-  function resetSurvey() {
-    document.getElementById('surveyStep1').style.display = 'flex';
-    document.getElementById('surveyStep2').style.display = 'none';
-    document.getElementById('surveyThankyou').style.display = 'none';
-    document.getElementById('surveyProgress').style.width = '33%';
-    document.querySelectorAll('.nps-btn').forEach(b => b.classList.remove('selected'));
-    document.getElementById('npsNextBtn').style.opacity = '0.4';
-    document.getElementById('npsNextBtn').style.pointerEvents = 'none';
-  }
-
-  // Campaign
-  function openCampaign() {
-    alert('🎰 Spin Wheel Campaign\n\nIn the full app: full-screen animated wheel with haptic feedback.\nSpins and reveals: "You won 200 pts!"\n\n(See 513-campaign-spin.html for the high-fidelity static mock)');
-  }
-
-  // Init
-  setTimeout(() => animatePointsBar(), 800);
+const surveys={nps1:{name:'Post-Purchase NPS',type:'NPS',responses:142,score:62,promoters:74,passives:14,detractors:12,verbatims:[{s:5,sent:'pos',t:'Really enjoying the rewards program integration with the app.'},{s:2,sent:'neg',t:'App crashes sometimes during checkout, very frustrating.'},{s:5,sent:'pos',t:'Staff are always friendly and my order is always right.'},{s:2,sent:'neg',t:'Waited 15 minutes for a simple coffee. Need more staff at lunch.'},{s:5,sent:'pos',t:'Love the personalized offers I get through the app!'}]},csat1:{name:'Monthly CSAT',type:'CSAT',responses:89,score:4.2,dist:[3,8,14,31,44],verbatims:[{s:5,sent:'pos',t:'Consistently excellent. Never disappointed.'},{s:3,sent:'neu',t:'Good most of the time but inconsistent at peak hours.'},{s:4,sent:'pos',t:'Great coffee and atmosphere, minor wait times.'},{s:2,sent:'neg',t:'Quality dipped last week, hopefully a one-off.'},{s:5,sent:'pos',t:'Best coffee shop in the area, hands down.'}]},nps2:{name:'Store Experience Q2',type:'NPS',responses:231,score:58,promoters:68,passives:22,detractors:10,verbatims:[{s:4,sent:'pos',t:'Overall a great experience, store is always clean.'},{s:3,sent:'neu',t:'Mid-day it gets crowded and service slows.'},{s:5,sent:'pos',t:'Love the new seating area and ambient music.'},{s:2,sent:'neg',t:'Mobile ordering often falls behind.'},{s:4,sent:'pos',t:'Baristas remember regulars — very nice touch.'}]},nps3:{name:'Onboarding Feedback',type:'NPS',responses:67,score:71,promoters:82,passives:7,detractors:11,verbatims:[{s:5,sent:'pos',t:'Setup was seamless, loved the welcome reward.'},{s:5,sent:'pos',t:'App onboarding was clear and easy to follow.'},{s:4,sent:'pos',t:'Quick to get started, could explain tiers better.'},{s:3,sent:'neu',t:'Took a few tries to scan my card correctly.'},{s:5,sent:'pos',t:'Got a free coffee on day one — instant fan!'}]}};
+const clusters={checkout:{name:'Checkout Speed',count:47,trend:'↑23%',tColor:'#dc2626',summary:'Customers report extended wait times during peak hours, particularly at the register and mobile order pickup station.',sentiment:{pos:11,neu:21,neg:68},verbatims:[{s:2,sent:'neg',t:'Waited 15+ minutes for a simple coffee order.'},{s:3,sent:'neg',t:'Lunch rush is always backed up, need more staff or a better system.'},{s:2,sent:'neg',t:'Morning orders fine but afternoon is complete chaos.'},{s:2,sent:'neg',t:'They really need a better queuing system for mobile orders.'},{s:3,sent:'neu',t:'Staff are clearly trying their best with the long line.'}]},staff:{name:'Staff Friendliness',count:38,trend:'↑5%',tColor:'#d97706',summary:'Customers consistently praise staff warmth and personalization — a clear brand strength across all locations.',sentiment:{pos:82,neu:13,neg:5},verbatims:[{s:5,sent:'pos',t:'Staff remembered my usual order without me saying — amazing!'},{s:5,sent:'pos',t:'Always greeted by name. Makes every visit feel special.'},{s:4,sent:'pos',t:'Super friendly team, they make the whole experience.'},{s:5,sent:'pos',t:'Best customer service I have experienced at a coffee shop.'},{s:3,sent:'neu',t:'Most staff are great, one person seemed a bit rushed.'}]},app:{name:'Mobile App Experience',count:28,trend:'↑12%',tColor:'#d97706',summary:'Mobile app feedback is mostly positive but a subset reports crashes during checkout and order tracking lag.',sentiment:{pos:54,neu:21,neg:25},verbatims:[{s:5,sent:'pos',t:'Love ordering ahead, saves so much time!'},{s:2,sent:'neg',t:'App crashed twice when I tried to pay.'},{s:4,sent:'pos',t:'Rewards tracking is accurate and motivating.'},{s:3,sent:'neu',t:'Good overall, order tracking can lag a few minutes.'},{s:2,sent:'neg',t:'Had to re-add my card twice this week.'}]},quality:{name:'Product Quality',count:24,trend:'↑2%',tColor:'#6b7280',summary:'Product quality receives consistently high marks with customers citing consistency across locations as a standout.',sentiment:{pos:79,neu:17,neg:4},verbatims:[{s:5,sent:'pos',t:'Best espresso in the city, consistently.'},{s:5,sent:'pos',t:'Pastries are always fresh and delicious.'},{s:4,sent:'pos',t:'Quality is reliably high, no matter which location.'},{s:4,sent:'pos',t:'Seasonal drinks are creative and well balanced.'},{s:3,sent:'neu',t:'Coffee is great, food options could be expanded.'}]},loyalty:{name:'Loyalty Rewards',count:19,trend:'↓8%',tColor:'#059669',summary:'Volume declining as customers who recently redeemed rewards report high satisfaction — a positive churn signal.',sentiment:{pos:68,neu:26,neg:6},verbatims:[{s:5,sent:'pos',t:'Finally redeemed my Gold reward — totally worth the wait!'},{s:4,sent:'pos',t:'Points accumulate quickly, love the program.'},{s:4,sent:'pos',t:'Tier upgrade notification was a nice surprise.'},{s:3,sent:'neu',t:'Wish there were more reward options to choose from.'},{s:5,sent:'pos',t:'Free birthday drink made my whole day!'}]}};
+function showScreen(n){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById('screen-'+n).classList.add('active');document.getElementById('nav-'+n).classList.add('active');closeAll();}
+function cc(s){return s==='pos'?'chip chip-pos':s==='neg'?'chip chip-neg':'chip chip-neu';}
+function cl(s){return s==='pos'?'Positive':s==='neg'?'Negative':'Neutral';}
+function st(n){return '★'.repeat(n)+'☆'.repeat(5-n);}
+function openSurveyDetail(id){
+  const sv=surveys[id];document.getElementById('ss-title').textContent=sv.name;
+  let h=`<div class="stat-box"><div class="stat-card"><div class="stat-val">${sv.score}${sv.type==='CSAT'?'<span style="font-size:12px;color:#9ca3af;">/5</span>':''}</div><div class="stat-lbl">${sv.type==='CSAT'?'Avg Score':'NPS Score'}</div></div><div class="stat-card"><div class="stat-val">${sv.responses}</div><div class="stat-lbl">Responses</div></div></div>`;
+  if(sv.type==='NPS'){h+=`<div class="dist-lbl">Score Distribution</div><div class="nps-dist"><div class="ds dp" style="width:${sv.promoters}%">${sv.promoters}%</div><div class="ds dn" style="width:${sv.passives}%">${sv.passives}%</div><div class="ds dd" style="width:${sv.detractors}%">${sv.detractors}%</div></div><div class="dist-leg"><div class="dli"><div class="dld" style="background:#059669;"></div>Promoters ${sv.promoters}%</div><div class="dli"><div class="dld" style="background:#d97706;"></div>Passives ${sv.passives}%</div><div class="dli"><div class="dld" style="background:#dc2626;"></div>Detractors ${sv.detractors}%</div></div>`;}
+  else{const tot=sv.dist.reduce((a,b)=>a+b,0);h+=`<div class="dist-lbl">Rating Distribution</div>`;for(let i=4;i>=0;i--){const p=Math.round(sv.dist[i]/tot*100);h+=`<div class="star-row" style="margin-bottom:5px;"><span class="star-lbl">${i+1}★</span><div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${p}%;height:100%;"></div></div><span class="star-pct">${p}%</span></div>`;}}
+  h+=`<div class="dist-lbl" style="margin-top:14px;">Recent Verbatims</div>`;sv.verbatims.forEach(v=>{h+=`<div class="vcard" style="margin-bottom:8px;"><div class="vmeta"><span style="font-size:12px;color:#f59e0b;">${st(v.s)}</span><span class="${cc(v.sent)}">${cl(v.sent)}</span></div><div class="vtext" style="-webkit-line-clamp:3;">"${v.t}"</div></div>`;});
+  document.getElementById('ss-body').innerHTML=h;openSheet('ss');}
+function openClusterDetail(id){
+  const c=clusters[id];document.getElementById('cs-title').textContent=c.name;
+  let h=`<div class="stat-box"><div class="stat-card"><div class="stat-val">${c.count}</div><div class="stat-lbl">Responses</div></div><div class="stat-card"><div class="stat-val" style="font-size:20px;color:${c.tColor};">${c.trend}</div><div class="stat-lbl">This Week</div></div></div>`;
+  h+=`<div class="ai-box"><div class="ai-lbl">✦ AI Summary</div><div class="ai-text">${c.summary}</div></div>`;
+  h+=`<div class="dist-lbl">Sentiment</div><div class="sent-bar"><div class="ds dp" style="width:${c.sentiment.pos}%;font-size:10px;">${c.sentiment.pos}%</div><div class="ds dn" style="width:${c.sentiment.neu}%;font-size:10px;">${c.sentiment.neu}%</div><div class="ds dd" style="width:${c.sentiment.neg}%;font-size:10px;">${c.sentiment.neg}%</div></div><div class="sleg"><div class="sli"><div class="sld" style="background:#059669;"></div>Positive ${c.sentiment.pos}%</div><div class="sli"><div class="sld" style="background:#d97706;"></div>Neutral ${c.sentiment.neu}%</div><div class="sli"><div class="sld" style="background:#dc2626;"></div>Negative ${c.sentiment.neg}%</div></div>`;
+  h+=`<div class="dist-lbl">Sample Verbatims</div>`;c.verbatims.forEach(v=>{h+=`<div class="vcard" style="margin-bottom:8px;"><div class="vmeta"><span style="font-size:12px;color:#f59e0b;">${st(v.s)}</span><span class="${cc(v.sent)}">${cl(v.sent)}</span></div><div class="vtext" style="-webkit-line-clamp:3;">"${v.t}"</div></div>`;});
+  h+=`<div style="padding:10px 0 2px;"><button onclick="closeAll()" style="width:100%;background:#4f46e5;color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;">View in Dashboard →</button></div>`;
+  document.getElementById('cs-body').innerHTML=h;openSheet('cs');}
+function openReplySheet(text){document.getElementById('rq').textContent='"'+text+'"';document.getElementById('rta').value='';document.getElementById('rcc').textContent='0 / 1500';openSheet('rs');}
+function updateCC(){document.getElementById('rcc').textContent=document.getElementById('rta').value.length+' / 1500';}
+function submitReply(){closeAll();showToast('✓ Reply submitted successfully');}
+function openSheet(id){document.getElementById('bd').style.display='block';document.getElementById(id).classList.add('open');}
+function closeAll(){document.getElementById('bd').style.display='none';document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'));}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function updateClock(){const n=new Date();document.getElementById('clock').textContent=n.getHours()+':'+String(n.getMinutes()).padStart(2,'0');}
+updateClock();setInterval(updateClock,30000);
+document.querySelectorAll('.fchip').forEach(c=>{c.addEventListener('click',()=>{c.closest('.filter-chips').querySelectorAll('.fchip').forEach(x=>x.classList.remove('active'));c.classList.add('active');});});
 </script>
 </body>
 </html>
