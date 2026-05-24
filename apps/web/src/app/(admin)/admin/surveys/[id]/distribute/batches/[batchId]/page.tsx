@@ -12,9 +12,10 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { API_URL, getAuthToken } from '@/lib/config'
 import { SendModePill } from '@/components/surveys/SendModePill'
+import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
+import type { SendProgressResponse } from '@customerEQ/shared'
 
 import { ComposerSnapshotBlock, type ComposerSnapshot } from './ComposerSnapshotBlock'
-import { RecipientSendLogBlock } from './RecipientSendLogBlock'
 
 interface BatchDetail {
   id: string
@@ -39,6 +40,8 @@ interface BatchDetail {
     respondedCount: number
     awaitingCount: number
     expiredCount: number
+    // G13 — MANAGED_EMAIL surfaces Failed + Skipped via /send-progress; these
+    // come from the polling source below, not the batch-detail counters.
   }
   tokens: {
     data: {
@@ -151,6 +154,39 @@ export default function BatchDetailPage() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  // G13 — drive Failed + Skipped counters (and per-recipient send-state) from
+  // the /send-progress endpoint when this batch is MANAGED_EMAIL. Polling
+  // stops once isComplete = true so a fully-sent batch only does one round
+  // trip. SELF_SERVE batches have no platform send log; this stays disabled.
+  const fetchSendProgress = useCallback(async (): Promise<SendProgressResponse> => {
+    const token = await getAuthToken(getToken)
+    if (!token) throw new Error('Sign in to load send log.')
+    const res = await fetch(
+      `${API_URL}/v1/surveys/${surveyId}/distribution-batches/${batchId}/send-progress`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (!res.ok) throw new Error(`send-progress ${res.status}`)
+    return (await res.json()) as SendProgressResponse
+  }, [surveyId, batchId, getToken])
+
+  const isManaged = batch?.sendMode === 'MANAGED_EMAIL'
+  const [progressPollEnabled, setProgressPollEnabled] = useState(true)
+  const { data: progress } = usePollingQuery<SendProgressResponse>({
+    fetchFn: fetchSendProgress,
+    intervalMs: 2_000,
+    enabled: Boolean(isManaged) && progressPollEnabled,
+  })
+  useEffect(() => {
+    if (progress?.isComplete) setProgressPollEnabled(false)
+  }, [progress?.isComplete])
+
+  // Per-recipient send-state lookup keyed by memberId. Empty map for
+  // SELF_SERVE (no platform-side per-recipient state) — table rows just
+  // surface response status.
+  const sendStateByMemberId = new Map(
+    (progress?.recipients ?? []).map((r) => [r.memberId, r] as const),
+  )
 
   const submitEditExpiry = useCallback(async () => {
     if (!newExpiry) return
@@ -288,6 +324,14 @@ export default function BatchDetailPage() {
           <span>Responded: {batch.counters.respondedCount}</span>
           <span>Awaiting: {batch.counters.awaitingCount}</span>
           <span>Expired: {batch.counters.expiredCount}</span>
+          {/* G13 — Failed + Skipped only show for MANAGED_EMAIL (platform
+              dispatch path). SELF_SERVE has no platform-side delivery state. */}
+          {isManaged && progress ? (
+            <>
+              <span>Failed: {progress.failedCount}</span>
+              <span>Skipped: {progress.skippedCount}</span>
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -328,25 +372,6 @@ export default function BatchDetailPage() {
           Created at {fmt(batch.createdAt, brand.timezone, brand.locale)} by {batch.createdBy}
         </p>
       </section>
-
-      {/* Issue #420 §3.2 — Composer snapshot (read-only). Operators audit
-          exactly what was sent for a MANAGED_EMAIL wave. Body is rendered
-          as preformatted text to avoid trusting the snapshot HTML (XSS
-          surface) and to preserve the mustache tokens the operator wrote. */}
-      {batch.sendMode === 'MANAGED_EMAIL' && batch.composerSnapshot ? (
-        <ComposerSnapshotBlock snapshot={batch.composerSnapshot} />
-      ) : null}
-
-      {/* Issue #420 §3.2 — historical per-recipient send log. Same shape as
-          the Sending-state recipient table, persistent across page reloads. */}
-      {batch.sendMode === 'MANAGED_EMAIL' ? (
-        <RecipientSendLogBlock
-          surveyId={surveyId}
-          batchId={batchId}
-          brandTimezone={brand.timezone}
-          brandLocale={brand.locale}
-        />
-      ) : null}
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 mb-4">
         <h2 className="text-sm font-semibold text-gray-900 mb-2">Expiry</h2>
@@ -410,6 +435,14 @@ export default function BatchDetailPage() {
             </button>
           ) : null}
         </div>
+        {/* G13 — Tokens + Send Log merged into one table. Status column
+            collapses both signals: respond-status wins ("Responded"),
+            otherwise per-recipient platform send-state for MANAGED_EMAIL
+            (Failed / Skipped / Sent — awaiting response), otherwise the
+            token's response status ("Awaiting response" / "Expired"). The
+            page-level summary at the top is the single counts surface;
+            we do NOT repeat counts inside the section header per the user's
+            sharpened rule. */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
             <thead className="text-left text-gray-600 border-b border-gray-200">
@@ -418,36 +451,71 @@ export default function BatchDetailPage() {
                 <th className="py-2 pr-3">Identifier</th>
                 <th className="py-2 pr-3">Token prefix</th>
                 <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Detail</th>
                 <th className="py-2 pr-3">Responded at</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {batch.tokens.data.map((t) => (
-                <tr key={t.memberId}>
-                  <td className="py-2 pr-3">
-                    {[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}
-                  </td>
-                  <td className="py-2 pr-3 font-mono">{t.identifier}</td>
-                  <td className="py-2 pr-3 font-mono">{t.tokenPrefix}</td>
-                  <td className="py-2 pr-3">
-                    {t.status === 'awaiting_response'
-                      ? 'Awaiting response'
-                      : t.status === 'responded'
-                        ? 'Responded'
-                        : 'Expired'}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {t.respondedAt ? fmt(t.respondedAt, brand.timezone, brand.locale) : '—'}
-                  </td>
-                </tr>
-              ))}
+              {batch.tokens.data.map((t) => {
+                const sendState = sendStateByMemberId.get(t.memberId)
+                let statusText: string
+                let detailText = '—'
+                let statusClass: string
+                if (t.status === 'responded') {
+                  statusText = 'Responded'
+                  statusClass = 'text-green-700'
+                } else if (t.status === 'expired') {
+                  statusText = 'Expired'
+                  statusClass = 'text-gray-500'
+                } else if (sendState?.status === 'failed') {
+                  statusText = 'Failed'
+                  detailText = sendState.failureReason ?? '—'
+                  statusClass = 'text-red-700'
+                } else if (sendState?.status === 'sent') {
+                  statusText = 'Sent — awaiting response'
+                  statusClass = 'text-indigo-700'
+                } else if (sendState?.status === 'queued' || sendState?.status === 'sending') {
+                  statusText = sendState.status === 'sending' ? 'Sending…' : 'Queued'
+                  statusClass = 'text-amber-700'
+                } else if (sendState?.failureReason && sendState.failureReason.startsWith('skipped_')) {
+                  statusText = 'Skipped'
+                  detailText = sendState.failureReason.replace(/^skipped_/, '').replace(/_/g, ' ')
+                  statusClass = 'text-amber-700'
+                } else {
+                  statusText = 'Awaiting response'
+                  statusClass = 'text-gray-600'
+                }
+                return (
+                  <tr key={t.memberId}>
+                    <td className="py-2 pr-3">
+                      {[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}
+                    </td>
+                    <td className="py-2 pr-3 font-mono">{t.identifier}</td>
+                    <td className="py-2 pr-3 font-mono">{t.tokenPrefix}</td>
+                    <td className={`py-2 pr-3 font-medium ${statusClass}`}>{statusText}</td>
+                    <td className="py-2 pr-3 text-gray-600">{detailText}</td>
+                    <td className="py-2 pr-3">
+                      {t.respondedAt ? fmt(t.respondedAt, brand.timezone, brand.locale) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          Showing {batch.tokens.data.length} of {batch.tokens.total} tokens
+          Showing {batch.tokens.data.length} of {batch.tokens.total} recipients
         </p>
       </section>
+
+      {/* G11 — Composer Snapshot moved BELOW the Tokens table so operators
+          land first on the per-recipient state and audit the rendered
+          composer separately. G12 — the snapshot block now reuses
+          EmailPreviewCard so the WYSIWYG view matches compose-time exactly
+          (mustache substitutions, theme colors, brand identity placement). */}
+      {batch.sendMode === 'MANAGED_EMAIL' && batch.composerSnapshot ? (
+        <ComposerSnapshotBlock snapshot={batch.composerSnapshot} surveyId={surveyId} />
+      ) : null}
 
       {/* Mock #scene-7a lines 1255–1257 — Self-serve has no platform-side
           per-recipient delivery log. Surface this explicitly so operators
