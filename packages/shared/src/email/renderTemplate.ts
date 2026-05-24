@@ -69,14 +69,25 @@ export function rewriteLinksWithAccent(html: string, accentColor: string): strin
 }
 
 export function renderEmailHtml(theme: BrandThemeSnapshot, composer: ComposerSnapshot): string {
+  // G4/G7/G8 — mustache substitutions for {{brand_logo}} and {{brand_name}}
+  // emit theme-styled HTML fragments (not bare strings) so the rendered email
+  // matches the preview and so the operator's body controls WHERE brand identity
+  // appears. The always-on brand header + always-on "Take the survey" button
+  // are removed: the operator can compose the email with whatever mustache
+  // tokens they need, and only those positions render brand-identity content.
+  const brandLogoFragment = composer.brandLogoUrl
+    ? `<img src="${escapeHtml(composer.brandLogoUrl)}" alt="${escapeHtml(composer.brandName)}" style="max-height: 60px; max-width: 200px; border: 0; vertical-align: middle;" />`
+    : ''
+  const brandNameFragment = `<span style="color: ${theme.primaryColor}; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">${escapeHtml(composer.brandName)}</span>`
+
   const vars: Record<string, string> = {
     survey_link: composer.surveyLink,
-    survey_title: composer.surveyTitle,
-    sender_name: composer.senderName,
-    brand_name: composer.brandName,
-    brand_logo: composer.brandLogoUrl ?? '',
-    first_name: composer.recipientFirstName ?? '',
-    last_name: composer.recipientLastName ?? '',
+    survey_title: escapeHtml(composer.surveyTitle),
+    sender_name: escapeHtml(composer.senderName),
+    brand_name: brandNameFragment,
+    brand_logo: brandLogoFragment,
+    first_name: escapeHtml(composer.recipientFirstName ?? ''),
+    last_name: escapeHtml(composer.recipientLastName ?? ''),
   }
   const renderedBody = renderMustaches(composer.bodyHtml, vars)
 
@@ -92,21 +103,8 @@ export function renderEmailHtml(theme: BrandThemeSnapshot, composer: ComposerSna
       <td align="center" style="padding: 0;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
           <tr>
-            <td align="center" style="padding: 24px 24px 16px 24px;">
-              ${composer.brandLogoUrl
-                ? `<img src="${escapeHtml(composer.brandLogoUrl)}" alt="${escapeHtml(composer.brandName)}" width="200" style="display: block; max-height: 60px; max-width: 200px; border: 0;" />`
-                : ''}
-              <h1 style="margin: 12px 0 0 0; color: ${theme.primaryColor}; font-size: 20px; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">${escapeHtml(composer.brandName)}</h1>
-            </td>
-          </tr>
-          <tr>
             <td style="padding: 16px 24px; color: ${theme.textColor}; font-size: 15px; line-height: 1.6; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">
               ${rewriteLinksWithAccent(renderedBody, theme.accentColor)}
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding: 8px 24px 16px 24px;">
-              <a href="${escapeHtml(composer.surveyLink)}" style="display: inline-block; background-color: ${theme.buttonColor}; color: ${theme.buttonTextColor}; padding: 12px 24px; text-decoration: none; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">Take the survey</a>
             </td>
           </tr>
           <tr>

@@ -38,11 +38,13 @@ describe('renderEmailHtml — mustache substitution', () => {
     expect(html).toContain('Hi Priya')
   })
 
-  it('replaces {{brand_name}} with the brand name in both body and footer', () => {
+  it('replaces {{brand_name}} with a themed brand-name span in the body and inserts the brand name verbatim in the footer', () => {
     const html = renderEmailHtml(defaultTheme, baseComposer)
-    // Body
-    expect(html).toContain('thanks for ordering from Acme')
-    // Footer
+    // Body: brand_name is now wrapped in a themed <span> (G4/G8), so the
+    // assertion matches "thanks for ordering from <span ...>Acme</span>."
+    expect(html).toMatch(/thanks for ordering from <span[^>]*>Acme<\/span>\./)
+    // Footer: the auto-appended disclaimer still embeds brandName as escaped
+    // text (footer is template-controlled, not operator-controlled).
     expect(html).toContain("you're a customer or partner of Acme")
   })
 
@@ -59,14 +61,10 @@ describe('renderEmailHtml — mustache substitution', () => {
 })
 
 describe('renderEmailHtml — theme color threading', () => {
-  it('applies primaryColor to the brand name h1', () => {
+  it('applies primaryColor to the brand_name mustache substitution (G4/G8)', () => {
     const html = renderEmailHtml(defaultTheme, baseComposer)
-    expect(html).toMatch(/color: #6366f1[^"]*">Acme<\/h1>/)
-  })
-
-  it('applies buttonColor + buttonTextColor to the CTA', () => {
-    const html = renderEmailHtml(defaultTheme, baseComposer)
-    expect(html).toMatch(/background-color: #6366f1; color: #ffffff/)
+    // brand_name in the body substitutes to a themed <span>.
+    expect(html).toMatch(/<span style="color: #6366f1; font-weight: 600;[^"]*">Acme<\/span>/)
   })
 
   it('applies secondaryColor to the divider row', () => {
@@ -79,33 +77,40 @@ describe('renderEmailHtml — theme color threading', () => {
     expect(html).toMatch(/<a href="https:\/\/app\/u\/abc123" style="color: #6366f1/)
   })
 
-  it('handles a non-default palette correctly', () => {
+  it('applies a non-default primaryColor to the brand_name span', () => {
     const customTheme: BrandThemeSnapshot = {
       ...defaultTheme,
       primaryColor: '#ff0000',
-      buttonColor: '#00ff00',
       accentColor: '#0000ff',
     }
     const html = renderEmailHtml(customTheme, baseComposer)
     expect(html).toContain('color: #ff0000')
-    expect(html).toContain('background-color: #00ff00')
     expect(html).toContain('color: #0000ff')
   })
 })
 
-describe('renderEmailHtml — brand logo handling', () => {
-  it('renders the <img> when brandLogoUrl is present', () => {
-    const html = renderEmailHtml(defaultTheme, baseComposer)
+describe('renderEmailHtml — brand logo handling (G4/G7 — only via mustache)', () => {
+  const bodyWithLogo = `<p>{{brand_logo}}</p>${baseComposer.bodyHtml}`
+
+  it('renders an <img> for {{brand_logo}} when the body contains the mustache token and brandLogoUrl is set', () => {
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo })
     expect(html).toContain('<img src="https://logo.example/acme.png"')
+    expect(html).toContain('max-height: 60px')
   })
 
-  it('renders no <img> when brandLogoUrl is null (no broken image, no leftover markup)', () => {
-    const html = renderEmailHtml(defaultTheme, { ...baseComposer, brandLogoUrl: null })
+  it('renders no <img> when the body has {{brand_logo}} but brandLogoUrl is null (graceful degradation)', () => {
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo, brandLogoUrl: null })
+    expect(html).not.toContain('<img')
+  })
+
+  it('renders no <img> when the body does NOT contain {{brand_logo}} (no always-on brand header)', () => {
+    // baseComposer.bodyHtml has no {{brand_logo}} → img must not appear.
+    const html = renderEmailHtml(defaultTheme, baseComposer)
     expect(html).not.toContain('<img')
   })
 
   it('escapes HTML in brandLogoUrl (defense against operator-controlled or scheme inputs)', () => {
-    const html = renderEmailHtml(defaultTheme, { ...baseComposer, brandLogoUrl: 'https://x/"><script>' })
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo, brandLogoUrl: 'https://x/"><script>' })
     expect(html).not.toContain('<script>')
     expect(html).toContain('&quot;&gt;&lt;script&gt;')
   })
