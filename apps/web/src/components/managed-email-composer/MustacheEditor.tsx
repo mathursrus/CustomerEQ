@@ -304,8 +304,30 @@ function ToolbarButton({
 
 function InsertTokenMenu({ onInsert }: { onInsert: (id: string) => void }) {
   const [open, setOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+
+  // Close on outside-click or Esc while open. Standard dropdown dismissal —
+  // user reported the menu only closed via re-clicking the trigger.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (!wrapperRef.current) return
+      if (wrapperRef.current.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className="relative">
       <button
         type="button"
         aria-haspopup="listbox"
