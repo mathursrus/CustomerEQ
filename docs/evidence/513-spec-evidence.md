@@ -43,9 +43,9 @@ The initial spec (v1) incorrectly targeted the end-consumer loyalty member perso
 
 ## Validation
 
-**Mock Browser Validation (manual, 2026-05-23):**
-- `513-prototype.html`: Home screen renders NPS hero card (score 62) with sparkline and anomaly banner; all 5 bottom tabs navigable; Survey detail sheet opens with NPS distribution bars and verbatims; Cluster detail sheet opens with AI summary, sentiment bar, and quotes; Review reply sheet opens, character count updates, Submit shows toast; Profile shows Coming Soon section with locked Loyalty/Support cards
-- `513-anomaly-alert.html`: Push notification banner renders and auto-dismisses; red alert header with 3 stat cards; 14-day trend chart canvas renders with spike dot highlighted; AI root cause rows visible; 3 action buttons rendered
+**Mock Browser Validation (manual, 2026-05-23/24):**
+- `513-prototype.html`: Home screen renders NPS hero card (score 62) with sparkline and anomaly banner; all 5 bottom tabs navigable; Survey detail sheet opens with multi-question accordion (NPS distribution, Stars anomaly delta, MC bar chart, open-text word chips); Q2 checkout rating row styled red as anomaly source; Cluster detail sheet opens with AI summary, sentiment bar, and quotes; Review reply sheet opens, character count updates, Submit shows toast; Profile shows Coming Soon section with locked Loyalty/Support cards; **Survey creation**: 3-step sheet opens from `+` button — Step 1 (name + type grid), Step 2 (4-question builder with add/delete), Step 3 (interactive preview — NPS 0-10 buttons highlight green/amber/red by zone, star picker updates, choice buttons highlight, publish fires toast)
+- `513-anomaly-alert.html`: Push notification banner renders and auto-dismisses; red alert header with 3 stat cards; 14-day trend chart canvas renders with spike dot highlighted; multi-question breakdown section shows Q1 NPS (62, no anomaly), Q2 Stars (2.1★ vs 3.8★ baseline, ↓46%, anomaly source banner), Q3 MC (Checkout Speed 42% red bar leading); AI root cause rows visible; 3 action buttons rendered
 
 **Requirement traceability:** All 10 ACs from GitHub issue #513 map 1:1 to spec ACs (AC1–AC10)
 
