@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   build:
@@ -16,21 +15,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Get production API URL
-        id: api
-        run: |
-          FQDN=$(az containerapp show \
-            --name customereq-api \
-            --resource-group customereq-prod \
-            --query "properties.configuration.ingress.fqdn" -o tsv)
-          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -62,7 +46,7 @@ jobs:
       - name: Build iOS simulator
         working-directory: apps/mobile
         env:
-          EXPO_PUBLIC_API_URL: ${{ steps.api.outputs.url }}
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
           EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
         run: |
           xcodebuild \
