@@ -16,15 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
 
       - name: Install JS dependencies
-        run: pnpm install --filter "@customerEQ/mobile" --ignore-scripts --no-frozen-lockfile
+        working-directory: apps/mobile
+        run: npm install --legacy-peer-deps
 
       - name: Expo prebuild
         working-directory: apps/mobile
