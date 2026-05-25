@@ -10,4 +10,3 @@ build:
         command: pnpm install --filter "@customerEQ/mobile" --ignore-scripts
     - eas/prebuild
     - eas/build
-    - eas/upload_artifact
