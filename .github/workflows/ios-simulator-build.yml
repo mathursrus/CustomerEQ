@@ -1,0 +1,87 @@
+name: iOS Simulator Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/513-feat-customereq-member-mobile-app-react-native
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get production API URL
+        id: api
+        run: |
+          FQDN=$(az containerapp show \
+            --name customereq-api \
+            --resource-group customereq-prod \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "url=https://$FQDN" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install JS dependencies
+        run: pnpm install --filter "@customerEQ/mobile" --ignore-scripts
+
+      - name: Expo prebuild
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: apps/mobile/ios/Pods
+          key: pods-${{ hashFiles('apps/mobile/ios/Podfile') }}
+          restore-keys: pods-
+
+      - name: Install CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Build iOS simulator
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_URL: ${{ steps.api.outputs.url }}
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+        run: |
+          xcodebuild \
+            -workspace ios/CustomerEQ.xcworkspace \
+            -scheme CustomerEQ \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package simulator .app
+        working-directory: apps/mobile
+        run: |
+          APP=$(find build/Build/Products -name "*.app" -type d | head -1)
+          zip -r CustomerEQ-simulator.zip "$APP"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build
+          path: apps/mobile/CustomerEQ-simulator.zip
+          retention-days: 30
