@@ -24,7 +24,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install JS dependencies
-        run: pnpm install --filter "@customerEQ/mobile" --ignore-scripts
+        run: pnpm install --filter "@customerEQ/mobile" --ignore-scripts --no-frozen-lockfile
 
       - name: Expo prebuild
         working-directory: apps/mobile
