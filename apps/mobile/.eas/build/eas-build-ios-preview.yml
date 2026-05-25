@@ -3,11 +3,7 @@ build:
   steps:
     - eas/checkout
     - run:
-        name: Set monorepo project root
-        command: set-env EXPO_MONOREPO_PACKAGE_ROOT apps/mobile
-    - run:
         name: Install mobile dependencies
         command: npm install --ignore-scripts --legacy-peer-deps
-        working_directory: apps/mobile
     - eas/prebuild
     - eas/build
