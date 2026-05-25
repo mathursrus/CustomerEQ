@@ -7,6 +7,7 @@ build:
         command: set-env EXPO_MONOREPO_PACKAGE_ROOT apps/mobile
     - run:
         name: Install mobile dependencies
-        command: pnpm install --filter "@customerEQ/mobile" --ignore-scripts
+        command: npm install --ignore-scripts --legacy-peer-deps
+        working_directory: apps/mobile
     - eas/prebuild
     - eas/build
