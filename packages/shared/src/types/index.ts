@@ -68,6 +68,27 @@ export interface SurveyDistributePayload {
   cooldownDays: number
 }
 
+// Issue #420 — payload for the managed-email-send BullMQ queue.
+// Keys + the per-recipient plaintext tokens (survey-link + unsubscribe). The
+// worker loads batch + member + composerSnapshot via Prisma, but tokens are
+// hash-only at rest so the plaintext MUST be passed through the queue payload
+// (G9/G10 — previously the worker built the survey link from tokenPrefix, the
+// 8-character display-only fragment, producing invalid recipient URLs).
+// Kept slim so the queue payload stays under BullMQ's default 1MB limit even
+// for batches with thousands of recipients (≈100 bytes per row).
+export interface ManagedEmailSendPayload {
+  batchId: string
+  memberId: string
+  brandId: string
+  surveyId: string
+  /** Plaintext survey-distribution token (24 random bytes, base64url). The
+   *  worker drops this into the {{survey_link}} URL exactly as `/survey/<id>/r/<token>`. */
+  surveyLinkToken: string
+  /** Plaintext unsubscribe token (same shape). Worker drops into `/u/<token>` for
+   *  the footer link. Null only on retry-failed enqueues that predate the field. */
+  unsubscribeToken: string | null
+}
+
 export interface SurveyImportRowPayload {
   batchId: string
   surveyId: string

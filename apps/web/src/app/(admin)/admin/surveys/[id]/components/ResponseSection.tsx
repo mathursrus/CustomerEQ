@@ -35,6 +35,11 @@ import { encodeFiltersToQs } from '@/components/filters/responseFilters.url'
 import { CollapsibleSection } from './CollapsibleSection'
 import { AiCaveatIndicator } from './AiCaveatIndicator'
 import { ResponsePagination } from './ResponsePagination'
+import {
+  SurveyResponsesHeaderStrip,
+  type SurveyResponsesHeaderStripProps,
+} from './SurveyResponsesHeaderStrip'
+import type { Wave } from './waveTypes'
 
 const PAGE_SIZE_STORAGE_KEY_PREFIX = 'response-section.pageSize.'
 
@@ -84,8 +89,14 @@ export interface ResponseSectionProps {
   brandLocale: string
   responsesCount: number
   questions: SurveyQuestion[]
-  /** Wave selection lifted from the parent (controlled by DistributionBatchesFilter). */
-  wave: 'all' | 'direct' | { batchId: string }
+  /** Wave selection lifted from the parent. */
+  wave: Wave
+  /** Issue #420 R40 — surfaced inputs for the new <SurveyResponsesHeaderStrip>.
+   *  When omitted, the strip is suppressed (older callers/tests stay valid). */
+  surveyLifetimeSentCount?: number
+  batches?: SurveyResponsesHeaderStripProps['batches']
+  hasDirectResponses?: boolean
+  onWaveChange?: (next: Wave) => void
 }
 
 export function ResponseSection({
@@ -97,6 +108,10 @@ export function ResponseSection({
   responsesCount,
   questions,
   wave,
+  surveyLifetimeSentCount,
+  batches,
+  hasDirectResponses,
+  onWaveChange,
 }: ResponseSectionProps) {
   const { getToken } = useAuth()
   // Stash getToken in a ref so fetchPage / download-token effects don't fire
@@ -292,6 +307,29 @@ export function ResponseSection({
         </a>
       }
     >
+      {/* Issue #420 R40 / V9 — Sent + Responses + Wave-filter strip.
+          Renders when the parent supplied the wave-control inputs AND the
+          survey has at least one batch or direct response (otherwise the
+          strip would surface nothing actionable). Stays above the empty-state
+          so an operator with sent>0 / responses=0 sees "0 of N" rather than
+          a bare empty-state. */}
+      {onWaveChange !== undefined &&
+      batches !== undefined &&
+      surveyLifetimeSentCount !== undefined &&
+      (batches.length > 0 || hasDirectResponses) ? (
+        <SurveyResponsesHeaderStrip
+          surveyId={surveyId}
+          surveyLifetimeSentCount={surveyLifetimeSentCount}
+          batches={batches}
+          hasDirectResponses={hasDirectResponses ?? false}
+          selectedWave={wave}
+          onWaveChange={onWaveChange}
+          filteredResponseCount={envelope?.total ?? responsesCount}
+          brandTimezone={brandTimezone}
+          brandLocale={brandLocale}
+        />
+      ) : null}
+
       {responsesCount === 0 ? (
         <div className="px-2 py-10 text-center text-sm text-slate-500" data-testid="response-empty-zero">
           <p className="text-base font-semibold text-slate-700">No responses yet</p>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { API_URL, getAuthToken } from '@/lib/config'
+import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
 
 interface LoopMonitorData {
   surveyId: string
@@ -11,6 +12,10 @@ interface LoopMonitorData {
   message?: string
   pipeline?: {
     surveysSent: number
+    surveysSentByMode?: {
+      MANAGED_EMAIL: number
+      SELF_SERVE: number
+    }
     responsesReceived: number | null
     scoreDistribution: Record<string, number>
     rulesMatched: number | null
@@ -64,37 +69,22 @@ function numOrDash(v: number | null | undefined): string {
 }
 
 export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props) {
-  const [data, setData] = useState<LoopMonitorData | null>(null)
-  const [loading, setLoading] = useState(true)
   const [openDrawer, setOpenDrawer] = useState<DrawerStage>(null)
   const [warningDismissed, setWarningDismissed] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  async function fetchData() {
-    try {
-      const token = await getAuthToken(getToken)
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/loop-monitor`, { headers })
-      if (res.ok) {
-        const json = await res.json()
-        setData(json)
-      }
-    } catch {
-      // silent — keep stale data
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchLoopMonitor = useCallback(async (): Promise<LoopMonitorData> => {
+    const token = await getAuthToken(getToken)
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/loop-monitor`, { headers })
+    if (!res.ok) throw new Error(`loop-monitor ${res.status}`)
+    return (await res.json()) as LoopMonitorData
+  }, [surveyId, getToken])
 
-  useEffect(() => {
-    fetchData()
-    if (surveyStatus === 'ACTIVE') {
-      intervalRef.current = setInterval(fetchData, 60_000) // auto-refresh every 60s
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [surveyId, surveyStatus]) // eslint-disable-line
+  const { data, loading } = usePollingQuery<LoopMonitorData>({
+    fetchFn: fetchLoopMonitor,
+    intervalMs: 60_000,
+    enabled: surveyStatus === 'ACTIVE',
+  })
 
   if (surveyStatus !== 'ACTIVE') {
     return (
@@ -123,8 +113,34 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
   const p = data.pipeline
   const lat = data.latency
 
-  const stages: Array<{ key: DrawerStage; label: string; value: string; detail?: string }> = [
-    { key: 'surveysSent', label: 'Surveys Sent', value: numOrDash(p?.surveysSent) },
+  const sentByMode = p?.surveysSentByMode
+  // F13 — Survey Sent is the sum of the two send modes when the breakdown is
+  // available; falls back to pipeline.surveysSent only when sentByMode is
+  // absent (e.g., older API response shape). The previous direct read of
+  // p.surveysSent displayed 0 alongside non-zero mode-counts.
+  const surveysSentTotal = sentByMode
+    ? sentByMode.MANAGED_EMAIL + sentByMode.SELF_SERVE
+    : p?.surveysSent
+  const stages: Array<{ key: DrawerStage; label: string; value: string; detail?: string; subline?: ReactNode }> = [
+    {
+      key: 'surveysSent',
+      label: 'Survey Sent',
+      value: numOrDash(surveysSentTotal),
+      // F12 — split-counts render on separate lines so the tile stays narrow
+      // and the operator can scan each mode's count independently. The
+      // inline pill was dropped after G14 (pill label became "Sent via
+      // CustomerEQ" / "Sent via my email tool") because the subline text
+      // already says the same thing — repeating it as a pill is redundant.
+      subline: sentByMode ? (
+        <span
+          className="flex flex-col items-center gap-0.5 text-[10px] text-gray-500 leading-tight mt-1"
+          data-testid="surveys-sent-by-mode"
+        >
+          <span>{sentByMode.MANAGED_EMAIL.toLocaleString()} via CustomerEQ</span>
+          <span>{sentByMode.SELF_SERVE.toLocaleString()} via my email tool</span>
+        </span>
+      ) : null,
+    },
     { key: 'responsesReceived', label: 'Responses Received', value: numOrDash(p?.responsesReceived) },
     { key: 'rulesMatched', label: 'Rules Matched', value: numOrDash(p?.rulesMatched) },
     { key: 'campaignsTriggered', label: 'Campaigns Triggered', value: numOrDash(p?.campaignsTriggered) },
@@ -157,6 +173,17 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
 
       {/* Pipeline stages */}
       <div className="px-6 pb-5">
+        {/* Mock #scene-6 lines 1071–1073 — anchor note so the operator
+            understands Loop Monitor stays lifetime-wide regardless of any
+            Wave filter applied to the Responses section. Spec R39 + #378 §3. */}
+        <p
+          className="mb-3 rounded-md bg-gray-50 px-3 py-2 text-[11px] text-gray-600"
+          data-testid="loop-monitor-lifetime-note"
+        >
+          <strong className="text-gray-700">Note:</strong> Loop Monitor stays{' '}
+          <strong className="text-gray-700">lifetime-wide</strong> regardless of Wave filter — the
+          per-batch slicing belongs to the Responses section below.
+        </p>
         <div className="flex items-stretch gap-0 overflow-x-auto" data-testid="pipeline-stages">
           {stages.map((stage, i) => (
             <div key={stage.key} className="flex items-center">
@@ -169,6 +196,7 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
                 <span className="text-xl font-bold text-gray-900">{stage.value}</span>
                 <span className="text-xs text-gray-500 mt-1">{stage.label}</span>
                 {stage.detail && <span className="text-xs text-gray-400">{stage.detail}</span>}
+                {stage.subline}
               </button>
               {i < stages.length - 1 && (
                 <span className="text-gray-300 text-lg px-1">›</span>
@@ -212,7 +240,28 @@ export default function LoopMonitor({ surveyId, surveyStatus, getToken }: Props)
                 </div>
               </div>
             )}
-            {(openDrawer === 'surveysSent' || openDrawer === 'rulesMatched' || openDrawer === 'campaignsTriggered') && (
+            {openDrawer === 'surveysSent' && (
+              <div data-testid="surveys-sent-drawer">
+                <p className="text-xs font-medium text-indigo-700 mb-2">Survey Sent by send mode</p>
+                {sentByMode ? (
+                  <div className="flex gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">{sentByMode.MANAGED_EMAIL.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">via CustomerEQ Email</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">{sentByMode.SELF_SERVE.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">via my email tool</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-indigo-700">
+                    <strong>Total:</strong> {numOrDash(p?.surveysSent)}
+                  </p>
+                )}
+              </div>
+            )}
+            {(openDrawer === 'rulesMatched' || openDrawer === 'campaignsTriggered') && (
               <p className="text-xs text-indigo-700">
                 <strong>{stages.find((s) => s.key === openDrawer)?.label}</strong>: {stages.find((s) => s.key === openDrawer)?.value}
               </p>

@@ -212,6 +212,10 @@ model Brand {
   orgSize               OrgSizeCategory?
   timezone              String                 @default("UTC")
   locale                String                 @default("en-US")
+  // Issue #420 — operator-configured ACS sender domain. Null in V0 (custom domains
+  // ship V1 once ACS custom-domain verification lands); ships code-wired so V1
+  // toggle is a config change, not a migration.
+  managedEmailSenderDomain String?
   programs              Program[]
   members               Member[]
   surveys               Survey[]
@@ -339,6 +343,11 @@ model Member {
   consentVersion       String?
   emailOptIn           Boolean              @default(false)
   smsOptIn             Boolean              @default(false)
+  // Issue #420 — brand-wide survey-specific opt-out. DISTINCT from emailOptIn
+  // (marketing-channel preference). Surveys are legitimate-interest use, exempt
+  // from marketing opt-out; the worker pre-dispatch gate checks this column,
+  // not emailOptIn. Set by POST /u/:token/confirm (public unsubscribe link).
+  unsubscribedSurveysAt DateTime?
   deletedAt            DateTime? // soft delete (C-02)
   currentTierId        String?
   currentTier          Tier?                @relation(fields: [currentTierId], references: [id])
@@ -353,8 +362,9 @@ model Member {
   conversations        Conversation[]
   notes                MemberNote[]
   externalSignals      ExternalSignal[]
-  surveyDistributions  SurveyDistribution[]      // Issue #117
-  distributionTokens   SurveyDistributionToken[] // Issue #378 — tokenized distribution batches
+  surveyDistributions  SurveyDistribution[]       // Issue #117
+  distributionTokens   SurveyDistributionToken[]  // Issue #378 — tokenized distribution batches
+  unsubscribeTokens    MemberUnsubscribeToken[]   // Issue #420 — per-recipient unsubscribe tokens
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -613,6 +623,7 @@ model Survey {
   status             SurveyStatus     @default(DRAFT)
   responsesCount     Int              @default(0)
   distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
+  sentCount          Int              @default(0) // Issue #420 — denormalized aggregate. SELF_SERVE += tokenCount on CSV-download and Regenerate; MANAGED_EMAIL += 1 per worker deliveredAt transition. No backfill — matches responsesCount/distributionCount pattern.
   themeId            String?
   theme              BrandTheme?      @relation(fields: [themeId], references: [id])
   triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
@@ -656,18 +667,34 @@ model SurveyDistribution {
   memberId  String
   member    Member             @relation(fields: [memberId], references: [id])
   brandId   String
+  // sentAt semantics:
+  //   #117 trigger rows: creation time (= dispatch handoff)
+  //   #378 SELF_SERVE rows: creation time at mint, overwritten to now() on CSV-download or Regenerate
+  //   #420 MANAGED_EMAIL rows: creation time at mint (= enqueue time); deliveredAt is the worker-confirmed signal
   sentAt    DateTime           @default(now())
   // Issue #378 — tokenized distribution batches. Null for legacy and
   // share-link / embed rows; required for rows written by token-mint.
   batchId   String?
   batch     DistributionBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
+  // Issue #420 — MANAGED_EMAIL per-recipient lifecycle. All nullable for back-compat.
+  // sendMode mirrors parent batch.sendMode for fast per-mode aggregation without a join;
+  // backfilled to SELF_SERVE in the migration; defaults to SELF_SERVE for new rows
+  // (overridden at insert time for MANAGED_EMAIL).
+  enqueuedAt    DateTime?         // set when worker job enqueued (MANAGED_EMAIL only)
+  deliveredAt   DateTime?         // set when ACS confirmed delivery (MANAGED_EMAIL only); drives Survey.sentCount increment
+  failedAt      DateTime?         // set on worker-confirmed dispatch failure; mutually exclusive with deliveredAt
+  failureReason String?           // bounded: 'bounce' | 'invalid_address' | 'skipped_unsubscribed' | 'skipped_no_consent' | 'skipped_erased' | 'skipped_no_email' | 'transient_error_after_retries'
+  sendMode      SurveySendMode    @default(SELF_SERVE)
+
   // Issue #378 — constraint moved from (surveyId, memberId) to (batchId, memberId).
   // Postgres treats NULL as distinct in unique constraints, so all legacy rows
   // (batchId IS NULL) coexist; share-link / embed rows continue to write
   // batchId IS NULL and never collide.
   @@unique([batchId, memberId])
-  @@index([surveyId, memberId, sentAt]) // cooldown window query (Issue #117)
+  @@index([surveyId, memberId, sentAt])                  // cooldown window query (Issue #117)
+  @@index([surveyId, sendMode, deliveredAt])             // Issue #420 — MANAGED_EMAIL sent-count aggregation
+  @@index([surveyId, sendMode, sentAt])                  // Issue #420 — SELF_SERVE sent-count aggregation
   @@map("survey_distributions")
 }
 
@@ -686,9 +713,14 @@ model DistributionBatch {
   createdBy          String                    // clerk user id of the operator
   createdAt          DateTime                  @default(now())
 
+  // Issue #420 — MANAGED_EMAIL extensions
+  sendMode           SurveySendMode            @default(SELF_SERVE)  // backfill existing rows to SELF_SERVE
+  composerSnapshot   Json?                                            // MANAGED_EMAIL only: { senderName, senderAlias, senderDomain, subject, body, themeSnapshot, brandLogoUrl }. Null for SELF_SERVE.
+
   tokens             SurveyDistributionToken[]
   distributions      SurveyDistribution[]
   responses          SurveyResponse[]
+  unsubscribeTokens  MemberUnsubscribeToken[]  // Issue #420 — minted alongside SurveyDistributionToken for MANAGED_EMAIL batches
 
   @@index([surveyId, createdAt])               // filter-row dropdown query
   @@index([brandId, expiresAt])                // future "expiring soon" surfaces
@@ -711,6 +743,29 @@ model SurveyDistributionToken {
   @@unique([batchId, memberId])           // one token per member per batch
   @@index([batchId, consumedAt])          // batch-detail "responded vs awaiting" counters
   @@map("survey_distribution_tokens")
+}
+
+// ─── Issue #420: Managed-email send (CustomerEQ delivers via ACS) ─────────────
+
+enum SurveySendMode {
+  SELF_SERVE        // #378 path — operator downloads CSV and sends from their own ESP
+  MANAGED_EMAIL     // #420 path — platform sends via the email connector (currently ACS-backed)
+}
+
+model MemberUnsubscribeToken {
+  id          String              @id @default(cuid())
+  brandId     String                                  // tenant-scoped per project rule R6
+  memberId    String
+  member      Member              @relation(fields: [memberId], references: [id])
+  batchId     String                                  // links the unsub click back to the wave that triggered it (audit trail)
+  batch       DistributionBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  tokenHash   String              @unique             // SHA-256(plaintext); plaintext is rendered into the email footer once, never stored
+  tokenPrefix String                                  // first 8 chars of plaintext, for audit display
+  createdAt   DateTime            @default(now())
+  consumedAt  DateTime?                               // set when POST /u/:token/confirm is called; idempotent
+
+  @@index([memberId])
+  @@map("member_unsubscribe_tokens")
 }
 
 // ─── Issue #80: Response-to-Action Rule Builder ───────────────────────────────

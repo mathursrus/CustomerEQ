@@ -40,6 +40,7 @@ import authRoutes from './routes/auth.js'
 import identityProviderWebhookRoutes from './routes/identityProviderWebhook.js'
 import adminBrandProfileRoutes from './routes/admin-brand-profile.js'
 import distributionBatchesRoutes from './routes/distributionBatches.js'
+import unsubscribeRoutes from './routes/unsubscribe.js'
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -145,6 +146,11 @@ export async function buildApp() {
   await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
   await fastify.register(adminBrandProfileRoutes, { prefix: '/v1' })
   await fastify.register(distributionBatchesRoutes, { prefix: '/v1' })
+
+  // Issue #420 — public unsubscribe endpoints. Registered at root (paths
+  // declared with leading /u/ in the route file) so the URL is brand-friendly
+  // (`https://app/u/:token`) and routable directly from email footer.
+  await fastify.register(unsubscribeRoutes)
 
   // Issue #170 PR 2 — Auth API + Clerk webhook handler. These routes have
   // their full path in the route definition (/api/auth/*, /api/webhooks/*),

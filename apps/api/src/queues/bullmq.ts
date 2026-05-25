@@ -13,6 +13,7 @@ import {
   type ExternalSignalIngestionPayload,
   type WebhookDeliveryPayload,
   type SurveyImportRowPayload,
+  type ManagedEmailSendPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -22,6 +23,7 @@ import {
 import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
 import { deliverNotification } from '@customerEQ/connectors'
+import { dispatchManagedEmailSend } from '@customerEQ/worker/processors/managedEmailSend'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
@@ -49,6 +51,7 @@ let _externalSignalSyncQueue: Queue | null = null
 let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
 let _surveyImportQueue: Queue | null = null
+let _managedEmailSendQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -67,6 +70,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _externalSignalIngestionQueue = new Queue(QUEUES.EXTERNAL_SIGNAL_INGESTION, { connection })
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
   _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
+  _managedEmailSendQueue = new Queue(QUEUES.MANAGED_EMAIL_SEND, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -122,6 +126,10 @@ function getWebhookDeliveryQueue(): Queue {
 function getSurveyImportQueue(): Queue {
   if (!_surveyImportQueue) throw new Error('Queues not initialized.')
   return _surveyImportQueue
+}
+function getManagedEmailSendQueue(): Queue {
+  if (!_managedEmailSendQueue) throw new Error('Queues not initialized.')
+  return _managedEmailSendQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1143,6 +1151,30 @@ export async function enqueueSurveyImportRow(payload: SurveyImportRowPayload): P
     return INLINE_STUB
   }
   return getSurveyImportQueue().add(QUEUES.SURVEY_IMPORT, payload)
+}
+
+// Issue #420 — managed-email per-recipient dispatch.
+// Inline mode runs the same dispatcher the worker uses (dispatchManagedEmailSend
+// from @customerEQ/worker/processors/managedEmailSend), under scheduleInline so
+// retry semantics match BullMQ's attempts=3 + exponential backoff. This keeps
+// the inline ≡ redis functional-equivalence invariant — Redis is purely a
+// throughput/cross-instance optimization, not a behavioral mode (see
+// docs/architecture/architecture.md §2 + §3.3, and inlineRuntime.ts header).
+export async function enqueueManagedEmailSend(payload: ManagedEmailSendPayload): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline(
+      'managed-email-send',
+      payload,
+      async (p) =>
+        dispatchManagedEmailSend(p, { attemptsMade: 0, maxAttempts: 3 }),
+      { attempts: 3, backoffMs: 2000 },
+    )
+    return INLINE_STUB
+  }
+  return getManagedEmailSendQueue().add(QUEUES.MANAGED_EMAIL_SEND, payload, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+  })
 }
 
 export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): Promise<Job> {
