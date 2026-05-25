@@ -5,5 +5,4 @@ build:
     - run:
         name: Install mobile dependencies
         command: npm install --ignore-scripts --legacy-peer-deps
-    - eas/prebuild
     - eas/build
