@@ -2,13 +2,37 @@
   "expo": {
     "name": "CustomerEQ",
     "slug": "customereq-mobile",
+    "owner": "smathur97",
     "version": "1.0.0",
     "scheme": "customereq",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "splash": { "resizeMode": "contain", "backgroundColor": "#4F46E5" },
-    "ios": { "supportsTablet": false, "bundleIdentifier": "com.customereq.mobile" },
-    "android": { "adaptiveIcon": { "backgroundColor": "#4F46E5" }, "package": "com.customereq.mobile" },
-    "plugins": ["expo-router", "expo-notifications"]
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.customereq.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5"
+      },
+      "package": "com.customereq.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "d67bbcb7-64c8-41e9-850b-b1ff12e19410"
+      }
+    }
   }
 }
