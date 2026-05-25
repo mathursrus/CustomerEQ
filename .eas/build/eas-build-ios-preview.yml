@@ -4,6 +4,6 @@ build:
     - eas/checkout
     - run:
         name: Install mobile dependencies
-        command: npm install --ignore-scripts --legacy-peer-deps
+        command: pnpm install --filter "@customerEQ/mobile" --ignore-scripts
     - eas/prebuild
     - eas/build
