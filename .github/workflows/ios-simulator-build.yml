@@ -22,7 +22,7 @@ jobs:
 
       - name: Install JS dependencies
         working-directory: apps/mobile
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Expo prebuild
         working-directory: apps/mobile
