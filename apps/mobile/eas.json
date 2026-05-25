@@ -8,9 +8,13 @@
       "distribution": "internal"
     },
     "preview": {
+      "config": "eas-build-ios-preview.yml",
       "distribution": "internal",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "NPM_CONFIG_IGNORE_SCRIPTS": "true"
       }
     },
     "production": {
