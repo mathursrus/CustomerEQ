@@ -2,6 +2,7 @@
   "name": "@customerEQ/mobile",
   "version": "0.0.1",
   "main": "expo-router/entry",
+  "packageManager": "pnpm@9.0.0",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
