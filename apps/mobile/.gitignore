@@ -3,5 +3,4 @@ node_modules/
 dist/
 ios/
 android/
-package-lock.json
 *.log
