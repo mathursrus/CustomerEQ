@@ -73,16 +73,23 @@ jobs:
         run: |
           SKIP_PATTERN='^(.*\.md|docs/.*|\.github/ISSUE_TEMPLATE/.*|\.github/pull_request_template\.md|CODEOWNERS|\.gitattributes|LICENSE)$'
           DEMO_PATTERN='^(apps/demo-storefront/|packages/config/|Dockerfile\.demo-storefront|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json)$'
+          # Issue #461: only rebuild the turbo-cache image when its Dockerfile changes.
+          # The image is 6 lines (npm install -g turborepo-remote-cache); no workspace
+          # code is copied in, so pnpm-lock.yaml / packages/config are irrelevant.
+          # Cache data lives in Azure Blob Storage so skipping a redeploy is safe.
+          TURBO_CACHE_PATTERN='^Dockerfile\.turbo-cache$'
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
           echo "Changed files between HEAD~1 and HEAD:"
           echo "$CHANGED" | sed 's/^/  /'
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
             echo "demo_build=true" >> "$GITHUB_OUTPUT"
+            echo "turbo_cache_build=true" >> "$GITHUB_OUTPUT"
             echo "Result: manual dispatch; building all deployable images."
           elif [ -z "$CHANGED" ]; then
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "demo_build=false" >> "$GITHUB_OUTPUT"
+            echo "turbo_cache_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: no diff; skipping deploy."
           elif echo "$CHANGED" | grep -qvE "$SKIP_PATTERN"; then
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -93,9 +100,17 @@ jobs:
               echo "demo_build=false" >> "$GITHUB_OUTPUT"
               echo "Result: at least one non-doc file changed; deploy required. Demo storefront unchanged."
             fi
+            if echo "$CHANGED" | grep -qE "$TURBO_CACHE_PATTERN"; then
+              echo "turbo_cache_build=true" >> "$GITHUB_OUTPUT"
+              echo "Turbo cache server Dockerfile changed; will rebuild."
+            else
+              echo "turbo_cache_build=false" >> "$GITHUB_OUTPUT"
+              echo "Turbo cache server unchanged; skipping rebuild."
+            fi
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "demo_build=false" >> "$GITHUB_OUTPUT"
+            echo "turbo_cache_build=false" >> "$GITHUB_OUTPUT"
             echo "Result: all changes match the doc-only skip set; skipping deploy."
           fi
 
@@ -175,7 +190,7 @@ jobs:
             .
 
       - name: Build and push Turbo Cache image
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.turbo_cache_build == 'true'
         run: |
           az acr build --registry customereqcr \
             --image customereq-turbo-cache:${{ github.event.workflow_run.head_sha || github.sha }} \
@@ -278,7 +293,7 @@ jobs:
             --image ${{ env.REGISTRY }}/customereq-demo:${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Deploy Turbo Cache
-        if: steps.changes.outputs.build == 'true'
+        if: steps.changes.outputs.turbo_cache_build == 'true'
         run: |
           az containerapp update \
             --name customereq-turbo-cache \
