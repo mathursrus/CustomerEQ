@@ -23,7 +23,7 @@ jobs:
 
       - name: Install JS dependencies
         working-directory: apps/mobile
-        run: npm install
+        run: npm ci --legacy-peer-deps
 
       - name: Expo prebuild
         working-directory: apps/mobile
@@ -164,8 +164,11 @@ jobs:
             --type ios \
             --file "apps/mobile/build/ipa/CustomerEQ.ipa" \
             --apiKey "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID"
+            --apiIssuer "$API_ISSUER_ID" \
+            --output-format xml
+          STATUS=$?
           rm -f ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+          exit $STATUS
 
       - name: Clean up keychain
         if: always()
