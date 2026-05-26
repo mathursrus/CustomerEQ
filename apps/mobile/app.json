@@ -4,6 +4,12 @@
     "slug": "customereq-mobile",
     "owner": "aspir-ai",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c78d8409-8165-4225-8be1-102374d5f562"
+    },
     "scheme": "customereq",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
