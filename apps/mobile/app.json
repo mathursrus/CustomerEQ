@@ -8,7 +8,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/c78d8409-8165-4225-8be1-102374d5f562"
+      "url": "https://u.expo.dev/c78d8409-8165-4225-8be1-102374d5f562",
+      "checkAutomatically": "NEVER"
     },
     "scheme": "customereq",
     "orientation": "portrait",
@@ -21,7 +22,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.customereq.mobile",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

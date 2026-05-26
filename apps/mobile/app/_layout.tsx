@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
+import * as Updates from 'expo-updates'
 
 const tokenCache = {
   async getToken(key: string) { return SecureStore.getItemAsync(key) },
@@ -16,6 +17,18 @@ const tokenCache = {
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
 const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
+
+async function checkForUpdate() {
+  try {
+    const update = await Updates.checkForUpdateAsync()
+    if (update.isAvailable) {
+      await Updates.fetchUpdateAsync()
+      await Updates.reloadAsync()
+    }
+  } catch (_) {
+    // silently ignore — update check is best-effort
+  }
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
@@ -35,6 +48,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!isSignedIn && !inAuth) router.replace('/(auth)/sign-in')
     else if (isSignedIn && inAuth) router.replace('/(tabs)')
   }, [isLoaded, isSignedIn, segments])
+
+  useEffect(() => {
+    if (isLoaded) checkForUpdate()
+  }, [isLoaded])
   if (!DEV_BYPASS && !isLoaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
