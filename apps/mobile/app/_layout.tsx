@@ -5,19 +5,6 @@ import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect, useRef } from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import * as SecureStore from 'expo-secure-store'
-
-const tokenCache = {
-  async getToken(key: string) {
-    try { return await SecureStore.getItemAsync(key) } catch { return null }
-  },
-  async saveToken(key: string, value: string) {
-    try { await SecureStore.setItemAsync(key, value) } catch {}
-  },
-  async clearToken(key: string) {
-    try { await SecureStore.deleteItemAsync(key) } catch {}
-  },
-}
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
@@ -57,7 +44,6 @@ export default function RootLayout() {
   return (
     <ClerkProvider
       publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
-      tokenCache={tokenCache}
     >
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
