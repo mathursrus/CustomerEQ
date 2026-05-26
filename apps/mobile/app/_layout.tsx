@@ -3,14 +3,14 @@ import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect, useRef } from 'react'
+import { ActivityIndicator, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import * as SecureStore from 'expo-secure-store'
 
-// In-memory cache — no native dependencies, works in Expo Go and production.
-// For production builds, swap this out for expo-secure-store.
-const _tokenStore = new Map<string, string>()
 const tokenCache = {
-  async getToken(key: string) { return _tokenStore.get(key) ?? null },
-  async saveToken(key: string, value: string) { _tokenStore.set(key, value) },
+  async getToken(key: string) { return SecureStore.getItemAsync(key) },
+  async saveToken(key: string, value: string) { return SecureStore.setItemAsync(key, value) },
+  async clearToken(key: string) { return SecureStore.deleteItemAsync(key) },
 }
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
@@ -35,6 +35,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!isSignedIn && !inAuth) router.replace('/(auth)/sign-in')
     else if (isSignedIn && inAuth) router.replace('/(tabs)')
   }, [isLoaded, isSignedIn, segments])
+  if (!DEV_BYPASS && !isLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    )
+  }
   return <>{children}</>
 }
 

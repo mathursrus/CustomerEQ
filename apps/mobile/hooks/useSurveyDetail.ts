@@ -14,10 +14,10 @@ export interface ResponseFilters {
 }
 
 export function useSurveyDetail(surveyId: string | null, page = 1, filters: ResponseFilters = {}) {
-  const { getToken } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
   return useQuery({
     queryKey: ['survey-detail', surveyId, page, filters],
-    enabled: !!surveyId,
+    enabled: !!surveyId && (DEV_BYPASS || isSignedIn === true),
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const params = new URLSearchParams({ pageSize: '20', page: String(page) })

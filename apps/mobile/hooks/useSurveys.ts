@@ -23,11 +23,12 @@ export interface CreateSurveyInput {
 }
 
 export function useSurveys() {
-  const { getToken } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
   const qc = useQueryClient()
 
   const query = useQuery({
     queryKey: ['surveys'],
+    enabled: DEV_BYPASS || isSignedIn === true,
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/surveys`, { headers: { Authorization: `Bearer ${token}` } })
@@ -58,9 +59,10 @@ export function useSurveys() {
 }
 
 export function usePrograms() {
-  const { getToken } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
   return useQuery({
     queryKey: ['programs'],
+    enabled: DEV_BYPASS || isSignedIn === true,
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/programs`, { headers: { Authorization: `Bearer ${token}` } })

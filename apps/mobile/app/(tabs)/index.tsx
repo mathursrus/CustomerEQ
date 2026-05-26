@@ -7,9 +7,10 @@ import { NpsSparkline } from '../../components/NpsSparkline'
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { data, isLoading } = useDashboard()
+  const { data, isLoading, error } = useDashboard()
 
   if (isLoading) return <View style={s.center}><ActivityIndicator color="#4F46E5" size="large" /></View>
+  if (error) return <View style={s.center}><Text style={{ color: '#6b7280', fontSize: 14 }}>Unable to load dashboard. Pull to refresh.</Text></View>
 
   const nps = data?.nps
   const delta = nps?.delta ?? 0

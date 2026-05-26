@@ -6,9 +6,10 @@ interface Cluster { id: string; label: string; description: string | null; respo
 interface Anomaly { id: string; clusterId: string | null; clusterLabel: string | null; summary: string; severity: string; detectedAt: string }
 
 export function useClusters() {
-  const { getToken } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
   const clusters = useQuery({
     queryKey: ['clusters'],
+    enabled: DEV_BYPASS || isSignedIn === true,
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/analytics/cx/clusters`, { headers: { Authorization: `Bearer ${token}` } })
@@ -19,6 +20,7 @@ export function useClusters() {
   })
   const anomalies = useQuery({
     queryKey: ['anomalies'],
+    enabled: DEV_BYPASS || isSignedIn === true,
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/analytics/cx/anomalies`, { headers: { Authorization: `Bearer ${token}` } })

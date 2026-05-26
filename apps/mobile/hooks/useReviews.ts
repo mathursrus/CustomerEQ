@@ -6,11 +6,12 @@ interface Review { id: string; author: string; rating: number; text: string; dat
 interface ReviewMeta { total: number; page: number; limit: number; hasMore: boolean; overallRating: number | null; distribution: Record<string, number> }
 
 export function useReviews(page = 1) {
-  const { getToken } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
   const qc = useQueryClient()
 
   const query = useQuery({
     queryKey: ['reviews', page],
+    enabled: DEV_BYPASS || isSignedIn === true,
     queryFn: async () => {
       const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
       const res = await fetch(`${API_URL}/v1/reviews?page=${page}&limit=20`, { headers: { Authorization: `Bearer ${token}` } })
