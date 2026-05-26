@@ -1,4 +1,6 @@
 import '../global.css'
+// RN 0.76 added navigator.locks but not isSecureContext; Clerk crashes on the missing global
+if (typeof isSecureContext === 'undefined') (global as any).isSecureContext = true
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
