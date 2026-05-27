@@ -40,6 +40,7 @@ import authRoutes from './routes/auth.js'
 import identityProviderWebhookRoutes from './routes/identityProviderWebhook.js'
 import adminBrandProfileRoutes from './routes/admin-brand-profile.js'
 import distributionBatchesRoutes from './routes/distributionBatches.js'
+import mobileRoutes from './routes/mobile.js'
 import unsubscribeRoutes from './routes/unsubscribe.js'
 
 export async function buildApp() {
@@ -146,6 +147,7 @@ export async function buildApp() {
   await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
   await fastify.register(adminBrandProfileRoutes, { prefix: '/v1' })
   await fastify.register(distributionBatchesRoutes, { prefix: '/v1' })
+  await fastify.register(mobileRoutes, { prefix: '/v1' })
 
   // Issue #420 — public unsubscribe endpoints. Registered at root (paths
   // declared with leading /u/ in the route file) so the URL is brand-friendly

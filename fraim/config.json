@@ -72,7 +72,14 @@
       { "name": "HubSpot Service Hub", "url": "https://www.hubspot.com/products/service", "segment": "cx-platform-bundle", "tier": "mid-market" },
       { "name": "Typeform",      "url": "https://www.typeform.com",      "segment": "form-platform",        "tier": "mid-market" },
       { "name": "AskNicely",     "url": "https://www.asknicely.com",     "segment": "nps-focused",          "tier": "mid-market" },
-      { "name": "GetFeedback",   "url": "https://www.getfeedback.com",   "segment": "cx-platform-salesforce-native", "tier": "enterprise" }
+      { "name": "GetFeedback",   "url": "https://www.getfeedback.com",   "segment": "cx-platform-salesforce-native", "tier": "enterprise" },
+      { "name": "Fivestars",         "url": "https://www.fivestars.com",       "segment": "loyalty-mobile-app",   "tier": "smb" },
+      { "name": "Punchh",            "url": "https://punchh.com",              "segment": "loyalty-mobile-app",   "tier": "mid-market" },
+      { "name": "White Label Loyalty","url": "https://whitelabel-loyalty.com", "segment": "loyalty-mobile-app",   "tier": "mid-market" },
+      { "name": "Kangaroo Rewards",  "url": "https://loyalty.kangaroorewards.com", "segment": "loyalty-mobile-app", "tier": "smb" },
+      { "name": "Yotpo Loyalty",     "url": "https://www.yotpo.com/loyalty",   "segment": "loyalty-ecommerce",    "tier": "mid-market" },
+      { "name": "Smile.io",          "url": "https://smile.io",                "segment": "loyalty-ecommerce",    "tier": "smb" },
+      { "name": "Annex Cloud",       "url": "https://www.annexcloud.com",      "segment": "loyalty-enterprise",   "tier": "enterprise" }
     ],
     "stack": {
       "frontend": "next.js-15",
