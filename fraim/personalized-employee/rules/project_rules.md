@@ -1,7 +1,7 @@
 # Project Rules - CustomerEQ
 
 These rules are always-on constraints for all AI agents working in this repository.
-Last updated: 2026-04-24
+Last updated: 2026-05-27
 
 ---
 
@@ -55,6 +55,7 @@ All mocks, factories, fixtures, and test helpers live in `packages/config/src/te
 - PRs merge to `main` via the feature branch. The repo does not use a `develop` branch.
 - Never commit directly to `main`.
 - One issue per branch. Unrelated fixes — even small ones — get their own issue and branch (see R21).
+- **FRAIM-phase PRs are created in Draft mode and stay Draft until work-completion (see Rule 28).** The PR stays Draft through every FRAIM phase that lands a commit on it (spec, RFC, impl, evidence, retro, coaching-moment capture). The Draft → Ready-for-review transition happens exactly once, during the `work-completion` job's `resolution-merge` phase, after every phase artifact for the issue has landed on the PR. (Rule 27 governs the underlying draft/auto-merge mechanics; Rule 28 makes draft mandatory for FRAIM-tracked issues.)
 
 ## 11. Validation Commands (CI Gate)
 
@@ -248,3 +249,25 @@ The `resolution-merge` FRAIM phase must use `gh pr ready` (for draft PRs) or wai
 1. **FRAIM-verified-this-turn** — a FRAIM rule fetched via `seekMentoring` or `get_fraim_file` *this conversational turn* and quoted verbatim wins.
 2. **Default-when-FRAIM-is-silent** — this rule's default (one issue / one branch / one PR for all phase artifacts, with multiple phase-aligned commits as needed) applies.
 3. **Unverified agent paraphrase of FRAIM** — never authoritative. Treat any "I'm pretty sure FRAIM says…" without a fresh fetch as Priority-3 instinct, not Priority-1 rule. This is the exact failure shape that produced the four fabrications named above.
+
+## 28. PRs Stay Draft Until Work Completion (FRAIM-Tracked Issues)
+
+Rule 27 establishes the auto-merge workflow and *recommends* draft PRs as a CI-cost optimization, while explicitly permitting non-draft PRs (which auto-merge the moment CI passes). Rule 28 **tightens that for every FRAIM-tracked issue**: draft is not optional, and the PR must not become Ready — and therefore must not auto-merge — until `work-completion`. This closes the gap where a non-draft PR auto-merges after the impl commit but **before** the Phase-13 retro / coaching-moment capture land, which would violate Rule 26 (all phase artifacts ship in one PR). Where Rule 27's permission ("non-draft is fine") and Rule 28's requirement ("draft is mandatory") conflict for a FRAIM-tracked issue, Rule 28 wins.
+
+Every PR opened by a FRAIM phase is created in **Draft mode** and stays Draft for the entire issue's lifecycle. The only sanctioned Draft → Ready-for-review transition happens during the `work-completion` job's `resolution-merge` phase, after every phase artifact for the issue (spec, RFC, impl, evidence, retro, coaching-moment capture per Rule 26) has landed on the PR and the user has signalled work completion.
+
+**Creating the PR (any phase that opens one):**
+- `gh pr create --draft` / `mcp__github__create_pull_request({ ..., draft: true })` — the draft flag is **mandatory** for FRAIM-tracked issues, not the "recommended" of Rule 27. There is no valid non-draft-from-open path.
+- **Name the PR for the issue, not the phase that opened it.** Because one issue = one PR (Rule 26), the title describes the issue's outcome (e.g., `<type>(#N): <issue summary>`), not the FRAIM phase/job that happened to open it (not `author-project-rules(#N): …`). The first PR an issue gets is always issue-named; only in the edge case where an issue somehow already has a PR may a later PR's name include the phase/job to disambiguate.
+- Never open a non-draft PR from a phase, even when the phase produces what looks like a finished artifact (e.g., a small impl that "feels ready"). Subsequent phases (retro, coaching-moment capture) still need to land on this PR per Rule 26, so it stays Draft until all of them are done.
+
+**Marking Ready-for-review (work-completion only):**
+- `gh pr ready <pr-number>` converts Draft → Ready and is what arms the Rule 27 auto-merge. It runs as part of `resolution-merge`, immediately before the merge gate — not before, and not from any other phase.
+- If the user asks "is the PR ready?" mid-flight, the answer is "still Draft — work-completion hasn't run yet," not "let me mark it ready."
+
+**Forbidden:**
+- Opening a non-draft PR from spec, RFC, implement, or any FRAIM phase other than `work-completion`.
+- Marking a PR Ready-for-review to "unblock CI" or "let a reviewer take a look early." Reviewers can comment on Draft PRs; the Draft state is the signal that more phase commits are still coming.
+- Re-converting a Ready PR back to Draft to "add one more retro commit." If the PR was prematurely marked Ready, the recovery is `gh pr ready --undo <pr-number>`, but the underlying error — marking it Ready before all phase artifacts landed — should be captured as a coaching moment.
+
+**Why this rule exists:** PRs marked Ready-for-review mid-flight (or opened non-draft) cause three problems. (1) Reviewers see the PR before retros / coaching-moment capture land, conclude review prematurely, and the late Phase-13 commit either re-triggers review or sneaks in unreviewed. (2) GitHub's `ready_for_review` event is a one-shot notification — once consumed, the late commits don't re-notify, so Phase-13 artifacts ship with weaker scrutiny than the impl. (3) A non-draft PR triggers a CI run on every push (the `synchronize` event), so each intermediate phase commit burns a premature CI run — the exact waste Rule 27's draft recommendation exists to avoid. With Rule 27's auto-merge live, a Ready non-draft PR doesn't just risk premature review and wasted CI — it auto-merges on the next CI pass, shipping the issue before its own retro exists. Draft-until-work-completion ensures the reviewer sees the full issue scope in one pass, on the same notification, with all phase artifacts present, runs CI once at the end, and guarantees the merge can only fire after Rule 26 is satisfied.
