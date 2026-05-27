@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-import { API_URL, DEV_BYPASS, DEV_TOKEN } from '../lib/api'
+import { API_URL, queryEnabled, apiHeaders } from '../lib/api'
 
 export interface Survey {
   id: string; name: string; title: string | null; type: string; status: string
@@ -28,11 +28,11 @@ export function useSurveys() {
 
   const query = useQuery({
     queryKey: ['surveys'],
-    enabled: DEV_BYPASS || isSignedIn === true,
+    enabled: queryEnabled(isSignedIn ?? false),
     queryFn: async () => {
-      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
-      const res = await fetch(`${API_URL}/v1/surveys`, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) throw new Error('Failed to fetch surveys')
+      const headers = await apiHeaders(getToken)
+      const res = await fetch(`${API_URL}/v1/surveys`, { headers })
+      if (!res.ok) throw new Error(`Surveys fetch failed: ${res.status}`)
       const data = await res.json()
       return (data.surveys ?? data.data ?? data) as Survey[]
     },
@@ -40,10 +40,10 @@ export function useSurveys() {
 
   const create = useMutation({
     mutationFn: async (input: CreateSurveyInput) => {
-      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
+      const headers = await apiHeaders(getToken)
       const res = await fetch(`${API_URL}/v1/surveys`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       })
       if (!res.ok) {
@@ -62,10 +62,10 @@ export function usePrograms() {
   const { getToken, isSignedIn } = useAuth()
   return useQuery({
     queryKey: ['programs'],
-    enabled: DEV_BYPASS || isSignedIn === true,
+    enabled: queryEnabled(isSignedIn ?? false),
     queryFn: async () => {
-      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
-      const res = await fetch(`${API_URL}/v1/programs`, { headers: { Authorization: `Bearer ${token}` } })
+      const headers = await apiHeaders(getToken)
+      const res = await fetch(`${API_URL}/v1/programs`, { headers })
       if (!res.ok) return []
       const data = await res.json()
       return (data.programs ?? data.data ?? []) as Array<{ id: string; name: string }>

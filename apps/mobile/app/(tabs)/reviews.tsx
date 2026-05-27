@@ -9,7 +9,7 @@ function Stars({ rating }: { rating: number }) {
 
 export default function ReviewsScreen() {
   const insets = useSafeAreaInsets()
-  const { reviews, meta, isLoading, submitReply } = useReviews()
+  const { reviews, meta, isLoading, isError, submitReply } = useReviews()
   const [replyTarget, setReplyTarget] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -42,6 +42,8 @@ export default function ReviewsScreen() {
           </View>
         )}
         {isLoading && <ActivityIndicator color="#4F46E5" />}
+        {isError && <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: 14 }}>Unable to load reviews. Pull to refresh.</Text>}
+        {!isLoading && !isError && reviews.length === 0 && <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 32, fontSize: 14 }}>No reviews yet. Connect Google Business in Settings to import reviews.</Text>}
         {reviews.map((r) => (
           <View key={r.id} style={s.reviewCard}>
             <View style={s.reviewTop}>

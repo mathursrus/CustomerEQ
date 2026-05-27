@@ -13,7 +13,7 @@ function clusterStatus(trend: number) {
 
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets()
-  const { clusters, anomaly, isLoading } = useClusters()
+  const { clusters, anomaly, isLoading, isError } = useClusters()
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null)
 
   return (
@@ -23,6 +23,8 @@ export default function InsightsScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
         {isLoading && <ActivityIndicator color="#4F46E5" />}
+        {isError && <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: 14 }}>Unable to load insights. Pull to refresh.</Text>}
+        {!isLoading && !isError && clusters.length === 0 && <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 32, fontSize: 14 }}>No insights yet. Insights appear once survey responses have been clustered.</Text>}
         {anomaly && (
           <View style={s.anomalyCard}>
             <Text style={s.anomalyBadge}>🔴 ANOMALY DETECTED</Text>

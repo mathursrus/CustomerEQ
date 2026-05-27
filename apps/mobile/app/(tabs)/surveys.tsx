@@ -51,7 +51,7 @@ export default function SurveysScreen() {
   const [editingQIdx, setEditingQIdx] = useState<number | null>(null)
   const [editingQText, setEditingQText] = useState('')
 
-  const { data: surveys, isLoading, createSurvey } = useSurveys()
+  const { data: surveys, isLoading, isError, createSurvey } = useSurveys()
   const { data: programs } = usePrograms()
   const { data: detail, isLoading: detailLoading } = useSurveyDetail(selectedSurveyId, detailPage, detailFilters)
 
@@ -142,7 +142,8 @@ export default function SurveysScreen() {
       </ScrollView>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
         {isLoading && <ActivityIndicator color="#4F46E5" />}
-        {!isLoading && filtered.length === 0 && (
+        {isError && <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: 14 }}>Unable to load surveys. Pull to refresh.</Text>}
+        {!isLoading && !isError && filtered.length === 0 && (
           <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 32, fontSize: 14 }}>No surveys yet. Tap + to create one.</Text>
         )}
         {filtered.map((sv) => (

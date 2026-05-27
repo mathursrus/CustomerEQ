@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-expo'
-import { API_URL, DEV_BYPASS, DEV_TOKEN } from '../lib/api'
+import { API_URL, queryEnabled, apiHeaders } from '../lib/api'
 
 export interface Verbatim {
   id: string; score: number | null; sentiment: string | null; completedAt: string | null
@@ -17,16 +17,14 @@ export function useSurveyDetail(surveyId: string | null, page = 1, filters: Resp
   const { getToken, isSignedIn } = useAuth()
   return useQuery({
     queryKey: ['survey-detail', surveyId, page, filters],
-    enabled: !!surveyId && (DEV_BYPASS || isSignedIn === true),
+    enabled: !!surveyId && queryEnabled(isSignedIn ?? false),
     queryFn: async () => {
-      const token = DEV_BYPASS ? DEV_TOKEN : await getToken()
+      const headers = await apiHeaders(getToken)
       const params = new URLSearchParams({ pageSize: '20', page: String(page) })
       if (filters.sentiment) params.set('sentiment', filters.sentiment)
       if (filters.scoreBand) params.set('scoreBand', filters.scoreBand)
-      const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/responses?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error('Failed to fetch survey responses')
+      const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/responses?${params}`, { headers })
+      if (!res.ok) throw new Error(`Survey responses fetch failed: ${res.status}`)
       const data = await res.json()
       const responses = (data.responses ?? []) as Array<{
         id: string; score: number | null; sentiment: string | null; completedAt: string | null

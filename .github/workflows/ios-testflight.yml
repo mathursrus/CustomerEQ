@@ -29,9 +29,10 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
           EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          EXPO_PUBLIC_MOBILE_API_KEY: ${{ vars.EXPO_PUBLIC_MOBILE_API_KEY }}
         run: |
-          printf 'EXPO_PUBLIC_API_URL=%s\nEXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' \
-            "$EXPO_PUBLIC_API_URL" "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+          printf 'EXPO_PUBLIC_API_URL=%s\nEXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\nEXPO_PUBLIC_MOBILE_API_KEY=%s\n' \
+            "$EXPO_PUBLIC_API_URL" "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY" "$EXPO_PUBLIC_MOBILE_API_KEY" \
             > apps/mobile/.env
 
       - name: Expo prebuild
