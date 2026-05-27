@@ -1,20 +1,15 @@
 import '../global.css'
-// clerk-js@5 headless bundle assumes a browser environment.
-// These globals don't exist in React Native / Hermes — polyfill the minimum
-// surface needed for clerk.load() to resolve on native.
+// clerk-js@5 headless bundle accesses browser globals absent in React Native/Hermes.
+// Use a minimal stub — do NOT alias global itself or add document (both cause
+// other libraries to misdetect the environment and crash).
 if (typeof window === 'undefined') {
-  ;(global as any).window = global
-  ;(global as any).window.addEventListener    = () => {}
-  ;(global as any).window.removeEventListener = () => {}
-  ;(global as any).window.location = {
-    hostname: 'localhost', host: 'localhost',
-    href: 'https://localhost/', origin: 'https://localhost', protocol: 'https:',
-  }
-}
-if (typeof document === 'undefined') {
-  ;(global as any).document = {
-    visibilityState: 'visible', hasFocus: () => true,
-    addEventListener: () => {}, removeEventListener: () => {}, cookie: '',
+  ;(global as any).window = {
+    addEventListener:    () => {},
+    removeEventListener: () => {},
+    location: {
+      hostname: 'localhost', host: 'localhost',
+      href: 'https://localhost/', origin: 'https://localhost', protocol: 'https:',
+    },
   }
 }
 if (typeof isSecureContext === 'undefined') {
