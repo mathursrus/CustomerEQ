@@ -1,16 +1,16 @@
 # CI Pipeline Metrics
 
-_Last updated: 2026-05-26 01:40 UTC by the [ci-metrics workflow](../.github/workflows/ci-metrics.yml)_
+_Last updated: 2026-05-27 01:44 UTC by the [ci-metrics workflow](../.github/workflows/ci-metrics.yml)_
 
 ## 30-Day Summary
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| B&T P50 wall clock | 11m 40s | ✅ |
+| B&T P50 wall clock | 11m 39s | ✅ |
 | B&T P90 wall clock | 12m 46s | ✅ |
-| CI success rate (7d) | 89% ⚠️ | ⚠️ |
+| CI success rate (7d) | 84% ⚠️ | ⚠️ |
 | Doc-only skips (7d) | 58 | — |
-| Runs analysed (30d) | 92 | — |
+| Runs analysed (30d) | 96 | — |
 
 > ⚠️ = threshold breached. P90 alert: >14m · Failure rate alert: >10% over 7 days.
 
@@ -18,9 +18,9 @@ _Last updated: 2026-05-26 01:40 UTC by the [ci-metrics workflow](../.github/work
 
 | Step | Avg Duration |
 |------|-------------|
-| Build | 4m 28s |
+| Build | 4m 18s |
 | Type check | 3m 33s |
-| Smoke Test Suite | 1m 22s |
+| Smoke Test Suite | 1m 23s |
 | Verify BAML module resolution | 1s |
 | Run migrations | 2s |
 
@@ -28,6 +28,10 @@ _Last updated: 2026-05-26 01:40 UTC by the [ci-metrics workflow](../.github/work
 
 | Date (UTC) | Trigger | B&T | Lint | Outcome | Notes |
 |------------|---------|-----|------|---------|-------|
+| [2026-05-26 09:08](https://github.com/mathursrus/CustomerEQ/actions/runs/26443157782) | PR | 3m 16s | 34s | ✅ |  |
+| [2026-05-26 07:50](https://github.com/mathursrus/CustomerEQ/actions/runs/26439586387) | PR | 3m 20s | 23s | ✅ |  |
+| [2026-05-26 07:13](https://github.com/mathursrus/CustomerEQ/actions/runs/26437972343) | PR | 3m 53s | 36s | ✅ |  |
+| [2026-05-26 02:18](https://github.com/mathursrus/CustomerEQ/actions/runs/26428527169) | push→main | 3m 31s | 32s | ✅ |  |
 | [2026-05-25 22:31](https://github.com/mathursrus/CustomerEQ/actions/runs/26422346518) | push→main | 3m 17s | 25s | ✅ |  |
 | [2026-05-25 22:31](https://github.com/mathursrus/CustomerEQ/actions/runs/26422333253) | push→main | 3m 16s | 28s | ✅ |  |
 | [2026-05-25 22:10](https://github.com/mathursrus/CustomerEQ/actions/runs/26421744484) | push→main | 3m 15s | 27s | ✅ |  |
@@ -44,8 +48,4 @@ _Last updated: 2026-05-26 01:40 UTC by the [ci-metrics workflow](../.github/work
 | [2026-05-24 06:31](https://github.com/mathursrus/CustomerEQ/actions/runs/26354077581) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
 | [2026-05-24 06:31](https://github.com/mathursrus/CustomerEQ/actions/runs/26354070222) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
 | [2026-05-24 01:22](https://github.com/mathursrus/CustomerEQ/actions/runs/26348439801) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
-| [2026-05-24 00:12](https://github.com/mathursrus/CustomerEQ/actions/runs/26347169364) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
-| [2026-05-23 23:23](https://github.com/mathursrus/CustomerEQ/actions/runs/26346281902) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
-| [2026-05-23 23:13](https://github.com/mathursrus/CustomerEQ/actions/runs/26346084688) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
-| [2026-05-23 23:00](https://github.com/mathursrus/CustomerEQ/actions/runs/26345842932) | PR | (skipped) | (skipped) | ⏭️ | doc-only skip |
 
