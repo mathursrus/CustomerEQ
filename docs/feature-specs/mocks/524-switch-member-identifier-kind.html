@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CustomerEQ — Switch Member Identifier Kind — Mocks (Issue #524, Slice 1: Customer ID → Email)</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; }
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; }
+  .scene-label { max-width: 880px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; line-height: 1.55; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .container { max-width: 880px; margin: 0 auto; }
+
+  /* Section card (org-settings system) */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .section-head { padding: 16px 22px 12px; }
+  .section-head h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .section-head .section-help { font-size: 13px; color: var(--text-muted); margin: 0; }
+  .section-body { padding: 4px 22px 18px; display: flex; flex-direction: column; gap: 16px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .field-help { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; }
+  .radio-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+  .radio-card.disabled { opacity: 0.6; background: var(--surface-muted); cursor: not-allowed; }
+  .radio-card.disabled.selected { opacity: 1; background: var(--surface-muted); border-color: var(--border-strong); }
+  .radio-card input[type="radio"] { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+  .radio-card .body { flex: 1; }
+  .radio-card .title { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .radio-card .desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .pill { font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 4px; background: var(--primary-soft); color: var(--primary); }
+  .pill.muted { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.inuse { background: var(--success-soft); color: var(--success); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; font-size: 13px; border-radius: var(--radius-sm); font-weight: 500; border: 1px solid transparent; cursor: pointer; text-decoration: none; font-family: inherit; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary[disabled] { background: var(--text-subtle); cursor: not-allowed; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-ghost:hover { background: var(--surface-muted); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Locked / migration entry notice */
+  .locked-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 8px; }
+  .locked-notice .locked-notice-text { font-size: 13px; color: var(--text); line-height: 1.5; flex: 1; }
+  .locked-notice .locked-icon { width: 28px; height: 28px; border-radius: 50%; background: white; border: 1px solid var(--border-strong); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 10px; }
+  .badge-success { background: var(--success-soft); color: var(--success); }
+  .badge-warning { background: var(--warning-soft); color: var(--warning-strong); }
+  .badge-info { background: var(--primary-soft); color: var(--primary); }
+  .badge-muted { background: var(--surface-muted); color: var(--text-muted); }
+  .badge-danger { background: var(--danger-soft); color: var(--danger); }
+
+  code { font-family: var(--mono); font-size: 12px; background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+
+  /* Modal / wizard */
+  .scene.modal-scene { background: rgba(15, 23, 42, 0.55); padding: 56px 24px; }
+  .scene.modal-scene .scene-label { background: white; }
+  .modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-width: 640px; width: 100%; margin: 0 auto; overflow: hidden; }
+  .modal-head { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .modal-head p { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .modal-body { padding: 18px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--surface-muted); }
+  .modal-foot .foot-right { display: flex; gap: 8px; margin-left: auto; }
+  .modal-info { background: var(--primary-soft); border-left: 3px solid var(--primary); padding: 10px 14px; border-radius: 4px; font-size: 13px; color: #312e81; line-height: 1.5; }
+  .modal-warn { background: var(--warning-soft); border-left: 3px solid var(--warning); padding: 10px 14px; border-radius: 4px; font-size: 13px; color: var(--warning-strong); line-height: 1.5; }
+  .modal-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-muted); }
+  .modal-checkbox input { margin-top: 3px; accent-color: var(--primary); flex-shrink: 0; }
+  .field input[type="text"], .field textarea { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-family: var(--mono); }
+
+  /* Stepper */
+  .stepper { display: flex; align-items: center; gap: 0; font-size: 12px; }
+  .stepper .step { display: flex; align-items: center; gap: 6px; color: var(--text-subtle); }
+  .stepper .step .dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; background: white; }
+  .stepper .step.active { color: var(--primary); font-weight: 600; }
+  .stepper .step.active .dot { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+  .stepper .step.done .dot { background: var(--success); border-color: var(--success); color: white; }
+  .stepper .sep { width: 26px; height: 1px; background: var(--border-strong); margin: 0 8px; }
+
+  /* Upload dropzone */
+  .dropzone { border: 1.5px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 26px; text-align: center; background: var(--surface-muted); color: var(--text-muted); font-size: 13px; }
+  .dropzone .big { font-size: 22px; margin-bottom: 6px; }
+  .file-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--success); background: var(--success-soft); border-radius: var(--radius-sm); }
+  .file-chip .fname { font-weight: 500; color: #14532d; flex: 1; }
+  .tmpl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--primary-soft); border: 1px solid #c7d2fe; border-radius: var(--radius-sm); }
+  .tmpl-row .t { font-size: 13px; color: #312e81; }
+
+  /* Validation summary stats */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: white; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 700; }
+  .stat .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .stat.ok .num { color: var(--success); }
+  .stat.bad .num { color: var(--danger); }
+  .stat.warn .num { color: var(--warning); }
+
+  /* Error/issue table */
+  table.rows { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  table.rows th { text-align: left; padding: 8px 12px; background: var(--surface-muted); color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; font-size: 11px; }
+  table.rows td { padding: 8px 12px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  table.rows td.msg { font-family: var(--font); color: var(--danger); }
+
+  /* Progress */
+  .progress-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .progress-bar { height: 10px; border-radius: 6px; background: var(--surface-muted); overflow: hidden; }
+  .progress-bar .fill { height: 100%; background: var(--primary); }
+  .progress-bar .fill.done { background: var(--success); }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+  .live-note { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); flex-shrink: 0; }
+  .summary-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .summary-list li { display: flex; align-items: center; gap: 8px; }
+  .summary-list .ck { color: var(--success); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>CustomerEQ — Switch Member Identifier Kind (Issue #524 · Slice 1: Customer ID → Email)</h1>
+  <div class="nav">
+    <a href="#s1">1 Entry</a>
+    <a href="#s2">2 Choose</a>
+    <a href="#s3">3 Upload</a>
+    <a href="#s4">4 Errors</a>
+    <a href="#s5">5 Confirm</a>
+    <a href="#s6">6 Migrating</a>
+    <a href="#s7">7 Done</a>
+    <a href="#s8">8 Failed</a>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCENE 1 — Entry point in the locked Member identification section -->
+<!-- ============================================================ -->
+<section class="scene" id="s1">
+  <div class="scene-label"><strong>Scene 1 — Migration entry point</strong> &nbsp; Route <code>/admin/settings/organization</code>, Member identification section. Today this locked panel dead-ends at a <code>mailto:</code> "Contact support" link (see issue #524 current-state). This scene <em>replaces</em> that with a real <strong>Switch identifier method</strong> action. Radios stay disabled (the kind is still changed only via the guided flow, never by toggling a radio). Reviewer note: current kind = <code>CUSTOMER_ID</code>; in Slice 1 the only enabled target is Email.</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification</h2>
+        <p class="section-help">How CustomerEQ recognizes your members.</p>
+      </div>
+      <div class="section-body">
+        <div class="field">
+          <div class="radio-group" role="radiogroup" aria-label="Member identifier kind" aria-disabled="true">
+            <label class="radio-card disabled">
+              <input type="radio" disabled>
+              <div class="body"><div class="title">Email</div><div class="desc">Customers identify themselves with their email address.</div></div>
+            </label>
+            <label class="radio-card disabled">
+              <input type="radio" disabled>
+              <div class="body"><div class="title">Phone number</div><div class="desc">For SMS-led brands. Stored in E.164 format.</div></div>
+            </label>
+            <label class="radio-card selected disabled">
+              <input type="radio" disabled checked>
+              <div class="body"><div class="title">Customer ID (your system of record) <span class="pill inuse">In use</span></div><div class="desc">Your application's stable customer IDs (UUIDs, account numbers).</div></div>
+            </label>
+          </div>
+          <div class="locked-notice">
+            <span class="locked-icon" aria-hidden="true">🔒</span>
+            <div class="locked-notice-text">
+              <strong>1,284 members enrolled.</strong> The identifier method is locked while members exist. To change it, run a guided migration — you'll map each member to their new identifier and we migrate everything safely.
+            </div>
+            <button class="btn btn-primary btn-sm">Switch identifier method →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 2 — Wizard step 1: choose target + download template -->
+<!-- ============================================================ -->
+<section class="scene modal-scene" id="s2">
+  <div class="scene-label"><strong>Scene 2 — Step 1 of 3: Choose new method &amp; get template</strong> &nbsp; Slice 1 enables only <strong>Email</strong> as a target; Phone and "another Customer ID scheme" are shown disabled with a "subsequent release" note (no internal issue numbers in UI copy). Template download is pre-filled with the brand's existing Customer IDs so they only fill the new-email column.</div>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Switch member identifier method</h3>
+      <p>Currently identifying members by <strong>Customer ID</strong>.</p>
+    </div>
+    <div class="modal-body">
+      <div class="stepper">
+        <span class="step active"><span class="dot">1</span> Choose &amp; prepare</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">2</span> Upload &amp; validate</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">3</span> Confirm &amp; migrate</span>
+      </div>
+
+      <div class="field">
+        <label>New identifier method</label>
+        <div class="radio-group" role="radiogroup" aria-label="New identifier method">
+          <label class="radio-card selected">
+            <input type="radio" name="target" value="EMAIL" checked>
+            <div class="body"><div class="title">Email</div><div class="desc">Members will be identified by email address (case-insensitive).</div></div>
+          </label>
+          <label class="radio-card disabled">
+            <input type="radio" name="target" value="PHONE" disabled>
+            <div class="body"><div class="title">Phone number <span class="pill muted">Available in a subsequent release</span></div><div class="desc">E.164 format.</div></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-info">
+        Email can't be derived from a Customer ID, so you'll provide the email for each member. We've pre-filled a template with your <strong>1,284</strong> existing Customer IDs — add the matching email to each row.
+      </div>
+
+      <div class="tmpl-row">
+        <span class="t"><strong>Mapping template</strong> — <code>customer_id</code>, <code>new_email</code> (1,284 rows pre-filled)</span>
+        <button class="btn btn-ghost btn-sm">⬇ Download template (CSV)</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost">Cancel</button>
+      <div class="foot-right">
+        <button class="btn btn-primary">Next: Upload mapping →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 3 — Wizard step 2: upload + clean validation result -->
+<!-- ============================================================ -->
+<section class="scene modal-scene" id="s3">
+  <div class="scene-label"><strong>Scene 3 — Step 2 of 3: Upload &amp; validate (all clear)</strong> &nbsp; Brand uploaded the filled CSV; pre-flight validation ran <em>before any write</em>. All 1,284 members map to a valid, unique email. "Next" is enabled only when there are zero blocking issues (full coverage, valid shapes, no collisions).</div>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Switch member identifier method</h3>
+      <p>Step 2 of 3 — Upload &amp; validate</p>
+    </div>
+    <div class="modal-body">
+      <div class="stepper">
+        <span class="step done"><span class="dot">✓</span> Choose &amp; prepare</span>
+        <span class="sep"></span>
+        <span class="step active"><span class="dot">2</span> Upload &amp; validate</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">3</span> Confirm &amp; migrate</span>
+      </div>
+
+      <div class="file-chip">
+        <span aria-hidden="true">📄</span>
+        <span class="fname">acme-customerid-to-email.csv</span>
+        <span class="badge badge-success">✓ Validated</span>
+        <button class="btn btn-ghost btn-sm">Replace</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="num">1,284</div><div class="lbl">Rows in file</div></div>
+        <div class="stat ok"><div class="num">1,284</div><div class="lbl">Members matched</div></div>
+        <div class="stat ok"><div class="num">0</div><div class="lbl">Unmapped members</div></div>
+        <div class="stat ok"><div class="num">0</div><div class="lbl">Blocking issues</div></div>
+      </div>
+
+      <div class="modal-info">All members are accounted for and every new email is valid and unique. You're ready to migrate.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost">← Back</button>
+      <div class="foot-right">
+        <button class="btn btn-primary">Next: Review &amp; confirm →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 4 — Wizard step 2: validation found blocking issues -->
+<!-- ============================================================ -->
+<section class="scene modal-scene" id="s4">
+  <div class="scene-label"><strong>Scene 4 — Step 2 (blocking issues found)</strong> &nbsp; Validation surfaces the three blocking classes: <strong>unmapped members</strong> (a member with no row → would be left mixed-kind), <strong>collisions</strong> (two Customer IDs → same email → would violate the unique key), and <strong>invalid shape</strong> (not a valid email). Migration cannot start until all are resolved — "Next" stays disabled. Nothing is written during validation.</div>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Switch member identifier method</h3>
+      <p>Step 2 of 3 — Upload &amp; validate</p>
+    </div>
+    <div class="modal-body">
+      <div class="stepper">
+        <span class="step done"><span class="dot">✓</span> Choose &amp; prepare</span>
+        <span class="sep"></span>
+        <span class="step active"><span class="dot">2</span> Upload &amp; validate</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">3</span> Confirm &amp; migrate</span>
+      </div>
+
+      <div class="file-chip" style="border-color: var(--danger); background: var(--danger-soft);">
+        <span aria-hidden="true">📄</span>
+        <span class="fname" style="color:#7f1d1d;">acme-customerid-to-email.csv</span>
+        <span class="badge badge-danger">3 blocking issues</span>
+        <button class="btn btn-ghost btn-sm">Replace</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="num">1,283</div><div class="lbl">Rows in file</div></div>
+        <div class="stat warn"><div class="num">1</div><div class="lbl">Unmapped members</div></div>
+        <div class="stat bad"><div class="num">1</div><div class="lbl">Email collisions</div></div>
+        <div class="stat bad"><div class="num">1</div><div class="lbl">Invalid emails</div></div>
+      </div>
+
+      <table class="rows">
+        <thead><tr><th>Row</th><th>Customer ID</th><th>New email</th><th class="msg" style="color:var(--text-muted);">Issue</th></tr></thead>
+        <tbody>
+          <tr><td>—</td><td>cust_99812</td><td>—</td><td class="msg">Member exists but has no row in the file. Every member needs a new email.</td></tr>
+          <tr><td>312</td><td>cust_40021</td><td>jane@acme.com</td><td class="msg">Collides with row 88 — two members map to the same email.</td></tr>
+          <tr><td>655</td><td>cust_55190</td><td>not-an-email</td><td class="msg">Not a valid email address.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="modal-warn">Fix these rows in your CSV and re-upload. Migration won't start until there are zero blocking issues — your members are untouched.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost">← Back</button>
+      <div class="foot-right">
+        <button class="btn btn-primary" disabled>Next: Review &amp; confirm →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 5 — Wizard step 3: confirm + attestation -->
+<!-- ============================================================ -->
+<section class="scene modal-scene" id="s5">
+  <div class="scene-label"><strong>Scene 5 — Step 3 of 3: Confirm (attestation gate)</strong> &nbsp; Reuses the consent-mode attestation pattern (checkbox + recorded admin + timestamp, audited). Explains the catch-up window in plain language. The confirm button is danger-styled and disabled until the checkbox is ticked, because the re-key cannot be automatically undone.</div>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Confirm migration to Email</h3>
+      <p>1,284 members will be re-identified by email.</p>
+    </div>
+    <div class="modal-body">
+      <div class="stepper">
+        <span class="step done"><span class="dot">✓</span> Choose &amp; prepare</span>
+        <span class="sep"></span>
+        <span class="step done"><span class="dot">✓</span> Upload &amp; validate</span>
+        <span class="sep"></span>
+        <span class="step active"><span class="dot">3</span> Confirm &amp; migrate</span>
+      </div>
+
+      <div class="modal-info">
+        <strong>What happens next</strong>
+        <ul style="margin:6px 0 0; padding-left:18px;">
+          <li>Each member is re-keyed from their Customer ID to their new email.</li>
+          <li>Feedback received during the migration keeps working — it's matched on the old Customer ID and reconciled automatically.</li>
+          <li>When finished, your identifier method switches to <strong>Email</strong> and the change is recorded in your audit log.</li>
+        </ul>
+      </div>
+
+      <label class="modal-checkbox">
+        <input type="checkbox">
+        <span>I confirm I have permission to use these email addresses, and I understand this re-keys all 1,284 members and cannot be automatically undone.</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost">← Back</button>
+      <div class="foot-right">
+        <button class="btn btn-danger" disabled>Migrate 1,284 members</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 6 — In progress (polled) -->
+<!-- ============================================================ -->
+<section class="scene" id="s6">
+  <div class="scene-label"><strong>Scene 6 — Migration in progress</strong> &nbsp; Section now shows live progress (polled via the shared <code>usePollingQuery</code> hook, same as managed-email send progress). The radios/Switch button are hidden while a migration is active. The live note communicates the catch-up window so the admin doesn't pause their integration.</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-info">Migrating</span></h2>
+        <p class="section-help">Switching from Customer ID to Email.</p>
+      </div>
+      <div class="section-body">
+        <div class="progress-wrap">
+          <div class="progress-bar"><div class="fill" style="width:62%"></div></div>
+          <div class="progress-meta"><span>796 of 1,284 members migrated</span><span>62%</span></div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><div class="num">1,284</div><div class="lbl">Total</div></div>
+          <div class="stat ok"><div class="num">796</div><div class="lbl">Migrated</div></div>
+          <div class="stat"><div class="num">488</div><div class="lbl">Remaining</div></div>
+          <div class="stat ok"><div class="num">0</div><div class="lbl">Failed</div></div>
+        </div>
+        <div class="live-note"><span class="live-dot"></span> Live — incoming feedback during migration is matched on the old Customer ID and will be reconciled automatically. No action needed.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 7 — Complete (with reconciliation summary) -->
+<!-- ============================================================ -->
+<section class="scene" id="s7">
+  <div class="scene-label"><strong>Scene 7 — Migration complete</strong> &nbsp; Kind is now Email; the section reverts to the normal locked state with Email "In use". A completion summary (dismissible) reports counts including the late-arriving records reconciled during the window. The audit log captured before/after kind and counts.</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-success">✓ Migration complete</span></h2>
+        <p class="section-help">How CustomerEQ recognizes your members.</p>
+      </div>
+      <div class="section-body">
+        <div class="modal-info" style="border-left-color: var(--success); background: var(--success-soft); color:#14532d;">
+          <strong>Migrated 1,284 members from Customer ID to Email</strong> on 2026-05-27.
+          <ul class="summary-list" style="margin-top:8px;">
+            <li><span class="ck">✓</span> 1,284 members re-keyed to email</li>
+            <li><span class="ck">✓</span> 7 records that arrived during migration were matched and reconciled</li>
+            <li><span class="ck">✓</span> 0 failures</li>
+          </ul>
+        </div>
+        <div class="field">
+          <div class="radio-group" role="radiogroup" aria-label="Member identifier kind" aria-disabled="true">
+            <label class="radio-card selected disabled">
+              <input type="radio" disabled checked>
+              <div class="body"><div class="title">Email <span class="pill inuse">In use</span></div><div class="desc">Customers identify themselves with their email address.</div></div>
+            </label>
+            <label class="radio-card disabled">
+              <input type="radio" disabled>
+              <div class="body"><div class="title">Customer ID (your system of record)</div><div class="desc">Your application's stable customer IDs.</div></div>
+            </label>
+          </div>
+          <div class="locked-notice">
+            <span class="locked-icon" aria-hidden="true">🔒</span>
+            <div class="locked-notice-text"><strong>1,284 members enrolled.</strong> The identifier method is locked while members exist. To change it, run a guided migration.</div>
+            <button class="btn btn-ghost btn-sm">Switch identifier method →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 8 — Failed (rolled back, kind unchanged) -->
+<!-- ============================================================ -->
+<section class="scene" id="s8">
+  <div class="scene-label"><strong>Scene 8 — Migration failed</strong> &nbsp; A failure during the re-key (e.g., DB error mid-batch) rolls the batch back: the identifier method stays <code>CUSTOMER_ID</code> (no partial flip), members are untouched, and per-member errors are shown. The admin can retry. This is distinct from the pre-flight validation errors in Scene 4 (which happen before any write).</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-danger">Migration failed</span></h2>
+        <p class="section-help">Still identifying members by Customer ID — nothing was changed.</p>
+      </div>
+      <div class="section-body">
+        <div class="modal-warn">
+          <strong>Migration didn't complete and was rolled back.</strong> Your members are unchanged and still identified by Customer ID. You can review the errors below and retry.
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><div class="num">1,284</div><div class="lbl">Total</div></div>
+          <div class="stat"><div class="num">512</div><div class="lbl">Processed before failure</div></div>
+          <div class="stat bad"><div class="num">2</div><div class="lbl">Errors</div></div>
+          <div class="stat"><div class="num">CUSTOMER_ID</div><div class="lbl">Method (unchanged)</div></div>
+        </div>
+        <table class="rows">
+          <thead><tr><th>Customer ID</th><th>New email</th><th class="msg" style="color:var(--text-muted);">Error</th></tr></thead>
+          <tbody>
+            <tr><td>cust_77310</td><td>sam@acme.com</td><td class="msg">Write failed — temporary database error. Safe to retry.</td></tr>
+            <tr><td>cust_77311</td><td>lee@acme.com</td><td class="msg">Write failed — temporary database error. Safe to retry.</td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary btn-sm">Retry migration</button>
+          <button class="btn btn-ghost btn-sm">Download error report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
