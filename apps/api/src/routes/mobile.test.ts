@@ -86,10 +86,10 @@ function formatReviewForMobile(signal: {
  */
 function extractBrandIdFromRequest(
   requestBrandId: string | undefined,
-  bodyBrandId: string | undefined,
+  _bodyBrandId: string | undefined,
 ): string {
   if (!requestBrandId) throw new Error('brandId missing from JWT')
-  return requestBrandId // body value is intentionally ignored
+  return requestBrandId
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
