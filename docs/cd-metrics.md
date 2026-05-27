@@ -1,17 +1,17 @@
 # CD Pipeline Metrics
 
-_Last updated: 2026-05-26 02:16 UTC by the [cd-metrics workflow](../.github/workflows/cd-metrics.yml)_
+_Last updated: 2026-05-27 02:17 UTC by the [cd-metrics workflow](../.github/workflows/cd-metrics.yml)_
 
 ## 30-Day Summary
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| CD P50 wall clock | 13m 11s | ✅ |
-| CD P90 wall clock | 18m 22s | ✅ |
-| Merge → live P50 | 28m 52s | ✅ |
+| CD P50 wall clock | 13m 15s | ✅ |
+| CD P90 wall clock | 19m 38s | ✅ |
+| Merge → live P50 | 28m 24s | ✅ |
 | Merge → live P90 | 42m 15s ⚠️ | ⚠️ |
-| CD success rate (7d) | 61% ⚠️ | ⚠️ |
-| Deploys analysed (30d) | 168 | — |
+| CD success rate (7d) | 67% ⚠️ | ⚠️ |
+| Deploys analysed (30d) | 169 | — |
 
 > ⚠️ = threshold breached. P90 alert: >25m · Any failure alerts immediately · Merge→live >30m.
 
@@ -19,15 +19,19 @@ _Last updated: 2026-05-26 02:16 UTC by the [cd-metrics workflow](../.github/work
 
 | Phase | Avg Duration |
 |-------|-------------|
-| Image builds | 12m 24s |
+| Image builds | 12m 35s |
 | Migration | 1m 10s |
-| Container deploy | 1m 6s |
-| Verification | 3s |
+| Container deploy | 1m 7s |
+| Verification | 4s |
 
 ## Last 20 Deploys
 
 | Date (UTC) | Trigger | Total | Merge→Live | Outcome |
 |------------|---------|-------|------------|---------|
+| [2026-05-26 09:12](https://github.com/mathursrus/CustomerEQ/actions/runs/26443328899) | manual | 20m 34s | 20m 42s | ✅ |
+| [2026-05-26 07:54](https://github.com/mathursrus/CustomerEQ/actions/runs/26439747013) | manual | 20m 11s | 20m 18s | ✅ |
+| [2026-05-26 07:17](https://github.com/mathursrus/CustomerEQ/actions/runs/26438146560) | manual | 20m 9s | 20m 16s | ✅ |
+| [2026-05-26 02:22](https://github.com/mathursrus/CustomerEQ/actions/runs/26428629712) | auto | 16m 48s | — | ✅ |
 | [2026-05-25 22:35](https://github.com/mathursrus/CustomerEQ/actions/runs/26422444624) | auto | 17m 11s | — | ✅ |
 | [2026-05-25 22:13](https://github.com/mathursrus/CustomerEQ/actions/runs/26421835671) | auto | 17m 9s | — | ✅ |
 | [2026-05-25 22:05](https://github.com/mathursrus/CustomerEQ/actions/runs/26421613602) | auto | 20m 3s | — | ✅ |
@@ -44,8 +48,4 @@ _Last updated: 2026-05-26 02:16 UTC by the [cd-metrics workflow](../.github/work
 | [2026-05-23 14:46](https://github.com/mathursrus/CustomerEQ/actions/runs/26335667082) | manual | 20s | — | ❌ |
 | [2026-05-23 14:46](https://github.com/mathursrus/CustomerEQ/actions/runs/26335657901) | manual | 32s | — | ⏭️ |
 | [2026-05-23 04:37](https://github.com/mathursrus/CustomerEQ/actions/runs/26323630478) | manual | 19m 46s | — | ✅ |
-| [2026-05-23 04:14](https://github.com/mathursrus/CustomerEQ/actions/runs/26323191979) | manual | 20m 1s | — | ✅ |
-| [2026-05-23 04:11](https://github.com/mathursrus/CustomerEQ/actions/runs/26323129313) | manual | 15s | — | ❌ |
-| [2026-05-22 09:45](https://github.com/mathursrus/CustomerEQ/actions/runs/26280639254) | auto | 16m 44s | 28m 54s | ✅ |
-| [2026-05-22 09:14](https://github.com/mathursrus/CustomerEQ/actions/runs/26279231939) | auto | 11s | — | ✅ |
 
