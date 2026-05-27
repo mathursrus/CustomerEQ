@@ -17,13 +17,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clerk/backend": "^3.2.14",
-    "@clerk/fastify": "^3.1.16",
+    "@clerk/backend": "^3.4.13",
+    "@clerk/fastify": "^3.1.31",
     "@customerEQ/ai": "workspace:*",
     "@customerEQ/connectors": "workspace:*",
     "@customerEQ/consent-text": "workspace:*",
     "@customerEQ/database": "workspace:*",
     "@customerEQ/shared": "workspace:*",
+    "@customerEQ/worker": "workspace:*",
     "@fastify/cors": "^11.2.0",
     "@fastify/sensible": "^6.0.4",
     "@prisma/client": "^5.13.0",

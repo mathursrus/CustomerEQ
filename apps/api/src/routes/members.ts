@@ -8,6 +8,8 @@ import {
   CreateMemberNoteSchema,
   UpdateMemberNoteSchema,
   floatToSentimentBucket,
+  globToSqlLike,
+  deriveSurveySuppression,
   type Customer360Query,
 } from '@customerEQ/shared'
 import { analyzeResponse } from '@customerEQ/ai'
@@ -782,7 +784,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     const { q, tier, sentimentMin, sentimentMax, npsMin, npsMax,
             balanceMin, balanceMax, healthScoreMin, healthScoreMax,
             status, enrolledAfter, enrolledBefore,
-            page, pageSize, sortBy, sortOrder } = query
+            page, pageSize, sortBy, sortOrder, surveyId } = query
 
     // Build Prisma where clause
     const where: Prisma.MemberWhereInput = {
@@ -790,13 +792,38 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
       deletedAt: null,
     }
 
-    // Text search (ILIKE via Prisma mode: 'insensitive')
+    // Text search.
+    // - Default: substring ILIKE via Prisma `contains` (backward-compat).
+    // - Glob mode (Issue #420 / R17): when q contains `*` or `?`, translate to
+    //   SQL LIKE (`*`→`%`, `?`→`_`) with operator-literal `%`/`_`/`\` escaped
+    //   via `globToSqlLike`, then OR-match against externalId / email /
+    //   firstName / lastName. Used by the #420 audience-builder wildcard
+    //   search. Backward-compatible: queries without `*`/`?` keep the existing
+    //   substring behavior.
     if (q) {
-      where.OR = [
-        { firstName: { contains: q, mode: 'insensitive' } },
-        { lastName: { contains: q, mode: 'insensitive' } },
-        { email: { contains: q, mode: 'insensitive' } },
-      ]
+      const isGlob = /[*?]/.test(q)
+      if (isGlob) {
+        const likePattern = globToSqlLike(q)
+        const matching = await fastify.prisma.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "members"
+          WHERE "brandId" = ${request.brandId}
+            AND "deletedAt" IS NULL
+            AND (
+              "externalId" ILIKE ${likePattern} ESCAPE '\\'
+              OR "email" ILIKE ${likePattern} ESCAPE '\\'
+              OR "firstName" ILIKE ${likePattern} ESCAPE '\\'
+              OR "lastName" ILIKE ${likePattern} ESCAPE '\\'
+            )
+        `
+        const ids = matching.map((r) => r.id)
+        where.id = { in: ids.length > 0 ? ids : ['__none__'] }
+      } else {
+        where.OR = [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ]
+      }
     }
 
     // Behavioral filters
@@ -859,41 +886,93 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         skip: isSentimentSort ? undefined : (page - 1) * pageSize,
         select: {
           id: true,
+          externalId: true,
           email: true,
           firstName: true,
           lastName: true,
           pointsBalance: true,
           status: true,
           erased: true,
+          consentGivenAt: true,
+          unsubscribedSurveysAt: true,
           createdAt: true,
           healthScore: true,
           healthScoreUpdatedAt: true,
           currentTier: { select: { name: true } },
+          // Latest response across ANY survey — drives latestSentiment +
+          // latestNpsScore (Customer-360) AND, when surveyId is provided
+          // (Issue #420 G22), lastResponseAnySurvey for the audience builder.
           surveyResponses: {
             orderBy: { completedAt: 'desc' },
             take: 1,
-            select: { sentiment: true, score: true },
+            select: { sentiment: true, score: true, completedAt: true },
           },
         },
       }),
       fastify.prisma.member.count({ where }),
     ])
 
+    // Issue #420 G22 — when surveyId is set, batch-fetch each member's
+    // latest response to THAT specific survey. One round trip via groupBy
+    // keeps it cheap even at pageSize=50. Map keyed by memberId so the
+    // result mapper below can look up O(1).
+    const lastResponseThisSurveyByMemberId = new Map<string, string>()
+    if (surveyId && members.length > 0) {
+      const memberIds = members.map((m) => m.id)
+      const grouped = await fastify.prisma.surveyResponse.groupBy({
+        by: ['memberId'],
+        where: { brandId: request.brandId, surveyId, memberId: { in: memberIds } },
+        _max: { completedAt: true },
+      })
+      for (const row of grouped) {
+        if (row.memberId && row._max.completedAt) {
+          lastResponseThisSurveyByMemberId.set(row.memberId, row._max.completedAt.toISOString())
+        }
+      }
+    }
+
     // Post-process: sentiment sort (if needed) + PII masking
-    let results = members.map((m) => ({
-      id: m.id,
-      email: m.erased ? '[ERASED]' : m.email,
-      firstName: m.erased ? '[ERASED]' : m.firstName,
-      lastName: m.erased ? '[ERASED]' : m.lastName,
-      pointsBalance: m.pointsBalance,
-      status: m.status,
-      tierName: m.currentTier?.name ?? null,
-      healthScore: m.healthScore ?? null,
-      healthScoreUpdatedAt: m.healthScoreUpdatedAt ?? null,
-      latestSentiment: m.surveyResponses[0]?.sentiment ?? null,
-      latestNpsScore: m.surveyResponses[0]?.score ?? null,
-      createdAt: m.createdAt,
-    }))
+    let results = members.map((m) => {
+      // Issue #420 R22/R43/R44 — derive a survey-send suppression chip per
+      // member. The audience-builder UI (apps/web/...audience-builder) renders
+      // this chip on Search-tab results and on accumulated-audience rows so the
+      // operator can see who can't be sent to *before* clicking Send. The
+      // worker re-checks all four conditions at dispatch time (R44) — this is
+      // purely a UI preview. emailOptIn is INTENTIONALLY EXCLUDED per R44 (the
+      // marketing-channel opt-out doesn't gate surveys).
+      const suppression = deriveSurveySuppression({
+        erased: m.erased,
+        email: m.email,
+        consentGivenAt: m.consentGivenAt,
+        unsubscribedSurveysAt: m.unsubscribedSurveysAt,
+      })
+      return {
+        id: m.id,
+        externalId: m.externalId,
+        email: m.erased ? '[ERASED]' : m.email,
+        firstName: m.erased ? '[ERASED]' : m.firstName,
+        lastName: m.erased ? '[ERASED]' : m.lastName,
+        pointsBalance: m.pointsBalance,
+        status: m.status,
+        tierName: m.currentTier?.name ?? null,
+        healthScore: m.healthScore ?? null,
+        healthScoreUpdatedAt: m.healthScoreUpdatedAt ?? null,
+        latestSentiment: m.surveyResponses[0]?.sentiment ?? null,
+        latestNpsScore: m.surveyResponses[0]?.score ?? null,
+        createdAt: m.createdAt,
+        suppressionStatus: suppression.status,
+        suppressionSince: suppression.since,
+        // Issue #420 G22 — only included when surveyId was on the query;
+        // omitted otherwise so Customer-360 search responses keep their
+        // existing shape and bytes.
+        ...(surveyId
+          ? {
+              lastResponseThisSurvey: lastResponseThisSurveyByMemberId.get(m.id) ?? null,
+              lastResponseAnySurvey: m.surveyResponses[0]?.completedAt?.toISOString() ?? null,
+            }
+          : {}),
+      }
+    })
 
     if (isSentimentSort) {
       results.sort((a, b) => {

@@ -40,6 +40,7 @@
     "run-scenario": "tsx scripts/run-scenario.ts"
   },
   "devDependencies": {
+    "@customerEQ/connectors": "workspace:*",
     "@eslint/js": "^10.0.1",
     "tsx": "^4.9.0",
     "@types/node": "^22.0.0",
@@ -56,7 +57,8 @@
       "@clerk/clerk-react": "^5.61.6",
       "fast-uri": ">=3.1.2",
       "expo-auth-session": "6.0.2",
-      "expo-crypto": "14.0.2"
+      "expo-crypto": "14.0.2",
+      "js-cookie": ">=3.0.7"
     }
   }
 }

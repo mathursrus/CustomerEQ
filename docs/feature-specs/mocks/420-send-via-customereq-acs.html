@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 2 interactive mock</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-muted: #f4f4f5;
+    --border: #e4e4e7; --border-strong: #d4d4d8;
+    --text: #18181b; --text-muted: #71717a; --text-subtle: #a1a1aa;
+    --primary: #4f46e5; --primary-hover: #4338ca; --primary-soft: #eef2ff;
+    --success: #16a34a; --success-soft: #dcfce7;
+    --warning: #d97706; --warning-soft: #fef3c7; --warning-strong: #92400e;
+    --danger: #dc2626; --danger-soft: #fee2e2;
+    --info: #0891b2; --info-soft: #cffafe;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 40px -10px rgba(0,0,0,0.18);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; font-size: 14px; scroll-behavior: smooth; }
+
+  .mock-header { background: #1f2937; color: white; padding: 14px 32px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 8px; }
+  .mock-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .mock-header .nav a { color: #d1d5db; text-decoration: none; margin-left: 14px; font-size: 12px; }
+  .mock-header .nav a:hover { color: white; text-decoration: underline; }
+
+  /* PM-framing banner that introduces the shared-vs-divergent structure */
+  .pm-framing { background: linear-gradient(90deg, #ecfeff 0%, #eef2ff 100%); border-bottom: 1px solid var(--border); padding: 18px 24px; }
+  .pm-framing .container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .pm-framing h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--info); text-transform: uppercase; letter-spacing: 0.6px; }
+  .pm-framing p { margin: 0 0 8px; font-size: 13px; color: var(--text); }
+  .pm-framing ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); }
+  .pm-framing ul li { padding: 2px 0; }
+  .pm-framing .legend { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .pm-framing .legend .chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; margin-right: 6px; }
+  .pm-framing .legend .chip.shared { background: #dbeafe; color: #1e40af; }
+  .pm-framing .legend .chip.self-serve { background: #fef3c7; color: var(--warning-strong); }
+  .pm-framing .legend .chip.managed-acs { background: var(--primary-soft); color: var(--primary); }
+
+  .scene { border-top: 1px solid var(--border); padding: 32px 24px 56px; scroll-margin-top: 60px; }
+  .scene-label { max-width: 1280px; margin: 0 auto 20px auto; padding: 8px 12px; background: #fff7ed; border-left: 3px solid #f97316; color: #9a3412; font-size: 12px; border-radius: 4px; }
+  .scene-label strong { text-transform: uppercase; letter-spacing: 0.5px; }
+  .scene-label .scene-note { display: block; margin-top: 4px; color: #b45309; font-size: 11px; }
+  .scene-label .mode-chip { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px; }
+  .scene-label .mode-chip.shared { background: #dbeafe; color: #1e40af; }
+  .scene-label .mode-chip.self-serve { background: #fef3c7; color: var(--warning-strong); }
+  .scene-label .mode-chip.managed-acs { background: var(--primary-soft); color: var(--primary); }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  .admin-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); }
+  .admin-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+  .admin-top .logo { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .admin-top .logo-mark { width: 24px; height: 24px; background: var(--primary); border-radius: 6px; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .admin-body { display: grid; grid-template-columns: 220px 1fr; min-height: 560px; }
+  .admin-nav { border-right: 1px solid var(--border); background: white; padding: 16px 0; }
+  .admin-nav a { display: block; padding: 8px 20px; color: var(--text-muted); text-decoration: none; font-size: 14px; cursor: pointer; }
+  .admin-nav a.active { color: var(--primary); background: var(--primary-soft); font-weight: 500; border-right: 2px solid var(--primary); }
+  .admin-nav-group { padding: 14px 20px 4px 20px; font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.5px; }
+  .admin-main { padding: 28px 36px; background: var(--bg); }
+
+  .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .page-header p { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 720px; }
+  .page-header .switch-mode { font-size: 12px; color: var(--primary); text-decoration: none; padding: 6px 12px; border: 1px solid var(--primary); border-radius: 6px; background: white; }
+  .page-header .switch-mode:hover { background: var(--primary-soft); }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .pill.solid-active { background: var(--success-soft); color: var(--success); }
+  .pill.outline-type { background: white; border: 1px solid var(--border); color: var(--text); }
+  .pill.warn { background: var(--warning-soft); color: var(--warning-strong); }
+  .pill.danger { background: var(--danger-soft); color: var(--danger); }
+  .pill.info { background: var(--info-soft); color: var(--info); }
+  .pill.source-existing { background: #e0e7ff; color: var(--primary); }
+  .pill.source-new { background: #fef3c7; color: var(--warning-strong); }
+  .pill.source-skipped { background: var(--surface-muted); color: var(--text-muted); }
+  .pill.mode-self-serve { background: var(--warning-soft); color: var(--warning-strong); }
+  .pill.mode-managed-acs { background: var(--primary-soft); color: var(--primary); }
+
+  .section { background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; }
+  .section-head h2 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .section-body { padding: 0 18px 16px; border-top: 1px solid var(--border); }
+
+  .dist-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .dist-tile { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: white; display: flex; flex-direction: column; }
+  .dist-tile h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
+  .dist-tile p { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; min-height: 48px; }
+  .dist-tile .tile-value { font-family: var(--mono); font-size: 11px; background: var(--surface-muted); padding: 6px 8px; border-radius: 4px; word-break: break-all; color: var(--text); }
+  .dist-tile.cta { border: 1.5px solid var(--primary); background: var(--primary-soft); }
+  .dist-tile.cta h3 { color: var(--primary); }
+  .dist-tile .tile-actions { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 10px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; user-select: none; text-decoration: none; justify-content: center; }
+  .btn.primary { background: var(--primary); color: white; }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn.primary.large { padding: 10px 22px; font-size: 14px; }
+  .btn.secondary { background: white; border-color: var(--border-strong); color: var(--text); }
+  .btn.secondary:hover { background: var(--surface-muted); }
+  .btn.outline-primary { background: white; border-color: var(--primary); color: var(--primary); }
+  .btn.outline-primary:hover { background: var(--primary-soft); }
+  .btn.ghost { background: transparent; color: var(--text-muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--surface-muted); }
+  .btn.danger { background: white; border-color: var(--danger); color: var(--danger); }
+  .btn.tiny { padding: 4px 10px; font-size: 12px; }
+  .btn[disabled], .btn.disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+
+  /* Audience builder */
+  .audience-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .audience-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .audience-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+  .audience-card .card-help { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
+  .audience-card .search-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .audience-card input[type="text"], .audience-card input[type="search"], .audience-card textarea, .audience-card select {
+    border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  }
+  .audience-card input[type="search"] { flex: 1; }
+  .audience-card .search-results { max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-muted); padding: 4px; }
+  .audience-card .search-row-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 12px; background: white; border-radius: 4px; margin-bottom: 2px; }
+  .audience-card .search-row-item .name { font-weight: 500; }
+  .audience-card .search-row-item .identifier { font-family: var(--mono); color: var(--text-muted); margin-left: 8px; }
+  .audience-card .search-row-item .meta { color: var(--text-muted); font-size: 11px; margin-left: 8px; }
+  .audience-card .pagination { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; font-size: 11px; color: var(--text-muted); }
+  .audience-card .pagination .page-info { font-family: var(--mono); }
+  .audience-card .secondary-tabs { display: inline-flex; background: var(--surface-muted); border-radius: 6px; padding: 2px; margin-bottom: 10px; }
+  .audience-card .secondary-tabs button { background: transparent; border: none; padding: 4px 12px; font-size: 12px; color: var(--text-muted); border-radius: 4px; cursor: pointer; }
+  .audience-card .secondary-tabs button.active { background: white; color: var(--text); box-shadow: var(--shadow-sm); }
+  .audience-card textarea { width: 100%; resize: vertical; min-height: 100px; font-family: var(--mono); font-size: 12px; }
+  .audience-card .add-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+  .audience-list-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+  .audience-list-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .audience-list-head .summary { font-size: 14px; font-weight: 600; }
+  .audience-list-head .summary-aux { font-size: 12px; color: var(--text-muted); margin-left: 6px; font-weight: normal; }
+  .audience-list-head .bulk-actions { display: flex; gap: 6px; }
+  .audience-list-head .bulk-actions select { font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px; }
+  .audience-list-card table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .audience-list-card th, .audience-list-card td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .audience-list-card th { font-weight: 500; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .audience-list-card tr.deselected td { color: var(--text-subtle); }
+  .audience-list-card .col-checkbox { width: 28px; }
+  .audience-list-card .identifier-mono { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+  .audience-list-card .pagination-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; font-size: 12px; color: var(--text-muted); }
+
+  /* Survey Batch details card — SHARED between modes (newly surfaced in Round 2 per reviewer feedback) */
+  .common-fields-card { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+  .common-fields-card .shared-label { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px; background: #dbeafe; color: #1e40af; margin-bottom: 8px; letter-spacing: 0.4px; }
+  .common-fields-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+  .common-fields-card .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .common-fields-card label { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 4px; }
+  .common-fields-card input[type="text"], .common-fields-card select { width: 100%; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: white; }
+  .common-fields-card .field-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* Composer + preview */
+  .composer-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 16px; }
+  .composer-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .composer-card h3 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+  .composer-card .field { margin-bottom: 12px; }
+  .composer-card label { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 4px; }
+  .composer-card input[type="text"], .composer-card textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+  .composer-card .sender-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .composer-card .alias-row { display: flex; align-items: stretch; }
+  .composer-card .alias-row input { border-radius: 6px 0 0 6px; border-right: none; }
+  .composer-card .alias-row .suffix { padding: 8px 10px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-left: none; border-radius: 0 6px 6px 0; color: var(--text-muted); font-family: var(--mono); font-size: 12px; display: flex; align-items: center; }
+  .composer-card .editor-toolbar { display: flex; gap: 4px; padding: 6px; background: var(--surface-muted); border: 1px solid var(--border-strong); border-bottom: none; border-radius: 6px 6px 0 0; flex-wrap: wrap; }
+  .composer-card .editor-toolbar button { padding: 4px 8px; font-size: 12px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-weight: 500; }
+  .composer-card .editor-toolbar button.merge-tag { background: var(--primary-soft); color: var(--primary); font-family: var(--mono); }
+  .composer-card .editor-body { width: 100%; border: 1px solid var(--border-strong); border-radius: 0 0 6px 6px; padding: 10px 12px; font-size: 13px; font-family: inherit; min-height: 180px; resize: vertical; }
+  .composer-card .editor-helper { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .composer-card .footer-preview { background: var(--surface-muted); border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; color: var(--text-muted); font-family: var(--mono); margin-top: 8px; }
+
+  .preview-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 0; overflow: hidden; position: sticky; top: 20px; }
+  .preview-card .preview-head { padding: 8px 14px; background: var(--surface-muted); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+  .preview-card .email-frame { padding: 16px 20px; }
+  .preview-card .email-meta { font-size: 11px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px; }
+  .preview-card .email-meta strong { color: var(--text); font-weight: 600; }
+  .preview-card .email-subject { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .preview-card .email-body { font-size: 13px; white-space: pre-wrap; color: #2d2d33; }
+  .preview-card .email-link { color: var(--primary); text-decoration: underline; }
+  .preview-card .email-footer { font-size: 10px; color: var(--text-muted); margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .preview-card .email-footer a { color: var(--primary); text-decoration: underline; }
+
+  /* CSV preview card — SELF_SERVE counterpart of the email preview card */
+  .csv-preview-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 0; overflow: hidden; position: sticky; top: 20px; }
+  .csv-preview-card .preview-head { padding: 8px 14px; background: var(--surface-muted); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+  .csv-preview-card .csv-body { padding: 16px 18px; font-family: var(--mono); font-size: 11px; color: var(--text); white-space: pre; overflow-x: auto; }
+  .csv-preview-card .csv-foot { padding: 8px 14px; background: var(--surface-muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+
+  /* Generate / Send bottom action bar */
+  .send-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 12px 16px; background: white; border: 1px solid var(--border); border-radius: var(--radius); }
+  .send-bar .send-summary { font-size: 13px; color: var(--text-muted); }
+  .send-bar .send-summary strong { color: var(--text); font-weight: 600; }
+
+  .modal-backdrop { position: relative; background: rgba(15, 23, 42, 0.6); padding: 40px 24px; border-radius: var(--radius); }
+  .modal-backdrop.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .modal { max-width: 540px; margin: 0 auto; background: white; border-radius: var(--radius); padding: 22px 26px; box-shadow: var(--shadow-lg); }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--warning-strong); display: flex; align-items: center; gap: 8px; }
+  .modal .mode-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .modal .mode-tag.self-serve { background: var(--warning-soft); color: var(--warning-strong); }
+  .modal .mode-tag.managed-acs { background: var(--primary-soft); color: var(--primary); }
+  .modal-summary { background: var(--surface-muted); border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .modal-summary div { padding: 3px 0; }
+  .modal-summary strong { color: var(--text); font-weight: 600; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-strong-warning { background: var(--warning-soft); border-left: 3px solid var(--warning); padding: 10px 12px; font-size: 12px; color: var(--warning-strong); border-radius: 4px; margin-bottom: 12px; }
+
+  .progress-banner { background: var(--info-soft); border: 1px solid #99e2ec; border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .progress-banner .progress-text { font-size: 14px; font-weight: 600; color: var(--info); }
+  .progress-banner .progress-bar { flex: 1; height: 8px; background: white; border-radius: 999px; overflow: hidden; max-width: 360px; }
+  .progress-banner .progress-bar > .fill { height: 100%; background: var(--info); }
+
+  .progress-banner.summary-success { background: var(--success-soft); border-color: #86efac; }
+  .progress-banner.summary-success .progress-text { color: var(--success); }
+  .progress-banner.summary-warn { background: var(--warning-soft); border-color: #fcd34d; }
+  .progress-banner.summary-warn .progress-text { color: var(--warning-strong); }
+
+  .recipient-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+  .recipient-table th, .recipient-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .recipient-table th { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+  .recipient-table .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .recipient-table .status-pill.queued { background: var(--surface-muted); color: var(--text-muted); }
+  .recipient-table .status-pill.sending { background: var(--info-soft); color: var(--info); }
+  .recipient-table .status-pill.sent { background: var(--success-soft); color: var(--success); }
+  .recipient-table .status-pill.failed { background: var(--danger-soft); color: var(--danger); }
+  .recipient-table .status-pill.skipped { background: var(--warning-soft); color: var(--warning-strong); }
+  .recipient-table .failure-reason { font-size: 11px; color: var(--danger); margin-left: 4px; }
+
+  .help-text { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .toc { position: fixed; right: 16px; top: 80px; background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; font-size: 11px; box-shadow: var(--shadow-md); max-width: 240px; z-index: 90; }
+  .toc strong { display: block; margin-bottom: 6px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .toc a { display: block; padding: 2px 0; color: var(--primary); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .group-label { font-size: 10px; color: var(--text-subtle); margin-top: 8px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+  @media (max-width: 1200px) { .toc { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="mock-header">
+  <h1>📨 CustomerEQ — Distribute (Send via Email) — Issue #420 — Round 5 mock</h1>
+  <div class="nav">
+    <a href="#scene-1">1. Tile</a>
+    <a href="#scene-2">2. Self-serve</a>
+    <a href="#scene-2b">2B. Mixed-id</a>
+    <a href="#scene-3">3. CustomerEQ Email</a>
+    <a href="#scene-4">4. Confirm</a>
+    <a href="#scene-5a">5A. CSV</a>
+    <a href="#scene-5b">5B. Sending</a>
+    <a href="#scene-5c">5C. Sent</a>
+    <a href="#scene-6">6. Loop Monitor</a>
+    <a href="#scene-7a">7A. Wave detail (Self-serve)</a>
+    <a href="#scene-7b">7B. Wave detail (CustomerEQ)</a>
+  </div>
+</div>
+
+<!-- Round-2 PM framing banner — surfaces the shared-vs-divergent structure up front -->
+<div class="pm-framing">
+  <div class="container">
+    <div>
+      <h2>🤝 Shared structure</h2>
+      <p>Both Send paths render the same React page component (<code>&lt;DistributePage mode=&quot;...&quot;/&gt;</code>) parameterized by URL <code>?mode=</code>. The full audience builder and the Survey Batch details card are <strong>identical</strong> across modes; the operator can switch modes mid-flow without losing their audience or common-field values.</p>
+      <ul>
+        <li><strong>Shared</strong>: Distribution entry-point tile (two peer buttons); page header + "Switch mode" link; Audience builder (Existing-Members wildcard search + Random sample + Custom List paste/CSV + auto-enroll; unified deduped list with per-row deselect + 25/50 pagination); Survey Batch details (<em>Survey name in mail</em> + <em>Links expire on</em>); Survey-detail Sent-count line; Distribution-batches mode pill.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>🔀 Mode-specific divergence</h2>
+      <p>Only the composer / generator section and the terminal-state surface diverge — three distinct subcomponents on each side of the split.</p>
+      <ul>
+        <li><strong>SELF_SERVE</strong> diverges: composer = format dropdown only · CTA = <em>Generate N links</em> · terminal = Success banner + Download CSV (preserved from #378).</li>
+        <li><strong>CUSTOMEREQ EMAIL</strong> diverges: composer = sender + subject + rich-text body with mustache palette + live email preview · CTA = <em>Send N emails</em> · terminal = Sending → Sent SSE progress with per-recipient table + Retry-failed.</li>
+      </ul>
+      <div class="legend">
+        <span class="chip shared">SHARED</span> appears in both modes
+        <span class="chip self-serve">SELF_SERVE</span> mode-specific
+        <span class="chip managed-acs">CUSTOMEREQ EMAIL</span> mode-specific
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="toc">
+  <strong>Scenes</strong>
+  <a href="#scene-1">1. Distribution tile</a>
+  <div class="group-label">Configure</div>
+  <a href="#scene-2">2. SELF_SERVE (full page)</a>
+  <a href="#scene-2b">2B. Mixed identifier kind</a>
+  <a href="#scene-3">3. CUSTOMEREQ EMAIL (full page)</a>
+  <div class="group-label">Confirm + Terminal</div>
+  <a href="#scene-4">4. Confirm modals (both modes)</a>
+  <a href="#scene-5a">5A. SELF_SERVE Success (CSV)</a>
+  <a href="#scene-5b">5B. CUSTOMEREQ EMAIL Sending</a>
+  <a href="#scene-5c">5C. CUSTOMEREQ EMAIL Sent</a>
+  <div class="group-label">Survey-detail surfacing</div>
+  <a href="#scene-6">6. Loop Monitor + Response header</a>
+  <a href="#scene-7a">7A. Wave detail · Self-serve</a>
+  <a href="#scene-7b">7B. Wave detail · CustomerEQ Email</a>
+</nav>
+
+<!-- ─────────────────────────────── Scene 1 ───────────────────────────── -->
+<section class="scene" id="scene-1">
+  <div class="scene-label"><strong>Scene 1 · Distribution section — entry-point tile reshape</strong><span class="mode-chip shared">SHARED ENTRY POINT</span><span class="scene-note">Spec §1 · Leftmost tile has two equal-weight peer buttons (both outline-primary). Neither path is "primary" — the operator's situation determines which is right.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">Admin · Surveys · Q2 2026 NPS</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a>Dashboard</a>
+          <a>Members</a>
+          <a class="active">Surveys</a>
+          <a>Loyalty</a>
+          <a>Campaigns</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>Surveys</a> &nbsp;›&nbsp; Q2 2026 NPS</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS &nbsp; <span class="pill solid-active">● ACTIVE</span></h1>
+              <p>Quarterly net promoter survey for Gold tier and managed accounts.</p>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-head"><h2>Distribution</h2></div>
+            <div class="section-body">
+              <div class="dist-tiles">
+
+                <div class="dist-tile cta">
+                  <h3><span aria-hidden>📨</span> Send via Email</h3>
+                  <p>Reach members by email — either let CustomerEQ deliver, or download per-recipient links for your own email tool. Both paths share the same audience builder and common fields.</p>
+                  <div class="tile-actions">
+                    <a class="btn outline-primary" href="#scene-3">Send via CustomerEQ →</a>
+                    <a class="btn outline-primary" href="#scene-2">Send via my email tool →</a>
+                  </div>
+                </div>
+
+                <div class="dist-tile">
+                  <h3><span aria-hidden>🧩</span> Embed snippet</h3>
+                  <p>Paste this script into your own page; CustomerEQ renders inline.</p>
+                  <div class="tile-value">&lt;script src="https://api.../widget.js"&gt;</div>
+                  <div class="tile-actions"><button class="btn secondary tiny">Copy</button></div>
+                </div>
+
+                <div class="dist-tile">
+                  <h3><span aria-hidden>🔗</span> Share link</h3>
+                  <p>Post the URL anywhere — social, blog, signage.</p>
+                  <div class="tile-value">https://customereq.../survey/srv_q2nps</div>
+                  <div class="tile-actions"><button class="btn secondary tiny">Copy</button></div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 2 — SELF_SERVE Configure ────────────── -->
+<section class="scene" id="scene-2">
+  <div class="scene-label"><strong>Scene 2 · Distribute page · SELF_SERVE mode</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.1 + §2.2 + §2.4a · URL: <code>/admin/surveys/[id]/distribute?mode=self-serve</code> · Audience builder + Survey Batch details (SHARED) · Format dropdown + Generate Links CTA (mode-specific).</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a></div>
+          <div class="page-header">
+            <div>
+              <h1>Send via my email tool &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+              <p>Build your audience, set common fields, then download per-recipient links your email tool can mail-merge.</p>
+            </div>
+            <a class="switch-mode" href="#scene-3">Switch to Send via CustomerEQ →</a>
+          </div>
+
+          <!-- COMMON FIELDS — SHARED, FIRST (Round-6 reorder: "Define batch attributes → Select members → Send") -->
+          <div class="common-fields-card">
+            <span class="shared-label">STEP 1 · SHARED · BOTH MODES — Define batch attributes</span>
+            <h3>Survey Batch details</h3>
+            <div class="field-grid">
+              <div>
+                <label>Survey name in mail</label>
+                <input type="text" value="Q2 2026 NPS" />
+                <div class="field-help">SELF_SERVE: flows into the CSV's <code>surveyName</code> column (Mailchimp <code>*|SURVEY_NAME|*</code> merge tag). CUSTOMEREQ EMAIL: provides the default Subject + the <code>{{survey_title}}</code> mustache variable.</div>
+              </div>
+              <div>
+                <label>Links expire on</label>
+                <select>
+                  <option>24 hours</option>
+                  <option selected>7 days · 2026-05-28 23:59 PT</option>
+                  <option>30 days</option>
+                  <option>90 days</option>
+                  <option>Custom date+time…</option>
+                </select>
+                <div class="field-help">All times in <code>America/Los_Angeles</code> (brand timezone). Tokens minted in this wave expire at this moment regardless of mode.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AUDIENCE BUILDER — SHARED, SECOND (Round-6 reorder: now beneath Survey Batch details) -->
+          <div style="margin-top: 16px; padding: 6px 12px; background: var(--surface-muted); border-radius: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;">Step 2 · Select members</div>
+          <div class="audience-cards" style="margin-top: 8px;">
+            <div class="audience-card">
+              <h3>Add from Existing Members <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+              <p class="card-help">Search the roster. Wildcards supported (<code>*@artistos.com</code>, <code>q2-*</code>, <code>*support*</code>).</p>
+              <div class="secondary-tabs">
+                <button class="active">Search</button>
+                <button>Random sample</button>
+              </div>
+              <div class="search-row">
+                <input type="search" placeholder="email · name · external id …" value="*@artistos.com" />
+                <button class="btn secondary tiny">Search</button>
+              </div>
+              <div class="search-results">
+                <div class="search-row-item"><span><span class="name">Alice Chen</span><span class="identifier">alice@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Bob Patel</span><span class="identifier">bob@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <div class="search-row-item"><span><span class="name">Carla Singh</span><span class="identifier">carla@artistos.com</span></span><button class="btn primary tiny">Add</button></div>
+                <!-- Round-6 — surface suppressed-state existing members in the search results themselves so the operator sees them before adding -->
+                <div class="search-row-item" style="opacity: 0.75;"><span><span class="name">Hannah Mehta</span><span class="identifier">hannah@artistos.com</span> <span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; padding: 1px 6px;">⚠ unsubscribed 2026-04-12</span></span><button class="btn primary tiny" disabled>Add</button></div>
+                <div class="search-row-item" style="opacity: 0.75;"><span><span class="name">Ivan Rao</span><span class="identifier">ivan@artistos.com</span> <span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 9px; padding: 1px 6px;">⚠ no consent</span></span><button class="btn primary tiny" disabled>Add</button></div>
+              </div>
+              <div class="add-actions">
+                <button class="btn secondary tiny">Add all on page (3 eligible)</button>
+                <button class="btn primary tiny">Add all matching (11 eligible · 2 suppressed)</button>
+              </div>
+              <div style="margin-top: 8px; padding: 6px 8px; background: var(--warning-soft); border-radius: 4px; font-size: 10px; color: var(--warning-strong);">
+                <strong>2 matching members are suppressed</strong> and excluded from the bulk add (unsubscribed / no consent). They will appear in the audience list below with disabled checkboxes so you can see who can't be reached.
+              </div>
+            </div>
+
+            <div class="audience-card">
+              <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+              <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind. Newline / comma / semicolon-separated. <code>Name &lt;email&gt;</code> form accepted. See <a href="#scene-2b" style="color: var(--primary);">Scene 2B</a> for what happens when the brand uses <code>phone</code> / <code>external_id</code> as primary.</p>
+              <div class="secondary-tabs">
+                <button class="active">Paste</button>
+                <button>⤓ Upload CSV</button>
+              </div>
+              <textarea>Eric Olsen &lt;eric@others.com&gt;
+fiona@others.com
+georgia@artistos.com
+hannah@artistos.com</textarea>
+              <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
+              <div class="add-actions"><button class="btn primary tiny">Add 4 to list</button></div>
+            </div>
+          </div>
+
+          <!-- AUDIENCE LIST — SHARED -->
+          <div class="audience-list-card">
+            <div class="audience-list-head">
+              <div class="summary">8 members in this wave <span class="summary-aux">· 6 selected · 2 will be auto-enrolled · 1 deselected · 2 suppressed (excluded)</span></div>
+              <div class="bulk-actions">
+                <select><option>25 per page</option><option>50 per page</option></select>
+                <button class="btn secondary tiny">Select all on page</button>
+                <button class="btn secondary tiny">Deselect all on page</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Last response · this survey</th><th>Source</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td>2026-02-14</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td>2026-04-22</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr class="deselected"><td><input type="checkbox" /></td><td>Dmitri Volkov</td><td class="identifier-mono">dmitri@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td>—</td><td><span class="pill source-new">New (auto-enroll)</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td>—</td><td><span class="pill source-existing">Existing</span></td><td><span class="pill" style="background: var(--success-soft); color: var(--success); font-size: 10px;">OK</span></td></tr>
+                <!-- Round-6 — suppressed members shown disabled (R22): unsubscribed + no-consent rows -->
+                <tr style="opacity: 0.65;" title="Hannah Mehta unsubscribed on 2026-04-12. Cannot receive survey emails until she resubscribes.">
+                  <td><input type="checkbox" disabled /></td>
+                  <td style="color: var(--text-muted);">Hannah Mehta</td>
+                  <td class="identifier-mono">hannah@artistos.com</td>
+                  <td>2026-01-08</td>
+                  <td><span class="pill source-existing">Existing</span></td>
+                  <td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-04-12</span></td>
+                </tr>
+                <tr style="opacity: 0.65;" title="Ivan Rao has not given general data-processing consent (Member.consentGivenAt IS NULL). Note: Member.emailOptIn (marketing-channel preference) is NOT checked for surveys — only consentGivenAt and unsubscribedSurveysAt gate the send.">
+                  <td><input type="checkbox" disabled /></td>
+                  <td style="color: var(--text-muted);">Ivan Rao</td>
+                  <td class="identifier-mono">ivan@artistos.com</td>
+                  <td>—</td>
+                  <td><span class="pill source-existing">Existing</span></td>
+                  <td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ No consent</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top: 10px; padding: 8px 10px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+              <strong>Why suppressed members are shown but disabled (spec R22):</strong> the audience-builder surfaces them so the operator understands why the audience count differs from the search-result count (e.g., search returned 11; 2 are suppressed; 9 can actually be sent to). The dispatcher runs a <strong>second consent/suppression check at send time</strong> (spec §13.7 / R44) in case anyone unsubscribed in the seconds between selection and dispatch.
+            </div>
+          </div>
+
+          <!-- MODE-SPECIFIC: SELF_SERVE Generate area -->
+          <div class="common-fields-card" style="background: var(--warning-soft); border-color: #fcd34d;">
+            <span class="shared-label" style="background: #fef3c7; color: var(--warning-strong);">MODE-SPECIFIC · SELF_SERVE</span>
+            <h3>Download format</h3>
+            <div class="field-grid">
+              <div>
+                <label>CSV column-header format</label>
+                <select>
+                  <option selected>Generic</option>
+                  <option>Mailchimp</option>
+                  <option>HubSpot</option>
+                  <option>Klaviyo</option>
+                </select>
+                <div class="field-help">The CSV's column headers + <code>mergeTagUrl</code> wrapping are tuned to the chosen format. Format dropdown is also surfaced on the Success state for re-download.</div>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); padding-top: 22px;">
+                On click, mints 6 tokens, writes a <code>DistributionBatch</code> row with <code>sendMode = SELF_SERVE</code>, and shows the Success state with one-shot CSV download. Preserves #378's atomic-write semantics.
+              </div>
+            </div>
+          </div>
+
+          <div class="send-bar">
+            <div class="send-summary">Ready to generate <strong>6 links</strong>. Survey name: <strong>Q2 2026 NPS</strong>. Expires <strong>2026-05-28 23:59 PT</strong>. Format: <strong>Generic</strong>.</div>
+            <a class="btn primary large" href="#scene-4">Generate 6 links →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 2B — Mixed identifier kind ───────────── -->
+<section class="scene" id="scene-2b">
+  <div class="scene-label"><strong>Scene 2B · Custom List paste against a non-email-keyed brand</strong><span class="mode-chip shared">SHARED PARSER</span><span class="scene-note">Brand setup here: <code>memberIdentifierKind = external_id</code>. Operator pastes a mix of external IDs <em>and</em> emails (their own segmentation logic gave them an email list). Demonstrates the parser relaxation: emails always accepted, looked up by <code>Member.email</code>, surfaced under a clear "cannot auto-enroll" section if unmatched.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve · Brand: Acme Coffee · identifier kind: <code>external_id</code></div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Send via my email tool &nbsp; <span class="pill mode-self-serve">Self-serve</span> &nbsp; <span class="pill outline-type">Brand identifier: <code>external_id</code></span></h1>
+              <p>The Custom List paste accepts emails even though the brand's primary identifier isn't email. Emails route through a separate lookup (by <code>Member.email</code>); unmatched emails are surfaced explicitly with a recovery hint.</p>
+            </div>
+            <a class="switch-mode" href="#scene-2">Back to standard SELF_SERVE (email-keyed brand) →</a>
+          </div>
+
+          <div class="audience-card" style="max-width: 600px;">
+            <h3>Add from Custom List <span class="pill mode-self-serve" style="font-weight: 500; font-size: 9px; vertical-align: middle;">SHARED</span></h3>
+            <p class="card-help">Paste identifiers or upload a CSV. <strong>Email format is always accepted</strong> — looked up by email regardless of brand identifier kind.</p>
+            <textarea>acme-cust-001
+acme-cust-002
+joe@example.com
+sandra@example.com
+acme-cust-003
+mystery@unknownbrand.com</textarea>
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);"><input type="checkbox" checked /> Auto-enroll members not in this brand</label>
+            <div class="add-actions"><button class="btn primary tiny">Add 6 to list</button></div>
+          </div>
+
+          <div class="audience-list-card">
+            <div class="audience-list-head">
+              <div class="summary">5 of 6 entries resolved <span class="summary-aux">· 1 cannot be auto-enrolled (email-keyed input vs <code>external_id</code> brand)</span></div>
+              <div class="bulk-actions">
+                <select><option>25 per page</option><option>50 per page</option></select>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th class="col-checkbox"><input type="checkbox" checked /></th><th>Name</th><th>Identifier</th><th>Matched via</th><th>Source</th></tr></thead>
+              <tbody>
+                <!-- Group 1: Existing matched on brand primary (external_id) -->
+                <tr><td colspan="5" style="background: var(--surface-muted); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">Existing — matched on <code>external_id</code></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Alice Chen</td><td class="identifier-mono">acme-cust-001</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Bob Patel</td><td class="identifier-mono">acme-cust-002</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Carla Singh</td><td class="identifier-mono">acme-cust-003</td><td>external_id (brand primary)</td><td><span class="pill source-existing">Existing</span></td></tr>
+
+                <!-- Group 2: Existing matched on email (despite brand primary being external_id) -->
+                <tr><td colspan="5" style="background: var(--surface-muted); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">Existing — matched on email lookup</td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Joe Olsen</td><td class="identifier-mono">acme-cust-004 <span style="color: var(--text-subtle);">(via joe@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
+                <tr><td><input type="checkbox" checked /></td><td>Sandra Khoury</td><td class="identifier-mono">acme-cust-007 <span style="color: var(--text-subtle);">(via sandra@example.com)</span></td><td>email → Member.email</td><td><span class="pill source-existing">Existing (via email)</span></td></tr>
+
+                <!-- Group 3: Suppressed (Round-6 — Existing members who matched but are unsubscribed / no-consent) -->
+                <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Suppressed — existing members matched but cannot be sent to</td></tr>
+                <tr style="opacity: 0.65;" title="Penny Liu unsubscribed on 2026-03-02. Cannot receive survey emails until she resubscribes."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Penny Liu</td><td class="identifier-mono">acme-cust-009 <span style="color: var(--text-subtle);">(via penny@others.com)</span></td><td>email → Member.email</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed · 2026-03-02</span></td></tr>
+                <tr style="opacity: 0.65;" title="Quinn Park unsubscribed from surveys on 2026-02-18. emailOptIn stays at its existing value — surveys are exempt from the marketing opt-out (legitimate-interest use case)."><td><input type="checkbox" disabled /></td><td style="color: var(--text-muted);">Quinn Park</td><td class="identifier-mono">acme-cust-012</td><td>external_id (brand primary)</td><td><span class="pill" style="background: var(--warning-soft); color: var(--warning-strong); font-size: 10px;">⚠ Unsubscribed from surveys · 2026-02-18</span></td></tr>
+
+                <!-- Group 4: Emails not found — cannot auto-enroll -->
+                <tr><td colspan="5" style="background: var(--warning-soft); font-size: 11px; color: var(--warning-strong); text-transform: uppercase; letter-spacing: 0.4px; padding: 6px 10px;">⚠ Emails not found — cannot be auto-enrolled because Brand identifier is <code>external_id</code></td></tr>
+                <tr><td>—</td><td>—</td><td class="identifier-mono">mystery@unknownbrand.com</td><td>email → no match</td><td><span class="pill source-skipped" style="background: var(--warning-soft); color: var(--warning-strong);">Email — not found</span></td></tr>
+              </tbody>
+            </table>
+            <div class="pagination-foot" style="border-top: 1px dashed var(--border); margin-top: 8px; padding-top: 10px;">
+              <span>5 selected · 2 suppressed · 1 cannot auto-enroll</span>
+              <span style="color: var(--warning-strong);">Recovery for unmatched: add <code>mystery@unknownbrand.com</code> via <a href="#" style="color: var(--primary);">Members → New</a> with the corresponding <code>external_id</code> first.</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text);">
+            <strong>Why this matters for the spec:</strong> #378's Round 1 parser rule (*pasted identifiers must match Brand.memberIdentifierKind*) is relaxed by #420. The parser now: (1) detects email format independent of brand setup; (2) looks up matches via <code>Member.email</code> regardless of brand primary; (3) surfaces unmatched emails under "cannot auto-enroll because Brand identifier is `&lt;non-email&gt;`" — never silently dropped. Same UX for SELF_SERVE and CUSTOMEREQ EMAIL modes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 3 — CUSTOMEREQ EMAIL Configure ────────────── -->
+<section class="scene" id="scene-3">
+  <div class="scene-label"><strong>Scene 3 · Distribute page · CUSTOMEREQ EMAIL mode</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.1 + §2.2 + §2.3 + §2.4b · URL: <code>/admin/surveys/[id]/distribute?mode=managed-acs</code> · Identical audience builder + identical common fields (compared to Scene 2) · then the CustomerEQ Email composer + live email preview.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a></div>
+          <div class="page-header">
+            <div>
+              <h1>Send via CustomerEQ &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
+              <p>Same audience + common fields as the self-serve path. Compose the email body — CustomerEQ delivers via Azure Communication Services.</p>
+            </div>
+            <a class="switch-mode" href="#scene-2">Switch to my email tool →</a>
+          </div>
+
+          <!-- AUDIENCE BUILDER — SHARED (rendered identically to Scene 2; collapsed to a compact summary for the side-by-side comparison) -->
+          <div class="audience-list-card" style="background: #f0f9ff; border-color: #bae6fd;">
+            <div class="audience-list-head">
+              <div class="summary">🤝 Audience builder (SHARED) <span class="summary-aux">· identical to Scene 2 · 6 members in this wave · 2 auto-enroll · 1 deselected</span></div>
+              <a class="btn secondary tiny" href="#scene-2">View full builder in Scene 2 ↗</a>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); padding: 4px 0 0;">Add-from-Existing-Members card + Add-from-Custom-List card + unified deduped list with checkboxes — rendered identically to the SELF_SERVE mode. The audience list, when the operator switches modes via the "Switch mode" link, is preserved in component state. (Collapsed here for visual brevity — see Scene 2 for the full rendering.)</p>
+          </div>
+
+          <!-- COMMON FIELDS — SHARED -->
+          <div class="common-fields-card">
+            <span class="shared-label">SHARED · BOTH MODES</span>
+            <h3>Survey Batch details</h3>
+            <div class="field-grid">
+              <div>
+                <label>Survey name in mail</label>
+                <input type="text" value="Q2 2026 NPS" />
+                <div class="field-help">Provides the default Subject below and the <code>{{survey_title}}</code> mustache variable.</div>
+              </div>
+              <div>
+                <label>Links expire on</label>
+                <select><option selected>7 days · 2026-05-28 23:59 PT</option><option>24 hours</option><option>30 days</option><option>90 days</option><option>Custom date+time…</option></select>
+                <div class="field-help">Tokenized URL in each email expires at this timestamp.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODE-SPECIFIC: CUSTOMEREQ EMAIL Composer + live email preview -->
+          <div class="composer-grid">
+            <div class="composer-card">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · CUSTOMEREQ EMAIL</span>
+                <h3 style="margin: 0;">Sender</h3>
+              </div>
+
+              <div class="sender-row">
+                <div class="field">
+                  <label>Sender name</label>
+                  <input type="text" value="Acme CX Team" />
+                  <div class="help-text">Friendly From-name your recipients see.</div>
+                </div>
+                <div class="field">
+                  <label>Sender alias (local-part)</label>
+                  <div class="alias-row">
+                    <input type="text" value="feedback" style="flex: 1;" />
+                    <span class="suffix">@customereq.wellnessatwork.me</span>
+                  </div>
+                  <div class="help-text">Domain pinned to brand's verified CustomerEQ Email sender.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="composer-grid" style="margin-top: 12px;">
+            <div class="composer-card">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span class="shared-label" style="background: var(--primary-soft); color: var(--primary);">MODE-SPECIFIC · CUSTOMEREQ EMAIL</span>
+                <h3 style="margin: 0;">Email</h3>
+              </div>
+
+              <div class="field">
+                <label>Subject</label>
+                <input type="text" value="Quick question: Q2 2026 NPS" />
+              </div>
+
+              <div class="field">
+                <label>Body</label>
+                <div class="editor-toolbar">
+                  <button><strong>B</strong></button>
+                  <button><em>I</em></button>
+                  <button>🔗</button>
+                  <button>• List</button>
+                  <button class="merge-tag">{{survey_link}}</button>
+                  <button class="merge-tag">{{first_name}}</button>
+                  <button class="merge-tag">{{last_name}}</button>
+                  <button class="merge-tag">{{survey_title}}</button>
+                  <button class="merge-tag">{{sender_name}}</button>
+                  <button class="merge-tag">{{brand_name}}</button>
+                  <button class="merge-tag">{{brand_logo}}</button>
+                </div>
+                <textarea class="editor-body">{{brand_logo}}
+{{brand_name}}
+
+Hi {{first_name}},
+
+We'd love your feedback on {{survey_title}}. It takes about 2 minutes.
+
+{{survey_link}}
+
+Thanks,
+{{sender_name}}</textarea>
+                <div class="editor-helper">Body must contain at least one <code>{{survey_link}}</code> token (required). The default template puts <code>{{brand_logo}}</code> + <code>{{brand_name}}</code> at the top as a header block — both render visually in the recipient's email (see the live preview on the right). The logo is pulled from <code>Brand.logoUrl</code> (set in Organization Settings — no upload affordance in this view); if the brand has no logo configured, <code>{{brand_logo}}</code> renders as empty and the header collapses to brand name only. Operator may remove either token to suppress the header.</div>
+              </div>
+
+              <div class="footer-preview">
+                — Auto-appended footer (not editable) —<br />
+                You received this survey because you're a customer or partner of {{brand_name}}.<br />
+                <a href="#">Unsubscribe</a> from future survey emails from {{brand_name}}.
+              </div>
+            </div>
+
+            <div class="preview-card">
+              <div class="preview-head">📬 Live preview · "Alice Chen"</div>
+              <!-- Theme resolution banner (Round 6.5): shows WHICH BrandTheme the worker renders against. -->
+              <div style="padding: 8px 14px; background: #fef3c7; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--warning-strong); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <strong>Theme:</strong>
+                <span style="background: white; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); font-weight: 500; color: var(--text);">Acme Q2 2026</span>
+                <span style="color: var(--text-muted);">·</span>
+                <span style="font-style: italic;">resolved from <code>Survey.themeId</code></span>
+                <span style="color: var(--text-muted);">·</span>
+                <a href="#scene-3-theme-legend" style="color: var(--primary); text-decoration: underline;">color mapping ↓</a>
+              </div>
+              <div class="email-frame" style="background: #fdfaf6;">
+                <div class="email-meta">
+                  <strong>From:</strong> Acme CX Team &lt;feedback@customereq.wellnessatwork.me&gt;<br />
+                  <strong>To:</strong> Alice Chen &lt;alice@artistos.com&gt;<br />
+                </div>
+                <div class="email-subject" style="color: #6f2c1a;">Quick question: Q2 2026 NPS</div>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 14px; border-bottom: 1px solid #d6cfc6; margin-bottom: 12px;">
+                  <svg width="56" height="56" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
+                  <div style="font-size: 18px; font-weight: 600; color: #6f2c1a;">Acme Coffee</div>
+                </div>
+                <div class="email-body" style="color: #2d2218;">Hi Alice,
+
+We'd love your feedback on Q2 2026 NPS. It takes about 2 minutes.
+
+<a href="#" style="color: #c2410c; text-decoration: underline;">https://customereq.../survey/srv_q2nps/r/Xk8mP3qB…</a>
+
+Thanks,
+Acme CX Team</div>
+                <div class="email-footer" style="border-top: 1px solid #d6cfc6;">
+                  You received this survey because you're a customer or partner of Acme Coffee.<br />
+                  <a href="#" style="color: #c2410c;">Unsubscribe</a> from future survey emails from Acme Coffee.
+                </div>
+              </div>
+              <!-- Theme color-mapping legend — shown directly below the email-frame so reviewer sees which BrandTheme column drives which rendered element. -->
+              <div id="scene-3-theme-legend" style="padding: 12px 14px; background: var(--surface-muted); border-top: 1px solid var(--border); font-size: 11px;">
+                <div style="font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px; margin-bottom: 6px;">Theme mapping — Acme Q2 2026 (resolved from <code>Survey.themeId</code>)</div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                  <thead><tr><th style="padding: 3px 0; text-align: left; color: var(--text-muted);">Element</th><th style="padding: 3px 6px; text-align: left; color: var(--text-muted);">BrandTheme column</th><th style="padding: 3px 0; text-align: left; color: var(--text-muted);">Hex</th></tr></thead>
+                  <tbody>
+                    <tr><td style="padding: 3px 0;">Brand-name + Subject text</td><td style="padding: 3px 6px;"><code>primaryColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #6f2c1a; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#6f2c1a</td></tr>
+                    <tr><td style="padding: 3px 0;">Survey link + Unsubscribe link</td><td style="padding: 3px 6px;"><code>accentColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #c2410c; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#c2410c</td></tr>
+                    <tr><td style="padding: 3px 0;">Email background</td><td style="padding: 3px 6px;"><code>backgroundColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #fdfaf6; border: 1px solid var(--border); border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#fdfaf6</td></tr>
+                    <tr><td style="padding: 3px 0;">Body text</td><td style="padding: 3px 6px;"><code>textColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #2d2218; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#2d2218</td></tr>
+                    <tr><td style="padding: 3px 0;">Header rule / dividers</td><td style="padding: 3px 6px;"><code>secondaryColor</code></td><td style="padding: 3px 0; font-family: var(--mono);"><span style="display: inline-block; width: 10px; height: 10px; background: #d6cfc6; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>#d6cfc6</td></tr>
+                    <tr><td style="padding: 3px 0; color: var(--text-subtle); font-style: italic;">(V1 CTA button — out of V0 scope)</td><td style="padding: 3px 6px; color: var(--text-subtle); font-style: italic;"><code>buttonColor</code> / <code>buttonTextColor</code></td><td style="padding: 3px 0; font-family: var(--mono); color: var(--text-subtle);">—</td></tr>
+                  </tbody>
+                </table>
+                <div style="margin-top: 8px; font-size: 10px; color: var(--text-muted);">
+                  <strong>Resolution order</strong> (spec §2.3.1 / R29): <code>Survey.themeId</code> (if set — this case) → <code>Brand.defaultThemeId</code> (if set) → CustomerEQ default palette (<code>#6366f1</code> / <code>#818cf8</code> / <code>#ffffff</code> / <code>#111827</code>). Resolved theme is snapshotted into <code>DistributionBatch.composerSnapshot.themeSnapshot</code> at send time so the Wave Detail page (Scene 7B) shows exactly which palette was used.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="send-bar">
+            <div class="send-summary">Ready to send <strong>6 emails</strong> from <strong>Acme CX Team &lt;feedback@customereq.wellnessatwork.me&gt;</strong>. Survey name: <strong>Q2 2026 NPS</strong>. Links expire <strong>2026-05-28 23:59 PT</strong>.</div>
+            <a class="btn primary large" href="#scene-4">Send 6 emails →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 4 — Confirm modals (both modes) ───── -->
+<section class="scene" id="scene-4">
+  <div class="scene-label"><strong>Scene 4 · Confirmation modals — both modes</strong><span class="mode-chip shared">SHARED SHAPE</span><span class="mode-chip self-serve">SELF_SERVE COPY</span><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL COPY</span><span class="scene-note">Spec §2.5a + §2.5b · Identical modal shape (same layout, same dismiss/confirm placement). Only the copy and the embedded warning differ.</span></div>
+  <div class="container">
+    <div class="modal-backdrop modal-row">
+
+      <div class="modal">
+        <h3>⚠ Generate 6 tokenized links? <span class="mode-tag self-serve">SELF_SERVE</span></h3>
+        <div class="modal-summary">
+          <div><strong>Survey name in mail:</strong> Q2 2026 NPS</div>
+          <div><strong>Links expire:</strong> 2026-05-28 23:59 PT</div>
+          <div><strong>Format:</strong> Generic</div>
+          <div><strong>Recipients:</strong> 6 selected members <span style="color: var(--text-muted);">(2 auto-enroll)</span></div>
+        </div>
+        <div class="modal-strong-warning">
+          <strong>⚠ The plaintext URLs are shown only once.</strong> Save the CSV immediately. Re-downloading later requires regenerating all tokens (which invalidates the URLs in this batch).
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost">Cancel</button>
+          <a class="btn primary" href="#scene-5a">Yes, generate 6 links</a>
+        </div>
+      </div>
+
+      <div class="modal">
+        <h3>⚠ Send 6 emails? <span class="mode-tag managed-acs">CUSTOMEREQ EMAIL</span></h3>
+        <div class="modal-summary">
+          <div><strong>From:</strong> Acme CX Team &lt;feedback@customereq.wellnessatwork.me&gt;</div>
+          <div><strong>Subject:</strong> Quick question: Q2 2026 NPS</div>
+          <div><strong>Survey name in mail:</strong> Q2 2026 NPS</div>
+          <div><strong>Links expire:</strong> 2026-05-28 23:59 PT</div>
+          <div><strong>Recipients:</strong> 6 selected members <span style="color: var(--text-muted);">(2 auto-enroll)</span></div>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted);">Emails will be sent in the next few minutes. You can monitor progress on the next screen but <strong>you cannot cancel a send in progress</strong>.</p>
+        <div class="modal-foot">
+          <button class="btn ghost">Cancel</button>
+          <a class="btn primary" href="#scene-5b">Yes, send 6 emails</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 5A — SELF_SERVE Success ──────────────── -->
+<section class="scene" id="scene-5a">
+  <div class="scene-label"><strong>Scene 5A · Terminal state · SELF_SERVE Success — Download CSV</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §2.6a · Preserved verbatim from #378 §2.5 (success banner + one-wave explanatory line + strong warning + format dropdown + Download CSV + Done link). Re-shown here to demonstrate the SELF_SERVE terminal is unchanged.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=self-serve · Generated</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS — links generated &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+            </div>
+          </div>
+
+          <div class="progress-banner summary-success">
+            <div class="progress-text">✓ Generated 6 links — Q2 customer satisfaction · 2026-05-21. Tokens expire 2026-05-28 23:59 PT.</div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 10px;">Users will be able to respond only once in this wave. A leaked or re-clicked link gets the "already submitted" state.</p>
+
+          <div style="margin-top: 14px; padding: 12px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 13px; color: var(--text);">
+            <strong>📤 Sent semantics for this mode:</strong> Self-serve hands the operator a CSV they paste into their own email tool — the platform marks each member's <code>SurveyDistribution.sentAt</code> at the moment of <strong>CSV download</strong> (i.e., downloading the CSV is the operator-side dispatch-handoff moment). The Survey's <code>sentCount</code> is incremented by the 6 rows here, and these 6 members show as <strong>Sent</strong> in the Loop Monitor (Scene 6) and in the Batch Details Sent counter (Scene 7).
+            <div style="margin-top: 6px; font-size: 12px;"><strong>If you Regenerate later</strong> (Batch Details → Regenerate links): the regeneration replaces the tokens but <strong>updates the <code>sentAt</code> timestamp on each row</strong> — so the Sent count reflects the most recent dispatch handoff, not the original. Members already responded keep their <code>respondedAt</code> independently.</div>
+          </div>
+
+          <div style="margin-top: 14px; padding: 14px; background: var(--warning-soft); border-radius: var(--radius); font-size: 13px; color: var(--warning-strong);">
+            <strong>⚠ Save this CSV now.</strong> The plaintext URLs are shown only once. Re-downloading later requires regenerating all tokens — which invalidates the URLs in this batch.
+          </div>
+
+          <div class="composer-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="composer-card">
+              <h3>Download</h3>
+              <div class="field">
+                <label>Format</label>
+                <select><option selected>Generic</option><option>Mailchimp</option><option>HubSpot</option><option>Klaviyo</option></select>
+              </div>
+              <a class="btn primary large" href="#scene-6">⬇ Download CSV</a>
+              <p style="font-size: 11px; color: var(--text-muted); margin-top: 14px;">Filename: <code>Q2-2026-NPS-2026-05-21-links.csv</code></p>
+            </div>
+            <div class="csv-preview-card">
+              <div class="preview-head">📄 CSV preview (Generic format)</div>
+              <div class="csv-body">Email,firstName,lastName,surveyName,mergeTagUrl
+alice@artistos.com,Alice,Chen,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Xk8mP…
+bob@artistos.com,Bob,Patel,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Pq3nT…
+carla@artistos.com,Carla,Singh,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Mt7vR…
+eric@others.com,Eric,Olsen,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Qa4kZ…
+fiona@others.com,Fiona,Castro,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Lb6cN…
+georgia@artistos.com,Georgia,Walters,Q2 2026 NPS,https://customereq.../survey/srv_q2nps/r/Jd2sB…
+</div>
+              <div class="csv-foot">6 rows · 1 batch · Survey.sentCount += 6</div>
+            </div>
+          </div>
+
+          <div class="send-bar">
+            <div class="send-summary">Batch <code>btch_a1b2c3</code> · view in <a href="#" style="color: var(--primary);">Distribution batches</a></div>
+            <a class="btn primary" href="#scene-6">Done — back to survey →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 5B — CUSTOMEREQ EMAIL Sending ──────────────── -->
+<section class="scene" id="scene-5b">
+  <div class="scene-label"><strong>Scene 5B · Terminal state · CUSTOMEREQ EMAIL Sending — per-recipient progress</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.6b · Live SSE-driven progress bar + per-recipient status table. Closing the browser is safe — the worker continues processing the queue.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs · Sending</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Sending Q2 2026 NPS &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 6 recipients.</p>
+            </div>
+          </div>
+
+          <div class="progress-banner">
+            <div class="progress-text">Sending… 4 of 6 complete</div>
+            <div class="progress-bar"><div class="fill" style="width: 66%;"></div></div>
+            <button class="btn secondary tiny">Retry failed (1)</button>
+          </div>
+
+          <table class="recipient-table">
+            <thead><tr><th>Name</th><th>Identifier</th><th>Status</th><th>Sent / failed at</th></tr></thead>
+            <tbody>
+              <tr><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:11 PT</td></tr>
+              <tr><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:12 PT</td></tr>
+              <tr><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td><span class="status-pill failed">✗ Failed</span><span class="failure-reason">bounce</span></td><td>14:02:13 PT</td></tr>
+              <tr><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:14 PT</td></tr>
+              <tr><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td><span class="status-pill sending">⟳ Sending</span></td><td>—</td></tr>
+              <tr><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td><span class="status-pill queued">⏳ Queued</span></td><td>—</td></tr>
+            </tbody>
+          </table>
+
+          <div class="send-bar">
+            <div class="send-summary">You can leave this page; sending continues in the background.</div>
+            <a class="btn secondary" href="#scene-5c">Skip ahead to Sent state →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 5C — CUSTOMEREQ EMAIL Sent ────────────────── -->
+<section class="scene" id="scene-5c">
+  <div class="scene-label"><strong>Scene 5C · Terminal state · CUSTOMEREQ EMAIL Sent — summary + retry-failed</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §2.6b · All sends terminal. Failed rows have Retry Failed; suppressed rows (unsubscribed / no-consent) cannot be retried.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute?mode=managed-acs · Sent</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS — sent &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 6 recipients · 5 sent · 1 failed.</p>
+            </div>
+          </div>
+
+          <div class="progress-banner summary-warn">
+            <div class="progress-text">✓ Sent 5 of 6 emails. 1 failed.</div>
+            <button class="btn secondary tiny">Retry failed (1)</button>
+          </div>
+
+          <table class="recipient-table">
+            <thead><tr><th>Name</th><th>Identifier</th><th>Status</th><th>Sent / failed at</th></tr></thead>
+            <tbody>
+              <tr><td>Alice Chen</td><td class="identifier-mono">alice@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:11 PT</td></tr>
+              <tr><td>Bob Patel</td><td class="identifier-mono">bob@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:12 PT</td></tr>
+              <tr><td>Carla Singh</td><td class="identifier-mono">carla@artistos.com</td><td><span class="status-pill failed">✗ Failed</span><span class="failure-reason">bounce</span></td><td>14:02:13 PT</td></tr>
+              <tr><td>Eric Olsen</td><td class="identifier-mono">eric@others.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:14 PT</td></tr>
+              <tr><td>Fiona Castro</td><td class="identifier-mono">fiona@others.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:18 PT</td></tr>
+              <tr><td>Georgia Walters</td><td class="identifier-mono">georgia@artistos.com</td><td><span class="status-pill sent">✓ Sent</span></td><td>14:02:21 PT</td></tr>
+            </tbody>
+          </table>
+
+          <div class="send-bar">
+            <div class="send-summary">Batch <code>btch_a1b2c3</code> · view in <a href="#" style="color: var(--primary);">Distribution batches</a> · Survey Sent count is now <strong>5 (managed) + previous</strong>.</div>
+            <a class="btn primary" href="#scene-6">Done — back to survey →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 6 — Loop Monitor + Response header ───── -->
+<section class="scene" id="scene-6">
+  <div class="scene-label"><strong>Scene 6 · Survey detail — Loop Monitor &amp; Response section header (sent-count surfacing)</strong><span class="mode-chip shared">SHARED SURFACING</span><span class="scene-note">Sent surfacing belongs in <strong>Loop Monitor</strong> (the lifetime sent-to-received pipeline view, #241 R32b) and the <strong>Response section header</strong> (above the wave-filterable response count). Configuration Summary is for what was <em>configured</em> on the survey — it does <strong>not</strong> show stat counters in this design.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS</h1>
+              <p>Sent-count surfacing across the survey detail page.</p>
+            </div>
+          </div>
+
+          <!-- Loop Monitor — the lifetime pipeline view -->
+          <div class="section">
+            <div class="section-head"><h2>📈 Loop Monitor <span style="font-weight: 400; font-size: 12px; color: var(--text-muted); margin-left: 8px;">lifetime pipeline · #241 R32b</span></h2></div>
+            <div class="section-body" style="padding: 16px 20px;">
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Survey Sent</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">11</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">5 via CustomerEQ <span class="pill mode-managed-acs">Managed</span> · 6 via my email tool <span class="pill mode-self-serve">Self-serve</span></div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responses Received</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">4</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">36% response rate · last response 2h ago</div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Closed-loop Actions</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">2</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">1 alert resolved · 1 follow-up in-flight</div>
+                </div>
+                <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;">
+                  <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">P75 Time-to-Action</div>
+                  <div style="font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0;">11m</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">SLA target: 15m · ✓ within target</div>
+                </div>
+              </div>
+              <div style="margin-top: 10px; padding: 10px 12px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+                <strong>Note:</strong> Loop Monitor stays <strong>lifetime-wide</strong> regardless of Wave filter (per #378 §3 design — the per-batch slicing belongs to the Response section, not the lifetime pipeline view).
+              </div>
+            </div>
+          </div>
+
+          <!-- Response section header showing Sent count BEFORE the filterable response count -->
+          <div class="section">
+            <div class="section-head">
+              <h2>📊 Responses</h2>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <!-- Response section header strip: Sent count + filter + filtered response count -->
+              <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface-muted); border-radius: var(--radius-sm); margin-bottom: 12px;">
+                <div style="font-size: 13px;">
+                  <strong style="color: var(--text);">Survey Sent:</strong> <span style="font-weight: 600; color: var(--text);">11</span>
+                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(lifetime · changes with Wave filter)</span>
+                </div>
+                <div style="height: 18px; width: 1px; background: var(--border);"></div>
+                <div style="font-size: 13px;">
+                  <strong style="color: var(--text);">Responses:</strong> <span style="font-weight: 600; color: var(--text);">4 of 11</span>
+                  <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">(36% · changes with the Wave filter on the right)</span>
+                </div>
+                <div style="flex: 1;"></div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Wave:</span>
+                  <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px;">
+                    <option>All waves &amp; direct responses</option>
+                    <option>Q2 2026 NPS · 2026-05-21 · 5 sent · 2 responded (CustomerEQ Email)</option>
+                    <option>Q2 2026 NPS · 2026-05-20 · 6 sent · 2 responded (Self-serve)</option>
+                    <option>Direct responses (share link / embed)</option>
+                  </select>
+                </div>
+              </div>
+
+              <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Member</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Wave</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">NPS</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px;"><span class="pill mode-managed-acs">Managed</span></td><td style="padding: 6px; font-weight: 600;">9</td><td style="padding: 6px;">14:08 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px;"><span class="pill mode-managed-acs">Managed</span></td><td style="padding: 6px; font-weight: 600;">7</td><td style="padding: 6px;">14:11 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Joe Olsen</td><td style="padding: 6px;"><span class="pill mode-self-serve">Self-serve</span></td><td style="padding: 6px; font-weight: 600;">8</td><td style="padding: 6px;">2026-05-20 11:42 PT</td></tr>
+                  <tr><td style="padding: 6px;">Sandra Khoury</td><td style="padding: 6px;"><span class="pill mode-self-serve">Self-serve</span></td><td style="padding: 6px; font-weight: 600;">10</td><td style="padding: 6px;">2026-05-20 14:30 PT</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Configuration Summary — UNCHANGED from today; stat counters intentionally NOT here -->
+          <div class="section">
+            <div class="section-head"><h2>⚙ Configuration summary</h2></div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Survey type</td><td>NPS — 0 to 10</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Status</td><td><span class="pill solid-active">● ACTIVE</span></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Response policy</td><td>MULTIPLE (one per wave via token)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Member identifier</td><td><code>email</code> (Acme Coffee)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-12 by manohar.madhira@outlook.com</td></tr>
+              </table>
+              <p style="margin-top: 10px; padding: 8px 10px; background: var(--surface-muted); border-radius: 6px; font-size: 11px; color: var(--text-muted);">
+                <strong>Note:</strong> Configuration Summary is what was <em>configured</em> on this survey. Stat counters (Sent / Responses / Closed-loop Actions) live in the Loop Monitor and Response section above — not here.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 7A — Self-serve Wave Detail (preserved #378) ──── -->
+<section class="scene" id="scene-7a">
+  <div class="scene-label"><strong>Scene 7A · Wave detail page · Self-serve batch</strong><span class="mode-chip self-serve">SELF_SERVE</span><span class="scene-note">Spec §3.1 + #378 §3.1 · Preserves the existing wave-detail functionality for Send-via-my-email-tool batches verbatim — Audience Spec block, Edit Expiry control, Tokens table (paginated by status), and the Regenerate links + Download CSV affordance. The Sent counter (new in #420) joins the existing counter strip on the same page; nothing else is removed.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute/batches/btch_z9y8x7</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a> &nbsp;›&nbsp; Distribution batches &nbsp;›&nbsp; Q2 2026 NPS · 2026-05-20</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS · 2026-05-20 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-self-serve">Self-serve</span></h1>
+              <p>Batch <code>btch_z9y8x7</code> · 6 recipients · created 2026-05-20 11:08 PT.</p>
+            </div>
+          </div>
+
+          <!-- Counters strip: existing #378 counters + the new Sent counter at left -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Sent</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--success); margin: 4px 0;">6</div>
+              <div style="font-size: 10px; color: var(--text-muted);">at CSV download · last 2026-05-20 11:12 PT</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Awaiting response</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">4</div>
+              <div style="font-size: 10px; color: var(--text-muted);">tokens unconsumed · expires 2026-05-27</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responded</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--info); margin: 4px 0;">2</div>
+              <div style="font-size: 10px; color: var(--text-muted);">33% of sent</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Failed</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-subtle); margin: 4px 0;">—</div>
+              <div style="font-size: 10px; color: var(--text-muted);">n/a for Self-serve (no platform dispatch)</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Expired</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">window: 7 days · 6 days remain</div>
+            </div>
+          </div>
+
+          <div style="padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text); margin-bottom: 14px;">
+            <strong>Sent semantics on this batch (Self-serve):</strong> incremented when the operator downloaded the CSV (the dispatch-handoff moment). Re-incremented on Regenerate Links. <em>Failed</em> is n/a because the platform did not dispatch the email — the operator's own email tool did.
+          </div>
+
+          <!-- Audience Spec — unchanged from #378 §3.1 -->
+          <div class="section">
+            <div class="section-head"><h2>Audience spec</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Mode</td><td>Custom List · 6 identifiers (0 auto-enrolled)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience at send time</td><td>6</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience now</td><td>6 <span style="color: var(--text-muted); font-size: 11px;">(no erased / deleted since send)</span></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Survey name in mail</td><td>Q2 2026 NPS</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Links expire on</td><td>2026-05-27 23:59 PT &nbsp; <a href="#" style="color: var(--primary); font-size: 11px;">[Edit]</a></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Format chosen</td><td>Generic</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-20 11:08 PT by manohar.madhira@outlook.com</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tokens table — preserved from #378 §3.1 -->
+          <div class="section">
+            <div class="section-head">
+              <h2>Tokens (6)</h2>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 4px;"><option>Generic</option><option>Mailchimp</option><option>HubSpot</option><option>Klaviyo</option></select>
+                <button class="btn primary tiny">⬇ Regenerate links + download CSV</button>
+              </div>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Member</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Identifier</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Token prefix</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Status</th>
+                    <th style="padding: 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Responded at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Joe Olsen</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-004</td><td style="padding: 6px; font-family: var(--mono);">Xk8mP3qB…</td><td style="padding: 6px;"><span class="status-pill sent">Responded</span></td><td style="padding: 6px;">2026-05-20 11:42 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Sandra Khoury</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-007</td><td style="padding: 6px; font-family: var(--mono);">Pq3nT9vR…</td><td style="padding: 6px;"><span class="status-pill sent">Responded</span></td><td style="padding: 6px;">2026-05-20 14:30 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-001</td><td style="padding: 6px; font-family: var(--mono);">Mt7vR2kL…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-002</td><td style="padding: 6px; font-family: var(--mono);">Qa4kZ8jB…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Carla Singh</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-003</td><td style="padding: 6px; font-family: var(--mono);">Lb6cN5wG…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                  <tr><td style="padding: 6px;">Dmitri Volkov</td><td style="padding: 6px; font-family: var(--mono);">acme-cust-005</td><td style="padding: 6px; font-family: var(--mono);">Jd2sB7fQ…</td><td style="padding: 6px;"><span class="status-pill queued">Awaiting response</span></td><td style="padding: 6px;">—</td></tr>
+                </tbody>
+              </table>
+              <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted);">
+                <strong>Regenerate behavior preserved from #378 §3.1:</strong> clicking the Regenerate Links button mints fresh tokens for every member in this batch (responded members keep their <code>respondedAt</code>; their token is replaced but their response stays attributed to them), invalidates the previous URLs, downloads a new CSV. Survey <code>sentCount</code> + this batch's Sent counter re-increment to reflect the new dispatch handoff.
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 10px 14px; background: var(--warning-soft); border: 1px solid #fcd34d; border-radius: var(--radius); font-size: 12px; color: var(--warning-strong); margin-top: 14px;">
+            <strong>⚠ No platform-side send log for Self-serve batches.</strong> The operator's own email tool dispatched these — CustomerEQ does not have per-recipient delivery confirmations for Self-serve. The Sent counter reflects CSV-download events; Responded reflects actual respondent submissions; Failed is not applicable.
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── Scene 7B — CustomerEQ Email Wave Detail ───── -->
+<section class="scene" id="scene-7b">
+  <div class="scene-label"><strong>Scene 7B · Wave detail page · CustomerEQ Email batch</strong><span class="mode-chip managed-acs">CUSTOMEREQ EMAIL</span><span class="scene-note">Spec §3.2 · Same wave-detail page (`/admin/surveys/[id]/distribute/batches/[batchId]`) as Self-serve (Scene 7A) — but the Composer snapshot + per-recipient delivery log are visible because the platform dispatched the emails. Regenerate Links is not surfaced for CustomerEQ Email batches: there is no CSV to re-download (the platform owns dispatch), and any resend semantics intersect with <code>Member.unsubscribedSurveysAt</code> in ways that warrant their own design pass.</span></div>
+  <div class="container">
+    <div class="admin-shell">
+      <div class="admin-top">
+        <div class="logo"><span class="logo-mark">C</span> CustomerEQ</div>
+        <div style="font-size: 12px; color: var(--text-muted);">/admin/surveys/srv_q2nps/distribute/batches/btch_a1b2c3</div>
+      </div>
+      <div class="admin-body">
+        <div class="admin-nav">
+          <div class="admin-nav-group">Workspace</div>
+          <a class="active">Surveys</a>
+        </div>
+        <div class="admin-main">
+          <div class="breadcrumb"><a>← Back to survey</a> &nbsp;›&nbsp; Distribution batches &nbsp;›&nbsp; Q2 2026 NPS · 2026-05-21</div>
+          <div class="page-header">
+            <div>
+              <h1>Q2 2026 NPS · 2026-05-21 &nbsp; <span class="pill solid-active">● Active</span> &nbsp; <span class="pill mode-managed-acs">CustomerEQ Email</span></h1>
+              <p>Batch <code>btch_a1b2c3</code> · 5 recipients · created 2026-05-21 14:02 PT.</p>
+            </div>
+          </div>
+
+          <!-- Counters strip (existing #378 §3.1 plus the new Sent counter) -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Sent</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--success); margin: 4px 0;">5</div>
+              <div style="font-size: 10px; color: var(--text-muted);">via CustomerEQ Email confirmed delivery</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Awaiting response</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">3</div>
+              <div style="font-size: 10px; color: var(--text-muted);">tokens unconsumed · expires 2026-05-28</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Responded</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--info); margin: 4px 0;">2</div>
+              <div style="font-size: 10px; color: var(--text-muted);">40% of sent · last 2h ago</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Failed</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--danger); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">no bounces / suppressions</div>
+            </div>
+            <div style="background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;">Expired</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--text-muted); margin: 4px 0;">0</div>
+              <div style="font-size: 10px; color: var(--text-muted);">window: 7 days · 6 days remain</div>
+            </div>
+          </div>
+
+          <!-- For SELF_SERVE batches: Sent semantic note -->
+          <div style="padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); font-size: 12px; color: var(--text); margin-bottom: 14px;">
+            <strong>Sent semantics on this batch (CustomerEQ Email):</strong> incremented per-recipient as the platform confirms email delivery. For Self-serve batches, Sent increments at CSV download time and re-increments if Regenerate links is used.
+          </div>
+
+          <!-- Audience spec block (unchanged from #378) -->
+          <div class="section">
+            <div class="section-head"><h2>Audience spec</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 4px 0; color: var(--text-muted); width: 240px;">Mode</td><td>Custom List · 5 identifiers (1 auto-enrolled)</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience at send time</td><td>5</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Members in audience now</td><td>5 <span style="color: var(--text-muted); font-size: 11px;">(no erased / deleted since send)</span></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Survey name in mail</td><td>Q2 2026 NPS</td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Links expire on</td><td>2026-05-28 23:59 PT · <a href="#" style="color: var(--primary);">[Edit]</a></td></tr>
+                <tr><td style="padding: 4px 0; color: var(--text-muted);">Created</td><td>2026-05-21 14:02 PT by manohar.madhira@outlook.com</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <!-- §3.2 Composer snapshot — read-only render of what the operator
+               sent for this wave. Body is shown as preformatted text (mono)
+               because rendering the stored HTML would open an XSS surface;
+               the unresolved mustache tokens are also part of the audit. -->
+          <div class="section">
+            <div class="section-head"><h2>Composer snapshot</h2></div>
+            <div class="section-body" style="padding: 14px 20px; font-size: 13px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted); width: 100px;">From</td>
+                  <td>Acme CX Team <span style="font-family: var(--mono); color: var(--text-muted);">&lt;feedback@customereq.wellnessatwork.me&gt;</span></td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted);">Subject</td>
+                  <td>Quick question: Q2 2026 NPS</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: var(--text-muted);">Brand</td>
+                  <td style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 40 40" aria-label="Acme Coffee logo"><circle cx="20" cy="20" r="18" fill="#92400e"/><text x="20" y="26" font-size="16" fill="white" text-anchor="middle" font-family="sans-serif" font-weight="700">A</text></svg>
+                    <span>Acme Coffee</span>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top: 12px;">
+                <div style="font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;">Body</div>
+                <pre style="max-height: 220px; overflow: auto; padding: 12px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px; color: var(--text); white-space: pre-wrap;">{{brand_logo}}
+{{brand_name}}
+
+Hi {{first_name}},
+
+We&rsquo;d love your feedback on {{survey_title}}. It takes about 2 minutes.
+
+{{survey_link}}
+
+Thanks,
+{{sender_name}}</pre>
+                <p style="margin-top: 4px; font-size: 11px; color: var(--text-muted);">Read-only snapshot taken at send time. Mustache tokens (e.g. <code>{{first_name}}</code>) render unresolved here; the worker substitutes them per-recipient at dispatch.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- §3.2 Per-recipient send log — historical view of the SendProgressTable
+               that drove the Sending state (Scene 5B). Same shape, but persistent
+               across page reloads; polling auto-stops once `isComplete=true` on
+               the /send-progress endpoint so an operator landing on a finished
+               batch only does one round-trip. -->
+          <div class="section">
+            <div class="section-head">
+              <h2>Send log</h2>
+              <span style="font-size: 11px; color: var(--text-muted);">5 sent · 0 failed · 0 skipped</span>
+            </div>
+            <div class="section-body" style="padding: 14px 20px;">
+              <table class="recipient-table" style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Name</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Identifier</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Status</th>
+                    <th style="padding: 8px 6px; text-align: left; color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px;">Sent / failed at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Alice Chen</td><td style="padding: 6px; font-family: var(--mono);">alice@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:11 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Bob Patel</td><td style="padding: 6px; font-family: var(--mono);">bob@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:12 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Carla Singh</td><td style="padding: 6px; font-family: var(--mono);">carla@artistos.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:13 PT</td></tr>
+                  <tr style="border-bottom: 1px solid var(--border);"><td style="padding: 6px;">Eric Olsen</td><td style="padding: 6px; font-family: var(--mono);">eric@others.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:14 PT</td></tr>
+                  <tr><td style="padding: 6px;">Fiona Castro</td><td style="padding: 6px; font-family: var(--mono);">fiona@others.com</td><td style="padding: 6px;"><span class="status-pill sent">✓ Sent</span></td><td style="padding: 6px;">14:02:18 PT</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

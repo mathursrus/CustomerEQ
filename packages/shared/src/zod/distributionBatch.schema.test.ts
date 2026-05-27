@@ -95,6 +95,9 @@ describe('BatchDetailResponseSchema (.strict)', () => {
     expiresAt: '2026-05-22T23:59:59.999Z',
     createdAt: '2026-05-15T10:24:00.000Z',
     createdBy: 'user_clerk_1',
+    // Issue #420 §3.2 — sendMode + composerSnapshot ride on every batch detail.
+    sendMode: 'SELF_SERVE' as const,
+    composerSnapshot: null,
     audienceSpec: {
       mode: 'existing_members' as const,
       description: 'Count = 100',
@@ -118,6 +121,27 @@ describe('BatchDetailResponseSchema (.strict)', () => {
 
   it('accepts a valid detail without plaintext', () => {
     expect(BatchDetailResponseSchema.parse(valid)).toEqual(valid)
+  })
+
+  it('accepts MANAGED_EMAIL + composerSnapshot with passthrough fields', () => {
+    const managed = {
+      ...valid,
+      sendMode: 'MANAGED_EMAIL' as const,
+      composerSnapshot: {
+        senderName: 'Acme CX Team',
+        senderAlias: 'feedback',
+        senderDomain: 'cx.acme.io',
+        subject: 'Q2 NPS',
+        body: 'Hi {{first_name}}, {{survey_link}}',
+        brandLogoUrl: null,
+        brandName: 'Acme',
+        // themeSnapshot is a worker concern; .passthrough() keeps it.
+        themeSnapshot: { primaryColor: '#6366f1' },
+      },
+    }
+    const parsed = BatchDetailResponseSchema.parse(managed)
+    expect(parsed.sendMode).toBe('MANAGED_EMAIL')
+    expect(parsed.composerSnapshot?.senderAlias).toBe('feedback')
   })
 
   it('REJECTS a stray plaintext field on tokens[]', () => {

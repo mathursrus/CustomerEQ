@@ -25,15 +25,6 @@ jobs:
         working-directory: apps/mobile
         run: npm ci --legacy-peer-deps
 
-      - name: Write .env for Metro bundler
-        env:
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
-        run: |
-          printf 'EXPO_PUBLIC_API_URL=%s\nEXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' \
-            "$EXPO_PUBLIC_API_URL" "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY" \
-            > apps/mobile/.env
-
       - name: Expo prebuild
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --no-install

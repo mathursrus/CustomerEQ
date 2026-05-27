@@ -62,6 +62,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
 
+      - name: Build workspace packages
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://customerEQ:customerEQ@localhost:5432/customerEQ_test
+
       - name: Install Playwright browsers
         run: pnpm --filter @customerEQ/demo-storefront exec playwright install --with-deps chromium
 

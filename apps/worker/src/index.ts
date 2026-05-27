@@ -11,6 +11,7 @@ import { processFeedbackClustering } from './processors/feedbackClustering.js'
 import { processEmbeddingGeneration } from './processors/embeddingGeneration.js'
 import { processHealthScore } from './processors/healthScore.js'
 import { processSurveyDistribute } from './processors/surveyDistribute.js'
+import { processManagedEmailSend } from './processors/managedEmailSend.js'
 import { createExternalSignalSyncProcessor } from './processors/externalSignalSync.js'
 import { processExternalSignalIngestion } from './processors/externalSignalIngestion.js'
 import { processWebhookDelivery } from './processors/webhookDelivery.js'
@@ -87,6 +88,15 @@ const surveyDistributeWorker = new Worker(
   { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
 )
 
+// Issue #420 — concurrency=5 grounded in V0 expected send volume
+// (50-500 recipients/batch × 200ms ACS latency × ACS 300 r/m rate limit).
+// See RFC §9.1 / D5 for the analysis.
+const managedEmailSendWorker = new Worker(
+  QUEUES.MANAGED_EMAIL_SEND,
+  processManagedEmailSend,
+  { connection, concurrency: 5, drainDelay: IDLE_POLL_SECONDS },
+)
+
 const externalSignalSyncWorker = new Worker(
   QUEUES.EXTERNAL_SIGNAL_SYNC,
   createExternalSignalSyncProcessor(connection),
@@ -131,7 +141,7 @@ void slaBreachQueue.add(
 // Error handlers
 // ---------------------------------------------------------------------------
 
-for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, slaBreachWorker]) {
+for (const worker of [loyaltyEventsWorker, campaignTriggersWorker, notificationsWorker, sentimentWorker, feedbackClusteringWorker, embeddingGenerationWorker, healthScoreWorker, surveyDistributeWorker, managedEmailSendWorker, externalSignalSyncWorker, externalSignalIngestionWorker, webhookDeliveryWorker, surveyImportWorker, slaBreachWorker]) {
   worker.on('failed', (job, err) => {
     logger.error(
       { jobId: job?.id, queue: worker.name, err },
@@ -155,6 +165,7 @@ logger.info(
       QUEUES.EMBEDDING_GENERATION,
       QUEUES.HEALTH_SCORE_COMPUTATION,
       QUEUES.SURVEY_DISTRIBUTE,
+      QUEUES.MANAGED_EMAIL_SEND,
       QUEUES.EXTERNAL_SIGNAL_SYNC,
       QUEUES.EXTERNAL_SIGNAL_INGESTION,
       QUEUES.WEBHOOK_DELIVERY,

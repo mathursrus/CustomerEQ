@@ -238,6 +238,64 @@ describe('GET /v1/surveys/:id/distribution-batches/:batchId (detail)', () => {
     // The load-bearing assertion: no plaintext key anywhere in the detail.
     expect(JSON.stringify(res.body)).not.toContain('plaintext')
   })
+
+  // Issue #420 §3.2 — Wave Detail page consumes sendMode + composerSnapshot to
+  // render the mode pill and the read-only Composer snapshot block.
+  it('returns sendMode=SELF_SERVE and composerSnapshot=null for a self-serve batch', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    await createMember({ brandId: brand.id })
+    const request = authenticatedRequest(brand.id)
+
+    const gen = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 1 },
+    })
+    const res = await request
+      .get(`/v1/surveys/${survey.id}/distribution-batches/${gen.body.batchId}`)
+      .send()
+
+    expect(res.status).toBe(200)
+    expect(res.body.sendMode).toBe('SELF_SERVE')
+    expect(res.body.composerSnapshot).toBeNull()
+  })
+
+  it('returns sendMode=MANAGED_EMAIL and a populated composerSnapshot for a managed-email batch', async () => {
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    await createMember({ brandId: brand.id, email: 'recipient@example.com' })
+    const request = authenticatedRequest(brand.id)
+
+    const gen = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      sendMode: 'MANAGED_EMAIL',
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 1 },
+      composer: {
+        senderName: 'Acme CX Team',
+        senderAlias: 'feedback',
+        subject: 'Quick question: Q2 NPS',
+        body: 'Hi {{first_name}}, please respond at {{survey_link}}',
+      },
+    })
+    expect(gen.status).toBe(201)
+
+    const res = await request
+      .get(`/v1/surveys/${survey.id}/distribution-batches/${gen.body.batchId}`)
+      .send()
+
+    expect(res.status).toBe(200)
+    expect(res.body.sendMode).toBe('MANAGED_EMAIL')
+    expect(res.body.composerSnapshot).not.toBeNull()
+    expect(res.body.composerSnapshot.senderName).toBe('Acme CX Team')
+    expect(res.body.composerSnapshot.senderAlias).toBe('feedback')
+    expect(typeof res.body.composerSnapshot.senderDomain).toBe('string')
+    expect(res.body.composerSnapshot.subject).toBe('Quick question: Q2 NPS')
+    expect(res.body.composerSnapshot.body).toContain('{{survey_link}}')
+  })
 })
 
 describe('PATCH /v1/surveys/:id/distribution-batches/:batchId/expiry', () => {

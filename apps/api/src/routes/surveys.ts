@@ -1036,6 +1036,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       loyaltyOutcomesResult,
       latencyResult,
       firstResponseResult,
+      sentByModeResult,
     ] = await Promise.allSettled([
       // responsesReceived
       fastify.prisma.surveyResponse.count({ where: { surveyId, brandId } }),
@@ -1082,6 +1083,17 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { completedAt: 'asc' },
         select: { completedAt: true },
       }),
+      // Issue #420 R39 — lifetime sent count per sendMode. Uses the dedicated
+      // (surveyId, sendMode, sentAt) and (surveyId, sendMode, deliveredAt)
+      // indexes added in the #420 migration. SurveyDistribution.sentAt is
+      // NOT NULL by schema (set at row creation), so simple row-count grouped
+      // by sendMode reflects the same denormalization Survey.distributionCount
+      // already maintains in aggregate — values are eventually consistent.
+      fastify.prisma.surveyDistribution.groupBy({
+        by: ['sendMode'],
+        where: { surveyId, brandId },
+        _count: true,
+      }),
     ])
 
     const responsesReceived = responsesResult.status === 'fulfilled' ? responsesResult.value : null
@@ -1091,6 +1103,11 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     const loyaltyAgg = loyaltyOutcomesResult.status === 'fulfilled' ? loyaltyOutcomesResult.value : null
     const latencyRows = latencyResult.status === 'fulfilled' ? latencyResult.value : []
     const firstResponse = firstResponseResult.status === 'fulfilled' ? firstResponseResult.value : null
+    const sentByModeRows = sentByModeResult.status === 'fulfilled' ? sentByModeResult.value : []
+    const surveysSentByMode = {
+      MANAGED_EMAIL: sentByModeRows.find((r) => r.sendMode === 'MANAGED_EMAIL')?._count ?? 0,
+      SELF_SERVE: sentByModeRows.find((r) => r.sendMode === 'SELF_SERVE')?._count ?? 0,
+    }
 
     // Build score distribution buckets for NPS (0–6, 7–8, 9–10)
     const scoreDistribution: Record<string, number> = { '0-6': 0, '7-8': 0, '9-10': 0 }
@@ -1123,6 +1140,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
       generatedAt,
       pipeline: {
         surveysSent: survey.distributionCount,
+        surveysSentByMode,
         responsesReceived,
         scoreDistribution,
         rulesMatched,
