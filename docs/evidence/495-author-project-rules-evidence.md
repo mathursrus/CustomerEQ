@@ -16,6 +16,13 @@ This branch was originally cut (2026-05-21) when the highest-numbered rule was 2
 
 The unique normative core 495 was filed to add — mandatory draft, draft-until-all-phase-artifacts-land (Rule 26 binding), the review-scrutiny / one-shot-notification rationale, and the premature-Ready prohibitions — is preserved. It is exactly the half #498's Rule 27 does not cover.
 
+## Address-feedback (PR #496 review of `aee15b0`)
+
+Two inline review comments from the reviewer, both resolved on the branch:
+
+1. **PR naming convention** (Rule 28 "Creating the PR"): the first PR for an issue is named for the *issue*, not the phase/job that opened it (one issue = one PR per Rule 26); only if an issue somehow already has a PR may a later PR's name include the phase/job. Added as a bullet.
+2. **Third problem in "Why this rule exists"**: a non-draft PR triggers a CI run on every push (`synchronize`), burning a premature CI run per intermediate commit — the exact waste Rule 27's draft recommendation exists to avoid. Promoted the rationale from "two problems" to "three" and added the CI-cost dimension, tying Rule 28 back to Rule 27's original motivation.
+
 ## Work Completed
 
 ### Key files changed
