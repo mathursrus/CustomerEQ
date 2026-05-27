@@ -1,6 +1,25 @@
 import '../global.css'
-// RN 0.76 added navigator.locks but not isSecureContext; Clerk crashes on the missing global
-if (typeof isSecureContext === 'undefined') (global as any).isSecureContext = true
+// clerk-js@5 headless bundle assumes a browser environment.
+// These globals don't exist in React Native / Hermes — polyfill the minimum
+// surface needed for clerk.load() to resolve on native.
+if (typeof window === 'undefined') {
+  ;(global as any).window = global
+  ;(global as any).window.addEventListener    = () => {}
+  ;(global as any).window.removeEventListener = () => {}
+  ;(global as any).window.location = {
+    hostname: 'localhost', host: 'localhost',
+    href: 'https://localhost/', origin: 'https://localhost', protocol: 'https:',
+  }
+}
+if (typeof document === 'undefined') {
+  ;(global as any).document = {
+    visibilityState: 'visible', hasFocus: () => true,
+    addEventListener: () => {}, removeEventListener: () => {}, cookie: '',
+  }
+}
+if (typeof isSecureContext === 'undefined') {
+  ;(global as any).isSecureContext = true
+}
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
