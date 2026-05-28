@@ -154,6 +154,8 @@
     <a href="#s5">5 Confirm</a>
     <a href="#s6">6 Migrating</a>
     <a href="#s7">7 Done</a>
+    <a href="#s7b">7B Grace</a>
+    <a href="#s7c">7C Expired</a>
     <a href="#s8">8 Failed</a>
   </div>
 </div>
@@ -432,12 +434,27 @@
         <span class="step active"><span class="dot">3</span> Confirm &amp; migrate</span>
       </div>
 
+      <div class="modal-warn">
+        <strong>Brand-side updates you'll need to make</strong> — these integrations are using your Customer ID today. You'll have a <strong>30-day grace window</strong> after migration to update them; we'll continue accepting the old Customer ID alongside email during that time.
+        <table class="rows" style="margin-top:8px;">
+          <thead><tr><th>Integration surface</th><th>Activity (last 30d)</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>Embedded survey forms (host application)</td><td>1,142 responses · last 3 hours ago</td><td>Update <code>?member_id=</code> URL parameter to pass email</td></tr>
+            <tr><td><code>POST /v1/events</code> (Acme backend)</td><td>8,317 events · last 12 minutes ago</td><td>Send <code>memberId</code> as email</td></tr>
+            <tr><td><code>POST /v1/members/enroll</code> (Acme backend)</td><td>43 enrollments · last 2 days ago</td><td>Send <code>memberId</code> as email</td></tr>
+            <tr><td>Custom List distribution batches</td><td>3 batches · last 6 days ago</td><td>Upload audiences keyed by email</td></tr>
+            <tr><td>Outbound webhooks (CRM → Acme)</td><td>2 active subscriptions</td><td>Your consumer will start receiving email instead of Customer ID</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="modal-info">
         <strong>What happens next</strong>
         <ul style="margin:6px 0 0; padding-left:18px;">
           <li>Each member is re-keyed from their Customer ID to their new email.</li>
           <li>Feedback received during the migration keeps working — it's matched on the old Customer ID and reconciled automatically.</li>
-          <li>When finished, your identifier method switches to <strong>Email</strong> and the change is recorded in your audit log.</li>
+          <li>After the kind switches to <strong>Email</strong>, a <strong>30-day grace window</strong> begins — old Customer ID is still accepted; you'll see remaining activity per surface and can extend if needed.</li>
+          <li>When finished, the change is recorded in your audit log.</li>
         </ul>
       </div>
 
@@ -517,6 +534,77 @@
           <div class="locked-notice">
             <span class="locked-icon" aria-hidden="true">🔒</span>
             <div class="locked-notice-text"><strong>1,284 members enrolled.</strong> The identifier method is locked while members exist. To change it, run a guided migration.</div>
+            <button class="btn btn-ghost btn-sm">Switch identifier method →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 7B — Grace window (10 days in, integrations still cutting over) -->
+<!-- ============================================================ -->
+<section class="scene" id="s7b">
+  <div class="scene-label"><strong>Scene 7B — Grace window (Day 10 of 30)</strong> &nbsp; Identifier method has flipped to <strong>Email</strong>, but the old <code>customer_id</code> is still accepted during a configurable grace window so the brand's integrations have time to cut over. The grace-status panel surfaces the deadline, per-ingress activity counts (so the admin can see which integrations have *not* been updated yet), and an "Extend grace window" action (capped at the 90-day max from R31). Embedded forms show 0 — that integration has been updated; <code>/v1/events</code> still sees old-key traffic — the backend hasn't been cut over.</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-warning">Grace window — 20 days remaining</span></h2>
+        <p class="section-help">Now identifying members by Email. Old Customer ID still accepted until <strong>2026-06-26</strong>.</p>
+      </div>
+      <div class="section-body">
+        <div class="modal-warn">
+          <strong>Some of your integrations are still sending the old Customer ID.</strong> Update them before <strong>2026-06-26</strong>, when we'll start rejecting those requests. Counts below are the last 7 days.
+        </div>
+        <table class="rows">
+          <thead><tr><th>Integration surface</th><th>Old-key activity (last 7d)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /v1/events</code> (Acme backend)</td><td>1,847 events</td><td><span class="badge badge-warning">Cutover pending</span></td></tr>
+            <tr><td>Custom List distribution batches</td><td>1 batch</td><td><span class="badge badge-warning">Cutover pending</span></td></tr>
+            <tr><td>Embedded survey forms (host application)</td><td>0</td><td><span class="badge badge-success">✓ Cut over</span></td></tr>
+            <tr><td><code>POST /v1/members/enroll</code> (Acme backend)</td><td>0</td><td><span class="badge badge-success">✓ Cut over</span></td></tr>
+            <tr><td>Outbound webhooks (CRM → Acme)</td><td>—</td><td><span class="badge badge-info">Echoing new email</span></td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost btn-sm">Extend grace window</button>
+          <button class="btn btn-ghost btn-sm">Download API migration guide</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 7C — Grace expired (cutover complete) -->
+<!-- ============================================================ -->
+<section class="scene" id="s7c">
+  <div class="scene-label"><strong>Scene 7C — Grace expired</strong> &nbsp; Grace deadline passed. Inbound requests supplying the old <code>customer_id</code> are now rejected with <code>IDENTIFIER_DEPRECATED_AFTER_MIGRATION</code> (R35). If any post-expiry rejections occurred (e.g., a forgotten integration still hitting the API), they surface here so the admin can chase down the last consumer. In the clean case shown, all integrations cut over before the deadline.</div>
+  <div class="container">
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-success">✓ Cutover complete</span></h2>
+        <p class="section-help">Now identifying members by Email. Old Customer ID is no longer accepted.</p>
+      </div>
+      <div class="section-body">
+        <div class="modal-info" style="border-left-color: var(--success); background: var(--success-soft); color:#14532d;">
+          <strong>Migration fully complete.</strong> Grace window closed on 2026-06-26. All integrations cut over before the deadline; 0 post-expiry rejections.
+        </div>
+        <div class="field">
+          <div class="radio-group" role="radiogroup" aria-label="Member identifier kind" aria-disabled="true">
+            <label class="radio-card selected disabled">
+              <input type="radio" disabled checked>
+              <div class="body"><div class="title">Email <span class="pill inuse">In use</span></div><div class="desc">Customers identify themselves with their email address.</div></div>
+            </label>
+            <label class="radio-card disabled">
+              <input type="radio" disabled>
+              <div class="body"><div class="title">Customer ID (your system of record)</div><div class="desc">Your application's stable customer IDs.</div></div>
+            </label>
+          </div>
+          <div class="locked-notice">
+            <span class="locked-icon" aria-hidden="true">🔒</span>
+            <div class="locked-notice-text"><strong>1,284 members enrolled.</strong> The identifier method is locked while members exist.</div>
             <button class="btn btn-ghost btn-sm">Switch identifier method →</button>
           </div>
         </div>

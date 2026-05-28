@@ -29,10 +29,16 @@ The flow lives in **Organization Settings → Member identification** (`/admin/s
    - **Some members have email (Scene 2B — partial coverage):** the mapping template is pre-filled with each member's existing email where present; the admin only fills in the missing rows (and may override existing values if desired).
    - **No members have email:** the template downloads with the `new_email` column blank; the admin fills every row.
 3. **Step 2 — Upload & validate (Scenes 3 & 4).** The admin uploads the filled CSV. Validation runs **before any write** and reports counts. If clear, "Next" enables (Scene 3). If there are blocking issues — an unmapped member, a collision (two IDs → same email), or an invalid email — the flow lists the offending rows and blocks until fixed (Scene 4). Members are untouched during validation.
-4. **Step 3 — Confirm (Scene 5).** An attestation gate (reusing the consent-mode attestation pattern): a checkbox confirming the admin has permission to use the emails and understands the re-key is not auto-undoable. The migrate button is danger-styled and disabled until checked.
+4. **Step 3 — Confirm (Scene 5).** Two things happen here: (a) the **impact preview** lists the brand-side integration surfaces that have used the current identifier in the last 30 days so the admin sees what they will need to update post-migration (R30); and (b) an **attestation gate** (reusing the consent-mode attestation pattern): a checkbox confirming the admin has permission to use the emails and understands the re-key is not auto-undoable. The migrate button is danger-styled and disabled until checked.
 5. **Migrating (Scene 6).** Live progress (total / migrated / remaining / failed), refreshed on a fixed cadence via the shared `usePollingQuery` hook. A live note tells the admin that feedback arriving now is matched on the old Customer ID and reconciled automatically — so they need not pause their integration.
 6. **Complete (Scene 7).** A summary reports members re-keyed, records reconciled during the window, and failures; the method now shows **Email — In use**; the change is in the audit log.
 7. **Failed (Scene 8).** A failure during the re-key rolls back: the method stays `CUSTOMER_ID` (no partial flip), members are untouched, per-member errors are shown, and the admin can retry.
+
+**Brand-side cutover lifecycle.** A migration is not just a database operation — the brand has integrations that emit the *old* identifier (host-application embedded survey URLs `?member_id=<customer_id>`, backend `/v1/events` POSTs, Custom List distribution CSVs, outbound webhook subscriptions). These must be cut over on the brand's side. The flow makes that work explicit and observable across three phases:
+
+- **Before confirm — impact preview (extends Scene 5).** Driven by real usage signals from the last 30 days (which API keys, routes, channels, and audience modes have actually been used), the confirm step lists the integration surfaces the brand will need to update so the admin sees the work commitment *before* they commit.
+- **After flip — grace window (Scene 7B).** Once `memberIdentifierKind` flips to `EMAIL`, dual-key resolution stays on for a configurable grace window (default **30 days**, range **7–90 days**). Inbound requests keyed by the old `customer_id` continue to resolve, and the system records per-ingress old-key usage. The Member identification section surfaces a grace-status panel showing the deadline + per-ingress old-key activity + an "extend grace" action.
+- **Grace expiry (Scene 7C).** When the deadline passes, old-key inbound requests are rejected with a specific error code; the admin sees the cutover-complete state.
 
 **Design Standards Applied.** Mock uses the Organization Settings design system (`docs/feature-specs/mocks/277-organization-settings.html`) — same `.section`/`.radio-card`/`.locked-notice`/attestation-modal components — because the entry point lives in that surface. The upload + batch-progress + error-row patterns mirror the historical-import flow (`docs/feature-specs/mocks/262-import-flow.html`). Progress polling reuses `apps/web/src/lib/hooks/usePollingQuery.ts` (architecture.md §3.1), the same hook used for managed-email send progress. No new UI primitives are introduced.
 
@@ -70,10 +76,18 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **R17** — `Brand.memberIdentifierKind` SHALL flip to `EMAIL` only after the migration reaches a terminal success state (all mapped members re-keyed with zero unresolved failures).
 - **R18** — While a migration is active, the section SHALL display live progress — total, migrated, remaining, failed — refreshed on a fixed cadence.
 
-### Catch-up & reconciliation
-- **R19** — While a migration is active, inbound member resolution SHALL resolve an existing member whether the caller supplies the old (`customer_id`) or the new (`email`) identifier.
-- **R20** — Any member newly enrolled under the old `customer_id` during the migration window SHALL be reconciled into the migrated member set after the re-key completes, leaving no stranded or duplicate member.
+### Catch-up & reconciliation (during re-key)
+- **R19** — While the re-key worker is processing (before the kind flip), inbound member resolution SHALL resolve an existing member whether the caller supplies the old (`customer_id`) or the new (`email`) identifier.
+- **R20** — Any member newly enrolled under the old `customer_id` between the start of the re-key and the end of the post-flip grace window (R31) SHALL be reconciled into the migrated member set, leaving no stranded or duplicate member.
 - **R21** — Reconciliation SHALL apply last-write-wins on non-identifier profile fields (consistent with existing `resolveOrEnrollMember` semantics) and SHALL NOT hard-delete any member.
+
+### Brand-side cutover
+- **R30** — Before the admin confirms the migration, the flow SHALL present a **data-driven impact preview** listing the integration surfaces that have used the current identifier in the last 30 days (e.g., embedded-form survey responses, API keys posting `/v1/events`, manual API enrollments, Custom List distribution batches, active outbound webhook subscriptions), each with a last-seen-at timestamp, so the admin sees what brand-side work is required before they commit.
+- **R31** — After `Brand.memberIdentifierKind` flips, the system SHALL enter a **grace window** during which dual-key member resolution stays on. The window SHALL default to **30 days** and SHALL be configurable per migration in the range **7–90 days**.
+- **R32** — During the grace window, inbound member resolution SHALL accept the old (`customer_id`) or the new (`email`) identifier on every ingress path, extending R19's dual-key behavior past the kind flip until the grace deadline.
+- **R33** — During the grace window, the system SHALL record old-key resolution events per ingress source (e.g., `/v1/events`, public survey respond, manual API enroll, distribution batch, outbound webhook echo) with brand-scoped counts.
+- **R34** — While a grace window is active, the Organization Settings → Member identification section SHALL display a **grace-status panel** showing the grace deadline, per-ingress old-key usage counts, and an action to extend the deadline within the configured maximum (R31's 90-day cap).
+- **R35** — After the grace deadline passes, inbound requests supplying the old `customer_id` SHALL be rejected with a specific error code (`IDENTIFIER_DEPRECATED_AFTER_MIGRATION`) and the rejection SHALL be observable in the brand's usage logs.
 
 ### Completion & failure
 - **R22** — On success, the flow SHALL show a summary including members re-keyed, records reconciled during the window, and failure count.
@@ -94,6 +108,10 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **R17/R23** — *Given* a migration that fails on member 512 of 1,284, *when* the batch aborts, *then* `memberIdentifierKind` is still `CUSTOMER_ID`, member 1 is still keyed by its `customer_id`, and the batch status is `failed`.
 - **R19** — *Given* an active migration, *when* a survey response arrives keyed by a member's old `customer_id`, *then* the response resolves to that member (whether or not that member has already been re-keyed).
 - **R20** — *Given* a brand-new responder enrolls under a `customer_id` during the window, *when* the migration completes, *then* that member is present exactly once and identifiable by the new scheme, with no duplicate.
+- **R30** — *Given* an embedded-form survey response came through in the last 30 days, *when* the admin opens the confirm step, *then* the impact preview lists "Embedded survey forms — last response 3 days ago — your host application's `?member_id=` parameter needs to be updated to pass email."
+- **R31/R32** — *Given* a migration whose kind flip completed 5 days ago, *when* a backend POSTs `/v1/events` with `memberId: cust_00012` (the old identifier), *then* the request resolves to the migrated member and is not rejected.
+- **R33/R34** — *Given* a brand 10 days into the grace window, *when* the admin views the Member identification section, *then* it shows the grace deadline, the per-ingress old-key usage (e.g., "247 events via `/v1/events`, 0 via embedded forms"), and an "Extend grace window" action.
+- **R35** — *Given* a grace window that expired yesterday, *when* a backend POSTs `/v1/events` with the old `cust_00012`, *then* the request is rejected with error code `IDENTIFIER_DEPRECATED_AFTER_MIGRATION` and the response includes the new identifier shape in guidance.
 
 ## Error States
 - **Fast-path source data fails pre-flight** — one or more existing `Member.email` values fail shape validation or collide → fast-path CTA is unavailable; per-row issues are shown; the admin can either fix `Member.email` upstream (in their integration) or use the upload-override path (R29).
@@ -103,6 +121,7 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **Invalid email** — `new_email` fails shape validation (R10).
 - **Migration already in progress** — starting a second migration for the same brand SHALL be refused while one is active.
 - **Worker failure mid-batch** — transaction rollback, no partial flip, retryable (R23/R24).
+- **Integrations still on the old key after grace expiry** — inbound requests supplying the old `customer_id` after the grace deadline are rejected with `IDENTIFIER_DEPRECATED_AFTER_MIGRATION`; the grace-status panel surfaces post-expiry rejections so the admin can finish cutting over (R35).
 
 ## Compliance Requirements
 
@@ -160,3 +179,5 @@ The decisive structural difference: mainstream loyalty/CX platforms **do not let
 - **Priority / test tier** — P1 (unit+integration) assumed; confirm whether P0 (adds mandatory E2E) given it's a customer-blocking gap.
 - **Rollback after success** — out of scope for Slice 1 (the attestation states it's not auto-undoable). Confirm we don't need a post-success "undo" before GA.
 - **Coverage policy** — spec requires 100% member coverage before flip (R8). Confirm we don't want a "quarantine unmapped members" alternative (rejected here because it leaves a mixed-kind state).
+- **Grace window defaults** — proposed 30-day default, 7–90 day configurable range (R31). Confirm or set different bounds. Also: should new members enrolling under the *old* `customer_id` during grace be accepted (auto-mapped via the retained migration mapping where possible, otherwise quarantined and surfaced in the grace-status panel) or rejected outright? Spec assumes accepted (R20 extended through grace); confirm.
+- **Grace extension policy** — R34 lets the admin extend within the configured max. Confirm whether extension should require attestation (consistent with R13) or be a simple action.
