@@ -71,4 +71,4 @@ Files touched:
 
 Note: this round was normal review iteration (clarifications + small gap finds), not a corrective miss — deferring coaching-moment capture to the spec-phase retrospective.
 
-- **Status**: ADDRESSED in commit `<round3-commit>`.
+- **Status**: ADDRESSED in commit `1965a3b`.
