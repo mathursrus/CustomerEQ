@@ -16,6 +16,7 @@ if (typeof isSecureContext === 'undefined') {
   ;(global as any).isSecureContext = true
 }
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
+import { tokenCache } from '@clerk/clerk-expo/token-cache'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
@@ -25,7 +26,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
 const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
-const AUTH_TIMEOUT_MS = 10_000
+const AUTH_TIMEOUT_MS = 30_000
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
@@ -61,8 +62,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           <Text style={{ color: '#ef4444', fontSize: 16, textAlign: 'center', marginBottom: 8 }}>
             Unable to connect to authentication service.
           </Text>
-          <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>
+          <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 12 }}>
             Please check your internet connection and reopen the app.
+          </Text>
+          <Text style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>
+            If this persists, contact support@wellnessatwork.me
           </Text>
         </View>
       )
@@ -80,6 +84,7 @@ export default function RootLayout() {
   return (
     <ClerkProvider
       publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+      tokenCache={tokenCache}
     >
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
