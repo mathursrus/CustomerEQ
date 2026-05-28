@@ -85,4 +85,4 @@ Note: this round was normal review iteration (clarifications + small gap finds),
   - **Spec R28**: spelled out that the override path routes into the **same flow as R4 → R5 → R6–R12** — download mapping template (already pre-filled from existing emails per R4), let the admin edit any rows, upload, run pre-flight validation. No separate override pipeline. Stated explicitly: "the override is just the normal upload path entered from the fast-path scene with a fully pre-filled template."
   - **Spec User Experience (Step 1, fast path branch)**: renamed the affordance and clarified it routes into the same flow as Scene 2B.
   - **Mock Scene 2A**: renamed the button from "Upload override CSV instead" → **"Edit mapping before migrating"**. Updated the supporting copy in the green modal-info to use the new name and explain that the template will come pre-filled.
-- **Status**: ADDRESSED in commit `<round4-commit>`.
+- **Status**: ADDRESSED in commit `634a903`.
