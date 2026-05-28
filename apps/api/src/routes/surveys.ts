@@ -114,7 +114,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     // Issue #332 — soft-deleted rows excluded from list reads.
     const where = { brandId: request.brandId, deletedAt: null }
 
-    const [total, data] = await Promise.all([
+    const [total, data, scoreRows] = await Promise.all([
       fastify.prisma.survey.count({ where }),
       fastify.prisma.survey.findMany({
         where,
@@ -123,9 +123,17 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
         take: pageSize,
         include: { _count: { select: { responses: true } } },
       }),
+      fastify.prisma.surveyResponse.groupBy({
+        by: ['surveyId'],
+        where: { brandId: request.brandId, score: { not: null } },
+        _avg: { score: true },
+      }),
     ])
 
-    return reply.status(200).send({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+    const avgScoreMap = Object.fromEntries(scoreRows.map((r) => [r.surveyId, r._avg.score]))
+    const enriched = data.map((s) => ({ ...s, score: avgScoreMap[s.id] ?? null }))
+
+    return reply.status(200).send({ data: enriched, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   })
 
   // GET /v1/surveys/:id — get survey with response stats.

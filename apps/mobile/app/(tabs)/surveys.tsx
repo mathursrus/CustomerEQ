@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSurveys, usePrograms, type SurveyQuestion, type CreateSurveyInput } from '../../hooks/useSurveys'
 import { useSurveyDetail, type ResponseFilters } from '../../hooks/useSurveyDetail'
 
@@ -110,19 +110,27 @@ export default function SurveysScreen() {
     setSelectedSurveyName(name)
     setDetailPage(1)
     setDetailFilters({})
+    setVerbatims([])
   }
 
   function toggleSentimentFilter(s: 'positive' | 'neutral' | 'negative') {
     setDetailPage(1)
+    setVerbatims([])
     setDetailFilters(prev => ({ ...prev, sentiment: prev.sentiment === s ? undefined : s }))
   }
 
   function toggleScoreFilter(band: 'promoter' | 'passive' | 'detractor') {
     setDetailPage(1)
+    setVerbatims([])
     setDetailFilters(prev => ({ ...prev, scoreBand: prev.scoreBand === band ? undefined : band }))
   }
 
-  const verbatims = detail?.items ?? []
+  const [verbatims, setVerbatims] = useState<import('../../hooks/useSurveyDetail').Verbatim[]>([])
+  useEffect(() => {
+    if (detail?.items) {
+      setVerbatims(prev => detailPage === 1 ? detail.items : [...prev, ...detail.items])
+    }
+  }, [detail])
   const hasMore = detail?.hasMore ?? false
 
   return (

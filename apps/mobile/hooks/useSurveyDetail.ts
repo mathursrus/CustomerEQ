@@ -21,8 +21,8 @@ export function useSurveyDetail(surveyId: string | null, page = 1, filters: Resp
     queryFn: async () => {
       const headers = await apiHeaders(getToken)
       const params = new URLSearchParams({ pageSize: '20', page: String(page) })
-      if (filters.sentiment) params.set('sentiment', filters.sentiment)
-      if (filters.scoreBand) params.set('scoreBand', filters.scoreBand)
+      if (filters.sentiment) params.set('sentimentBands', filters.sentiment)
+      if (filters.scoreBand) params.set('scoreBands', filters.scoreBand)
       const res = await fetch(`${API_URL}/v1/surveys/${surveyId}/responses?${params}`, { headers })
       if (!res.ok) throw new Error(`Survey responses fetch failed: ${res.status}`)
       const data = await res.json()
