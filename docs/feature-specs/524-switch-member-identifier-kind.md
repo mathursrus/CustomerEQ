@@ -136,7 +136,7 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 No formal regulations are configured in `fraim/config.json`; the following are **inferred from project context** (project Rule 13 — GDPR/CCPA baked in) because the feature mutates PII (member identifiers).
 
 - **Lawful basis for new PII.** Email becomes a stored identifier + PII for members who previously had only a Customer ID. R13's attestation captures the admin's confirmation that the brand has the right to use these emails. The migration does not solicit new consent from members; consent recorded at original enrollment is preserved (R26).
-- **No erasure regression.** The re-key is an `UPDATE`, never a delete (R21). Soft-delete (`deletedAt`) and erasure (`erased`) flags are preserved (R26); the existing GDPR erasure job — which zeroes identifier PII — must continue to cover the now-populated `email` sidecar and `externalId` (verified in the validation plan).
+- **No erasure regression.** The re-key is an `UPDATE`, never a delete (R21). Soft-delete (`deletedAt`) and erasure (`erased`) flags are preserved (R26). Erasure today is **mask-on-read via `Member.erased`** (`apps/api/src/routes/members.ts:538-540, 944-954`) — reads return `'[ERASED]'` for PII fields when `erased = true`. The migration **excludes `erased = true` and `deletedAt != NULL` members** from coverage and the re-key worker so it cannot re-PII an erased member by writing a new email value. The existing mask-on-read continues to cover the migrated `email` value unchanged (verified in the validation plan).
 - **Tenant isolation.** All operations are `brandId`-scoped (R27); one brand's mapping upload can never read or write another brand's members (Rule 6).
 - **Auditability.** The change is recorded with before/after kind, counts, attesting admin, and timestamp (R25).
 
@@ -145,7 +145,7 @@ No formal regulations are configured in `fraim/config.json`; the following are *
 - **Integration (needs DB)** — re-key transaction re-keys `externalId` + sets `email` and preserves consent/erasure/balances/history (R16, R26); kind flips only on terminal success (R17); failure mid-batch rolls back with no partial flip (R23); dual-key resolution during an active migration (R19); reconciliation of a member enrolled on the old key during the window (R20); audit row written (R25); cross-tenant upload rejected (R27).
 - **E2E (Playwright)** — full wizard: entry → choose → upload (clean and error variants) → attest → progress → complete; and the failed-rollback path.
 - **Concurrency** — a scripted run that fires inbound enroll/survey-respond on the old key while the re-key worker is mid-batch, asserting no stranded/duplicate members afterward (R19/R20).
-- **Compliance validation** — run the erasure job against a migrated member and assert the new `email` sidecar + `externalId` are zeroed; assert audit row contents (R25/R26).
+- **Compliance validation** — mark a migrated member `erased = true` and assert mask-on-read returns `'[ERASED]'` for the new email value; assert audit row contents (R25/R26); assert erased + soft-deleted members are excluded from migration coverage.
 - **Test coverage tier** — pending priority confirmation; treat as **P1** (unit + integration required) unless the team sets P0 (adds mandatory E2E). The concurrency test is required regardless because R19/R20 are the highest-risk behaviors.
 
 ## Alternatives

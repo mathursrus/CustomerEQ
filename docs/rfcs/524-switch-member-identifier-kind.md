@@ -229,10 +229,12 @@ SELECT
   -- shape check: count of emails failing the existing EMAIL regex (use existing memberResolution.EMAIL_RE)
   count(*) FILTER (WHERE email IS NOT NULL AND email !~ '<EMAIL_RE>')  AS invalidShape
 FROM members
-WHERE brandId = $1 AND deletedAt IS NULL;
+WHERE brandId = $1 AND deletedAt IS NULL AND erased = false;
 ```
 
 Fast-path (R28) is offered iff `withoutEmail = 0 AND collisionGroups = 0 AND invalidShape = 0`. Otherwise the wizard branches to partial-coverage upload (R29).
+
+**Why `erased = false` is required:** writing a new email to an erased member would re-PII them, which violates the existing erasure contract (`Member.erased` flag + mask-on-read in `members.ts:538-540, 944-954`). The migration therefore excludes them from totals, mapping, and the re-key worker pass.
 
 ### D. Re-key worker (R15, R16, R17)
 
@@ -329,6 +331,8 @@ async function processMigration(migrationId: string) {
 
 **Per-member transactions, not whole-batch.** A single failing member does not roll back the whole batch — it's flagged and the rest continues. Terminal success requires zero failures; otherwise `status=FAILED` and `memberIdentifierKind` is **never flipped**. This is the spec's R23 semantics ("no partial flip").
 
+**Erased + soft-deleted members are excluded.** The mapping intake (§C.2 + the upload validator) excludes members where `erased = true OR deletedAt IS NOT NULL`. The brand is therefore not required to supply an email for them, and the worker never writes a new email to an erased member (which would violate the existing erasure contract — mask-on-read via `Member.erased`, see members.ts:538-540, 944-954).
+
 **Hot-path SLA (Hero #6 Rule).** The worker is async, off the inbound event-ingestion path. The only inbound-path change is the dual-key fallback (§F) — one extra `findUnique` on the mapping table when the first lookup misses, indexed on `(migrationId, oldExternalId)` (B.2). Measured cost: ~5–20 ms; well within <1s p99.
 
 ### E. Dual-key resolution (R19, R32)
@@ -420,12 +424,12 @@ Trigger fires when `daysRemaining <= 7 AND oldKeyIngressesActive.length > 0`. UI
 
 | Surface | Source query |
 |---|---|
-| Embedded survey forms | `SurveyResponse` where `brandId = $1 AND channel IN ('embed', 'in_app') AND createdAt > now() - 30d` → count + max(createdAt) |
-| `POST /v1/events` | `LoyaltyEvent` where `brandId = $1 AND createdAt > now() - 30d` → count + max(createdAt) |
-| `POST /v1/members/enroll` | `Member` where `brandId = $1 AND enrolledVia = 'MANUAL_API' AND createdAt > now() - 30d` |
-| Custom List distribution batches | `DistributionBatch` where `brandId = $1 AND createdAt > now() - 30d AND audienceSpec ->> 'mode' = 'custom_list'` |
-| Outbound webhooks | `WebhookEndpoint` where `brandId = $1 AND active = true AND deletedAt IS NULL` → count of active subscriptions |
-| Public survey respond | `SurveyResponse` where `brandId = $1 AND channel = 'link' AND createdAt > now() - 30d` |
+| Embedded survey forms (host app via widget) | `SurveyResponse` where `brandId = $1 AND channel = 'in_app' AND createdAt > now() - 30d` → count + max(createdAt). *(Channel values are restricted to `'email' \| 'in_app' \| 'link' \| 'sms'` by `apps/api/src/routes/public.ts:53`; the widget hardcodes `'in_app'` at `public.ts:992`.)* |
+| `POST /v1/events` | `LoyaltyEvent` where `brandId = $1 AND createdAt > now() - 30d` → count + max(createdAt) (indexed `(brandId, createdAt)`, `schema.prisma:483`) |
+| `POST /v1/members/enroll` | `Member` where `brandId = $1 AND enrolledVia = 'MANUAL_API' AND createdAt > now() - 30d AND deletedAt IS NULL` |
+| Custom List distribution batches | `DistributionBatch` where `brandId = $1 AND createdAt > now() - 30d AND audienceSpec ->> 'mode' = 'custom_list'` *(field shape verified in `apps/api/src/routes/distributionBatches.ts:937,944`)* |
+| Outbound webhooks | `WebhookEndpoint` where `brandId = $1 AND active = true` → count of active subscriptions. *(Model has no `deletedAt` column — `schema.prisma:1206-1223` — disable is `active = false`.)* |
+| Public survey respond (share-link) | `SurveyResponse` where `brandId = $1 AND channel = 'link' AND createdAt > now() - 30d` |
 
 Per-row output: `{ surface, lastSeenAt, count30d, brandSideAction }` where `brandSideAction` is a per-surface string baked into the API layer (e.g., "Update `?member_id=` URL parameter to pass email").
 
@@ -525,7 +529,8 @@ In addition to the audit rows (§I) and old-key usage (B.3):
 | Inbound survey-respond with new `cust_99999` (never seen) during grace | New member created; reconciled after grace sweep (R20) | Concurrency integration test |
 | Brand 25d into grace with old-key activity > 0 in last 7d | `/v1/admin/brand/usage-warnings` returns pre-expiry payload (R37) | Integration test |
 | Old `cust_00012` POSTed after grace expiry | 410 `IDENTIFIER_DEPRECATED_AFTER_MIGRATION` (R35) | Integration test |
-| GDPR erasure job on a migrated member | New `email` sidecar + `externalId` zeroed (R26) | Integration test extending existing erasure suite |
+| GDPR erasure on a migrated member | `Member.erased = true` + read-time mask returns `'[ERASED]'` for `email`/`firstName`/`lastName`/`phone` (per the existing pattern in `apps/api/src/routes/members.ts:538-540, 944-954`), including the new email value (R26). | Integration test extending existing erasure suite |
+| Pre-existing erased / soft-deleted members are excluded from the migration | Worker skips members where `erased = true OR deletedAt IS NOT NULL`; pre-flight coverage check (R8) excludes them so the brand isn't forced to supply emails for them. | Integration test: seed 3 erased + 2 soft-deleted members; assert they are not in mapping totals and not touched by re-key |
 | Cross-tenant mapping upload | 403; no rows touched (R27) | Integration test |
 | Hero #6 SLA: `/v1/events` p99 during PROCESSING | < 1s p99 (one extra indexed Prisma findUnique per miss) | Load test with synthetic events while migration runs |
 
@@ -583,7 +588,7 @@ Compared the RFC against `docs/architecture/architecture.md` and the ADR set. No
 | Audit-on-change via `brand.profile.update` pipeline | `admin-brand-profile.ts:90-100`, §6 | New `brand.identifier_migration.*` audit-action family extends the existing pipeline |
 | Single transactional Prisma migration | §3.4, ADR-0001 | All three new tables + Brand column in one migration file |
 | Hero #6 SLA preservation | §5.1; project Rule 2 | Worker is async; only inbound-path change is one extra indexed `findUnique` on a miss (§E) |
-| GDPR erasure compatibility | §10 Compliance Architecture; project Rule 13 | Re-key is UPDATE only; existing erasure job continues to zero `email` + `externalId` (test in validation plan) |
+| GDPR erasure compatibility | §10 Compliance Architecture; project Rule 13 | Re-key is UPDATE only; erasure is **mask-on-read via `Member.erased`** (the actual pattern in `apps/api/src/routes/members.ts:538-540, 944-954, 895`, not column-zeroing as Rule 13's prose implies); migration is required to **exclude `erased = true OR deletedAt IS NOT NULL` members** from the mapping so it cannot re-PII an erased member (test in validation plan) |
 
 ### Patterns Missing from Architecture (used in this design; arch doc would benefit from documentation)
 

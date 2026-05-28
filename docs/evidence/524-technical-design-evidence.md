@@ -94,3 +94,67 @@ These do not block this phase. Address-feedback will resolve via user decisions 
 |---|---|
 | For data-migration RFCs, the design-vs-spec traceability matrix lands cleanly when the spec is already in R-statement form (every R → one or more RFC §-anchors). The spec-phase user feedback ("R-style made review easy") pays off again here. | No new rule needed; reinforces the existing "Spec prose is not a deliverable" memory + project convention. |
 | The "architecture-gap-review" phase is a useful seam to surface patterns the design needs that don't exist in `architecture.md` yet (e.g., the brand-wide warning banner pattern). Cleaner than discovering the gap in the impl phase. | None — the phase itself is the rule. |
+| RFC's concrete-detail claims (channel enum values, column existence, soft-delete patterns) need to be verified against code *before* claiming them. The user-demanded post-RFC audit caught 3 real bugs + 1 missed edge case (see Code-Base Audit below). Existing raw learning `2026-05-04-rfc-claimed-files-not-verified-against-codebase.md` plus the dedicated retro `issue-301-rfc-existing-claims-unverified-postmortem.md` already cover this pattern; the new audit reinforces it. | The pre-existing learnings cover the pattern. Reinforcing by referencing them in this evidence file. |
+
+## Code-Base Audit (post-RFC drift check, requested by user)
+
+Audited every concrete codebase claim in the RFC against the actual source. Methodology: read each cited file at the cited line range; grep for each cited symbol; verify each cited column / enum value / regex / API path / hook signature exists as described.
+
+### Claims verified ✓
+
+| # | Claim in RFC | Evidence |
+|---|---|---|
+| 1 | `apps/api/src/services/memberResolution.ts:53-92` is `validateIdentifierShape(memberId, email, kind)` returning `IdentifierShapeError \| null` | Verified verbatim (lines 53-92) |
+| 2 | `EMAIL_RE` regex is `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` | `memberResolution.ts:51` exact match |
+| 3 | Primary member lookup is `findUnique({ where: { brandId_externalId: { brandId, externalId } } })` at line 143-145 | Verified verbatim |
+| 4 | R6 last-write-wins update path lives at `memberResolution.ts:167-222` | Verified — section starts with `// R6: existing member — last-write-wins on non-identifier fields only.` |
+| 5 | `admin-brand-profile.ts:322-335` rejects identifier-kind change with `code: 'MEMBER_IDENTIFIER_KIND_LOCKED'` when `memberCount > 0` | Verified verbatim |
+| 6 | `ROUTE_AUDIT_CONFIG` at `admin-brand-profile.ts:90-100` uses `auditAction: 'brand.profile.update'` | Verified verbatim |
+| 7 | `usePollingQuery({ fetchFn, intervalMs, enabled })` returns `{ data, loading, error, refetch }` | `apps/web/src/lib/hooks/usePollingQuery.ts:10-21,23-75` exact match |
+| 8 | `<ModeRouter>` exists at `apps/web/src/components/mode-router/` | `mode-router/{index.ts, ModeRouter.tsx, ModeRouter.test.tsx}` all present |
+| 9 | `ManagedEmailFlow` is at `apps/web/src/app/(admin)/admin/surveys/[id]/distribute/_components/ManagedEmailFlow.tsx` | Confirmed via grep (earlier glob with literal path failed; parenthesized `(admin)` segment is a glob quirk, file exists) |
+| 10 | ADR file `docs/architecture/adr/0001-admin-crud-route-pattern.md` exists | Confirmed |
+| 11 | `surveyImport.ts:23-31` inlines `const externalId = email.toLowerCase().trim()` and `enrolledVia: 'BULK_IMPORT'` (the wrinkle A1 from the spec) | Verified verbatim |
+| 12 | `Brand.memberIdentifierKind: MemberIdentifierKind @default(EMAIL)` at `schema.prisma:203` | Verified |
+| 13 | `Member.externalId String` at `schema.prisma:330` with `@@unique([brandId, externalId])` at `:374` | Verified |
+| 14 | `MemberIdentifierKind` enum is `EMAIL \| PHONE \| CUSTOMER_ID` (`schema.prisma:167-171`) | Verified |
+| 15 | `MemberEnrolledVia` enum includes `MANUAL_API`, `BULK_IMPORT`, `SURVEY_RESPONSE`, `EMBEDDED_FORM`, `CLERK_OAUTH`, `BULK_DISTRIBUTION` (`schema.prisma:178-185`) | Verified |
+| 16 | `SurveyImportBatch` (lines 910-931) shape: `status, totalRows, processedRows, failedRows, errors Json` | Verified |
+| 17 | `Member.id` is `cuid()`-defaulted (stable across re-key) | `schema.prisma:322` — `id String @id @default(cuid())` |
+| 18 | `LoyaltyEvent.memberId` FKs `Member.id` (not `externalId`); has `(brandId, createdAt)` index | `schema.prisma:472-473, 483` verified |
+| 19 | `AuditEvent` model has `brandId, actorId, action, resourceType, resourceId, metadata Json?` (`schema.prisma:1070-1082`) | Verified |
+| 20 | Audit pipeline uses `request.audit = { metadata }` filtered by per-route `auditAllowlist` | `apps/api/src/plugins/audit.ts:5-15` verified |
+| 21 | BullMQ queue infra at `apps/api/src/queues/bullmq.ts:56-74` with `inline`/`redis` modes | Verified earlier; matches |
+| 22 | `DistributionBatch.audienceSpec` is `Json`; the JSON has a `mode` field with value `'custom_list'` | `distributionBatches.ts:937, 944` — `mode = audienceSpec.mode ?? 'custom_list'` and `mode === 'custom_list'` |
+| 23 | `Member.erased`, `Member.deletedAt`, `Member.consentGivenAt`, `Member.consentVersion`, `Member.pointsBalance`, `Member.email` (nullable) all exist | All verified in earlier full Member read |
+
+### Claims that needed correction (with fixes applied)
+
+| # | Original claim | Reality | Fix applied |
+|---|---|---|---|
+| **B1** | RFC §H: "Embedded survey forms — channel IN `('embed', 'in_app')`" | `'embed'` is not a valid value. `apps/api/src/routes/public.ts:53` restricts to `z.enum(['email', 'in_app', 'link', 'sms'])`. Widget hardcodes `'in_app'` at `public.ts:992`. | RFC §H updated to `channel = 'in_app'` with code citations inline. |
+| **B2** | RFC §H: "Outbound webhooks — `WebhookEndpoint` where `brandId AND active = true AND deletedAt IS NULL`" | `WebhookEndpoint` (`schema.prisma:1206-1223`) has no `deletedAt` column. Disable is `active = false` only. | RFC §H updated to drop the `deletedAt` filter, with the schema-line citation inline. |
+| **B3** | RFC §K Risks + Test Matrix: "existing GDPR erasure job zeroes `email` + `externalId`" | The actual pattern in `apps/api/src/routes/members.ts:538-540, 944-954, 895` is **`Member.erased = true` flag + mask-on-read** (reads return `'[ERASED]'`). There is no dedicated PII-zeroing worker job. Project Rule 13's "zeroed out" prose is aspirational vs the codebase. | RFC §K Risks + Test Matrix updated to reflect mask-on-read semantics. Spec Compliance Requirements + Validation Plan also corrected (same drift). |
+| **B4 (missed edge case)** | RFC §C.2 fast-path detection SQL excluded `deletedAt IS NULL` but **did not exclude `erased = true`**. The worker algorithm in §D had no guard against re-PII-ing an erased member. | Writing a new email to an `erased = true` member would violate the existing erasure contract (the read-masking can't know the email was overwritten by a migration, so the masked PII state would be undermined for any code that doesn't go through the masking read path). | RFC §C.2 SQL adds `erased = false`. §D pre-flight + worker explicitly exclude `erased = true OR deletedAt IS NOT NULL` from coverage and re-key. New Test Matrix row asserts this exclusion. Spec Compliance section updated to call this out. |
+
+### Claims I deliberately did not "fix"
+
+| # | Claim | Why kept |
+|---|---|---|
+| K1 | RFC §K SLA budget "<1s p99 for the synchronous path" | Sourced from RFC #231:237 ("Always within the <1s p99 budget"); not in `architecture.md` §5.1 prose but anchored in a prior approved RFC. Citation could be tightened but the number is real. |
+| K2 | The "wizard inside Standard CRUD" precedent (#420 `ManagedEmailFlow`) | Verified the file exists (claim 9 above). The architecture-doc characterization of it as a "precedent" is the agent's framing; not a wrong claim about code, just stylistic. |
+| K3 | Direction-agnostic engine carries `fromKind` + `toKind` etc. | This is the new design (engine doesn't exist yet); not a codebase claim to verify. |
+| K4 | New tables, routes, worker, audit actions in §B–§I | All design proposals (new code); not verifiable against current codebase. They are internally consistent and self-documented. |
+
+### Audit verdict
+
+**3 real bugs + 1 missed edge case found and fixed.** The remaining 23 concrete codebase claims verified clean. Confidence in the RFC's grounding rises from "85% (with hand-waved details)" to **"95% (concrete details verified)."** The remaining 5% is dominated by the design-only items in K3/K4 plus the unquantified performance behavior of the impact-preview aggregations on very large brands (§K Risks #8).
+
+### What this audit reinforces
+
+The user's request demonstrates exactly the pattern surfaced in:
+- `fraim/personalized-employee/learnings/archive/manohar.madhira@outlook.com-2026-05-04T00-00-00-rfc-claimed-files-not-verified-against-codebase.md`
+- `docs/retrospectives/manohar.madhira@outlook.com-issue-301-rfc-existing-claims-unverified-postmortem.md`
+- `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-23T18-14-24-trusted-spec-prose-without-grepping-route.md`
+
+Future RFCs in this codebase should run this audit pass **before** submission, not after. Capturing as a coaching moment.
