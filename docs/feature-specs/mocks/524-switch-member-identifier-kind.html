@@ -205,7 +205,7 @@
 <!-- SCENE 2A — Wizard step 1 (fast path): all members already have email on file -->
 <!-- ============================================================ -->
 <section class="scene modal-scene" id="s2a">
-  <div class="scene-label"><strong>Scene 2A — Step 1 of 3 (fast path)</strong> &nbsp; Branch shown when <em>every</em> existing member already has a populated <code>Member.email</code> (e.g., the brand uses managed email sends — Issue #420 path — so emails were captured at enrollment) and those emails pass shape + uniqueness pre-flight. No upload required: the admin can switch using the data already on file. A secondary "Upload override CSV" affordance is kept for the case where the brand wants to correct/update some emails before flipping.</div>
+  <div class="scene-label"><strong>Scene 2A — Step 1 of 3 (fast path)</strong> &nbsp; Branch shown when <em>every</em> existing member already has a populated <code>Member.email</code> (e.g., the brand uses managed email sends — Issue #420 path — so emails were captured at enrollment) and those emails pass shape + uniqueness pre-flight. No upload required: the admin can switch using the data already on file. A secondary <strong>"Edit mapping before migrating"</strong> affordance routes the admin into the same download-template → edit → upload → pre-flight flow as Scene 2B (no separate "override" pipeline) — the only difference is the template comes fully pre-filled from existing emails (R28 + R4).</div>
   <div class="modal">
     <div class="modal-head">
       <h3>Switch member identifier method</h3>
@@ -235,7 +235,7 @@
       </div>
 
       <div class="modal-info" style="border-left-color: var(--success); background: var(--success-soft); color:#14532d;">
-        <strong>Good news — we already have an email for every member.</strong> You can switch using the emails on file; no upload needed. If you want to correct or update some emails first, use "Upload override" below.
+        <strong>Good news — we already have an email for every member.</strong> You can switch using the emails on file; no upload needed. If you want to correct or update some emails first, click <em>"Edit mapping before migrating"</em> below — it'll download the mapping with every email pre-filled so you only edit what you need to change.
       </div>
 
       <div class="stat-grid">
@@ -261,7 +261,7 @@
     <div class="modal-foot">
       <button class="btn btn-ghost">Cancel</button>
       <div class="foot-right">
-        <button class="btn btn-ghost">Upload override CSV instead</button>
+        <button class="btn btn-ghost">Edit mapping before migrating</button>
         <button class="btn btn-primary">Use existing emails →</button>
       </div>
     </div>

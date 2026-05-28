@@ -72,3 +72,17 @@ Files touched:
 Note: this round was normal review iteration (clarifications + small gap finds), not a corrective miss — deferring coaching-moment capture to the spec-phase retrospective.
 
 - **Status**: ADDRESSED in commit `1965a3b`.
+
+## Round 4 Feedback
+*Received: 2026-05-28 (conversational, on mock + spec review)*
+
+### Comment 1 — ADDRESSED
+- **Author**: manohar.madhira@outlook.com
+- **Type**: conversational review of mock + spec
+- **File**: `docs/feature-specs/524-switch-member-identifier-kind.md` (R28) + `docs/feature-specs/mocks/524-switch-member-identifier-kind.html` (Scene 2A)
+- **Comment**: "In Mapping intake, in R28, if admin decides to take the Override path, the process should be same as R4. Include this in spec and also name the 'Upload Override CSV' appropriately."
+- **How addressed**:
+  - **Spec R28**: spelled out that the override path routes into the **same flow as R4 → R5 → R6–R12** — download mapping template (already pre-filled from existing emails per R4), let the admin edit any rows, upload, run pre-flight validation. No separate override pipeline. Stated explicitly: "the override is just the normal upload path entered from the fast-path scene with a fully pre-filled template."
+  - **Spec User Experience (Step 1, fast path branch)**: renamed the affordance and clarified it routes into the same flow as Scene 2B.
+  - **Mock Scene 2A**: renamed the button from "Upload override CSV instead" → **"Edit mapping before migrating"**. Updated the supporting copy in the green modal-info to use the new name and explain that the template will come pre-filled.
+- **Status**: ADDRESSED in commit `<round4-commit>`.
