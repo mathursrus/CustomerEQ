@@ -7,6 +7,18 @@ export interface Survey {
   responseCount: number; score: number | null
 }
 
+function toSurvey(raw: Record<string, unknown>): Survey {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) ?? '',
+    title: (raw.title as string | null) ?? null,
+    type: raw.type as string,
+    status: raw.status as string,
+    responseCount: (raw.responsesCount ?? raw.responseCount ?? 0) as number,
+    score: (raw.score ?? null) as number | null,
+  }
+}
+
 export interface SurveyQuestion {
   id: string; text: string; type: 'rating' | 'text' | 'multiple_choice'; required: boolean
   config: Record<string, unknown>
@@ -34,7 +46,8 @@ export function useSurveys() {
       const res = await fetch(`${API_URL}/v1/surveys`, { headers })
       if (!res.ok) throw new Error(`Surveys fetch failed: ${res.status}`)
       const data = await res.json()
-      return (data.surveys ?? data.data ?? data) as Survey[]
+      const raw: Record<string, unknown>[] = data.surveys ?? data.data ?? data
+      return raw.map(toSurvey)
     },
   })
 
