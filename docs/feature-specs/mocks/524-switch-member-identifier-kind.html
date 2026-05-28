@@ -147,7 +147,8 @@
   <h1>CustomerEQ — Switch Member Identifier Kind (Issue #524 · Slice 1: Customer ID → Email)</h1>
   <div class="nav">
     <a href="#s1">1 Entry</a>
-    <a href="#s2">2 Choose</a>
+    <a href="#s2a">2A Fast path</a>
+    <a href="#s2">2B Partial</a>
     <a href="#s3">3 Upload</a>
     <a href="#s4">4 Errors</a>
     <a href="#s5">5 Confirm</a>
@@ -198,10 +199,77 @@
 </section>
 
 <!-- ============================================================ -->
-<!-- SCENE 2 — Wizard step 1: choose target + download template -->
+<!-- SCENE 2A — Wizard step 1 (fast path): all members already have email on file -->
+<!-- ============================================================ -->
+<section class="scene modal-scene" id="s2a">
+  <div class="scene-label"><strong>Scene 2A — Step 1 of 3 (fast path)</strong> &nbsp; Branch shown when <em>every</em> existing member already has a populated <code>Member.email</code> (e.g., the brand uses managed email sends — Issue #420 path — so emails were captured at enrollment) and those emails pass shape + uniqueness pre-flight. No upload required: the admin can switch using the data already on file. A secondary "Upload override CSV" affordance is kept for the case where the brand wants to correct/update some emails before flipping.</div>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Switch member identifier method</h3>
+      <p>Currently identifying members by <strong>Customer ID</strong>.</p>
+    </div>
+    <div class="modal-body">
+      <div class="stepper">
+        <span class="step active"><span class="dot">1</span> Choose &amp; prepare</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">2</span> Validate</span>
+        <span class="sep"></span>
+        <span class="step"><span class="dot">3</span> Confirm &amp; migrate</span>
+      </div>
+
+      <div class="field">
+        <label>New identifier method</label>
+        <div class="radio-group" role="radiogroup" aria-label="New identifier method">
+          <label class="radio-card selected">
+            <input type="radio" name="target-fast" value="EMAIL" checked>
+            <div class="body"><div class="title">Email</div><div class="desc">Members will be identified by email address (case-insensitive).</div></div>
+          </label>
+          <label class="radio-card disabled">
+            <input type="radio" name="target-fast" value="PHONE" disabled>
+            <div class="body"><div class="title">Phone number <span class="pill muted">Available in a subsequent release</span></div><div class="desc">E.164 format.</div></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-info" style="border-left-color: var(--success); background: var(--success-soft); color:#14532d;">
+        <strong>Good news — we already have an email for every member.</strong> You can switch using the emails on file; no upload needed. If you want to correct or update some emails first, use "Upload override" below.
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat ok"><div class="num">1,284</div><div class="lbl">Members with email</div></div>
+        <div class="stat ok"><div class="num">1,284</div><div class="lbl">Valid email shape</div></div>
+        <div class="stat ok"><div class="num">0</div><div class="lbl">Collisions</div></div>
+        <div class="stat ok"><div class="num">0</div><div class="lbl">Blocking issues</div></div>
+      </div>
+
+      <details>
+        <summary style="font-size:13px; color:var(--text-muted); cursor:pointer;">Preview a sample of emails on file</summary>
+        <table class="rows" style="margin-top:8px;">
+          <thead><tr><th>Customer ID</th><th>Email on file</th></tr></thead>
+          <tbody>
+            <tr><td>cust_00012</td><td>maya@acme.com</td></tr>
+            <tr><td>cust_00013</td><td>jordan@acme.com</td></tr>
+            <tr><td>cust_00014</td><td>priya@acme.com</td></tr>
+            <tr><td colspan="2" style="font-family:var(--font); color:var(--text-muted); text-align:center;">… 1,281 more rows</td></tr>
+          </tbody>
+        </table>
+      </details>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost">Cancel</button>
+      <div class="foot-right">
+        <button class="btn btn-ghost">Upload override CSV instead</button>
+        <button class="btn btn-primary">Use existing emails →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 2 (a.k.a. 2B) — Wizard step 1 (partial / missing): some members lack email -->
 <!-- ============================================================ -->
 <section class="scene modal-scene" id="s2">
-  <div class="scene-label"><strong>Scene 2 — Step 1 of 3: Choose new method &amp; get template</strong> &nbsp; Slice 1 enables only <strong>Email</strong> as a target; Phone and "another Customer ID scheme" are shown disabled with a "subsequent release" note (no internal issue numbers in UI copy). Template download is pre-filled with the brand's existing Customer IDs so they only fill the new-email column.</div>
+  <div class="scene-label"><strong>Scene 2B — Step 1 of 3 (partial / missing branch)</strong> &nbsp; Branch shown when some — but not all — members already have a populated <code>Member.email</code>. The mapping template is <em>pre-filled</em> with each member's existing email where present; the admin only needs to fill in the missing rows (and can override existing values if they wish). Slice 1 enables only <strong>Email</strong> as a target; Phone is shown disabled with a "subsequent release" note (no internal issue numbers in UI copy).</div>
   <div class="modal">
     <div class="modal-head">
       <h3>Switch member identifier method</h3>
@@ -231,11 +299,11 @@
       </div>
 
       <div class="modal-info">
-        Email can't be derived from a Customer ID, so you'll provide the email for each member. We've pre-filled a template with your <strong>1,284</strong> existing Customer IDs — add the matching email to each row.
+        <strong>Partial coverage — 845 of 1,284 members have an email on file.</strong> The template is pre-filled with those existing emails; you only need to fill in the remaining <strong>439</strong> rows. You can also edit pre-filled rows if you want to override an existing email before migrating.
       </div>
 
       <div class="tmpl-row">
-        <span class="t"><strong>Mapping template</strong> — <code>customer_id</code>, <code>new_email</code> (1,284 rows pre-filled)</span>
+        <span class="t"><strong>Mapping template</strong> — <code>customer_id</code>, <code>new_email</code> (845 of 1,284 rows pre-filled from existing emails; 439 to fill)</span>
         <button class="btn btn-ghost btn-sm">⬇ Download template (CSV)</button>
       </div>
     </div>

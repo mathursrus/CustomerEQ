@@ -24,7 +24,10 @@ UI mock (all scenes): [`docs/feature-specs/mocks/524-switch-member-identifier-ki
 The flow lives in **Organization Settings → Member identification** (`/admin/settings/organization`), extending the existing locked-state panel. Steps:
 
 1. **Entry (Scene 1).** When members exist, the locked panel replaces the dead support `mailto:` with a **"Switch identifier method"** button. The radios stay disabled — the kind is never changed by toggling a radio; the guided flow is the only path.
-2. **Step 1 — Choose & prepare (Scene 2).** A 3-step wizard. The admin picks the new method (Slice 1: only **Email** is selectable; Phone is shown disabled, "available in a subsequent release"). Because an email cannot be derived from a Customer ID, the admin downloads a **mapping template CSV** (`customer_id`, `new_email`) pre-filled with all existing Customer IDs and fills in the email column.
+2. **Step 1 — Choose & prepare.** A 3-step wizard. The admin picks the new method (Slice 1: only **Email** is selectable; Phone is shown disabled, "available in a subsequent release"). Step 1 is **data-aware** and branches on what's already populated in `Member.email` (a nullable PII sidecar per #231: a `CUSTOMER_ID` brand may have email on file for some, all, or none of its members — e.g., a brand that uses managed email sends will have email captured at enrollment):
+   - **All members have a valid, unique email on file (Scene 2A — fast path):** no CSV upload required; the existing emails are used directly. An "Upload override CSV" affordance is retained for the case where the admin wants to correct/update some emails before flipping.
+   - **Some members have email (Scene 2B — partial coverage):** the mapping template is pre-filled with each member's existing email where present; the admin only fills in the missing rows (and may override existing values if desired).
+   - **No members have email:** the template downloads with the `new_email` column blank; the admin fills every row.
 3. **Step 2 — Upload & validate (Scenes 3 & 4).** The admin uploads the filled CSV. Validation runs **before any write** and reports counts. If clear, "Next" enables (Scene 3). If there are blocking issues — an unmapped member, a collision (two IDs → same email), or an invalid email — the flow lists the offending rows and blocks until fixed (Scene 4). Members are untouched during validation.
 4. **Step 3 — Confirm (Scene 5).** An attestation gate (reusing the consent-mode attestation pattern): a checkbox confirming the admin has permission to use the emails and understands the re-key is not auto-undoable. The migrate button is danger-styled and disabled until checked.
 5. **Migrating (Scene 6).** Live progress (total / migrated / remaining / failed), refreshed on a fixed cadence via the shared `usePollingQuery` hook. A live note tells the admin that feedback arriving now is matched on the old Customer ID and reconciled automatically — so they need not pause their integration.
@@ -43,8 +46,10 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **R3** — Slice 1 SHALL offer only `EMAIL` as a selectable target; other targets SHALL render as unavailable and SHALL NOT be selectable.
 
 ### Mapping intake
-- **R4** — The flow SHALL provide a downloadable mapping template CSV with columns `customer_id` and `new_email`, pre-filled with one row per existing member's current `customer_id`.
+- **R4** — The flow SHALL provide a downloadable mapping template CSV with columns `customer_id` and `new_email`, with one row per existing member; the `customer_id` column SHALL be pre-filled with each member's current `customer_id`, and the `new_email` column SHALL be pre-filled with each member's existing `Member.email` where populated (blank otherwise).
 - **R5** — The flow SHALL accept a CSV upload of `customer_id → new_email` rows scoped to the authenticated brand.
+- **R28** — When every existing member has a populated `Member.email` and those values pass the same pre-flight checks the uploaded CSV would face (R9 collisions, R10 email shape), the flow SHALL offer a **fast path** that uses the existing emails as the mapping source without requiring a CSV upload, while still exposing an "Upload override CSV" affordance so the admin can correct or update emails before the flip.
+- **R29** — When the fast-path source data (existing `Member.email`) fails any pre-flight check, the fast-path action SHALL be unavailable and the admin SHALL be shown per-row issues and offered the CSV-upload path (R5) to resolve them.
 
 ### Pre-flight validation (no writes)
 - **R6** — Validation SHALL complete before any member row is written (pre-flight).
@@ -81,6 +86,9 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **R27** — All migration operations (template, upload, validation, re-key, reconciliation) SHALL be tenant-scoped by `brandId` and SHALL only affect the authenticated brand's members.
 
 ### Acceptance criteria (selected)
+- **R28** — *Given* a `CUSTOMER_ID` brand where all 1,284 members have a populated, valid, unique `Member.email`, *when* the admin opens the migration wizard, *then* a "Use existing emails" fast path is offered and the admin can advance to the confirmation step without uploading a CSV; an "Upload override CSV" affordance is still present.
+- **R4** — *Given* a `CUSTOMER_ID` brand where 845 of 1,284 members have a populated `Member.email`, *when* the admin downloads the mapping template, *then* 845 rows are pre-filled in the `new_email` column with each member's existing email and 439 rows are blank.
+- **R29** — *Given* a `CUSTOMER_ID` brand where two members share the same `Member.email` (collision in the existing PII sidecar), *when* the wizard opens, *then* the fast-path CTA is disabled, the collisions are listed per row, and the admin is offered the upload-override path to resolve them.
 - **R8/R11** — *Given* a brand with 1,284 members, *when* the admin uploads a CSV with 1,283 rows (one member missing), *then* validation reports 1 unmapped member and the migrate action is blocked.
 - **R9** — *Given* an uploaded CSV where rows 88 and 312 both map to `jane@acme.com`, *when* validation runs, *then* both rows are flagged as a collision and migration is blocked.
 - **R17/R23** — *Given* a migration that fails on member 512 of 1,284, *when* the batch aborts, *then* `memberIdentifierKind` is still `CUSTOMER_ID`, member 1 is still keyed by its `customer_id`, and the batch status is `failed`.
@@ -88,6 +96,7 @@ Requirements are SHALL-style, one behavior per line, tagged for traceability. Ac
 - **R20** — *Given* a brand-new responder enrolls under a `customer_id` during the window, *when* the migration completes, *then* that member is present exactly once and identifiable by the new scheme, with no duplicate.
 
 ## Error States
+- **Fast-path source data fails pre-flight** — one or more existing `Member.email` values fail shape validation or collide → fast-path CTA is unavailable; per-row issues are shown; the admin can either fix `Member.email` upstream (in their integration) or use the upload-override path (R29).
 - **Empty / malformed CSV** — missing required columns, empty file, or non-CSV upload → rejected with a clear message; nothing written (R6).
 - **Unmapped member (coverage drift)** — a member enrolled between template download and upload now has no row → blocking unmapped-member issue (R8); admin re-downloads/edits and re-uploads.
 - **Collision** — two Customer IDs map to the same email (R9).
