@@ -40,6 +40,15 @@ jobs:
         working-directory: apps/mobile/ios
         run: pod install
 
+      - name: Write .env for Metro bundler
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+        run: |
+          printf 'EXPO_PUBLIC_API_URL=%s\nEXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' \
+            "$EXPO_PUBLIC_API_URL" "$EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+            > apps/mobile/.env
+
       - name: Import distribution certificate
         env:
           CERT_P12_BASE64: ${{ secrets.APPLE_DIST_CERT_P12_BASE64 }}
