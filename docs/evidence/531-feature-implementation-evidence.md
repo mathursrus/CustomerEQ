@@ -30,7 +30,7 @@ Grepped the diff for placeholders: `TODO`, `FIXME`, `console.log` — none intro
 |---|---|---|
 | `@customerEQ/shared` unit (schema) | **731 / 731 pass** | Includes the 5 new `memberIds`-on-`CustomListAudience` schema tests (#531) |
 | AudienceBuilder web unit | **3 / 3 pass** | Includes the new `emits memberIds[] for search-result rows (Issue #531)` and the existing test whose assertion was updated to match the new contract (resolved rows live on `memberIds`, paste body stays empty for purely-resolved audiences). |
-| `@customerEQ/api` integration (`distributionBatches.test.ts`) | **Pending Docker** | 4 new tests added: production-repro, fix-verification, dedup, cross-brand isolation. Vitest reports `P1001 Can't reach database server at localhost:5432` because Docker Desktop is not running locally. Per `CLAUDE.md` testing rules, the suite fails loud rather than skipping — correct behavior, expected, will run once Docker is up. |
+| `@customerEQ/api` integration (`distributionBatches.test.ts`) | **21 / 21 pass** | Includes the 4 new `POST /v1/surveys/:id/distribution-batches with pre-resolved memberIds (#531)` cases: production-repro (paste-only fails AUDIENCE_EMPTY when brand kind disagrees with externalId shape), fix-verification (memberIds-only succeeds for the same configuration), dedup (same member via both channels yields one token), cross-brand tenant isolation (memberIds from a different brand cannot dispatch). |
 
 ### Pre-existing flake noted (not caused by this change)
 
