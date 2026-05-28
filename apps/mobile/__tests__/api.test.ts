@@ -21,11 +21,12 @@ describe('buildQueryEnabled', () => {
 })
 
 describe('buildApiHeaders', () => {
-  const base = { devBypass: false, devToken: 'dev-bypass' }
+  const base = { devBypass: false, devApiKey: 'ceq_testkey' }
 
-  it('returns Bearer dev-bypass when devBypass is true', async () => {
+  it('returns x-api-key header when devBypass is true', async () => {
     const headers = await buildApiHeaders({ ...base, devBypass: true }) as Record<string, string>
-    expect(headers['Authorization']).toBe('Bearer dev-bypass')
+    expect(headers['x-api-key']).toBe('ceq_testkey')
+    expect(headers['Authorization']).toBeUndefined()
   })
 
   it('calls getToken and returns Bearer <token> for real Clerk auth', async () => {

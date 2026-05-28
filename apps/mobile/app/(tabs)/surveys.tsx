@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSurveys, usePrograms, type SurveyQuestion, type CreateSurveyInput } from '../../hooks/useSurveys'
 import { useSurveyDetail, type ResponseFilters } from '../../hooks/useSurveyDetail'
 
-const FILTERS = ['All', 'Active', 'Paused', 'Completed'] as const
+const FILTERS = ['All', 'Active', 'Paused', 'Completed', 'Stopped'] as const
 type Filter = typeof FILTERS[number]
 const TYPE_COLORS: Record<string, string> = { NPS: '#4F46E5', CSAT: '#0ea5e9', STAR: '#f59e0b', CES: '#8b5cf6', CUSTOM: '#6b7280' }
 
@@ -149,14 +149,14 @@ export default function SurveysScreen() {
         {filtered.map((sv) => (
           <Pressable key={sv.id} style={s.card} onPress={() => openDetail(sv.id, sv.name)}>
             <View style={s.cardTop}>
-              <Text style={s.cardName}>{sv.title ?? sv.name}</Text>
+              <Text style={s.cardName}>{sv.title || sv.name || 'Untitled Survey'}</Text>
               <View style={[s.typeBadge, { backgroundColor: TYPE_COLORS[sv.type] ?? '#6b7280' }]}>
                 <Text style={s.typeBadgeText}>{sv.type}</Text>
               </View>
             </View>
             {sv.name !== sv.title && sv.title && <Text style={s.cardSubname}>{sv.name}</Text>}
             <View style={s.cardMeta}>
-              <Text style={s.cardMetaText}>{sv.responseCount ?? 0} responses</Text>
+              <Text style={s.cardMetaText}>{sv.responseCount ?? 0} {(sv.responseCount ?? 0) === 1 ? 'response' : 'responses'}</Text>
               <Text style={s.cardMetaText}>Score: {sv.score ?? '--'}</Text>
               <View style={[s.statusChip, { backgroundColor: sv.status === 'ACTIVE' ? '#ecfdf5' : sv.status === 'PAUSED' ? '#fff7ed' : '#f3f4f6' }]}>
                 <Text style={[s.statusText, { color: sv.status === 'ACTIVE' ? '#059669' : sv.status === 'PAUSED' ? '#d97706' : '#6b7280' }]}>{sv.status}</Text>
@@ -191,7 +191,7 @@ export default function SurveysScreen() {
           </View>
           <ScrollView style={s.modalBody}>
             {detail?.total != null && (
-              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{detail.total} total responses</Text>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{detail.total} total {detail.total === 1 ? 'response' : 'responses'}</Text>
             )}
             {detailLoading && detailPage === 1 && <ActivityIndicator color="#4F46E5" style={{ marginTop: 20 }} />}
             {verbatims.length === 0 && !detailLoading && (
@@ -310,6 +310,9 @@ export default function SurveysScreen() {
                   </Pressable>
                   <Pressable style={[s.nextBtn, { marginTop: 10 }]} onPress={() => setStep(3)}>
                     <Text style={s.nextBtnText}>Preview →</Text>
+                  </Pressable>
+                  <Pressable style={[s.nextBtn, { backgroundColor: '#f3f4f6', marginTop: 8 }]} onPress={() => setStep(1)}>
+                    <Text style={[s.nextBtnText, { color: '#374151' }]}>← Back to Basics</Text>
                   </Pressable>
                 </>
               )}

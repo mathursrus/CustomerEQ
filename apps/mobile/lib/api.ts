@@ -1,6 +1,6 @@
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
 export const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
-export const DEV_TOKEN = 'dev-bypass'
+export const DEV_API_KEY = process.env.EXPO_PUBLIC_MOBILE_API_KEY ?? ''
 
 // Pure helper — testable without module resets.
 export function buildQueryEnabled(opts: {
@@ -11,12 +11,13 @@ export function buildQueryEnabled(opts: {
 }
 
 // Pure helper — testable without module resets.
+// Dev bypass uses x-api-key (API key auth); real Clerk sessions use Authorization: Bearer.
 export async function buildApiHeaders(opts: {
   devBypass: boolean
-  devToken: string
+  devApiKey: string
   getToken?: (() => Promise<string | null>) | null
 }): Promise<HeadersInit> {
-  if (opts.devBypass) return { Authorization: `Bearer ${opts.devToken}` }
+  if (opts.devBypass) return { 'x-api-key': opts.devApiKey }
   const token = await opts.getToken?.()
   return { Authorization: `Bearer ${token ?? ''}` }
 }
@@ -29,5 +30,5 @@ export function queryEnabled(isSignedIn: boolean): boolean {
 export async function apiHeaders(
   getToken: (() => Promise<string | null>) | null | undefined,
 ): Promise<HeadersInit> {
-  return buildApiHeaders({ devBypass: DEV_BYPASS, devToken: DEV_TOKEN, getToken })
+  return buildApiHeaders({ devBypass: DEV_BYPASS, devApiKey: DEV_API_KEY, getToken })
 }
