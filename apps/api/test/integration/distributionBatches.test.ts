@@ -180,6 +180,130 @@ describe('POST /v1/surveys/:id/distribution-batches (generate)', () => {
   })
 })
 
+// Issue #531 — audience-builder pre-resolved memberIds path.
+// The UI used to roundtrip selected rows through a paste body, which the
+// server then re-parsed with brand-kind-aware shape inference; rows whose
+// inferred shape disagreed with Brand.memberIdentifierKind were silently
+// dropped and the batch failed with AUDIENCE_EMPTY (production incident
+// 2026-05-28, brand cmp5ud2x2001xw7h2xhgfniru). The fix lets the UI pass
+// already-resolved Member.id values directly so no shape inference applies.
+describe('POST /v1/surveys/:id/distribution-batches with pre-resolved memberIds (#531)', () => {
+  beforeEach(async () => {
+    await seedTestDb()
+  })
+
+  it('reproduces #531: paste-only fails AUDIENCE_EMPTY when brand kind disagrees with member externalId shape', async () => {
+    // FRAIM-style configuration: brand uses CUSTOMER_ID kind, but a member
+    // happens to have an email-shaped externalId. The parser infers "email",
+    // expects "external_id", drops the row, audience resolves to zero.
+    const brand = await createBrand({ memberIdentifierKind: 'CUSTOMER_ID' })
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    const member = await createMember({
+      brandId: brand.id,
+      externalId: 'sid@example.com',
+      email: 'sid@example.com',
+      consentGivenAt: new Date(),
+    })
+
+    const request = authenticatedRequest(brand.id)
+    const res = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: {
+        mode: 'custom_list',
+        identifiers: member.externalId,
+        autoEnroll: false,
+      },
+    })
+
+    // The production failure shape. Holds pre-fix and post-fix — paste-parser
+    // semantics are intentionally unchanged; the fix changes which path the
+    // UI uses, not how paste rows are parsed.
+    expect(res.status).toBe(422)
+  })
+
+  it('fixes #531: memberIds-only audience succeeds for the same brand+member configuration', async () => {
+    const brand = await createBrand({ memberIdentifierKind: 'CUSTOMER_ID' })
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    const member = await createMember({
+      brandId: brand.id,
+      externalId: 'sid@example.com',
+      email: 'sid@example.com',
+      consentGivenAt: new Date(),
+    })
+
+    const request = authenticatedRequest(brand.id)
+    const res = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: {
+        mode: 'custom_list',
+        identifiers: '',
+        autoEnroll: false,
+        memberIds: [member.id],
+      },
+    })
+
+    expect(res.status).toBe(201)
+    expect(res.body.tokenCount).toBe(1)
+    expect(res.body.tokens[0].memberId).toBe(member.id)
+  })
+
+  it('dedups: same member supplied via both memberIds and a matching paste entry yields one token', async () => {
+    const brand = await createBrand({ memberIdentifierKind: 'EMAIL' })
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    const member = await createMember({
+      brandId: brand.id,
+      externalId: 'recipient@example.com',
+      email: 'recipient@example.com',
+      consentGivenAt: new Date(),
+    })
+
+    const request = authenticatedRequest(brand.id)
+    const res = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: {
+        mode: 'custom_list',
+        identifiers: 'recipient@example.com',
+        autoEnroll: false,
+        memberIds: [member.id],
+      },
+    })
+
+    expect(res.status).toBe(201)
+    expect(res.body.tokenCount).toBe(1)
+  })
+
+  it('ignores memberIds that belong to another brand (tenant isolation)', async () => {
+    const brandA = await createBrand()
+    const brandB = await createBrand()
+    const programA = await createProgram({ brandId: brandA.id })
+    const surveyA = await createSurvey({ brandId: brandA.id, programId: programA.id, status: 'ACTIVE' })
+    const memberB = await createMember({ brandId: brandB.id, consentGivenAt: new Date() })
+
+    const request = authenticatedRequest(brandA.id)
+    const res = await request.post(`/v1/surveys/${surveyA.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: {
+        mode: 'custom_list',
+        identifiers: '',
+        autoEnroll: false,
+        memberIds: [memberB.id],
+      },
+    })
+
+    // memberB belongs to brandB; brandA's request must not be able to
+    // dispatch to them. The lookup is brandId-scoped, so the audience
+    // resolves to zero → AUDIENCE_EMPTY.
+    expect(res.status).toBe(422)
+  })
+})
+
 describe('GET /v1/surveys/:id/distribution-batches (list)', () => {
   beforeEach(async () => {
     await seedTestDb()

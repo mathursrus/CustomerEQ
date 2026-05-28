@@ -48,13 +48,25 @@ export interface AudienceBuilderState {
   selectedCount: number
   willAutoEnrollCount: number
   suppressedCount: number
-  /** Submission payload — encoded as a `mode: 'custom_list'` paste of the
-   * selected rows' identifiers + autoEnroll=true (which is harmless for
-   * already-matched rows). Parent flows include this in their POST body. */
+  /**
+   * Submission payload. Two channels share the same `custom_list` audience
+   * mode:
+   *  - `memberIds` carries the canonical `Member.id` for rows the UI already
+   *    resolved (search results, preview-matched custom-list rows). Server
+   *    looks these up by id directly, bypassing the brand-kind-aware shape
+   *    inference in `parsePasteBody`. Required by Issue #531 — the previous
+   *    paste-only roundtrip silently dropped rows whose externalId shape
+   *    disagreed with the brand's `memberIdentifierKind`.
+   *  - `identifiers` carries the typed-but-unresolved strings (auto-enroll
+   *    rows), one per line. Server flows these through the existing paste
+   *    parser so identifier shape is validated for new enrollments.
+   * Parent flows include this in their POST body unchanged.
+   */
   submitAudience: {
     mode: 'custom_list'
     identifiers: string
     autoEnroll: boolean
+    memberIds: string[]
   }
 }
 
