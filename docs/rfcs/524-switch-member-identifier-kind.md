@@ -129,14 +129,16 @@ model MemberIdentifierMigrationMapping {
 #### B.3 `MemberIdentifierMigrationOldKeyUsage` (per-ingress old-key telemetry — R33)
 
 ```prisma
+// Only the inbound paths that resolve an existing member by the brand EXTERNAL
+// identifier (via resolveOrEnrollMember) can be hit with the OLD customer_id
+// during the window — so only these can produce old-key telemetry. See §M for
+// the full ingress audit that justifies this set (e.g. /v1/events is excluded
+// because it keys on the internal Member.id; bulk import / external-signal /
+// CRM-webhook paths key on email, never the customer_id).
 enum MigrationOldKeyIngress {
-  PUBLIC_SURVEY_RESPOND       // /v1/public/surveys/:id/respond
-  API_MEMBERS_ENROLL          // /v1/members/enroll
-  API_EVENTS                  // /v1/events
-  DISTRIBUTION_BATCH          // /v1/distribution-batches (custom-list audience)
-  BULK_IMPORT                 // surveyImport worker (until Slice 2+ fixes A1)
-  CLERK_OAUTH                 // Clerk webhook
-  OUTBOUND_WEBHOOK_ECHO       // outbound event delivery referencing old key
+  PUBLIC_SURVEY_RESPOND       // /v1/public/surveys/:id/respond  (public.ts:457)
+  API_MEMBERS_ENROLL          // /v1/members/enroll              (members.ts:106)
+  DISTRIBUTION_BATCH          // distribution-batch audience     (distributionBatches.ts:320)
 }
 
 model MemberIdentifierMigrationOldKeyUsage {
@@ -333,7 +335,7 @@ async function processMigration(migrationId: string) {
 
 **Erased + soft-deleted members are excluded.** The mapping intake (§C.2 + the upload validator) excludes members where `erased = true OR deletedAt IS NOT NULL`. The brand is therefore not required to supply an email for them, and the worker never writes a new email to an erased member (which would violate the existing erasure contract — mask-on-read via `Member.erased`, see members.ts:538-540, 944-954).
 
-**Hot-path SLA (Hero #6 Rule).** The worker is async, off the inbound event-ingestion path. The only inbound-path change is the dual-key fallback (§F) — one extra `findUnique` on the mapping table when the first lookup misses, indexed on `(migrationId, oldExternalId)` (B.2). Measured cost: ~5–20 ms; well within <1s p99.
+**Hot-path SLA (Hero #6 Rule).** The worker is async, off the inbound event-ingestion path. Critically, the hero `/v1/events` path is **not** touched by the dual-key change at all — it resolves by internal `Member.id` (`events.ts:96-97`) and never calls `resolveOrEnrollMember` (§M.2). The dual-key fallback (§E) adds one extra `findUnique` on the mapping table (indexed `(migrationId, oldExternalId)`, B.2) **only on the external-id resolve paths 1–3** (survey respond, enroll, distribution) and **only on a primary-lookup miss**. Measured cost there: ~5–20 ms; well within <1s p99. The campaign-trigger evaluation that shares the hero SLA reads members by internal id and is likewise unaffected.
 
 ### E. Dual-key resolution (R19, R32)
 
@@ -375,7 +377,7 @@ if (!existing) {
 // Continue with existing R6 last-write-wins update path or create-new path.
 ```
 
-**Shape validation behavior during dual-key window.** If a caller supplies an old-shape identifier (e.g., `cust_99999`) during a CUSTOMER_ID→EMAIL migration's grace window, `validateIdentifierShape` would normally reject it against the new `EMAIL` kind. Resolution: **skip shape validation when the caller's identifier matches an `oldExternalId` in the active migration**. New members created under the old key during grace will be reconciled (§F).
+**Shape validation behavior during the dual-key window.** During `PROCESSING` the brand kind is still `CUSTOMER_ID`, so old-shape identifiers validate normally. During grace the kind is `EMAIL`, so `validateIdentifierShape` would reject an old-shape identifier — therefore the resolver **skips shape validation when the caller's identifier matches an `oldExternalId` in the active migration's mapping** (resolving to the existing migrated member). A brand-new old-shape identifier *not* in the mapping during grace is the genuinely-hard "phantom member" case — see §F item 1 + Confidence Level. **After grace, this skip is off** and old-shape ids are rejected (§M.4).
 
 ### F. Reconciliation (R20, R21)
 
@@ -386,6 +388,10 @@ A member created under the old key during the re-key + grace window has its own 
 3. **At grace expiry.** Final sweep, identical to (2).
 
 Reconciliation uses the same idempotent LWW update path as `resolveOrEnrollMember` (`memberResolution.ts:167-222`). **No member is ever hard-deleted (R21).**
+
+**Mapping retention.** The `MemberIdentifierMigrationMapping` rows are **not deleted at `GRACE_EXPIRED`** — they are retained so the resolver can still recognize a stale old id post-grace and return the actionable `IDENTIFIER_DEPRECATED_AFTER_MIGRATION` error (§M.4(a)) instead of a generic shape error. Rows are bounded (one per migrated member) and carry no GC policy in Slice 1.
+
+**Phantom-member caveat.** A brand-new old-shape identifier that arrives *during* the window and is not in the mapping (e.g., a new customer enrolled via the old integration mid-migration) creates a member we have no new-kind value for. Item 1 keeps it (no data loss) but it remains old-kind-shaped until the brand supplies its email. This is the open reconciliation question tracked in Confidence Level; it is not auto-resolved in Slice 1.
 
 ### G. Grace window & pre-expiry warning (R31, R34, R37)
 
@@ -398,6 +404,8 @@ VALIDATED ──(/cancel)──> CANCELLED
 ```
 
 **Grace expiry trigger.** A scheduled BullMQ repeatable job (`grace-expiry-sweep`, every 15 minutes) flips `REKEY_COMPLETE_IN_GRACE` → `GRACE_EXPIRED` when `now() > graceExpiresAt`. (15-min cadence is fine because once expired, the request-time reject logic R35 is gated by `status === 'GRACE_EXPIRED'` and the worker just transitions the flag; correctness doesn't depend on sub-minute timing.)
+
+**Post-grace old-id handling (R35, refined — see §M.4).** After `GRACE_EXPIRED`, the §E dual-key *resolution* is off (an old id no longer resolves to the member). But the retained mapping (§F) is still consulted **for error quality only**: if an inbound old id matches a known `oldExternalId`, the request is rejected `410 IDENTIFIER_DEPRECATED_AFTER_MIGRATION` naming the new email shape; if it matches nothing, the request falls through to ordinary `EMAIL` shape validation → `422 IDENTIFIER_SHAPE_INVALID` naming the brand's current kind. Either way **no new member is created under the old shape** (shape gate is pre-write).
 
 **Extension (R34, RC10).** `POST /v1/admin/brand/migrations/:id/extend-grace { deltaDays: 30 }` → updates `graceExpiresAt`, appends to `graceExtensions[]`, emits audit `brand.identifier_migration.grace_extended`. No attestation gate.
 
@@ -422,14 +430,17 @@ Trigger fires when `daysRemaining <= 7 AND oldKeyIngressesActive.length > 0`. UI
 
 `/v1/admin/brand/migrations/preflight-context` aggregates last-30d activity per surface, ordered most-recent-first, with zero-activity surfaces omitted (RC4). One query per source, all `brandId`-scoped (R27).
 
-| Surface | Source query |
-|---|---|
-| Embedded survey forms (host app via widget) | `SurveyResponse` where `brandId = $1 AND channel = 'in_app' AND createdAt > now() - 30d` → count + max(createdAt). *(Channel values are restricted to `'email' \| 'in_app' \| 'link' \| 'sms'` by `apps/api/src/routes/public.ts:53`; the widget hardcodes `'in_app'` at `public.ts:992`.)* |
-| `POST /v1/events` | `LoyaltyEvent` where `brandId = $1 AND createdAt > now() - 30d` → count + max(createdAt) (indexed `(brandId, createdAt)`, `schema.prisma:483`) |
-| `POST /v1/members/enroll` | `Member` where `brandId = $1 AND enrolledVia = 'MANUAL_API' AND createdAt > now() - 30d AND deletedAt IS NULL` |
-| Custom List distribution batches | `DistributionBatch` where `brandId = $1 AND createdAt > now() - 30d AND audienceSpec ->> 'mode' = 'custom_list'` *(field shape verified in `apps/api/src/routes/distributionBatches.ts:937,944`)* |
-| Outbound webhooks | `WebhookEndpoint` where `brandId = $1 AND active = true` → count of active subscriptions. *(Model has no `deletedAt` column — `schema.prisma:1206-1223` — disable is `active = false`.)* |
-| Public survey respond (share-link) | `SurveyResponse` where `brandId = $1 AND channel = 'link' AND createdAt > now() - 30d` |
+Only surfaces that send the **brand external identifier** are listed — these are the ones the brand must update. Surfaces that key on the internal `Member.id` are migration-stable and are deliberately **excluded** (see §M for the full ingress audit). All queries `brandId`-scoped (R27).
+
+| Surface | Source query | Why it needs cutover |
+|---|---|---|
+| Embedded survey forms (host app via widget) | `SurveyResponse` where `brandId = $1 AND channel = 'in_app' AND createdAt > now() - 30d` → count + max(createdAt). *(Channel restricted to `'email' \| 'in_app' \| 'link' \| 'sms'` by `public.ts:53`; widget hardcodes `'in_app'` at `public.ts:992`.)* | Host app's `?member_id=` URL param carries the external id → resolves via `resolveOrEnrollMember` |
+| `POST /v1/members/enroll` | `Member` where `brandId = $1 AND enrolledVia = 'MANUAL_API' AND createdAt > now() - 30d AND deletedAt IS NULL` | Caller supplies the external id (`members.ts:106`) |
+| Custom List distribution batches | `DistributionBatch` where `brandId = $1 AND createdAt > now() - 30d AND audienceSpec ->> 'mode' = 'custom_list'` *(field shape verified in `distributionBatches.ts:937,944`)* | Uploaded audience identifiers are external ids parsed per kind (`distributionBatches.ts:244`) |
+| Public survey respond (share-link) | `SurveyResponse` where `brandId = $1 AND channel = 'link' AND createdAt > now() - 30d` | Responder self-identifies with the external id |
+| Outbound webhooks (informational, not a "fix") | `WebhookEndpoint` where `brandId = $1 AND active = true` → count of active subscriptions. *(No `deletedAt` column — `schema.prisma:1206-1223`; disable is `active = false`.)* | **Outbound** echo: the consumer will start receiving the new email in place of the old customer_id in event payloads. Shown as a heads-up, not a required brand-side change. |
+
+**Deliberately excluded (verified migration-stable):** `POST /v1/events` (`events.ts:96-97`) resolves the member by the **internal `Member.id` cuid**, not the external identifier — callers pass the stable internal id, so the migration does not affect them and they need no cutover. Listing it would be a false alarm. (Earlier RFC draft wrongly listed it; corrected after the §M ingress audit.)
 
 Per-row output: `{ surface, lastSeenAt, count30d, brandSideAction }` where `brandSideAction` is a per-surface string baked into the API layer (e.g., "Update `?member_id=` URL parameter to pass email").
 
@@ -498,7 +509,9 @@ apps/web/src/app/(admin)/layout.tsx                  — UPDATED: render UsageWa
 | Worker crash / restart mid-batch | Job is idempotent; resumed cursor skips already-`appliedAt` mappings | safe-restart |
 | Migration mapping table grows | Cascade-on-delete from migration row; retained until manual cleanup; not on hot path | n/a |
 | Grace expiry sweep delay | <=15 min lag is acceptable; reject logic at request time gates on `status` not `now()` | R35 |
-| Old-key request after grace | 410 Gone with `IDENTIFIER_DEPRECATED_AFTER_MIGRATION` + suggested new shape | R35 |
+| Old-key request after grace — id matches retained mapping | `410 IDENTIFIER_DEPRECATED_AFTER_MIGRATION` + new email shape; no member created | R35, §M.4(a) |
+| Old-key request after grace — unknown old-shape id | `422 IDENTIFIER_SHAPE_INVALID` naming current kind; no member created | R35, §M.4(b) |
+| New-member enroll with old id after grace | Never creates a member under the old shape (shape gate is pre-write) | §M.4 |
 
 ### L. Telemetry & analytics
 
@@ -507,6 +520,61 @@ In addition to the audit rows (§I) and old-key usage (B.3):
 - **Pino structured logs** on every state transition with `{ migrationId, brandId, fromKind, toKind, status }`.
 - **BullMQ job metrics** already emitted (`apps/api/src/queues/bullmq.ts`); no changes.
 - **No new dashboards added in this slice** — adoption + funnel metrics can be derived from the `MemberIdentifierMigration` table by analytics later.
+
+### M. Ingress coverage, member scope & breakage analysis
+
+This section answers two review questions head-on: **(1) which member-touching paths could break, and what happens to each across the migration lifecycle; (2) which paths don't honor `Brand.memberIdentifierKind`, and what we do about them.** Every row was verified against code on 2026-05-28 (file:line cited).
+
+#### M.1 Member scope — loyalty members only
+
+The `Member` table holds **loyalty members** (auto-enrolled via survey, API, distribution, bulk import) keyed by `externalId` per `memberIdentifierKind`. **Admin / portal users are a separate concept** — they are Clerk *organization* members provisioned as a `Brand` row by the `organization.created` webhook (`apps/api/src/routes/identityProviderWebhook.ts:13`; `user.created` is an explicit **no-op** at line 18). They are **not `Member` rows**, so the re-key (which only UPDATEs `Member`) never touches admin logins.
+
+- `request.clerkUserId` (`apps/api/src/plugins/auth.ts`) is the **acting admin** (audit `actorId` / `createdBy`), never a migrated row.
+- `Member.clerkUserId` is set **only** when a loyalty member self-enrolls a login via the optional token on `/v1/members/enroll` (`members.ts:82-90` → `resolveOrEnrollMember`). There is no self-enroll UI yet, so ~zero loyalty members carry it today. When present it is a **non-identifier attribute**: the re-key preserves it (added to the R26 preserve set), and `externalId` remains the canonical loyalty key.
+
+**Design consequence:** the migration's coverage check (R8) and re-key operate over `Member` rows = loyalty members. No admin-user special-casing is needed; the only addition is preserving `Member.clerkUserId` across re-key.
+
+#### M.2 Ingress path audit — who resolves a member, and how
+
+| # | Ingress | File:line | Identifies member by | Honors `memberIdentifierKind`? | Creates members? |
+|---|---|---|---|---|---|
+| 1 | Public survey respond | `public.ts:457` → `resolveOrEnrollMember` | external id | **Yes** | yes (auto-enroll) |
+| 2 | Manual API enroll | `members.ts:106` → `resolveOrEnrollMember` | external id | **Yes** | yes |
+| 3 | Distribution-batch audience | `distributionBatches.ts:244` (parse per kind) + `:320` (`resolveOrEnrollMember`) | external id | **Yes** | yes (auto-enroll) |
+| 4 | `POST /v1/events` | `events.ts:96-97` | **internal `Member.id` (cuid)** | N/A — never uses external id | no |
+| 5 | External-signal ingestion | `externalSignalIngestion.ts:30` | **email** (hardcoded `brandId_externalId = email.lower`) | **No** | no — match-only (`ExternalSignal.memberId` optional) |
+| 6 | CRM webhooks (Salesforce/HubSpot) | `webhooks.ts:167,259` | **email** (hardcoded) | **No** | no — match-only (links cases/events) |
+| 7 | Bulk survey import | `surveyImport.ts:23-31` (inlined, bypasses `resolveOrEnrollMember`) | **email** | **No** | yes (`BULK_IMPORT`) |
+| — | Clerk OAuth member enroll | *(none — `MemberEnrolledVia.CLERK_OAUTH` defined at `member.schema.ts:75` but no production writer)* | — | — | — |
+
+#### M.3 Behavior across the migration lifecycle (CUSTOMER_ID → EMAIL)
+
+| Path class | Pre-migration | During re-key (`PROCESSING`) | In grace (`REKEY_COMPLETE_IN_GRACE`) | After grace (`GRACE_EXPIRED`) |
+|---|---|---|---|---|
+| **1–3 (honor kind, external-id)** | Resolve by customer_id, shape-validated as `CUSTOMER_ID` (opaque) | Dual-key (§E): old customer_id **and** new email both resolve | Dual-key still on (R32): both resolve; old-key hits counted (R33) | Old customer_id falls through to ordinary `EMAIL` shape validation → rejected (see M.4). New email resolves normally. |
+| **4 `/v1/events` (internal id)** | Unaffected | Unaffected | Unaffected | Unaffected — `Member.id` never changes |
+| **5–6 (email-keyed, match-only)** | For a CUSTOMER_ID brand these **never match** today (they look up email-as-externalId, but externalId is the customer_id) — pre-existing latent no-op | Still no-match until a row is re-keyed; after a member's re-key, its externalId **becomes** the email → starts matching | Matches by email (now the canonical key) | Matches by email — fully correct steady state |
+| **7 bulk import (email-keyed, creates)** | Keys on email = **not** the canonical key for a CUSTOMER_ID brand → creates members under email-as-externalId, divergent from the customer_id members (pre-existing A1 hazard) | Same | Same | Keys on email = the canonical key now → **correct**. (This is why →EMAIL is the safe first slice; A1 only bites non-EMAIL targets.) |
+
+**Net for Slice 1:** only path classes **1–3** need the dual-key + reconciliation machinery (§E/§F), and they have it. Paths 5–6 are match-only and were already non-functional for CUSTOMER_ID brands, so the migration is a strict improvement (they begin working post-flip) — **no regression, no action required for Slice 1**. Path 4 is stable. Path 7 becomes correct post-flip.
+
+#### M.4 The reviewer's case — new member registered with the OLD id after grace
+
+When grace has expired, the brand is an `EMAIL` brand and dual-key is **off** (the §E fallback only runs for `status ∈ {PROCESSING, REKEY_COMPLETE_IN_GRACE}`). Two sub-cases, both safe (no duplicate, no silent corruption):
+
+- **(a) Old id of a member who WAS migrated** (e.g. a stale integration still sending `cust_00012`): primary lookup misses (that member is now keyed by email); shape validation rejects `cust_00012` as a non-email. **No duplicate is created** (rejected pre-write). The default error would be the generic `IDENTIFIER_SHAPE_INVALID`, which is unhelpful. **Design addition (R35 refinement):** the migration mapping is **retained after `GRACE_EXPIRED`** (not deleted), and `resolveOrEnrollMember` checks it on a miss even post-grace — if the supplied identifier matches a known `oldExternalId`, it returns the actionable `410 IDENTIFIER_DEPRECATED_AFTER_MIGRATION` with the member's new email shape ("this customer was migrated; send their email"), instead of the generic shape error. Retention window: kept until explicit cleanup (the mapping rows are small and bounded; no auto-GC in Slice 1).
+- **(b) Genuinely new customer sent with an old-style id** (`cust_NEW`, never existed, not in mapping): primary miss → not in mapping → ordinary `EMAIL` shape validation → `422 IDENTIFIER_SHAPE_INVALID`. This is **correct and desired**: the brand is now EMAIL-keyed and must enroll new members by email. The error message is upgraded to name the brand's current kind ("this organization identifies members by email; supply an email address").
+
+**Key invariant:** at no phase can an old-id request create a *new* member under the old shape once the kind has flipped, because shape validation (`validateIdentifierShape`, `memberResolution.ts:53-92`) rejects a non-email identifier for an `EMAIL` brand before any write. The only way old-id traffic resolves is via the explicit dual-key mapping lookup (during the window, or post-grace for the helpful-error path) — and that always points at the *existing* migrated member, never a new one.
+
+#### M.5 Disposition summary (what we do about non-honoring paths)
+
+| Path | Disposition in Slice 1 |
+|---|---|
+| `/v1/events` (4) | **No action** — internal-id, migration-stable. Explicitly excluded from the impact preview (§H). |
+| External-signal ingestion (5), CRM webhooks (6) | **No action for Slice 1** — match-only, already non-functional for CUSTOMER_ID brands, strictly improved post-flip. Documented here so a future PHONE/other slice revisits whether they should honor kind (they hardcode email). Tracked alongside the A1 follow-up. |
+| Bulk import (7) | **No action for Slice 1** (→EMAIL makes it correct). It is the A1 wrinkle to fix in the first non-EMAIL-target slice (route it through `resolveOrEnrollMember`). Already called out in §A "Out of scope." |
+| Honor-kind paths (1–3) | Dual-key (§E) + reconciliation (§F) + old-key telemetry (B.3) + post-grace helpful-error (M.4). |
 
 ## Confidence Level
 
@@ -532,7 +600,11 @@ In addition to the audit rows (§I) and old-key usage (B.3):
 | GDPR erasure on a migrated member | `Member.erased = true` + read-time mask returns `'[ERASED]'` for `email`/`firstName`/`lastName`/`phone` (per the existing pattern in `apps/api/src/routes/members.ts:538-540, 944-954`), including the new email value (R26). | Integration test extending existing erasure suite |
 | Pre-existing erased / soft-deleted members are excluded from the migration | Worker skips members where `erased = true OR deletedAt IS NOT NULL`; pre-flight coverage check (R8) excludes them so the brand isn't forced to supply emails for them. | Integration test: seed 3 erased + 2 soft-deleted members; assert they are not in mapping totals and not touched by re-key |
 | Cross-tenant mapping upload | 403; no rows touched (R27) | Integration test |
-| Hero #6 SLA: `/v1/events` p99 during PROCESSING | < 1s p99 (one extra indexed Prisma findUnique per miss) | Load test with synthetic events while migration runs |
+| `/v1/events` during/after migration | Unaffected — resolves by internal `Member.id`; same member, no error, no cutover needed (§M.2/§M.3) | Integration test: POST `/v1/events` with internal id mid-migration and post-grace → 202 both times |
+| Old id at `POST /v1/members/enroll` after grace (matched mapping) | `410 IDENTIFIER_DEPRECATED_AFTER_MIGRATION`; no member created (§M.4(a)) | Integration test |
+| Unknown old-shape id at enroll after grace | `422 IDENTIFIER_SHAPE_INVALID`; no member created (§M.4(b)) | Integration test |
+| Member scope: admin/portal Clerk users excluded; loyalty `clerkUserId` preserved (R36) | Coverage totals exclude admin users (they aren't `Member` rows); a loyalty member's `clerkUserId` is unchanged post re-key | Integration test seeding a `clerkUserId`-bearing loyalty member |
+| Hero #6 SLA: `/v1/events` p99 during PROCESSING | < 1s p99 — note `/v1/events` itself does NOT take the dual-key path (internal-id lookup); the +5–20ms applies only to the external-id resolve paths (1–3) | Load test with synthetic events + enrolls while migration runs |
 
 ## Test Matrix
 
@@ -587,7 +659,7 @@ Compared the RFC against `docs/architecture/architecture.md` and the ADR set. No
 | `usePollingQuery` hook for fixed-cadence refresh | §3.1 | Migration progress (Scene 6) + grace-status panel (Scene 7B/7Bw) consume it |
 | Audit-on-change via `brand.profile.update` pipeline | `admin-brand-profile.ts:90-100`, §6 | New `brand.identifier_migration.*` audit-action family extends the existing pipeline |
 | Single transactional Prisma migration | §3.4, ADR-0001 | All three new tables + Brand column in one migration file |
-| Hero #6 SLA preservation | §5.1; project Rule 2 | Worker is async; only inbound-path change is one extra indexed `findUnique` on a miss (§E) |
+| Hero #6 SLA preservation | §5.1; project Rule 2 | Worker is async; `/v1/events` (hero path) is unaffected — it keys on internal `Member.id`, not the external id (§M.2). Dual-key adds one indexed `findUnique`-on-miss only to the external-id resolve paths 1–3 (§E) |
 | GDPR erasure compatibility | §10 Compliance Architecture; project Rule 13 | Re-key is UPDATE only; erasure is **mask-on-read via `Member.erased`** (the actual pattern in `apps/api/src/routes/members.ts:538-540, 944-954, 895`, not column-zeroing as Rule 13's prose implies); migration is required to **exclude `erased = true OR deletedAt IS NOT NULL` members** from the mapping so it cannot re-PII an erased member (test in validation plan) |
 
 ### Patterns Missing from Architecture (used in this design; arch doc would benefit from documentation)

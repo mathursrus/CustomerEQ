@@ -63,7 +63,11 @@ Every R-statement in the spec maps to one or more RFC sections. No R is `Unmet`.
 | Spec Validation Plan — Concurrency | RFC Test Matrix → Integration "Concurrency" item | Met | Inbound `/v1/events` + `/respond` during PROCESSING; old→new reconciliation post-window |
 | Spec Validation Plan — Compliance (GDPR erasure) | RFC Test Matrix → Integration "Erasure compatibility" | Met | Per-row mapping above |
 
-**Matrix verdict:** all 38 R-statements (R0 + R1–R35 + R37) are `Met`. Spec Validation Plan items map one-to-one to the RFC Test Matrix. **Phase passes.**
+| **R36** (added in design-review Round 1) — migration scoped to loyalty members; admin/portal Clerk users excluded; loyalty `clerkUserId` preserved | RFC §M.1; §D worker (sets only externalId+email); spec R26 preserve set | Met | Integration test seeding admin users + a `clerkUserId`-bearing loyalty member |
+
+**Matrix verdict:** all 39 R-statements (R0 + R1–R36 + R37) are `Met`. Spec Validation Plan items map one-to-one to the RFC Test Matrix. **Phase passes.**
+
+**Design-review Round 1 update (2026-05-28):** Reviewer asked for breakage coverage ("which paths break? new member with old id after grace? which paths don't honor the kind?"). Added RFC **§M** (ingress × lifecycle matrix, member scope, post-grace analysis), verified against code. The audit corrected 2 further claims — `/v1/events` is internal-id (migration-stable, removed from cutover surfaces + several ACs) and `CLERK_OAUTH` enroll is unwired — and clarified member scope (loyalty vs admin) per R36. See `docs/evidence/524-design-feedback.md`.
 
 ### Architectural Gaps (for user decision via PR review)
 
