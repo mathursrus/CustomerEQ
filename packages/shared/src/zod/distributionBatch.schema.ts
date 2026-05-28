@@ -33,6 +33,15 @@ const CustomListAudience = z.object({
   // average row size (200 chars) — server enforces per-row count = 10k.
   identifiers: z.string().max(10_000 * 200),
   autoEnroll: z.boolean().default(true),
+  // Issue #531 — audience-builder UI ships pre-resolved Member.id values for
+  // rows it already looked up via /v1/members search or /preview. Server
+  // resolves these by Member.id directly, bypassing the brand-kind-aware
+  // shape inference in parsePasteBody. The previous round-trip silently
+  // dropped rows whose externalId shape disagreed with the brand's
+  // memberIdentifierKind (production 2026-05-28 — issue #531).
+  // Non-UI callers (CSV upload, raw paste) omit this field and the paste-
+  // parser remains the sole resolution path for `identifiers`.
+  memberIds: z.array(z.string()).max(10_000).optional(),
 })
 
 export const AudienceSpecSchema = z.discriminatedUnion('mode', [

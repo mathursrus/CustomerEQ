@@ -100,13 +100,21 @@ export function AudienceBuilder({
     ).length
     const willAutoEnrollCount = selectableRows.filter((r) => r.willAutoEnroll).length
 
-    // Serialize selected rows back into a paste body the backend can re-resolve.
-    // Existing members → externalId (canonical); auto-enroll rows → identifier
-    // as the operator typed (the parser will recognise email vs phone vs
-    // external_id and route accordingly).
-    const identifiers = selectableRows
-      .map((r) => (r.willAutoEnroll ? r.identifier : r.identifier))
-      .join('\n')
+    // Issue #531 — split selection into two server-side resolution channels:
+    //   - rows the UI already resolved (have memberId) → memberIds[], looked
+    //     up server-side by Member.id directly (no brand-kind shape inference);
+    //   - typed-but-unresolved auto-enroll rows (no memberId) → identifiers
+    //     paste body, parsed/auto-enrolled by the existing path.
+    // Pre-fix the UI mashed both into a paste body and the server's
+    // brand-kind-aware parser silently dropped resolved rows whose externalId
+    // shape disagreed with Brand.memberIdentifierKind (production 2026-05-28).
+    const memberIds: string[] = []
+    const autoEnrollIdentifiers: string[] = []
+    for (const r of selectableRows) {
+      if (r.memberId) memberIds.push(r.memberId)
+      else autoEnrollIdentifiers.push(r.identifier)
+    }
+    const identifiers = autoEnrollIdentifiers.join('\n')
 
     onChange({
       rows,
@@ -117,6 +125,7 @@ export function AudienceBuilder({
         mode: 'custom_list',
         identifiers,
         autoEnroll: true,
+        memberIds,
       },
     })
   }, [rows, onChange])
