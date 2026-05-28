@@ -155,6 +155,7 @@
     <a href="#s6">6 Migrating</a>
     <a href="#s7">7 Done</a>
     <a href="#s7b">7B Grace</a>
+    <a href="#s7bw">7Bw Pre-expiry</a>
     <a href="#s7c">7C Expired</a>
     <a href="#s8">8 Failed</a>
   </div>
@@ -435,7 +436,7 @@
       </div>
 
       <div class="modal-warn">
-        <strong>Brand-side updates you'll need to make</strong> — these integrations are using your Customer ID today. You'll have a <strong>30-day grace window</strong> after migration to update them; we'll continue accepting the old Customer ID alongside email during that time.
+        <strong>Brand-side updates you'll need to make</strong> — these integrations are using your Customer ID today (ordered by most recent activity; surfaces with zero activity in the last 30 days are omitted). You'll have a <strong>30-day grace window</strong> after migration to update them; we'll continue accepting the old Customer ID alongside email during that time.
         <table class="rows" style="margin-top:8px;">
           <thead><tr><th>Integration surface</th><th>Activity (last 30d)</th><th>Action</th></tr></thead>
           <tbody>
@@ -569,6 +570,53 @@
         </table>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-ghost btn-sm">Extend grace window</button>
+          <button class="btn btn-ghost btn-sm">Download API migration guide</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 7Bw — Grace window, pre-expiry warning (R37) — ≤7 days remaining + old-key still active -->
+<!-- ============================================================ -->
+<section class="scene" id="s7bw">
+  <div class="scene-label"><strong>Scene 7Bw — Pre-expiry warning (Day 25 of 30, 5 days remaining)</strong> &nbsp; R37 surface. Two warnings appear together because the trigger fires (≤7 days remaining AND old-key activity > 0 in last 7d): (a) a <strong>brand-wide admin banner</strong> shown on every admin page so the admin can't miss it; and (b) the Member identification section's grace-status panel upgrades from neutral "Grace window" to a stronger warning state. Both surfaces name the integrations that are still using the old Customer ID and link to the extend-grace action (a simple admin action with audit log — no attestation gate per R34).</div>
+  <div class="container">
+
+    <!-- Brand-wide admin banner (renders on every admin page when R37 trigger fires) -->
+    <div class="pending-banner" role="status" style="margin-bottom: 16px; display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; background: var(--warning-soft); border: 1px solid #fde68a; border-left: 3px solid var(--warning); border-radius: var(--radius);">
+      <span style="width: 24px; height: 24px; border-radius: 50%; background: var(--warning); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px;">!</span>
+      <div style="flex:1;">
+        <div style="font-size: 14px; font-weight: 600; color: var(--warning-strong); margin-bottom: 4px;">5 days until your Customer ID stops working — 2 integrations not yet updated</div>
+        <div style="font-size: 13px; color: var(--warning-strong); line-height:1.5;">
+          <code>POST /v1/events</code> (1,847 events in the last 7 days) and Custom List distribution batches (1 batch) are still sending the old Customer ID. After <strong>2026-06-26</strong>, those requests will be rejected.
+        </div>
+      </div>
+      <a href="#s7bw" style="font-size: 12px; font-weight: 500; color: var(--warning-strong); text-decoration: none; padding: 6px 10px; border: 1px solid #fbbf24; border-radius: 4px; background: white; white-space: nowrap; align-self: center;">Review &amp; extend →</a>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Member identification <span class="badge badge-danger">⚠ Grace expires in 5 days</span></h2>
+        <p class="section-help">Now identifying members by Email. Old Customer ID accepted until <strong>2026-06-26</strong> (5 days remaining).</p>
+      </div>
+      <div class="section-body">
+        <div class="modal-warn" style="background: var(--danger-soft); border-left-color: var(--danger); color: var(--danger);">
+          <strong>Two integrations have not been cut over.</strong> If they're still sending Customer ID after 2026-06-26 (5 days), those requests will be rejected with <code>IDENTIFIER_DEPRECATED_AFTER_MIGRATION</code>. Extend the grace window if you need more time — it's a one-click action.
+        </div>
+        <table class="rows">
+          <thead><tr><th>Integration surface</th><th>Old-key activity (last 7d)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /v1/events</code> (Acme backend)</td><td>1,847 events · last 8 minutes ago</td><td><span class="badge badge-danger">⚠ Not cut over</span></td></tr>
+            <tr><td>Custom List distribution batches</td><td>1 batch · last 2 days ago</td><td><span class="badge badge-danger">⚠ Not cut over</span></td></tr>
+            <tr><td>Embedded survey forms (host application)</td><td>0</td><td><span class="badge badge-success">✓ Cut over</span></td></tr>
+            <tr><td><code>POST /v1/members/enroll</code> (Acme backend)</td><td>0</td><td><span class="badge badge-success">✓ Cut over</span></td></tr>
+            <tr><td>Outbound webhooks (CRM → Acme)</td><td>—</td><td><span class="badge badge-info">Echoing new email</span></td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary btn-sm">Extend grace window +30 days</button>
           <button class="btn btn-ghost btn-sm">Download API migration guide</button>
         </div>
       </div>

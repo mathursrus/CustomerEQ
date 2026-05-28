@@ -45,3 +45,30 @@
     - Added new **Scene 7C — Grace expired** showing the cutover-complete state.
 - **Coaching moment**: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-28T06-39-52-design-for-brand-side-cutover-not-just-system-catchup.md` — spec the external-actor cutover with the same rigor as the internal data migration.
 - **Status**: ADDRESSED in commit `3cb95c9`.
+
+## Round 3 Feedback
+*Received: 2026-05-28 (inline PR review comments on commit `4d90049`)*
+
+11 inline review comments across the spec. Mapped one-to-one to addressed changes:
+
+| # | Line | Comment summary | How addressed |
+|---|---|---|---|
+| RC1 | L47 | Need a higher-level R that the engine is direction-agnostic so future EMAIL↔PHONE↔CUSTOMER_ID lanes don't cause rework | Added **R0** at the top of Functional Requirements under a new "Engine architecture" group, plus a new AC. |
+| RC2 | L58 | "Should this be R5 or R12?" on R29's tail reference | R29 now references **both**: R12 for per-row issue display + R5 for the upload path. |
+| RC3 | L70 | Attestation should be logged for audit | **R13** strengthened to record admin identity + timestamp + verbatim attestation text and persist alongside the migration audit row. **R25** strengthened to capture the verbatim attestation text and to require grace-window extensions be appended to audit too. New AC added. |
+| RC4 | L85 | "Would this list all entry points or only used ones?" | **R30** clarified: only surfaces with non-zero activity in the last 30d are listed, ordered by most-recent-activity first; zero-activity surfaces are omitted. Scene 5 copy updated. |
+| RC5 | L86 | "Who decides the grace period and where?" | **R31** simplified — fixed 30-day initial window (not configurable at confirm time), extension via R34. (See also RC11.) |
+| RC6 | L90 | Pre-expiry warning ~7 days before grace ends | Added **R37** — brand-wide admin banner + section panel upgrade when ≤7 days remain AND any ingress is still using the old key. New AC added. New mock **Scene 7Bw** added showing the warning state. |
+| RC7 | L179 | "P1 is fine" | Open Questions section converted to "Resolved Decisions": Priority = **P1** (unit + integration). |
+| RC8 | L180 | "Not needed on successful migrations" (rollback) | Resolved Decisions: post-success rollback **not in scope**; failure-rollback via R23 remains. |
+| RC9 | L181 | "We don't need quarantine for now" | Resolved Decisions: **100% coverage required (R8); no quarantine.** |
+| RC10 | L183 | "Simple action with a log. Attestation not required" (extend grace) | **R34** updated — extend is a simple admin action, audit-logged via R25, **no attestation gate**. Resolved in decisions. |
+| RC11 | L182 | "Use 30 and allow extension" | **R31** simplified (already covered in RC5 row). Resolved Decisions: grace = 30 days fixed + extension. |
+
+Files touched:
+- `docs/feature-specs/524-switch-member-identifier-kind.md` — R0 + R37 added; R13/R25/R29/R30/R31/R34 strengthened; new ACs; Open Questions → Resolved Decisions; lifecycle subsection updated.
+- `docs/feature-specs/mocks/524-switch-member-identifier-kind.html` — Scene 5 ordering clarifier; new Scene 7Bw (pre-expiry warning) with brand-wide admin banner pattern; nav updated.
+
+Note: this round was normal review iteration (clarifications + small gap finds), not a corrective miss — deferring coaching-moment capture to the spec-phase retrospective.
+
+- **Status**: ADDRESSED in commit `<round3-commit>`.
