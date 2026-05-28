@@ -41,6 +41,21 @@ const CSV_BODY_LIMIT = 11 * 1024 * 1024
 const RATE_LIMIT_MAX = 10
 const RATE_LIMIT_WINDOW_SECONDS = 60
 
+// Member-row select used by every audience-resolution path (random-sample,
+// pre-resolved memberIds, paste/CSV identifier lookup). The shape must stay
+// in sync with `ResolvedAudienceMember` below so each call site can push
+// directly into `members: ResolvedAudienceMember[]`.
+const AUDIENCE_MEMBER_SELECT = {
+  id: true,
+  externalId: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  erased: true,
+  consentGivenAt: true,
+  unsubscribedSurveysAt: true,
+} as const
+
 type AudienceSpec = z.infer<typeof AudienceSpecSchema>
 
 // ─── Rate-limit ───────────────────────────────────────────────────────────────
@@ -176,16 +191,7 @@ async function resolveExistingMembers(
   // so the audience-list UI can disable selection of suppressed picks per R22.
   const eligible = await fastify.prisma.member.findMany({
     where: { brandId, erased: false, deletedAt: null },
-    select: {
-      id: true,
-      externalId: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      erased: true,
-      consentGivenAt: true,
-      unsubscribedSurveysAt: true,
-    },
+    select: AUDIENCE_MEMBER_SELECT,
     orderBy: { id: 'asc' },
   })
 
@@ -289,16 +295,7 @@ async function resolveCustomList(
         erased: false,
         deletedAt: null,
       },
-      select: {
-        id: true,
-        externalId: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        erased: true,
-        consentGivenAt: true,
-        unsubscribedSurveysAt: true,
-      },
+      select: AUDIENCE_MEMBER_SELECT,
     })
     for (const m of preResolved) {
       members.push({
@@ -319,16 +316,7 @@ async function resolveCustomList(
     const externalId = row.identifier.toLowerCase()
     const existing = await (tx ?? fastify.prisma).member.findUnique({
       where: { brandId_externalId: { brandId, externalId } },
-      select: {
-        id: true,
-        externalId: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        erased: true,
-        consentGivenAt: true,
-        unsubscribedSurveysAt: true,
-      },
+      select: AUDIENCE_MEMBER_SELECT,
     })
     if (existing) {
       // Issue #531 — skip if this member was already added via memberIds[].
