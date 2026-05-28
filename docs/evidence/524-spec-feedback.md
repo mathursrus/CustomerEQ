@@ -44,4 +44,4 @@
     - Added new **Scene 7B — Grace window** showing the deadline, old-key usage breakdown by ingress, and the "extend grace" affordance.
     - Added new **Scene 7C — Grace expired** showing the cutover-complete state.
 - **Coaching moment**: `fraim/personalized-employee/learnings/raw/manohar.madhira@outlook.com-2026-05-28T06-39-52-design-for-brand-side-cutover-not-just-system-catchup.md` — spec the external-actor cutover with the same rigor as the internal data migration.
-- **Status**: ADDRESSED in commit `<round2-commit>`.
+- **Status**: ADDRESSED in commit `3cb95c9`.
