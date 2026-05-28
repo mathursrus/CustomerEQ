@@ -26,8 +26,15 @@
       },
       "package": "com.customereq.mobile"
     },
+    "updates": {
+      "url": "https://u.expo.dev/c78d8409-8165-4225-8be1-102374d5f562"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-updates"
     ],
     "extra": {
       "router": {
