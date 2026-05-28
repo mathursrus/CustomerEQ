@@ -7,7 +7,7 @@ export interface Survey {
   responseCount: number; score: number | null
 }
 
-function toSurvey(raw: Record<string, unknown>): Survey {
+export function toSurvey(raw: Record<string, unknown>): Survey {
   return {
     id: raw.id as string,
     name: (raw.name as string) ?? '',
