@@ -214,12 +214,21 @@ export default function SurveysScreen() {
                       <Text style={{ fontSize: 11, fontWeight: '700', color: v.sentiment === 'positive' ? '#059669' : v.sentiment === 'negative' ? '#dc2626' : '#6b7280' }}>{v.sentiment}</Text>
                     </View>
                   )}
+                  {v.channel && (
+                    <View style={[s.sentimentChip, { backgroundColor: '#f0f9ff' }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#0284c7' }}>{v.channel}</Text>
+                    </View>
+                  )}
                   {v.memberName && <Text style={{ fontSize: 12, color: '#6b7280' }}>{v.memberName}</Text>}
                   {v.completedAt && <Text style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(v.completedAt).toLocaleDateString()}</Text>}
                 </View>
+                {v.summary && <Text style={[s.verbatimText, { color: '#374151', marginBottom: 4 }]}>{v.summary}</Text>}
                 {v.textResponses?.map((tr, j) => (
                   tr.text ? <Text key={j} style={s.verbatimText}>&ldquo;{tr.text}&rdquo;</Text> : null
                 ))}
+                {!v.summary && (!v.textResponses || v.textResponses.length === 0) && (
+                  <Text style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No text response</Text>
+                )}
               </View>
             ))}
             {hasMore && (

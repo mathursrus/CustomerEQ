@@ -6,6 +6,7 @@ export interface Verbatim {
   id: string; score: number | null; sentiment: string | null; completedAt: string | null
   memberName: string | null; memberEmail: string | null
   textResponses: Array<{ text: string }>
+  summary: string | null; channel: string | null
 }
 
 export interface ResponseFilters {
@@ -32,6 +33,7 @@ export function mapResponseRow(r: {
   member?: { firstName?: string; lastName?: string; email?: string; identifierValue?: string } | null
   textResponses?: Array<{ text: string }>
   answers?: Record<string, unknown> | Array<{ text?: string }>
+  summary?: string | null; channel?: string | null
 }): Verbatim {
   return {
     id: r.id,
@@ -41,6 +43,8 @@ export function mapResponseRow(r: {
     memberName: r.member ? [r.member.firstName, r.member.lastName].filter(Boolean).join(' ') || null : null,
     memberEmail: r.member?.email ?? r.member?.identifierValue ?? null,
     textResponses: r.textResponses ?? extractTextResponses(r.answers),
+    summary: (r.summary as string | null | undefined) ?? null,
+    channel: (r.channel as string | null | undefined) ?? null,
   }
 }
 

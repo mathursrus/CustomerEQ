@@ -131,7 +131,7 @@ const surveysRoutes: FastifyPluginAsync = async (fastify) => {
     ])
 
     const avgScoreMap = Object.fromEntries(scoreRows.map((r) => [r.surveyId, r._avg.score]))
-    const enriched = data.map((s) => ({ ...s, score: avgScoreMap[s.id] ?? null }))
+    const enriched = data.map((s) => ({ ...s, score: avgScoreMap[s.id] ?? null, responseCount: s._count.responses }))
 
     return reply.status(200).send({ data: enriched, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   })
