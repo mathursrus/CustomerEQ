@@ -1,6 +1,6 @@
 # Mistake Patterns — swavak@gmail.com
 
-**Last synthesized**: 2026-05-18 (10 proposals applied — 4 new entries, 4 updated entries in validated-patterns/manager-coaching)
+**Last synthesized**: 2026-05-22 (1 new entry added)
 
 Patterns of agent errors, incorrect approaches, and recurring failure modes observed during sessions.
 
@@ -223,5 +223,16 @@ Worktrees for merged and closed issues left on disk accumulate `node_modules` an
 **First synthesized**: 2026-05-18
 
 In Issue #386, every variant of `az role assignment create` (with/without `--assignee-object-id`, explicit `--subscription`, at ACR or subscription scope) returned `MissingSubscription` despite the subscription being active and correct. `az role assignment list` at the same scope succeeded. The reliable fallback: use `az rest PUT https://management.azure.com/{scope}/providers/Microsoft.Authorization/roleAssignments/{guid}?api-version=2022-04-01` directly, bypassing the CLI wrapper.
+
+---
+
+#### [P-MED] Declaring self-hosted cache healthy without verifying artifact writes
+
+**Score**: 5.0
+**Last seen**: 2026-05-22
+**Recurrences**: 1
+**First synthesized**: 2026-05-22
+
+A Container App can show `Healthy` / `Running` while its storage backend is misconfigured (wrong container name, wrong connection string). In this scenario CI runs without error but every task shows `Cached: 0 cached` — the signal is invisible without explicitly checking blob count. In Issue #457 (2026-05-22), after fixing `ABS_CONNECTION_STRING`, the Container App showed `Healthy` with 1 replica and the first CI run completed successfully. Blob count check afterward showed 0 artifacts — `STORAGE_PATH` was still wrong (defaulting to `turborepocache` instead of `turbo-cache`). Required a second fix round. After any cache server fix, run a CI workflow and then check blob count in the storage container before declaring the cache operational.
 
 ---

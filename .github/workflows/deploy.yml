@@ -415,6 +415,38 @@ jobs:
           check "GET /v1/members/me/balance"  "$BASE/v1/members/me/balance"
           check "GET /v1/analytics/cx"        "$BASE/v1/analytics/cx"
 
+      # Issue #537: keep only the last 10 SHA-tagged images per repo to prevent
+      # unbounded ACR storage growth. SHA tags are 40-char hex strings; :latest
+      # is excluded by the grep filter. Only prune repos rebuilt this deploy —
+      # repos that were skipped (demo, turbo-cache) cannot have grown this run.
+      - name: Prune old SHA images (keep last 10 per repo)
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          prune() {
+            local repo=$1
+            local old_tags
+            old_tags=$(az acr repository show-tags \
+              --name customereqcr --repository "$repo" \
+              --orderby time_desc --output tsv 2>/dev/null | \
+              grep -E '^[0-9a-f]{40}$' | tail -n +11)
+            if [ -z "$old_tags" ]; then
+              echo "  $repo: nothing to prune"
+              return
+            fi
+            local count
+            count=$(echo "$old_tags" | wc -l | tr -d ' ')
+            echo "  $repo: pruning $count old SHA tags..."
+            while IFS= read -r tag; do
+              az acr repository delete --name customereqcr --image "$repo:$tag" --yes --only-show-errors
+            done <<< "$old_tags"
+          }
+
+          prune customereq-api
+          prune customereq-worker
+          prune customereq-web
+          [ "${{ steps.changes.outputs.demo_build }}" = "true" ] && prune customereq-demo
+          [ "${{ steps.changes.outputs.turbo_cache_build }}" = "true" ] && prune customereq-turbo-cache
+
       # Issue #470: write per-deploy phase timing table to the Actions Summary tab.
       # Runs always so failed deploys are also captured in the summary.
       - name: Write CD run summary
