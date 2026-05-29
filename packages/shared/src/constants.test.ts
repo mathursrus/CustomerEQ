@@ -10,6 +10,10 @@ import {
   sentimentBandOf,
   EXPORT_ROW_CAP,
   EXPORTS_POWERED_BY_URL,
+  PUBLIC_FRONTEND_HOST,
+  PUBLIC_FRONTEND_URL,
+  PUBLIC_ADMIN_UI_URL,
+  PUBLIC_API_URL,
   AI_FIELDS_CAVEAT,
 } from './constants.js'
 
@@ -132,6 +136,25 @@ describe('export controls', () => {
   })
   it('EXPORTS_POWERED_BY_URL is the canonical production host', () => {
     expect(EXPORTS_POWERED_BY_URL).toBe('https://customereq.wellnessatwork.me')
+  })
+  // Issue #540 — single source of truth for the public host.
+  it('PUBLIC_FRONTEND_HOST is the bare canonical host (no scheme)', () => {
+    expect(PUBLIC_FRONTEND_HOST).toBe('customereq.wellnessatwork.me')
+  })
+  it('PUBLIC_FRONTEND_URL is derived from PUBLIC_FRONTEND_HOST (cannot drift)', () => {
+    expect(PUBLIC_FRONTEND_URL).toBe(`https://${PUBLIC_FRONTEND_HOST}`)
+  })
+  it('EXPORTS_POWERED_BY_URL is aliased to PUBLIC_FRONTEND_URL (cannot drift)', () => {
+    expect(EXPORTS_POWERED_BY_URL).toBe(PUBLIC_FRONTEND_URL)
+  })
+  it('PUBLIC_ADMIN_UI_URL is aliased to PUBLIC_FRONTEND_URL (admin + respondent share the apex host)', () => {
+    expect(PUBLIC_ADMIN_UI_URL).toBe(PUBLIC_FRONTEND_URL)
+  })
+  // Issue #540 scope decision A: API has no custom domain yet; legacy Azure
+  // FQDN is the canonical default. Follow-up issue tracks custom-domain binding.
+  it('PUBLIC_API_URL is the production API origin (https + valid host)', () => {
+    expect(PUBLIC_API_URL).toMatch(/^https:\/\/[^/]+$/)
+    expect(PUBLIC_API_URL).not.toMatch(/customerEQ\.io|localhost/i)
   })
   it('AI_FIELDS_CAVEAT contains the required key phrases (single source of truth)', () => {
     expect(AI_FIELDS_CAVEAT).toContain('AI-derived columns')

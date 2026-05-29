@@ -1,9 +1,15 @@
 import crypto from 'node:crypto'
 import type { FastifyPluginAsync } from 'fastify'
+import { PUBLIC_API_URL, PUBLIC_ADMIN_UI_URL } from '@customerEQ/shared'
 
 const CEQ_OAUTH_STATE_SECRET = process.env.CEQ_OAUTH_STATE_SECRET ?? 'dev-oauth-state-secret-change-me'
-const CEQ_OAUTH_CALLBACK_BASE_URL = process.env.CEQ_OAUTH_CALLBACK_BASE_URL ?? process.env.API_URL ?? 'http://localhost:4000'
-const CEQ_ADMIN_UI_BASE_URL = process.env.CEQ_ADMIN_UI_BASE_URL ?? 'http://localhost:3000'
+// Issue #540 — Fall back to the canonical public URLs instead of localhost.
+// CEQ_OAUTH_CALLBACK_BASE_URL is set in prod to the legacy Azure FQDN
+// (which matches PUBLIC_API_URL today); custom API domain is a follow-up
+// per #540 scope decision A.
+const CEQ_OAUTH_CALLBACK_BASE_URL =
+  process.env.CEQ_OAUTH_CALLBACK_BASE_URL ?? process.env.API_URL ?? PUBLIC_API_URL
+const CEQ_ADMIN_UI_BASE_URL = process.env.CEQ_ADMIN_UI_BASE_URL ?? PUBLIC_ADMIN_UI_URL
 
 const PROVIDERS: Record<string, {
   authUrl: string

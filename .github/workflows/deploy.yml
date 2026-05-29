@@ -253,20 +253,33 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-api:${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # Non-secret env vars on the API container app. SUPPORT_EMAIL is the
-      # public address surfaced on /admin/settings/organization (Developer
-      # & Support row + the Member identification locked notice) per #292.
-      # Reasserted on every deploy so the value is declarative and survives
+      # Non-secret env vars on the API container app.
+      #   - SUPPORT_EMAIL — public address on /admin/settings/organization (#292).
+      #   - NEXT_PUBLIC_FRONTEND_URL — Issue #540 F1: public origin embedded
+      #     in recipient-facing artifacts. Required by the API process in
+      #     QUEUE_MODE=inline (current prod), where managed-email dispatch
+      #     runs in-process via apps/api/src/queues/bullmq.ts:scheduleInline.
+      #   - API_BASE_URL — Issue #540 F4/F6: surfaced on the Developer page
+      #     and in public-widget snippets. Today still the legacy Azure
+      #     FQDN; custom api.* domain is tracked as a follow-up.
+      #   - ADMIN_UI_BASE_URL — Issue #540 F5: drives the survey share URL
+      #     shown on the Developer page. Was defaulting to localhost:3000.
+      # Reasserted on every deploy so values are declarative and survive
       # container-app recreation. Plain --set-env-vars (not Key Vault) is
-      # correct here — this is a public address, not a secret. --set-env-vars
-      # is additive, leaving any other env vars on the app untouched.
+      # correct — these are public values, not secrets. --set-env-vars is
+      # additive, leaving any other env vars on the app untouched.
       - name: Set API non-secret env vars
         if: steps.changes.outputs.build == 'true'
         run: |
           az containerapp update \
             --name customereq-api \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --set-env-vars SUPPORT_EMAIL=support@customereq.wellnessatwork.me
+            --set-env-vars \
+              SUPPORT_EMAIL=support@customereq.wellnessatwork.me \
+              NEXT_PUBLIC_FRONTEND_URL=https://customereq.wellnessatwork.me \
+              ADMIN_UI_BASE_URL=https://customereq.wellnessatwork.me \
+              CEQ_ADMIN_UI_BASE_URL=https://customereq.wellnessatwork.me \
+              API_BASE_URL=https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io
 
       - name: Deploy Worker
         if: steps.changes.outputs.build == 'true'
@@ -276,18 +289,24 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # Issue #540 — Public frontend origin that the worker substitutes into
-      # {{survey_link}} / unsubscribe URLs in dispatched emails. Worker now
-      # throws if this is unset (no placeholder fallback), so this MUST run
-      # on every deploy to keep the worker dispatchable. Plain env var, not a
-      # secret — same pattern as the API SUPPORT_EMAIL step above.
+      # Issue #540 — Worker env vars.
+      #   - NEXT_PUBLIC_FRONTEND_URL — F1: substituted into {{survey_link}}
+      #     / unsubscribe URLs when worker is the dispatcher (QUEUE_MODE=redis).
+      #   - API_BASE_URL — F9: target for worker → API callbacks
+      #     (loyaltyEvents processor enqueues against it). Was defaulting
+      #     to localhost:4000 from inside a Container App.
+      # Same shared constants apply (packages/shared/src/constants.ts:
+      # PUBLIC_FRONTEND_URL, PUBLIC_API_URL); env vars stay declarative
+      # per container for auditability.
       - name: Set Worker non-secret env vars
         if: steps.changes.outputs.build == 'true'
         run: |
           az containerapp update \
             --name customereq-worker \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --set-env-vars NEXT_PUBLIC_FRONTEND_URL=https://customereq.wellnessatwork.me
+            --set-env-vars \
+              NEXT_PUBLIC_FRONTEND_URL=https://customereq.wellnessatwork.me \
+              API_BASE_URL=https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io
 
       - name: Deploy Web
         if: steps.changes.outputs.build == 'true'

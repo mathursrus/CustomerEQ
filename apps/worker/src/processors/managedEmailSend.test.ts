@@ -122,13 +122,19 @@ describe('resolveFrontendBaseUrl (Issue #540 F1)', () => {
     expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
   })
 
-  it('throws when neither env var is set (loud-fail on misconfiguration)', () => {
-    expect(() => resolveFrontendBaseUrl()).toThrow(/NEXT_PUBLIC_FRONTEND_URL|FRONTEND_URL/i)
+  it('falls back to the shared PUBLIC_FRONTEND_URL constant when neither env var is set', () => {
+    // Default-with-warn instead of throw: env-config drift is recoverable
+    // because we know the canonical host. The fallback ships a working URL
+    // (https://customereq.wellnessatwork.me) so recipients receive a real
+    // link; the structured warn log lets ops detect the drift. Pre-fix
+    // behavior fell through to `app.customereq.example` — an unregistered
+    // host that would have shipped broken (and passively phishable) URLs.
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
   })
 
-  it('throws when both env vars are empty strings (defensive against blank deploy config)', () => {
+  it('falls back to PUBLIC_FRONTEND_URL when both env vars are empty strings', () => {
     process.env.NEXT_PUBLIC_FRONTEND_URL = ''
     process.env.FRONTEND_URL = ''
-    expect(() => resolveFrontendBaseUrl()).toThrow()
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
   })
 })

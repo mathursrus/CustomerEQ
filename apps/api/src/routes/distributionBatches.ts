@@ -19,6 +19,7 @@ import {
   RegenerateTokensRequestSchema,
   ManagedEmailComposerSchema,
   FALLBACK_RESPONDENT_THEME,
+  PUBLIC_FRONTEND_HOST,
   deriveSurveySuppression,
   type AudienceSpecSchema,
   type ManagedEmailComposer,
@@ -602,7 +603,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         })
         const envFrom = (process.env.AZURE_COMMUNICATION_SERVICES_EMAIL_FROM ?? '').trim()
         const envDomain = envFrom.includes('@') ? envFrom.split('@')[1] : undefined
-        senderDomain = brand?.managedEmailSenderDomain ?? envDomain ?? 'customereq.wellnessatwork.me'
+        senderDomain = brand?.managedEmailSenderDomain ?? envDomain ?? PUBLIC_FRONTEND_HOST
         if (!brand?.managedEmailSenderDomain && !envDomain) {
           fastify.log.warn(
             { event: 'email.sender_domain.fallback', reason: 'acs_env_unset', brandId },

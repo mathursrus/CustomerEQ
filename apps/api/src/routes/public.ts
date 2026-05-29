@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { DemoRequestSchema, NPS, evaluateSurveyRule } from '@customerEQ/shared'
+import { DemoRequestSchema, NPS, PUBLIC_API_URL, evaluateSurveyRule } from '@customerEQ/shared'
 import { hashToken } from '@customerEQ/shared/distributionTokens'
 import {
   buildFooterHref,
@@ -16,8 +16,7 @@ import { getConsentTextForSurvey } from '../services/consentResolver.js'
 import { buildEnrollmentSignals } from '../services/enrollmentSignals.js'
 import { FALLBACK_RESPONDENT_THEME } from '../lib/default-themes.js'
 
-const API_BASE_URL =
-  process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
+const API_BASE_URL = process.env.API_BASE_URL ?? PUBLIC_API_URL
 
 // Issue #231 PR2 — survey response submission schema.
 //

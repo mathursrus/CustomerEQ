@@ -95,11 +95,53 @@ Backward compatibility — a SELF_SERVE batch created today, post-fix, that the 
 
 - After PR auto-merge + Deploy-to-Azure: re-run `az containerapp show -g customereq-prod -n customereq-worker --query "properties.template.containers[0].env"` and confirm `NEXT_PUBLIC_FRONTEND_URL` is present with the right value.
 
+## 4b. Scope expansion mid-implementation (reviewer feedback)
+
+After user review of the initial diff:
+
+- **F1 fix had a real gap.** Production runs `QUEUE_MODE=inline` on both `customereq-api` and `customereq-worker`, so the API process actually runs `dispatchManagedEmailSend` in-process. Setting the env var only on the worker would have left the API throwing on every send post-deploy — worse than the placeholder bug.
+- **The codebase had more wrong-host defaults than F1.** Comprehensive audit (`https?://[^\s'"]+customereq[^\s'"]+` + `\?\? ['"`]https?://`) found:
+  - `apps/api/src/routes/developer.ts:8` — `API_BASE_URL ?? 'https://api.customerEQ.io'` (non-existent host shown on operator-facing Developer page)
+  - `apps/api/src/routes/developer.ts:9` — `ADMIN_UI_BASE_URL ?? 'http://localhost:3000'` (localhost as prod default for survey share URLs)
+  - `apps/api/src/routes/public.ts:20` — same `api.customerEQ.io` for embed widget snippets
+  - `apps/api/src/routes/oauth.ts:5-6` — `localhost:4000` / `localhost:3000` OAuth fallbacks
+  - `apps/worker/src/processors/loyaltyEvents.ts:27` — `localhost:4000` for worker→API callbacks
+- **Wider scope decision:** all of these consume the same kind of value (canonical public URL or API origin), so they share the same fix shape (shared constant + per-container env var). Fold into #540 instead of fragmenting. User confirmed.
+
+## 4c. New shared constants (in `packages/shared/src/constants.ts`)
+
+- `PUBLIC_FRONTEND_HOST = 'customereq.wellnessatwork.me'` — bare host (no scheme).
+- `PUBLIC_FRONTEND_URL = ` derived from `PUBLIC_FRONTEND_HOST` so the two cannot drift.
+- `PUBLIC_ADMIN_UI_URL = PUBLIC_FRONTEND_URL` — alias for explicit admin-UI intent.
+- `PUBLIC_API_URL = 'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'` — **scope A** decision: keep the legacy Azure-generated FQDN as the canonical default for now. Filed follow-up **#542** for custom-domain binding (scope B).
+- `EXPORTS_POWERED_BY_URL` now aliases `PUBLIC_FRONTEND_URL` (was a hand-written literal — couldn't drift before, can't now either).
+
+## 4d. Consumer refactors (5 files)
+
+- `apps/api/src/routes/developer.ts` — uses `PUBLIC_API_URL` + `PUBLIC_ADMIN_UI_URL`.
+- `apps/api/src/routes/public.ts` — uses `PUBLIC_API_URL`.
+- `apps/api/src/routes/oauth.ts` — uses `PUBLIC_API_URL` + `PUBLIC_ADMIN_UI_URL`.
+- `apps/worker/src/processors/loyaltyEvents.ts` — uses `PUBLIC_API_URL`.
+- `apps/api/src/routes/distributionBatches.ts` — already updated for sender-domain (uses `PUBLIC_FRONTEND_HOST`).
+- `apps/api/src/routes/admin-brand-profile.ts` — already updated (SUPPORT_EMAIL_FALLBACK uses `PUBLIC_FRONTEND_HOST`).
+
+## 4e. IaC step expansion
+
+`.github/workflows/deploy.yml`:
+- `Set API non-secret env vars` adds: `NEXT_PUBLIC_FRONTEND_URL`, `ADMIN_UI_BASE_URL`, `CEQ_ADMIN_UI_BASE_URL` (normalize from legacy Azure FQDN to friendly URL), `API_BASE_URL`.
+- `Set Worker non-secret env vars` adds: `NEXT_PUBLIC_FRONTEND_URL`, `API_BASE_URL`.
+
+## 4f. F1 resolver behavior change (mid-review)
+
+Switched `resolveFrontendBaseUrl()` from **throw on missing** to **default to PUBLIC_FRONTEND_URL with structured warn log**. Rationale: we know the canonical host; refusing to dispatch breaks production on env-config drift, whereas a known-correct default keeps the user-facing artifact working with operations alerted via the log. Matches the existing sender-domain fallback pattern at `distributionBatches.ts:605`. Two worker unit tests were updated from "expects throw" to "expects default."
+
 ## 5. Out of scope
 
-- Fastify `setErrorHandler` (#529) — independent.
-- Deprecating `Survey.sentCount` denormalization altogether — bigger refactor (19 references across schema + tests + docs). Out of scope; F3 fixes the consumer-visible bug without removing the field.
-- Backfill of `Survey.sentCount` for historical SELF_SERVE batches that minted before this fix and where the operator never called `mark-csv-downloaded`. Possible follow-up; current scope assumes "from now on" semantics is acceptable.
+- **#529** — Fastify `setErrorHandler` — independent.
+- **#542** — custom API domain binding (`api.customereq.wellnessatwork.me`). Scope B from this issue's audit.
+- Tech debt: declarative IaC (Bicep / Container Apps YAML) to replace the 7+ inline `az containerapp update` mutations in `deploy.yml`. Worth its own ticket.
+- Deprecating `Survey.sentCount` denormalization altogether — bigger refactor (19 references across schema + tests + docs). F3 fixes the consumer-visible bug without removing the field.
+- Backfill of `Survey.sentCount` for historical SELF_SERVE batches that minted before this fix and where the operator never called `mark-csv-downloaded`.
 
 ## 6. Risks
 
