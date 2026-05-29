@@ -415,6 +415,215 @@ describe('Survey.sentCount semantics across send modes (#540 F3)', () => {
   })
 })
 
+// Issue #543 F1 — backfill historical Survey.sentCount for SELF_SERVE
+// recipients minted pre-#540. The #540 fix bumps Survey.sentCount at
+// mint time going forward, but couldn't retroactively fix data minted
+// before the deploy where the operator never called mark-csv-downloaded.
+// This block exercises the migration SQL (truth-from-scratch recompute).
+//
+// The SQL lives at packages/database/prisma/migrations/
+//   20260529100000_backfill_survey_sent_count_self_serve/migration.sql
+// and is run by `pnpm db:migrate`. These tests execute the same SQL inline
+// via prisma.$executeRawUnsafe so the assertions cover the SQL's behavior
+// independent of when the migration was applied.
+describe('Survey.sentCount backfill migration (#543 F1)', () => {
+  // Each test process gets its own schema (see packages/config/src/test-utils/
+  // db/setup.ts). Prisma's typed client auto-qualifies table names with the
+  // per-connection ?schema=...; $executeRawUnsafe does not, so the raw SQL
+  // would resolve "Survey" against `public` and fail. We extract the schema
+  // from DATABASE_URL and substitute it into the SQL directly — Prisma's
+  // raw-exec can't handle multi-statement preludes (Postgres prepared-stmt
+  // limitation), so a single SCHEMA-qualified UPDATE is the cleanest path.
+  // The shipped migration file has no such qualification (Prisma migrate runs
+  // against `public` directly). The qualifier is test-rig-only.
+  function getTestSchema(): string {
+    const url = process.env.DATABASE_URL ?? ''
+    const m = url.match(/[?&]schema=([^&]+)/)
+    return m ? m[1] : 'public'
+  }
+  function getBackfillSql(): string {
+    const s = getTestSchema()
+    return `
+      UPDATE "${s}"."surveys" sv
+      SET "sentCount" = COALESCE((
+        SELECT COUNT(t."id")
+        FROM "${s}"."survey_distribution_tokens" t
+        JOIN "${s}"."distribution_batches" b ON b."id" = t."batchId"
+        WHERE b."surveyId" = sv."id" AND b."sendMode" = 'SELF_SERVE'
+      ), 0) + COALESCE((
+        SELECT COUNT(d."id")
+        FROM "${s}"."survey_distributions" d
+        JOIN "${s}"."distribution_batches" b ON b."id" = d."batchId"
+        WHERE b."surveyId" = sv."id" AND b."sendMode" = 'MANAGED_EMAIL'
+              AND d."deliveredAt" IS NOT NULL
+      ), 0)
+      WHERE EXISTS (
+        SELECT 1 FROM "${s}"."distribution_batches" b WHERE b."surveyId" = sv."id"
+      )
+    `
+  }
+
+  beforeEach(async () => {
+    await seedTestDb()
+  })
+
+  it('recomputes sentCount = SELF_SERVE token count + MANAGED_EMAIL delivered count', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    for (let i = 0; i < 15; i++) await createMember({ brandId: brand.id })
+    const request = authenticatedRequest(brand.id)
+
+    // 2 SELF_SERVE waves: 10 + 5 = 15 tokens total
+    const selfServe1 = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Self-serve wave 1',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 10 },
+    })
+    expect(selfServe1.status).toBe(201)
+    const selfServe2 = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Self-serve wave 2',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 5 },
+    })
+    expect(selfServe2.status).toBe(201)
+
+    // 1 MANAGED_EMAIL wave with 3 recipients; manually mark 2 of 3 as delivered.
+    await createMember({ brandId: brand.id, email: 'm1@example.com', consentGivenAt: new Date() })
+    await createMember({ brandId: brand.id, email: 'm2@example.com', consentGivenAt: new Date() })
+    await createMember({ brandId: brand.id, email: 'm3@example.com', consentGivenAt: new Date() })
+    const managed = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      sendMode: 'MANAGED_EMAIL',
+      surveyNameInMail: 'Managed wave',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 3 },
+      composer: {
+        senderName: 'Acme CX',
+        senderAlias: 'feedback',
+        subject: 'Quick question',
+        body: 'Hi {{first_name}}, please respond at {{survey_link}}',
+      },
+    })
+    expect(managed.status).toBe(201)
+    // Mark 2 of 3 as delivered.
+    const managedRows = await prisma.surveyDistribution.findMany({
+      where: { batchId: managed.body.batchId },
+      take: 2,
+    })
+    await prisma.surveyDistribution.updateMany({
+      where: { id: { in: managedRows.map((r) => r.id) } },
+      data: { deliveredAt: new Date() },
+    })
+
+    // Simulate pre-#540 historical state: zero the denormalized field.
+    await prisma.survey.update({ where: { id: survey.id }, data: { sentCount: 0 } })
+
+    // Run the backfill.
+    await prisma.$executeRawUnsafe(getBackfillSql())
+
+    const after = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    // 10 + 5 SELF_SERVE tokens + 2 MANAGED_EMAIL delivered = 17.
+    expect(after.sentCount).toBe(17)
+  })
+
+  it('is idempotent — running twice yields the same value', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    for (let i = 0; i < 7; i++) await createMember({ brandId: brand.id })
+    const request = authenticatedRequest(brand.id)
+    const gen = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'wave',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 7 },
+    })
+    expect(gen.status).toBe(201)
+
+    await prisma.survey.update({ where: { id: survey.id }, data: { sentCount: 0 } })
+    await prisma.$executeRawUnsafe(getBackfillSql())
+    const first = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    await prisma.$executeRawUnsafe(getBackfillSql())
+    const second = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    expect(first.sentCount).toBe(7)
+    expect(second.sentCount).toBe(7)
+  })
+
+  it('leaves surveys with no batches at sentCount = 0', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+
+    // No batches created. Pretend a previous backfill set a stale value.
+    await prisma.survey.update({ where: { id: survey.id }, data: { sentCount: 99 } })
+    await prisma.$executeRawUnsafe(getBackfillSql())
+
+    const after = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    // WHERE EXISTS guard means this Survey row isn't touched; the stale 99
+    // is preserved. That's intentional — a survey with no waves can have
+    // sentCount=0 (the default) but we don't actively overwrite anything
+    // that the column already held. If it ever holds a non-zero value
+    // for a no-batch survey, that's already a different bug to investigate.
+    expect(after.sentCount).toBe(99)
+  })
+
+  it('counts MANAGED_EMAIL recipients only when deliveredAt is set (per-delivery semantic)', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    for (let i = 0; i < 4; i++) await createMember({ brandId: brand.id, consentGivenAt: new Date(), email: `m${i}@x.example` })
+    const request = authenticatedRequest(brand.id)
+    const gen = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      sendMode: 'MANAGED_EMAIL',
+      surveyNameInMail: 'managed-only',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 4 },
+      composer: {
+        senderName: 'X', senderAlias: 'y', subject: 's',
+        body: 'Hi {{first_name}}, {{survey_link}}',
+      },
+    })
+    expect(gen.status).toBe(201)
+
+    // Zero rows delivered yet → MANAGED_EMAIL contributes 0 to sentCount.
+    await prisma.survey.update({ where: { id: survey.id }, data: { sentCount: 0 } })
+    await prisma.$executeRawUnsafe(getBackfillSql())
+    const before = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id }, select: { sentCount: true },
+    })
+    expect(before.sentCount).toBe(0)
+
+    // Mark 3 of 4 delivered, re-run.
+    const rows = await prisma.surveyDistribution.findMany({
+      where: { batchId: gen.body.batchId }, take: 3,
+    })
+    await prisma.surveyDistribution.updateMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+      data: { deliveredAt: new Date() },
+    })
+    await prisma.$executeRawUnsafe(getBackfillSql())
+    const after = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id }, select: { sentCount: true },
+    })
+    expect(after.sentCount).toBe(3)
+  })
+})
+
 describe('GET /v1/surveys/:id/distribution-batches (list)', () => {
   beforeEach(async () => {
     await seedTestDb()
