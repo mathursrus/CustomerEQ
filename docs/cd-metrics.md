@@ -1,17 +1,17 @@
 # CD Pipeline Metrics
 
-_Last updated: 2026-05-28 02:17 UTC by the [cd-metrics workflow](../.github/workflows/cd-metrics.yml)_
+_Last updated: 2026-05-29 02:17 UTC by the [cd-metrics workflow](../.github/workflows/cd-metrics.yml)_
 
 ## 30-Day Summary
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| CD P50 wall clock | 13m 15s | ✅ |
-| CD P90 wall clock | 19m 36s | ✅ |
-| Merge → live P50 | 28m 20s | ✅ |
-| Merge → live P90 | 42m 15s ⚠️ | ⚠️ |
-| CD success rate (7d) | 69% ⚠️ | ⚠️ |
-| Deploys analysed (30d) | 170 | — |
+| CD P50 wall clock | 13m 27s | ✅ |
+| CD P90 wall clock | 19m 58s | ✅ |
+| Merge → live P50 | 27m 47s | ✅ |
+| Merge → live P90 | 42m 1s ⚠️ | ⚠️ |
+| CD success rate (7d) | 85% ⚠️ | ⚠️ |
+| Deploys analysed (30d) | 177 | — |
 
 > ⚠️ = threshold breached. P90 alert: >25m · Any failure alerts immediately · Merge→live >30m.
 
@@ -19,15 +19,24 @@ _Last updated: 2026-05-28 02:17 UTC by the [cd-metrics workflow](../.github/work
 
 | Phase | Avg Duration |
 |-------|-------------|
-| Image builds | 12m 39s |
+| Image builds | 12m 54s |
 | Migration | 1m 10s |
-| Container deploy | 1m 7s |
+| Container deploy | 1m 8s |
 | Verification | 4s |
 
 ## Last 20 Deploys
 
 | Date (UTC) | Trigger | Total | Merge→Live | Outcome |
 |------------|---------|-------|------------|---------|
+| [2026-05-28 22:53](https://github.com/mathursrus/CustomerEQ/actions/runs/26607047910) | auto | 15m 56s | — | ✅ |
+| [2026-05-28 22:18](https://github.com/mathursrus/CustomerEQ/actions/runs/26605589511) | auto | 15m 36s | — | ✅ |
+| [2026-05-28 22:16](https://github.com/mathursrus/CustomerEQ/actions/runs/26605510047) | auto | 15m 50s | — | ✅ |
+| [2026-05-28 21:50](https://github.com/mathursrus/CustomerEQ/actions/runs/26604348934) | manual | 20m 17s | 20m 23s | ✅ |
+| [2026-05-28 21:13](https://github.com/mathursrus/CustomerEQ/actions/runs/26602619662) | manual | 20m 42s | 20m 50s | ✅ |
+| [2026-05-28 20:14](https://github.com/mathursrus/CustomerEQ/actions/runs/26599624829) | manual | 20m 53s | 21m 1s | ✅ |
+| [2026-05-28 17:35](https://github.com/mathursrus/CustomerEQ/actions/runs/26591388805) | manual | 20m 36s | 36m 33s ⚠️ | ✅ |
+| [2026-05-28 17:26](https://github.com/mathursrus/CustomerEQ/actions/runs/26590889952) | manual | 20m 4s | 25m 10s | ✅ |
+| [2026-05-28 17:09](https://github.com/mathursrus/CustomerEQ/actions/runs/26590022151) | manual | 21m 19s | 21m 28s | ✅ |
 | [2026-05-27 22:05](https://github.com/mathursrus/CustomerEQ/actions/runs/26541495029) | auto | 16m 12s | — | ✅ |
 | [2026-05-27 22:00](https://github.com/mathursrus/CustomerEQ/actions/runs/26541299840) | auto | -1s | — | ⏭️ |
 | [2026-05-27 21:56](https://github.com/mathursrus/CustomerEQ/actions/runs/26541113083) | auto | 0s | — | ⏭️ |
@@ -39,13 +48,4 @@ _Last updated: 2026-05-28 02:17 UTC by the [cd-metrics workflow](../.github/work
 | [2026-05-25 22:35](https://github.com/mathursrus/CustomerEQ/actions/runs/26422444624) | auto | 17m 11s | — | ✅ |
 | [2026-05-25 22:13](https://github.com/mathursrus/CustomerEQ/actions/runs/26421835671) | auto | 17m 9s | — | ✅ |
 | [2026-05-25 22:05](https://github.com/mathursrus/CustomerEQ/actions/runs/26421613602) | auto | 20m 3s | — | ✅ |
-| [2026-05-25 21:49](https://github.com/mathursrus/CustomerEQ/actions/runs/26421121489) | auto | 17m 25s | — | ✅ |
-| [2026-05-25 02:30](https://github.com/mathursrus/CustomerEQ/actions/runs/26380121761) | auto | 17m 6s | — | ✅ |
-| [2026-05-25 02:06](https://github.com/mathursrus/CustomerEQ/actions/runs/26379517201) | manual | 20m 11s | 20m 17s | ✅ |
-| [2026-05-24 21:34](https://github.com/mathursrus/CustomerEQ/actions/runs/26373377477) | manual | 20m 8s | 20m 14s | ✅ |
-| [2026-05-23 22:54](https://github.com/mathursrus/CustomerEQ/actions/runs/26345732689) | manual | 19m 36s | 19m 42s | ✅ |
-| [2026-05-23 21:40](https://github.com/mathursrus/CustomerEQ/actions/runs/26344252796) | auto | 16m 47s | 29m 48s | ✅ |
-| [2026-05-23 21:28](https://github.com/mathursrus/CustomerEQ/actions/runs/26344002830) | manual | 19m 38s | 12m 58s | ✅ |
-| [2026-05-23 21:08](https://github.com/mathursrus/CustomerEQ/actions/runs/26343597314) | manual | 20m 3s | — | ✅ |
-| [2026-05-23 16:03](https://github.com/mathursrus/CustomerEQ/actions/runs/26337316227) | manual | 19m 57s | — | ✅ |
 

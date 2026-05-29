@@ -1,10 +1,10 @@
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSurveys, usePrograms, type SurveyQuestion, type CreateSurveyInput } from '../../hooks/useSurveys'
 import { useSurveyDetail, type ResponseFilters } from '../../hooks/useSurveyDetail'
 
-const FILTERS = ['All', 'Active', 'Paused', 'Completed'] as const
+const FILTERS = ['All', 'Active', 'Paused', 'Completed', 'Stopped'] as const
 type Filter = typeof FILTERS[number]
 const TYPE_COLORS: Record<string, string> = { NPS: '#4F46E5', CSAT: '#0ea5e9', STAR: '#f59e0b', CES: '#8b5cf6', CUSTOM: '#6b7280' }
 
@@ -110,19 +110,27 @@ export default function SurveysScreen() {
     setSelectedSurveyName(name)
     setDetailPage(1)
     setDetailFilters({})
+    setVerbatims([])
   }
 
   function toggleSentimentFilter(s: 'positive' | 'neutral' | 'negative') {
     setDetailPage(1)
+    setVerbatims([])
     setDetailFilters(prev => ({ ...prev, sentiment: prev.sentiment === s ? undefined : s }))
   }
 
   function toggleScoreFilter(band: 'promoter' | 'passive' | 'detractor') {
     setDetailPage(1)
+    setVerbatims([])
     setDetailFilters(prev => ({ ...prev, scoreBand: prev.scoreBand === band ? undefined : band }))
   }
 
-  const verbatims = detail?.items ?? []
+  const [verbatims, setVerbatims] = useState<import('../../hooks/useSurveyDetail').Verbatim[]>([])
+  useEffect(() => {
+    if (detail?.items) {
+      setVerbatims(prev => detailPage === 1 ? detail.items : [...prev, ...detail.items])
+    }
+  }, [detail])
   const hasMore = detail?.hasMore ?? false
 
   return (
@@ -149,14 +157,14 @@ export default function SurveysScreen() {
         {filtered.map((sv) => (
           <Pressable key={sv.id} style={s.card} onPress={() => openDetail(sv.id, sv.name)}>
             <View style={s.cardTop}>
-              <Text style={s.cardName}>{sv.title ?? sv.name}</Text>
+              <Text style={s.cardName}>{sv.title || sv.name || 'Untitled Survey'}</Text>
               <View style={[s.typeBadge, { backgroundColor: TYPE_COLORS[sv.type] ?? '#6b7280' }]}>
                 <Text style={s.typeBadgeText}>{sv.type}</Text>
               </View>
             </View>
             {sv.name !== sv.title && sv.title && <Text style={s.cardSubname}>{sv.name}</Text>}
             <View style={s.cardMeta}>
-              <Text style={s.cardMetaText}>{sv.responseCount ?? 0} responses</Text>
+              <Text style={s.cardMetaText}>{sv.responseCount ?? 0} {(sv.responseCount ?? 0) === 1 ? 'response' : 'responses'}</Text>
               <Text style={s.cardMetaText}>Score: {sv.score ?? '--'}</Text>
               <View style={[s.statusChip, { backgroundColor: sv.status === 'ACTIVE' ? '#ecfdf5' : sv.status === 'PAUSED' ? '#fff7ed' : '#f3f4f6' }]}>
                 <Text style={[s.statusText, { color: sv.status === 'ACTIVE' ? '#059669' : sv.status === 'PAUSED' ? '#d97706' : '#6b7280' }]}>{sv.status}</Text>
@@ -191,7 +199,7 @@ export default function SurveysScreen() {
           </View>
           <ScrollView style={s.modalBody}>
             {detail?.total != null && (
-              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{detail.total} total responses</Text>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{detail.total} total {detail.total === 1 ? 'response' : 'responses'}</Text>
             )}
             {detailLoading && detailPage === 1 && <ActivityIndicator color="#4F46E5" style={{ marginTop: 20 }} />}
             {verbatims.length === 0 && !detailLoading && (
@@ -206,12 +214,21 @@ export default function SurveysScreen() {
                       <Text style={{ fontSize: 11, fontWeight: '700', color: v.sentiment === 'positive' ? '#059669' : v.sentiment === 'negative' ? '#dc2626' : '#6b7280' }}>{v.sentiment}</Text>
                     </View>
                   )}
+                  {v.channel && (
+                    <View style={[s.sentimentChip, { backgroundColor: '#f0f9ff' }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#0284c7' }}>{v.channel}</Text>
+                    </View>
+                  )}
                   {v.memberName && <Text style={{ fontSize: 12, color: '#6b7280' }}>{v.memberName}</Text>}
                   {v.completedAt && <Text style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(v.completedAt).toLocaleDateString()}</Text>}
                 </View>
+                {v.summary && <Text style={[s.verbatimText, { color: '#374151', marginBottom: 4 }]}>{v.summary}</Text>}
                 {v.textResponses?.map((tr, j) => (
                   tr.text ? <Text key={j} style={s.verbatimText}>&ldquo;{tr.text}&rdquo;</Text> : null
                 ))}
+                {!v.summary && (!v.textResponses || v.textResponses.length === 0) && (
+                  <Text style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No text response</Text>
+                )}
               </View>
             ))}
             {hasMore && (
@@ -310,6 +327,9 @@ export default function SurveysScreen() {
                   </Pressable>
                   <Pressable style={[s.nextBtn, { marginTop: 10 }]} onPress={() => setStep(3)}>
                     <Text style={s.nextBtnText}>Preview →</Text>
+                  </Pressable>
+                  <Pressable style={[s.nextBtn, { backgroundColor: '#f3f4f6', marginTop: 8 }]} onPress={() => setStep(1)}>
+                    <Text style={[s.nextBtnText, { color: '#374151' }]}>← Back to Basics</Text>
                   </Pressable>
                 </>
               )}

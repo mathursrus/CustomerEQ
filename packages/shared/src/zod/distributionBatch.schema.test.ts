@@ -53,6 +53,63 @@ describe('AudienceSpecSchema (discriminated union)', () => {
   it('rejects non-string identifiers paste', () => {
     expect(() => AudienceSpecSchema.parse({ mode: 'custom_list', identifiers: 123 })).toThrow()
   })
+
+  // Issue #531 — audience-builder pre-resolved memberIds
+  it('accepts custom_list with memberIds[] alongside identifiers', () => {
+    const parsed = AudienceSpecSchema.parse({
+      mode: 'custom_list',
+      identifiers: '',
+      autoEnroll: false,
+      memberIds: ['cmp_member_1', 'cmp_member_2'],
+    })
+    expect(parsed.mode).toBe('custom_list')
+    if (parsed.mode === 'custom_list') {
+      expect(parsed.memberIds).toEqual(['cmp_member_1', 'cmp_member_2'])
+    }
+  })
+
+  it('accepts custom_list with memberIds[] only (no paste body)', () => {
+    const parsed = AudienceSpecSchema.parse({
+      mode: 'custom_list',
+      identifiers: '',
+      memberIds: ['cmp_member_1'],
+    })
+    if (parsed.mode === 'custom_list') {
+      expect(parsed.memberIds).toEqual(['cmp_member_1'])
+      expect(parsed.identifiers).toBe('')
+    }
+  })
+
+  it('defaults memberIds to undefined when omitted (back-compat with non-UI callers)', () => {
+    const parsed = AudienceSpecSchema.parse({
+      mode: 'custom_list',
+      identifiers: 'a@b.com',
+    })
+    if (parsed.mode === 'custom_list') {
+      expect(parsed.memberIds).toBeUndefined()
+    }
+  })
+
+  it('rejects memberIds longer than 10k entries', () => {
+    const tooMany = Array.from({ length: 10_001 }, (_, i) => `id_${i}`)
+    expect(() =>
+      AudienceSpecSchema.parse({
+        mode: 'custom_list',
+        identifiers: '',
+        memberIds: tooMany,
+      }),
+    ).toThrow()
+  })
+
+  it('rejects non-array memberIds', () => {
+    expect(() =>
+      AudienceSpecSchema.parse({
+        mode: 'custom_list',
+        identifiers: '',
+        memberIds: 'not-an-array',
+      }),
+    ).toThrow()
+  })
 })
 
 describe('PreviewBatchRequestSchema (.strict)', () => {

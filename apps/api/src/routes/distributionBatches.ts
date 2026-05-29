@@ -41,6 +41,21 @@ const CSV_BODY_LIMIT = 11 * 1024 * 1024
 const RATE_LIMIT_MAX = 10
 const RATE_LIMIT_WINDOW_SECONDS = 60
 
+// Member-row select used by every audience-resolution path (random-sample,
+// pre-resolved memberIds, paste/CSV identifier lookup). The shape must stay
+// in sync with `ResolvedAudienceMember` below so each call site can push
+// directly into `members: ResolvedAudienceMember[]`.
+const AUDIENCE_MEMBER_SELECT = {
+  id: true,
+  externalId: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  erased: true,
+  consentGivenAt: true,
+  unsubscribedSurveysAt: true,
+} as const
+
 type AudienceSpec = z.infer<typeof AudienceSpecSchema>
 
 // ─── Rate-limit ───────────────────────────────────────────────────────────────
@@ -176,16 +191,7 @@ async function resolveExistingMembers(
   // so the audience-list UI can disable selection of suppressed picks per R22.
   const eligible = await fastify.prisma.member.findMany({
     where: { brandId, erased: false, deletedAt: null },
-    select: {
-      id: true,
-      externalId: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      erased: true,
-      consentGivenAt: true,
-      unsubscribedSurveysAt: true,
-    },
+    select: AUDIENCE_MEMBER_SELECT,
     orderBy: { id: 'asc' },
   })
 
@@ -225,6 +231,12 @@ async function resolveCustomList(
   identifiersBody: string,
   autoEnroll: boolean,
   tx?: Prisma.TransactionClient,
+  /** Issue #531 — pre-resolved Member.id values from the audience-builder UI.
+   *  Looked up by id (brandId-scoped) before the paste body is parsed; results
+   *  are merged into the resolved set, dedupe-by-memberId against any matching
+   *  paste entries. The paste-parser's brand-kind-aware shape inference is NOT
+   *  applied to these — that's the whole point of the new path. */
+  preResolvedMemberIds: readonly string[] = [],
 ): Promise<ResolvedAudience & { rowsForAudit: ParsedRow[] }> {
   const brand = await (tx ?? fastify.prisma).brand.findUnique({
     where: { id: brandId },
@@ -267,22 +279,48 @@ async function resolveCustomList(
   const autoEnrolledMemberIds: string[] = []
   const unmatchedFinal: string[] = [...parsed.unmatched]
 
+  // Issue #531 — resolve UI-supplied memberIds first. Brand-scoped + alive
+  // (non-erased, non-deleted) — never trust a client-supplied id without
+  // re-checking ownership. This is the path the audience-builder UI takes for
+  // every row it sourced from /v1/members search or /preview; the paste-body
+  // path below remains for unresolved/typed identifiers (auto-enroll case
+  // + CSV upload + raw operator paste).
+  const seenMemberIds = new Set<string>()
+  if (preResolvedMemberIds.length > 0) {
+    const dedupedIds = Array.from(new Set(preResolvedMemberIds))
+    const preResolved = await (tx ?? fastify.prisma).member.findMany({
+      where: {
+        id: { in: dedupedIds },
+        brandId,
+        erased: false,
+        deletedAt: null,
+      },
+      select: AUDIENCE_MEMBER_SELECT,
+    })
+    for (const m of preResolved) {
+      members.push({
+        memberId: m.id,
+        identifier: m.externalId,
+        email: m.email,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        erased: m.erased,
+        consentGivenAt: m.consentGivenAt,
+        unsubscribedSurveysAt: m.unsubscribedSurveysAt,
+      })
+      seenMemberIds.add(m.id)
+    }
+  }
+
   for (const row of parsed.rows) {
     const externalId = row.identifier.toLowerCase()
     const existing = await (tx ?? fastify.prisma).member.findUnique({
       where: { brandId_externalId: { brandId, externalId } },
-      select: {
-        id: true,
-        externalId: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        erased: true,
-        consentGivenAt: true,
-        unsubscribedSurveysAt: true,
-      },
+      select: AUDIENCE_MEMBER_SELECT,
     })
     if (existing) {
+      // Issue #531 — skip if this member was already added via memberIds[].
+      if (seenMemberIds.has(existing.id)) continue
       members.push({
         memberId: existing.id,
         identifier: existing.externalId,
@@ -293,6 +331,7 @@ async function resolveCustomList(
         consentGivenAt: existing.consentGivenAt,
         unsubscribedSurveysAt: existing.unsubscribedSurveysAt,
       })
+      seenMemberIds.add(existing.id)
       continue
     }
     if (!autoEnroll) {
@@ -428,6 +467,8 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             brandId,
             input.audience.identifiers,
             input.audience.autoEnroll,
+            undefined,
+            input.audience.memberIds ?? [],
           )
           resolved = result
         }
@@ -600,6 +641,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             input.audience.identifiers,
             input.audience.autoEnroll,
             tx,
+            input.audience.memberIds ?? [],
           )
         }
 
