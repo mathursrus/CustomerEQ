@@ -2,7 +2,7 @@ import type { Job, ConnectionOptions } from 'bullmq'
 import { prisma } from '@customerEQ/database'
 import type { Prisma } from '@prisma/client'
 import type { LoyaltyEventPayload } from '@customerEQ/shared'
-import { evaluateConditions } from '@customerEQ/shared'
+import { PUBLIC_API_URL, evaluateConditions } from '@customerEQ/shared'
 import type { ConditionGroup } from '@customerEQ/shared'
 import { enqueueSurveyDistribute } from '../queues/producers.js'
 
@@ -24,7 +24,10 @@ export const EVENT_TO_TRIGGER_KEYS: Record<string, string[]> = {
 }
 
 const SURVEY_DISTRIBUTE_COOLDOWN_DAYS = 30
-const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:4000'
+// Issue #540 — Fall back to the canonical PUBLIC_API_URL constant instead
+// of localhost. Worker has no env var set in prod today; this used to
+// dispatch outbound webhooks at http://localhost:4000 from a Container App.
+const API_BASE_URL = process.env.API_BASE_URL ?? PUBLIC_API_URL
 
 // Re-export so existing test imports continue to work
 export { evaluateConditions }

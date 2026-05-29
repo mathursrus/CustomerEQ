@@ -168,10 +168,50 @@ export function sentimentBandOf(value: number | null): 'positive' | 'neutral' | 
  * returns HTTP 413 `EXPORT_TOO_LARGE`. Adjusting this is a one-line change. */
 export const EXPORT_ROW_CAP = 50_000
 
-/** Canonical CustomerEQ host used inside generated documents (exports,
- * emails, PDFs). When the production host changes, this single edit
- * propagates everywhere. */
-export const EXPORTS_POWERED_BY_URL = 'https://customereq.wellnessatwork.me'
+/** Issue #540 — Canonical public host for all recipient-facing
+ * web-surface artifacts: survey-link origin, unsubscribe URLs, admin-UI
+ * share URLs, "powered by" footer in exports, the `@`-domain of the
+ * support email, and the sender-domain fallback for managed email.
+ *
+ * Single source of truth for the fallback when env vars
+ * (`NEXT_PUBLIC_FRONTEND_URL` / `FRONTEND_URL` / `ADMIN_UI_BASE_URL` /
+ * `AZURE_COMMUNICATION_SERVICES_EMAIL_FROM`) are unset.
+ *
+ * Set declaratively per Container App in `.github/workflows/deploy.yml`;
+ * this constant is the loud, in-repo backstop so we never silently
+ * degrade to a placeholder host like `app.customereq.example` (the
+ * failure mode that produced the #540 production incident).
+ *
+ * Future multi-tenant per-brand hosts should be resolved via
+ * `Brand.publicHost` (not yet introduced); when that lands, swap these
+ * consumers to that lookup. */
+export const PUBLIC_FRONTEND_HOST = 'customereq.wellnessatwork.me'
+
+/** Full origin form (scheme + host) for URL contexts. Derived from
+ * `PUBLIC_FRONTEND_HOST` so the two can never drift. */
+export const PUBLIC_FRONTEND_URL = `https://${PUBLIC_FRONTEND_HOST}`
+
+/** Admin-UI base origin. Same host as `PUBLIC_FRONTEND_URL` — both the
+ * respondent surface (`/survey/...`) and the admin surface (`/admin/...`)
+ * live on the customereq.wellnessatwork.me apex. Alias kept for explicit
+ * consumer intent (developer page, OAuth admin-UI redirects, share URLs). */
+export const PUBLIC_ADMIN_UI_URL = PUBLIC_FRONTEND_URL
+
+/** Issue #540 — Canonical public API origin. The API does NOT have a
+ * custom domain bound today; production accepts traffic at the legacy
+ * Azure-generated Container Apps FQDN. Custom-domain binding (e.g.,
+ * `api.customereq.wellnessatwork.me`) is tracked as a follow-up so we can
+ * land the URL-default fix without an infra prerequisite. When the custom
+ * domain binds, update this constant + the `API_BASE_URL` env var on every
+ * consuming container in one deploy. */
+export const PUBLIC_API_URL =
+  'https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io'
+
+/** Public host used inside generated documents (exports, emails, PDFs).
+ * Identical to `PUBLIC_FRONTEND_URL`; kept as a named alias for documents
+ * that reference the host as "powered by" branding (e.g., Excel exports'
+ * footer link). New code should import `PUBLIC_FRONTEND_URL`. */
+export const EXPORTS_POWERED_BY_URL = PUBLIC_FRONTEND_URL
 
 /** Verbatim caveat copy for AI-derived columns. Used by both the on-screen
  * tooltip indicator and the exported workbook's disclaimer row so they

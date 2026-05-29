@@ -5,6 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { getPersonaEmail } from '@/lib/persona'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_DEMO_BRAND_NAME ?? 'Demo Brand'
+// Deliberately not coupled to @customerEQ/shared — demo simulates a 3rd-party
+// storefront with zero workspace deps (see account/page.tsx note).
 const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 interface Question {

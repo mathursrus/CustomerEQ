@@ -4,9 +4,16 @@
 // ready-to-paste code snippets. Scoped to the authenticated brand.
 
 import type { FastifyPluginAsync } from 'fastify'
+import { PUBLIC_API_URL, PUBLIC_ADMIN_UI_URL } from '@customerEQ/shared'
 
-const API_BASE_URL = process.env.API_BASE_URL ?? 'https://api.customerEQ.io'
-const WEB_BASE_URL = process.env.ADMIN_UI_BASE_URL ?? 'http://localhost:3000'
+// Issue #540 — These previously defaulted to `https://api.customerEQ.io`
+// (a non-existent host) and `http://localhost:3000` (a localhost URL
+// shipped into operator-facing production copy). Prod env vars are not
+// always set, so the page rendered the wrong URLs on every load. Fallback
+// to the in-repo canonical constants so the operator-visible values are
+// always correct, with the env vars as per-deploy override.
+const API_BASE_URL = process.env.API_BASE_URL ?? PUBLIC_API_URL
+const WEB_BASE_URL = process.env.ADMIN_UI_BASE_URL ?? PUBLIC_ADMIN_UI_URL
 
 const developerRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/developer/config', async (request) => {

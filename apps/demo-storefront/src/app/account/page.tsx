@@ -5,6 +5,10 @@ import Link from 'next/link'
 import { getPersonaEmail, getPersona } from '@/lib/persona'
 import type { MemberData } from '@/app/api/storefront/member/route'
 
+// Note: demo-storefront simulates a 3rd-party customer storefront and
+// deliberately has zero workspace dependencies. The literal here is the
+// admin landing URL for the customer-facing portion of the demo flow;
+// it is NOT coupled to packages/shared/PUBLIC_FRONTEND_URL on purpose.
 const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 const TIER_THRESHOLDS = [

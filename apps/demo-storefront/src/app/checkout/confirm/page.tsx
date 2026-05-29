@@ -7,6 +7,8 @@ import { getCart, clearCart, type CartItem } from '@/lib/cart'
 import { getPersonaEmail } from '@/lib/persona'
 import type { CheckoutResult } from '@/app/api/storefront/checkout/route'
 
+// Deliberately not coupled to @customerEQ/shared — demo simulates a 3rd-party
+// storefront with zero workspace deps (see account/page.tsx note).
 const ADMIN_URL = process.env.NEXT_PUBLIC_DEMO_WEB_URL ?? 'https://customereq.wellnessatwork.me'
 
 type State =
