@@ -173,7 +173,7 @@ export async function dispatchManagedEmailSend(
   }
 
   const composer = batch.composerSnapshot as unknown as ComposerSnapshotJson
-  const frontendBaseUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? process.env.FRONTEND_URL ?? 'https://app.customereq.example').replace(/\/$/, '')
+  const frontendBaseUrl = resolveFrontendBaseUrl()
 
   // 4. Resolve URLs from payload-supplied plaintext tokens. The retry-failed
   //    fallback below preserves the previous (broken) behavior rather than
@@ -294,9 +294,36 @@ async function markFailed(batchId: string, memberId: string, failureReason: Mana
   })
 }
 
+/**
+ * Issue #540 F1 — Resolve the public frontend base URL used to build
+ * recipient-facing survey + unsubscribe links.
+ *
+ * Precedence: NEXT_PUBLIC_FRONTEND_URL > FRONTEND_URL. If neither is set
+ * (or both are empty), this THROWS at first use so the misconfiguration
+ * is loud — the previous behavior silently fell through to a placeholder
+ * (`https://app.customereq.example`) and shipped that host into every
+ * recipient's inbox (production incident 2026-05-28 — the
+ * `customereq-worker` Container App had no FRONTEND env var set).
+ *
+ * Resolved lazily (per call, not at module load) so tests can manipulate
+ * env vars per-case without re-importing the module.
+ */
+function resolveFrontendBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL
+  if (!raw) {
+    throw new Error(
+      'managed-email worker: NEXT_PUBLIC_FRONTEND_URL (or FRONTEND_URL) must be set ' +
+        'so recipient links resolve to the brand-public origin. Refusing to dispatch ' +
+        'with a placeholder host.',
+    )
+  }
+  return raw.replace(/\/$/, '')
+}
+
 // Test-only exports
 export const __testing__ = {
   checkSuppression,
   classifyError,
+  resolveFrontendBaseUrl,
   SKIP_REASONS,
 }

@@ -304,6 +304,117 @@ describe('POST /v1/surveys/:id/distribution-batches with pre-resolved memberIds 
   })
 })
 
+// Issue #540 F3 — Survey.sentCount must reflect both MANAGED_EMAIL and
+// SELF_SERVE recipients on the survey-detail "Survey Sent: N" header. The
+// pre-fix behavior counted only managed-email deliveries plus self-serve
+// batches whose operator had explicitly hit mark-csv-downloaded (often never
+// fires). Loop Monitor is the reference: "sent" = recipients the operator
+// committed to sending, regardless of channel.
+describe('Survey.sentCount semantics across send modes (#540 F3)', () => {
+  beforeEach(async () => {
+    await seedTestDb()
+  })
+
+  it('SELF_SERVE batch create bumps Survey.sentCount by minted recipients immediately', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    for (let i = 0; i < 3; i++) await createMember({ brandId: brand.id })
+
+    const before = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    expect(before.sentCount).toBe(0)
+
+    const request = authenticatedRequest(brand.id)
+    const res = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2 self-serve wave',
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 3 },
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.tokenCount).toBe(3)
+
+    const after = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    // Pre-fix: sentCount stays at 0 until operator hits mark-csv-downloaded.
+    // Post-fix: bumped at mint time so the Survey Sent: N header shows the
+    // SELF_SERVE recipients without operator action.
+    expect(after.sentCount).toBe(3)
+  })
+
+  it('mark-csv-downloaded does NOT double-bump Survey.sentCount after the mint-time bump', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    for (let i = 0; i < 4; i++) await createMember({ brandId: brand.id })
+
+    const request = authenticatedRequest(brand.id)
+    const gen = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      surveyNameInMail: 'Q2 self-serve wave',
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 4 },
+    })
+    expect(gen.status).toBe(201)
+
+    const afterMint = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    expect(afterMint.sentCount).toBe(4)
+
+    const mark = await request
+      .post(`/v1/surveys/${survey.id}/distribution-batches/${gen.body.batchId}/mark-csv-downloaded`)
+      .send({})
+    expect(mark.status).toBe(200)
+
+    const afterMark = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    // Audit timestamp (sentAt) still gets recorded by mark-csv-downloaded;
+    // the bump moved to mint time so the count must stay at 4, not jump to 8.
+    expect(afterMark.sentCount).toBe(4)
+  })
+
+  it('MANAGED_EMAIL batch create does NOT bump Survey.sentCount at mint time (per-delivery semantics preserved)', async () => {
+    const prisma = getTestPrisma()
+    const brand = await createBrand()
+    const program = await createProgram({ brandId: brand.id })
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    await createMember({ brandId: brand.id, email: 'recipient@example.com', consentGivenAt: new Date() })
+
+    const request = authenticatedRequest(brand.id)
+    const res = await request.post(`/v1/surveys/${survey.id}/distribution-batches`).send({
+      sendMode: 'MANAGED_EMAIL',
+      surveyNameInMail: 'Q2 managed wave',
+      expiresAt: new Date(Date.now() + 1e7).toISOString(),
+      audience: { mode: 'existing_members', strategy: 'count', value: 1 },
+      composer: {
+        senderName: 'Acme CX Team',
+        senderAlias: 'feedback',
+        subject: 'Quick question: Q2',
+        body: 'Hi {{first_name}}, please respond at {{survey_link}}',
+      },
+    })
+    expect(res.status).toBe(201)
+
+    const afterMint = await prisma.survey.findUniqueOrThrow({
+      where: { id: survey.id },
+      select: { sentCount: true },
+    })
+    // MANAGED_EMAIL still bumps per-delivery via the worker's markDelivered.
+    // Mint time alone must not bump; otherwise the integration tests that
+    // exercise the full mint → deliver path would double-count.
+    expect(afterMint.sentCount).toBe(0)
+  })
+})
+
 describe('GET /v1/surveys/:id/distribution-batches (list)', () => {
   beforeEach(async () => {
     await seedTestDb()

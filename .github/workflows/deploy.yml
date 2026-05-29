@@ -276,6 +276,19 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.REGISTRY }}/customereq-worker:${{ github.event.workflow_run.head_sha || github.sha }}
 
+      # Issue #540 — Public frontend origin that the worker substitutes into
+      # {{survey_link}} / unsubscribe URLs in dispatched emails. Worker now
+      # throws if this is unset (no placeholder fallback), so this MUST run
+      # on every deploy to keep the worker dispatchable. Plain env var, not a
+      # secret — same pattern as the API SUPPORT_EMAIL step above.
+      - name: Set Worker non-secret env vars
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          az containerapp update \
+            --name customereq-worker \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --set-env-vars NEXT_PUBLIC_FRONTEND_URL=https://customereq.wellnessatwork.me
+
       - name: Deploy Web
         if: steps.changes.outputs.build == 'true'
         run: |

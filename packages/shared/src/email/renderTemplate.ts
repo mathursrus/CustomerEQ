@@ -83,8 +83,14 @@ export function renderEmailHtml(theme: BrandThemeSnapshot, composer: ComposerSna
   // standalone token in the body becomes a working link (was previously bare
   // URL text — recipient saw the URL but couldn't click it in many email
   // clients that don't auto-linkify).
+  // Issue #540 F2 — Outlook desktop's Word renderer ignores inline CSS
+  // max-* properties on <img>; only the HTML width attribute is honored.
+  // Combine: explicit width="200" attribute (Outlook scaler) + width:100%
+  // (modern clients use the CSS box up to max-width) + height:auto
+  // (preserves aspect ratio — resize, not crop) + max-height (upper bound
+  // for wide-short logos in CSS-respecting clients).
   const brandLogoFragment = composer.brandLogoUrl
-    ? `<img src="${escapeHtml(composer.brandLogoUrl)}" alt="${escapeHtml(composer.brandName)}" style="max-height: 60px; max-width: 200px; border: 0; vertical-align: middle;" />`
+    ? `<img src="${escapeHtml(composer.brandLogoUrl)}" alt="${escapeHtml(composer.brandName)}" width="200" style="max-width: 200px; max-height: 60px; width: 100%; height: auto; border: 0; vertical-align: middle; display: block;" />`
     : ''
   const brandNameFragment = `<span style="color: ${theme.primaryColor}; font-weight: 600; font-family: ${theme.fontFamily}, system-ui, -apple-system, sans-serif;">${escapeHtml(composer.brandName)}</span>`
   const surveyLinkAnchor = `<a href="${escapeHtml(composer.surveyLink)}" style="color: ${theme.accentColor}; text-decoration: underline;">${escapeHtml(composer.surveyLink)}</a>`

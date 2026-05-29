@@ -123,6 +123,25 @@ describe('renderEmailHtml — brand logo handling (G4/G7 — only via mustache)'
     expect(html).not.toContain('<script>')
     expect(html).toContain('&quot;&gt;&lt;script&gt;')
   })
+
+  // Issue #540 F2 — Outlook desktop's Word renderer ignores inline CSS
+  // max-width / max-height. The fix adds an explicit `width="..."` HTML
+  // attribute (Outlook's only honored sizer for <img>) plus `height:auto`
+  // inline so aspect ratio is preserved (resize, not crop) in all clients.
+  it('emits a width HTML attribute (Outlook respects this; ignores inline max-width)', () => {
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo })
+    expect(html).toMatch(/<img[^>]*\swidth="\d+"/)
+  })
+
+  it('preserves aspect ratio via inline height:auto so large logos resize, not crop', () => {
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo })
+    expect(html).toMatch(/<img[^>]*height\s*:\s*auto/)
+  })
+
+  it('keeps max-height as the CSS-respecting upper bound for very wide-short logos', () => {
+    const html = renderEmailHtml(defaultTheme, { ...baseComposer, bodyHtml: bodyWithLogo })
+    expect(html).toContain('max-height: 60px')
+  })
 })
 
 describe('rewriteLinksWithAccent (idempotency rule)', () => {
