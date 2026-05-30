@@ -186,6 +186,27 @@ export default function TokenizedSurveyPage() {
   }
 
   if (!form.resolvedSurvey || !form.brandLite) {
+    // Issue #543 F2 — the fall-through is reachable in two distinct states:
+    //   (a) genuine fetch failure — `form.error` / `form.loadError` populated.
+    //   (b) transient render after `tokenState` flips to 'valid' (the form
+    //       just became enabled) and before the hook's data-fetch useEffect
+    //       fires (setting loading=true). In this window: loading=false,
+    //       resolvedSurvey=null, brandLite=null, error=null, loadError=null.
+    // Pre-fix the page rendered the red error card for BOTH — flashing a
+    // scary "Failed to load survey" for ~50–200ms at every respondent.
+    // The inner guard routes (b) back to the Loading state; (a) keeps
+    // the existing error-card render. Locked by
+    // page.loading-vs-error.test.tsx.
+    if (!form.error && !form.loadError) {
+      return (
+        <main className="max-w-2xl mx-auto px-6 py-12">
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white text-center">
+            <p className="p-8 text-gray-500">Loading…</p>
+            <PoweredByFooter variant="neutral" channel="link" />
+          </div>
+        </main>
+      )
+    }
     return (
       <main className="max-w-2xl mx-auto px-6 py-12">
         <div className="overflow-hidden rounded-lg border border-red-200 bg-red-50 text-center">
