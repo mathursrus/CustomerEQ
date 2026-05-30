@@ -312,7 +312,7 @@ test.describe('Admin Organization Settings — /admin/settings/organization', ()
     await page.locator('#s-members').getByRole('button', { name: /save member|save identification/i }).click()
 
     // The error surface must show the lock message — assert by a stable substring.
-    await expect(page.getByText(/cannot be changed|locked|already enrolled/i)).toBeVisible()
+    await expect(page.locator('#s-members').getByText(/cannot be changed|locked|already enrolled/i).last()).toBeVisible()
   })
 
   test('6. Brand-name change writes Brand.name only — Identity renders TWO name surfaces; PATCH carries Brand.name only', async ({

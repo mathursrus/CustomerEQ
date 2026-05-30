@@ -23,7 +23,14 @@ import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+})
 
 const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
 const AUTH_TIMEOUT_MS = 30_000

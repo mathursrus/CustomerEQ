@@ -127,7 +127,7 @@ test.describe('Admin survey detail page — /admin/surveys/[id]', () => {
     await page.goto(`/admin/surveys/${SURVEY_ID}`)
 
     // Breadcrumb back-link
-    await expect(page.getByRole('link', { name: 'Surveys' })).toBeVisible()
+    await expect(page.getByLabel('Breadcrumb').getByRole('link', { name: 'Surveys' })).toBeVisible()
     // h1 with survey name
     await expect(page.getByRole('heading', { level: 1, name: MOCK_SURVEY_BASE.name })).toBeVisible()
     // Status badge

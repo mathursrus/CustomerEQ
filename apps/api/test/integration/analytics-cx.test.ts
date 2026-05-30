@@ -45,17 +45,18 @@ describe('Analytics CX — NPS, sentiment, clusters, anomalies', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // 2. Missing date params returns 422
+  // 2. Missing date params defaults to an unbounded all-time view
   // ---------------------------------------------------------------------------
 
-  it('returns 422 when startDate/endDate are missing', async () => {
+  it('returns all-time CX metrics when startDate/endDate are missing', async () => {
     const brand = await createBrand()
     const request = authenticatedRequest(brand.id)
 
     const res = await request.get('/v1/analytics/cx')
 
-    expect(res.status).toBe(422)
-    expect(res.body.error).toMatch(/validation/i)
+    expect(res.status).toBe(200)
+    expect(res.body.totalResponses).toBe(0)
+    expect(res.body.dateRange).toBeNull()
   })
 
   // ---------------------------------------------------------------------------
