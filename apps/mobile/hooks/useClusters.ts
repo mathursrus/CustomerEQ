@@ -39,7 +39,7 @@ export function mapCluster(raw: Record<string, unknown>): Cluster {
     id: String(raw.id ?? ''),
     label: String(raw.label ?? 'Untitled cluster'),
     description: typeof raw.description === 'string' ? raw.description : null,
-    responseCount: toNumber(raw.responseCount),
+    responseCount: toNumber(raw.responseCount ?? raw.count),
     trend: toNumber(raw.trend ?? raw.changePercent),
     avgSentiment: typeof raw.avgSentiment === 'number' ? raw.avgSentiment : null,
     trending: typeof raw.trending === 'string' ? raw.trending : null,
@@ -58,39 +58,34 @@ export function mapAnomaly(raw: Record<string, unknown>): Anomaly {
   }
 }
 
+export function mapAnalyticsPayload(payload: unknown): { clusters: Cluster[]; anomalies: Anomaly[] } {
+  return {
+    clusters: arrayFromEnvelope<Record<string, unknown>>(payload, 'clusters').map(mapCluster),
+    anomalies: arrayFromEnvelope<Record<string, unknown>>(payload, 'anomalies').map(mapAnomaly),
+  }
+}
+
 export function useClusters() {
   const { getToken, isSignedIn } = useAuth()
   const enabled = queryEnabled(isSignedIn ?? false)
 
-  const clusters = useQuery({
-    queryKey: ['clusters'],
+  const analytics = useQuery({
+    queryKey: ['cx-analytics'],
     enabled,
     queryFn: async () => {
       const headers = await apiHeaders(getToken)
-      const res = await fetch(`${API_URL}/v1/analytics/cx/clusters`, { headers })
-      if (!res.ok) throw new Error(`Clusters fetch failed: ${res.status}`)
+      const res = await fetch(`${API_URL}/v1/analytics/cx`, { headers })
+      if (!res.ok) throw new Error(`CX analytics fetch failed: ${res.status}`)
       const data = await res.json()
-      return arrayFromEnvelope<Record<string, unknown>>(data, 'clusters').map(mapCluster)
-    },
-  })
-
-  const anomalies = useQuery({
-    queryKey: ['anomalies'],
-    enabled,
-    queryFn: async () => {
-      const headers = await apiHeaders(getToken)
-      const res = await fetch(`${API_URL}/v1/analytics/cx/anomalies`, { headers })
-      if (!res.ok) throw new Error(`Anomalies fetch failed: ${res.status}`)
-      const data = await res.json()
-      return arrayFromEnvelope<Record<string, unknown>>(data, 'anomalies').map(mapAnomaly)
+      return mapAnalyticsPayload(data)
     },
   })
 
   return {
-    clusters: clusters.data ?? [],
-    anomaly: anomalies.data?.[0] ?? null,
-    isLoading: clusters.isLoading || anomalies.isLoading,
-    isError: clusters.isError || anomalies.isError,
-    error: clusters.error ?? anomalies.error,
+    clusters: analytics.data?.clusters ?? [],
+    anomaly: analytics.data?.anomalies[0] ?? null,
+    isLoading: analytics.isLoading,
+    isError: analytics.isError,
+    error: analytics.error,
   }
 }

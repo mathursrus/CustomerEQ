@@ -2,7 +2,23 @@
  * Unit tests for lib/api.ts pure helpers.
  * These run without React Native or env mocking — all inputs are explicit.
  */
-import { buildQueryEnabled, buildApiHeaders } from '../lib/api'
+import { buildQueryEnabled, buildApiHeaders, resolveDevBypass } from '../lib/api'
+
+describe('resolveDevBypass', () => {
+  it('allows dev bypass only in development', () => {
+    expect(resolveDevBypass('true', true)).toBe(true)
+    expect(resolveDevBypass(' true ', true)).toBe(true)
+  })
+
+  it('suppresses dev bypass in production bundles even when env is true', () => {
+    expect(resolveDevBypass('true', false)).toBe(false)
+  })
+
+  it('stays off when env is missing or false', () => {
+    expect(resolveDevBypass(undefined, true)).toBe(false)
+    expect(resolveDevBypass('false', true)).toBe(false)
+  })
+})
 
 describe('buildQueryEnabled', () => {
   it('returns true when devBypass is true, regardless of sign-in state', () => {

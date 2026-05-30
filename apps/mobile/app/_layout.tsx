@@ -22,6 +22,7 @@ import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { DEV_BYPASS } from '../lib/api'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,7 +33,6 @@ const queryClient = new QueryClient({
   },
 })
 
-const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
 const AUTH_TIMEOUT_MS = 30_000
 
 function AuthGate({ children }: { children: React.ReactNode }) {
