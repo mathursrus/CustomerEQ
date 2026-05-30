@@ -30,7 +30,12 @@ export function extractTextResponses(answers: Record<string, unknown> | Array<{ 
 
 export function mapResponseRow(r: {
   id: string; score: number | null; sentiment: number | string | null; completedAt: string | null
-  member?: { firstName?: string; lastName?: string; email?: string; identifierValue?: string } | null
+  member?: {
+    firstName?: string | null
+    lastName?: string | null
+    email?: string | null
+    identifierValue?: string | null
+  } | null
   textResponses?: Array<{ text: string }>
   answers?: Record<string, unknown> | Array<{ text?: string }>
   summary?: string | null; channel?: string | null

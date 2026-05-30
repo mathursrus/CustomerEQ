@@ -1,426 +1,462 @@
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput, ActivityIndicator, Alert } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useState, useEffect } from 'react'
-import { useSurveys, usePrograms, type SurveyQuestion, type CreateSurveyInput } from '../../hooks/useSurveys'
-import { useSurveyDetail, type ResponseFilters } from '../../hooks/useSurveyDetail'
+import { freshPresetFor, type SurveyType } from '../../../../packages/shared/src/surveyPresets'
+import { Chip, EmptyState, ErrorState, IconButton, LoadingBlock, ScreenHeader, colors, formatDate, statusColor } from '../../components/ui'
+import { type CreateSurveyInput, type Survey, type SurveyQuestion, usePrograms, useSurveys } from '../../hooks/useSurveys'
+import { type ResponseFilters, type Verbatim, useSurveyDetail } from '../../hooks/useSurveyDetail'
 
-const FILTERS = ['All', 'Active', 'Paused', 'Completed', 'Stopped'] as const
+const FILTERS = ['All', 'Draft', 'Active', 'Paused', 'Stopped'] as const
 type Filter = typeof FILTERS[number]
-const TYPE_COLORS: Record<string, string> = { NPS: '#4F46E5', CSAT: '#0ea5e9', STAR: '#f59e0b', CES: '#8b5cf6', CUSTOM: '#6b7280' }
+
+const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
+  NPS: { bg: colors.primarySoft, fg: colors.primary },
+  CSAT: { bg: colors.blueSoft, fg: colors.blue },
+  CES: { bg: colors.amberSoft, fg: colors.amber },
+  CUSTOM: { bg: '#f1f5f9', fg: colors.muted },
+}
 
 const RESPONSE_POLICIES = [
   { value: 'ONCE', label: 'Once', desc: 'One response per member' },
-  { value: 'MULTIPLE', label: 'Multiple', desc: 'Members can respond again' },
-  { value: 'LATEST_OVERWRITES', label: 'Latest wins', desc: 'New response replaces old' },
+  { value: 'MULTIPLE', label: 'Multiple', desc: 'Members can respond more than once' },
+  { value: 'LATEST_OVERWRITES', label: 'Latest wins', desc: 'Newest response replaces the prior one' },
 ] as const
 
-function defaultQuestions(type: string): SurveyQuestion[] {
-  if (type === 'NPS') return [
-    { id: 'q1', text: 'How likely are you to recommend us? (0–10)', type: 'rating', required: true, config: { min: 0, max: 10 } },
-    { id: 'q2', text: 'What stood out most? (optional)', type: 'text', required: false, config: {} },
-  ]
-  if (type === 'CSAT') return [
-    { id: 'q1', text: 'How satisfied were you? (1–5)', type: 'rating', required: true, config: { min: 1, max: 5 } },
-    { id: 'q2', text: 'Any comments? (optional)', type: 'text', required: false, config: {} },
-  ]
-  if (type === 'CES') return [
-    { id: 'q1', text: 'How easy was it to resolve your issue? (1–7)', type: 'rating', required: true, config: { min: 1, max: 7 } },
-    { id: 'q2', text: 'Anything else to share? (optional)', type: 'text', required: false, config: {} },
-  ]
-  return [{ id: 'q1', text: 'Your question here', type: 'text', required: true, config: {} }]
+function questionPreset(type: SurveyType): SurveyQuestion[] {
+  const preset = freshPresetFor(type)
+  if (preset.length === 0) {
+    return [{ id: `q_${Date.now()}`, text: 'What would you like to ask?', type: 'text', required: true, config: { multiline: true } }]
+  }
+  return preset.map((q) => ({
+    id: q.id,
+    text: q.text,
+    type: q.type as SurveyQuestion['type'],
+    required: q.required ?? true,
+    config: q.config ?? {},
+    isScoreField: q.isScoreField,
+  }))
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const tone = TYPE_COLORS[type] ?? TYPE_COLORS.CUSTOM
+  return (
+    <View style={[s.badge, { backgroundColor: tone.bg }]}>
+      <Text style={[s.badgeText, { color: tone.fg }]}>{type}</Text>
+    </View>
+  )
+}
+
+function SurveyCard({ survey, onPress }: { survey: Survey; onPress: () => void }) {
+  const status = statusColor(survey.status)
+  return (
+    <Pressable style={s.card} onPress={onPress}>
+      <View style={s.cardTop}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.cardTitle} numberOfLines={2}>{survey.title || survey.name || 'Untitled survey'}</Text>
+          {survey.name && survey.title && survey.name !== survey.title ? <Text style={s.cardSub} numberOfLines={1}>{survey.name}</Text> : null}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+      </View>
+      <View style={s.cardMeta}>
+        <TypeBadge type={survey.type} />
+        <View style={[s.badge, { backgroundColor: status.bg }]}>
+          <Text style={[s.badgeText, { color: status.fg }]}>{survey.status}</Text>
+        </View>
+      </View>
+      <View style={s.statLine}>
+        <View style={s.statItem}>
+          <Text style={s.statValue}>{survey.responseCount ?? 0}</Text>
+          <Text style={s.statLabel}>Responses</Text>
+        </View>
+        <View style={s.statItem}>
+          <Text style={s.statValue}>{survey.score != null ? survey.score.toFixed(1) : '--'}</Text>
+          <Text style={s.statLabel}>Avg score</Text>
+        </View>
+        <View style={s.statItem}>
+          <Text style={s.statValue}>{formatDate(survey.createdAt) || '--'}</Text>
+          <Text style={s.statLabel}>Created</Text>
+        </View>
+      </View>
+    </Pressable>
+  )
+}
+
+function ResponseCard({ response }: { response: Verbatim }) {
+  const sentimentTone = response.sentiment === 'positive'
+    ? { bg: colors.greenSoft, fg: colors.green }
+    : response.sentiment === 'negative'
+      ? { bg: colors.redSoft, fg: colors.red }
+      : { bg: colors.amberSoft, fg: colors.amber }
+
+  return (
+    <View style={s.responseCard}>
+      <View style={s.responseTop}>
+        <Text style={s.responseScore}>{response.score ?? '--'}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.responseMember} numberOfLines={1}>{response.memberName || response.memberEmail || 'Anonymous response'}</Text>
+          <Text style={s.responseDate}>{formatDate(response.completedAt)}{response.channel ? ` - ${response.channel}` : ''}</Text>
+        </View>
+        {response.sentiment ? (
+          <View style={[s.badge, { backgroundColor: sentimentTone.bg }]}>
+            <Text style={[s.badgeText, { color: sentimentTone.fg }]}>{response.sentiment}</Text>
+          </View>
+        ) : null}
+      </View>
+      {response.summary ? <Text style={s.responseSummary}>{response.summary}</Text> : null}
+      {response.textResponses.length > 0 ? (
+        response.textResponses.map((tr, index) => <Text key={`${response.id}-${index}`} style={s.responseText}>{tr.text}</Text>)
+      ) : (
+        <Text style={s.noText}>No written answer</Text>
+      )}
+    </View>
+  )
 }
 
 export default function SurveysScreen() {
   const insets = useSafeAreaInsets()
   const [filter, setFilter] = useState<Filter>('All')
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null)
-  const [selectedSurveyName, setSelectedSurveyName] = useState('')
-  const [step, setStep] = useState(1)
+  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null)
   const [detailPage, setDetailPage] = useState(1)
   const [detailFilters, setDetailFilters] = useState<ResponseFilters>({})
+  const [responses, setResponses] = useState<Verbatim[]>([])
 
-  // Create form state
+  const [step, setStep] = useState(1)
   const [surveyName, setSurveyName] = useState('')
   const [surveyTitle, setSurveyTitle] = useState('')
   const [surveyDesc, setSurveyDesc] = useState('')
-  const [surveyType, setSurveyType] = useState('NPS')
-  const [responsePolicy, setResponsePolicy] = useState<'ONCE' | 'MULTIPLE' | 'LATEST_OVERWRITES'>('ONCE')
-  const [questions, setQuestions] = useState<SurveyQuestion[]>(defaultQuestions('NPS'))
+  const [surveyType, setSurveyType] = useState<SurveyType>('NPS')
+  const [responsePolicy, setResponsePolicy] = useState<CreateSurveyInput['responsePolicy']>('ONCE')
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(questionPreset('NPS'))
   const [programId, setProgramId] = useState<string | undefined>()
-  const [editingQIdx, setEditingQIdx] = useState<number | null>(null)
-  const [editingQText, setEditingQText] = useState('')
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingText, setEditingText] = useState('')
 
-  const { data: surveys, isLoading, isError, createSurvey } = useSurveys()
+  const { data: surveys, isLoading, isError, error, refetch, createSurvey } = useSurveys()
   const { data: programs } = usePrograms()
-  const { data: detail, isLoading: detailLoading } = useSurveyDetail(selectedSurveyId, detailPage, detailFilters)
+  const { data: detail, isLoading: detailLoading, isError: detailError } = useSurveyDetail(selectedSurvey?.id ?? null, detailPage, detailFilters)
 
-  const filtered = filter === 'All' ? surveys : surveys.filter((s) => s.status?.toUpperCase() === filter.toUpperCase())
+  useEffect(() => {
+    if (!programId && programs?.[0]?.id) setProgramId(programs[0].id)
+  }, [programId, programs])
 
-  function selectType(t: string) {
-    setSurveyType(t)
-    setQuestions(defaultQuestions(t))
-  }
+  useEffect(() => {
+    if (!detail?.items) return
+    setResponses((prev) => detailPage === 1 ? detail.items : [...prev, ...detail.items.filter((next) => !prev.some((existing) => existing.id === next.id))])
+  }, [detail, detailPage])
 
-  function addQuestion() {
-    const newQ: SurveyQuestion = { id: `q${Date.now()}`, text: 'New question', type: 'text', required: false, config: {} }
-    setQuestions(prev => [...prev, newQ])
-  }
+  const filtered = useMemo(() => {
+    if (filter === 'All') return surveys
+    return surveys.filter((survey) => survey.status?.toUpperCase() === filter.toUpperCase())
+  }, [filter, surveys])
 
-  function removeQuestion(idx: number) {
-    setQuestions(prev => prev.filter((_, i) => i !== idx))
-  }
-
-  function saveQuestionText() {
-    if (editingQIdx === null) return
-    setQuestions(prev => prev.map((q, i) => i === editingQIdx ? { ...q, text: editingQText } : q))
-    setEditingQIdx(null)
-  }
+  const totalResponses = surveys.reduce((sum, survey) => sum + (survey.responseCount ?? 0), 0)
+  const activeCount = surveys.filter((survey) => survey.status === 'ACTIVE').length
 
   function resetCreate() {
-    setStep(1); setSurveyName(''); setSurveyTitle(''); setSurveyDesc('')
-    setSurveyType('NPS'); setResponsePolicy('ONCE')
-    setQuestions(defaultQuestions('NPS')); setProgramId(programs?.[0]?.id)
-    setEditingQIdx(null)
+    setStep(1)
+    setSurveyName('')
+    setSurveyTitle('')
+    setSurveyDesc('')
+    setSurveyType('NPS')
+    setResponsePolicy('ONCE')
+    setQuestions(questionPreset('NPS'))
+    setProgramId(programs?.[0]?.id)
+    setEditingIndex(null)
+    setEditingText('')
   }
 
-  async function handlePublish() {
-    if (!surveyName.trim()) { Alert.alert('Name required', 'Please enter a survey name.'); return }
-    if (questions.length === 0) { Alert.alert('Questions required', 'Add at least one question.'); return }
-    const payload: CreateSurveyInput = {
-      name: surveyName.trim(),
-      title: surveyTitle.trim() || surveyName.trim(),
-      description: surveyDesc.trim() || undefined,
-      type: surveyType,
-      programId: programId ?? programs?.[0]?.id,
-      responsePolicy,
-      questions,
+  function selectType(type: SurveyType) {
+    setSurveyType(type)
+    setQuestions(questionPreset(type))
+    setEditingIndex(null)
+  }
+
+  function openDetail(survey: Survey) {
+    setSelectedSurvey(survey)
+    setDetailPage(1)
+    setDetailFilters({})
+    setResponses([])
+  }
+
+  function updateDetailFilter(next: ResponseFilters) {
+    setDetailPage(1)
+    setResponses([])
+    setDetailFilters(next)
+  }
+
+  function saveQuestion() {
+    if (editingIndex === null) return
+    const text = editingText.trim()
+    if (!text) return
+    setQuestions((prev) => prev.map((q, index) => index === editingIndex ? { ...q, text } : q))
+    setEditingIndex(null)
+    setEditingText('')
+  }
+
+  function addTextQuestion() {
+    setQuestions((prev) => [...prev, { id: `q_${Date.now()}`, type: 'text', text: 'Anything else you would like us to know?', required: false, config: { multiline: true } }])
+  }
+
+  async function handleCreate() {
+    if (!surveyName.trim()) {
+      Alert.alert('Name required', 'Add an internal survey name before continuing.')
+      return
+    }
+    if (!programId) {
+      Alert.alert('Program required', 'Create a loyalty program before creating a survey.')
+      return
     }
     try {
-      await createSurvey.mutateAsync(payload)
+      await createSurvey.mutateAsync({
+        name: surveyName.trim(),
+        title: surveyTitle.trim() || surveyName.trim(),
+        description: surveyDesc.trim() || undefined,
+        type: surveyType,
+        programId,
+        responsePolicy,
+        questions,
+      })
       setCreateOpen(false)
       resetCreate()
     } catch (e) {
-      Alert.alert('Error', (e as Error).message ?? 'Failed to create survey')
+      Alert.alert('Survey not created', (e as Error).message)
     }
   }
-
-  function openDetail(id: string, name: string) {
-    setSelectedSurveyId(id)
-    setSelectedSurveyName(name)
-    setDetailPage(1)
-    setDetailFilters({})
-    setVerbatims([])
-  }
-
-  function toggleSentimentFilter(s: 'positive' | 'neutral' | 'negative') {
-    setDetailPage(1)
-    setVerbatims([])
-    setDetailFilters(prev => ({ ...prev, sentiment: prev.sentiment === s ? undefined : s }))
-  }
-
-  function toggleScoreFilter(band: 'promoter' | 'passive' | 'detractor') {
-    setDetailPage(1)
-    setVerbatims([])
-    setDetailFilters(prev => ({ ...prev, scoreBand: prev.scoreBand === band ? undefined : band }))
-  }
-
-  const [verbatims, setVerbatims] = useState<import('../../hooks/useSurveyDetail').Verbatim[]>([])
-  useEffect(() => {
-    if (detail?.items) {
-      setVerbatims(prev => detailPage === 1 ? detail.items : [...prev, ...detail.items])
-    }
-  }, [detail])
-  const hasMore = detail?.hasMore ?? false
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={s.title}>Surveys</Text>
-        <Pressable style={s.addBtn} onPress={() => { resetCreate(); setCreateOpen(true) }}>
-          <Text style={s.addBtnText}>+</Text>
-        </Pressable>
+    <View style={s.screen}>
+      <View style={{ paddingTop: insets.top }}>
+        <ScreenHeader
+          title="Surveys"
+          subtitle={`${activeCount} active - ${totalResponses} total responses`}
+          right={<IconButton name="add" label="Create survey" onPress={() => { resetCreate(); setCreateOpen(true) }} />}
+        />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-        {FILTERS.map((f) => (
-          <Pressable key={f} style={[s.chip, filter === f && s.chipActive]} onPress={() => setFilter(f)}>
-            <Text style={[s.chipText, filter === f && s.chipTextActive]}>{f}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-        {isLoading && <ActivityIndicator color="#4F46E5" />}
-        {isError && <Text style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: 14 }}>Unable to load surveys. Pull to refresh.</Text>}
-        {!isLoading && !isError && filtered.length === 0 && (
-          <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 32, fontSize: 14 }}>No surveys yet. Tap + to create one.</Text>
-        )}
-        {filtered.map((sv) => (
-          <Pressable key={sv.id} style={s.card} onPress={() => openDetail(sv.id, sv.name)}>
-            <View style={s.cardTop}>
-              <Text style={s.cardName}>{sv.title || sv.name || 'Untitled Survey'}</Text>
-              <View style={[s.typeBadge, { backgroundColor: TYPE_COLORS[sv.type] ?? '#6b7280' }]}>
-                <Text style={s.typeBadgeText}>{sv.type}</Text>
-              </View>
-            </View>
-            {sv.name !== sv.title && sv.title && <Text style={s.cardSubname}>{sv.name}</Text>}
-            <View style={s.cardMeta}>
-              <Text style={s.cardMetaText}>{sv.responseCount ?? 0} {(sv.responseCount ?? 0) === 1 ? 'response' : 'responses'}</Text>
-              <Text style={s.cardMetaText}>Score: {sv.score ?? '--'}</Text>
-              <View style={[s.statusChip, { backgroundColor: sv.status === 'ACTIVE' ? '#ecfdf5' : sv.status === 'PAUSED' ? '#fff7ed' : '#f3f4f6' }]}>
-                <Text style={[s.statusText, { color: sv.status === 'ACTIVE' ? '#059669' : sv.status === 'PAUSED' ? '#d97706' : '#6b7280' }]}>{sv.status}</Text>
-              </View>
-            </View>
-          </Pressable>
-        ))}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroller} contentContainerStyle={s.filterContent}>
+        {FILTERS.map((item) => <Chip key={item} label={item} active={filter === item} onPress={() => setFilter(item)} />)}
       </ScrollView>
 
-      {/* ── Survey Detail Modal ─────────────────────────────────────────── */}
-      <Modal visible={!!selectedSurveyId} animationType="slide" presentationStyle="pageSheet">
-        <View style={s.modal}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle} numberOfLines={1}>{selectedSurveyName}</Text>
-            <Pressable onPress={() => setSelectedSurveyId(null)}><Text style={s.closeBtn}>✕</Text></Pressable>
+      <ScrollView contentContainerStyle={s.content}>
+        {isLoading ? <LoadingBlock label="Loading surveys" /> : null}
+        {isError ? <ErrorState message={(error as Error | null)?.message ?? 'Unable to load surveys.'} onRetry={() => refetch()} /> : null}
+        {!isLoading && !isError && filtered.length === 0 ? (
+          <EmptyState icon="clipboard-outline" title="No surveys here" body={filter === 'All' ? 'Create a survey to start collecting CX signals.' : `No ${filter.toLowerCase()} surveys match this view.`} />
+        ) : null}
+        {filtered.map((survey) => <SurveyCard key={survey.id} survey={survey} onPress={() => openDetail(survey)} />)}
+      </ScrollView>
+
+      {selectedSurvey ? (
+        <View style={s.overlay}>
+          <View style={[s.sheetHeader, { paddingTop: insets.top + 12 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.sheetTitle} numberOfLines={1}>{selectedSurvey?.title || selectedSurvey?.name}</Text>
+              <Text style={s.sheetSub}>{detail?.total ?? selectedSurvey?.responseCount ?? 0} responses</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close survey responses" onPress={() => setSelectedSurvey(null)} style={s.closeButton}>
+              <Ionicons name="close" size={20} color={colors.muted} />
+            </Pressable>
           </View>
-          {/* Filters */}
-          <View style={{ padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', gap: 8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {(['positive', 'neutral', 'negative'] as const).map(s2 => (
-                <Pressable key={s2} style={[s.chip, detailFilters.sentiment === s2 && s.chipActive]} onPress={() => toggleSentimentFilter(s2)}>
-                  <Text style={[s.chipText, detailFilters.sentiment === s2 && s.chipTextActive]}>{s2}</Text>
-                </Pressable>
+
+          <View style={s.detailFilters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+              {(['positive', 'neutral', 'negative'] as const).map((sentiment) => (
+                <Chip key={sentiment} label={sentiment} active={detailFilters.sentiment === sentiment} onPress={() => updateDetailFilter({ ...detailFilters, sentiment: detailFilters.sentiment === sentiment ? undefined : sentiment })} />
               ))}
-              <View style={{ width: 1, backgroundColor: '#e5e7eb', marginHorizontal: 4 }} />
-              {(['promoter', 'passive', 'detractor'] as const).map(b => (
-                <Pressable key={b} style={[s.chip, detailFilters.scoreBand === b && s.chipActive]} onPress={() => toggleScoreFilter(b)}>
-                  <Text style={[s.chipText, detailFilters.scoreBand === b && s.chipTextActive]}>{b}</Text>
-                </Pressable>
+              {(['promoter', 'passive', 'detractor'] as const).map((scoreBand) => (
+                <Chip key={scoreBand} label={scoreBand} active={detailFilters.scoreBand === scoreBand} onPress={() => updateDetailFilter({ ...detailFilters, scoreBand: detailFilters.scoreBand === scoreBand ? undefined : scoreBand })} />
               ))}
             </ScrollView>
           </View>
-          <ScrollView style={s.modalBody}>
-            {detail?.total != null && (
-              <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{detail.total} total {detail.total === 1 ? 'response' : 'responses'}</Text>
-            )}
-            {detailLoading && detailPage === 1 && <ActivityIndicator color="#4F46E5" style={{ marginTop: 20 }} />}
-            {verbatims.length === 0 && !detailLoading && (
-              <Text style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>No responses match the current filters.</Text>
-            )}
-            {verbatims.map((v, i) => (
-              <View key={v.id ?? i} style={s.verbatimCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                  {v.score !== null && <Text style={{ fontSize: 22, fontWeight: '800', color: '#4F46E5' }}>{v.score}</Text>}
-                  {v.sentiment && (
-                    <View style={[s.sentimentChip, { backgroundColor: v.sentiment === 'positive' ? '#ecfdf5' : v.sentiment === 'negative' ? '#fef2f2' : '#f3f4f6' }]}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: v.sentiment === 'positive' ? '#059669' : v.sentiment === 'negative' ? '#dc2626' : '#6b7280' }}>{v.sentiment}</Text>
-                    </View>
-                  )}
-                  {v.channel && (
-                    <View style={[s.sentimentChip, { backgroundColor: '#f0f9ff' }]}>
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#0284c7' }}>{v.channel}</Text>
-                    </View>
-                  )}
-                  {v.memberName && <Text style={{ fontSize: 12, color: '#6b7280' }}>{v.memberName}</Text>}
-                  {v.completedAt && <Text style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(v.completedAt).toLocaleDateString()}</Text>}
-                </View>
-                {v.summary && <Text style={[s.verbatimText, { color: '#374151', marginBottom: 4 }]}>{v.summary}</Text>}
-                {v.textResponses?.map((tr, j) => (
-                  tr.text ? <Text key={j} style={s.verbatimText}>&ldquo;{tr.text}&rdquo;</Text> : null
-                ))}
-                {!v.summary && (!v.textResponses || v.textResponses.length === 0) && (
-                  <Text style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No text response</Text>
-                )}
-              </View>
-            ))}
-            {hasMore && (
-              <Pressable style={[s.nextBtn, { marginTop: 8, backgroundColor: '#f3f4f6' }]} onPress={() => setDetailPage(p => p + 1)} disabled={detailLoading}>
-                {detailLoading ? <ActivityIndicator color="#4F46E5" /> : <Text style={[s.nextBtnText, { color: '#374151' }]}>Load more</Text>}
+
+          <ScrollView contentContainerStyle={s.content}>
+            {detailLoading && detailPage === 1 ? <LoadingBlock label="Loading responses" /> : null}
+            {detailError ? <ErrorState message="Unable to load survey responses." /> : null}
+            {!detailLoading && !detailError && responses.length === 0 ? (
+              <EmptyState icon="document-text-outline" title="No matching responses" body="Change the filters or wait for new responses to arrive." />
+            ) : null}
+            {responses.map((response) => <ResponseCard key={response.id} response={response} />)}
+            {detail?.hasMore ? (
+              <Pressable style={s.loadMoreButton} onPress={() => setDetailPage((page) => page + 1)} disabled={detailLoading}>
+                {detailLoading ? <ActivityIndicator color={colors.primary} /> : <Text style={s.loadMoreText}>Load more</Text>}
               </Pressable>
-            )}
+            ) : null}
           </ScrollView>
         </View>
-      </Modal>
+      ) : null}
 
-      {/* ── Create Survey Modal ─────────────────────────────────────────── */}
-      <Modal visible={createOpen} animationType="slide" presentationStyle="pageSheet">
-        <View style={s.modal}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>{step === 1 ? 'New Survey' : step === 2 ? 'Questions' : 'Review & Publish'}</Text>
-            <Pressable onPress={() => setCreateOpen(false)}><Text style={s.closeBtn}>✕</Text></Pressable>
-          </View>
-          <View style={s.stepDots}>
-            {[1,2,3].map((i) => <View key={i} style={[s.dot, step === i && s.dotActive]} />)}
+      {createOpen ? (
+        <View style={s.overlay}>
+          <View style={[s.sheetHeader, { paddingTop: insets.top + 12 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.sheetTitle}>{step === 1 ? 'New survey' : step === 2 ? 'Questions' : 'Review'}</Text>
+              <Text style={s.sheetSub}>Step {step} of 3</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close survey creator" onPress={() => setCreateOpen(false)} style={s.closeButton}>
+              <Ionicons name="close" size={20} color={colors.muted} />
+            </Pressable>
           </View>
 
-          {/* ── Step 1: Basics ── */}
-          {step === 1 && (
-            <ScrollView style={s.modalBody}>
-              <Text style={s.formLabel}>Internal Name *</Text>
-              <TextInput style={s.formInput} placeholder="e.g. Post-Purchase NPS Q2" value={surveyName} onChangeText={setSurveyName} />
-              <Text style={s.formLabel}>Title (shown to respondents)</Text>
-              <TextInput style={s.formInput} placeholder="e.g. Tell us about your experience" value={surveyTitle} onChangeText={setSurveyTitle} />
-              <Text style={s.formLabel}>Description (internal notes)</Text>
-              <TextInput style={[s.formInput, { height: 70 }]} placeholder="Optional context for your team" value={surveyDesc} onChangeText={setSurveyDesc} multiline />
-              <Text style={s.formLabel}>Survey Type *</Text>
-              <View style={s.typeGrid}>
-                {['NPS', 'CSAT', 'CES', 'CUSTOM'].map((t) => (
-                  <Pressable key={t} style={[s.typeOpt, surveyType === t && s.typeOptSel]} onPress={() => selectType(t)}>
-                    <Text style={[s.typeOptText, surveyType === t && s.typeOptTextSel]}>{t}</Text>
+          {step === 1 ? (
+            <ScrollView contentContainerStyle={s.formContent}>
+              <Text style={s.label}>Internal name</Text>
+              <TextInput style={s.input} placeholder="Q3 post-purchase NPS" value={surveyName} onChangeText={setSurveyName} />
+              <Text style={s.label}>Respondent title</Text>
+              <TextInput style={s.input} placeholder="Tell us about your experience" value={surveyTitle} onChangeText={setSurveyTitle} />
+              <Text style={s.label}>Description</Text>
+              <TextInput style={[s.input, s.textArea]} placeholder="Optional internal notes" value={surveyDesc} onChangeText={setSurveyDesc} multiline textAlignVertical="top" />
+              <Text style={s.label}>Survey type</Text>
+              <View style={s.optionGrid}>
+                {(['NPS', 'CSAT', 'CES', 'CUSTOM'] as SurveyType[]).map((type) => (
+                  <Pressable key={type} style={[s.typeOption, surveyType === type && s.typeOptionActive]} onPress={() => selectType(type)}>
+                    <Text style={[s.typeOptionText, surveyType === type && s.typeOptionTextActive]}>{type}</Text>
                   </Pressable>
                 ))}
               </View>
-              <Text style={s.formLabel}>Response Policy</Text>
-              {RESPONSE_POLICIES.map((p) => (
-                <Pressable key={p.value} style={[s.policyOpt, responsePolicy === p.value && s.policyOptSel]} onPress={() => setResponsePolicy(p.value)}>
-                  <Text style={[s.policyLabel, responsePolicy === p.value && s.policyLabelSel]}>{p.label}</Text>
-                  <Text style={s.policyDesc}>{p.desc}</Text>
+              <Text style={s.label}>Response policy</Text>
+              {RESPONSE_POLICIES.map((policy) => (
+                <Pressable key={policy.value} style={[s.policyOption, responsePolicy === policy.value && s.policyOptionActive]} onPress={() => setResponsePolicy(policy.value)}>
+                  <Text style={s.policyTitle}>{policy.label}</Text>
+                  <Text style={s.policyDesc}>{policy.desc}</Text>
                 </Pressable>
               ))}
-              {programs && programs.length > 1 && (
+              {programs && programs.length > 1 ? (
                 <>
-                  <Text style={s.formLabel}>Program</Text>
-                  <View style={s.typeGrid}>
-                    {programs.map(p => (
-                      <Pressable key={p.id} style={[s.typeOpt, programId === p.id && s.typeOptSel]} onPress={() => setProgramId(p.id)}>
-                        <Text style={[s.typeOptText, { fontSize: 13 }, programId === p.id && s.typeOptTextSel]}>{p.name}</Text>
+                  <Text style={s.label}>Program</Text>
+                  <View style={s.optionGrid}>
+                    {programs.map((program) => (
+                      <Pressable key={program.id} style={[s.programOption, programId === program.id && s.typeOptionActive]} onPress={() => setProgramId(program.id)}>
+                        <Text style={[s.programText, programId === program.id && s.typeOptionTextActive]} numberOfLines={1}>{program.name}</Text>
                       </Pressable>
                     ))}
                   </View>
                 </>
-              )}
-              <Pressable style={[s.nextBtn, !surveyName.trim() && s.nextBtnDisabled]} onPress={() => surveyName.trim() && setStep(2)}>
-                <Text style={s.nextBtnText}>Next: Questions →</Text>
+              ) : null}
+              <Pressable style={[s.primaryButton, !surveyName.trim() && s.disabled]} disabled={!surveyName.trim()} onPress={() => setStep(2)}>
+                <Text style={s.primaryText}>Next: questions</Text>
               </Pressable>
             </ScrollView>
-          )}
+          ) : null}
 
-          {/* ── Step 2: Question Editor ── */}
-          {step === 2 && (
-            <ScrollView style={s.modalBody}>
-              {editingQIdx !== null ? (
+          {step === 2 ? (
+            <ScrollView contentContainerStyle={s.formContent}>
+              {editingIndex !== null ? (
                 <View>
-                  <Text style={s.formLabel}>Edit question text</Text>
-                  <TextInput style={[s.formInput, { height: 80 }]} value={editingQText} onChangeText={setEditingQText} multiline autoFocus />
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                    <Pressable style={[s.nextBtn, { flex: 1 }]} onPress={saveQuestionText}><Text style={s.nextBtnText}>Save</Text></Pressable>
-                    <Pressable style={[s.nextBtn, { flex: 1, backgroundColor: '#f3f4f6' }]} onPress={() => setEditingQIdx(null)}><Text style={[s.nextBtnText, { color: '#374151' }]}>Cancel</Text></Pressable>
+                  <Text style={s.label}>Question text</Text>
+                  <TextInput style={[s.input, s.textArea]} value={editingText} onChangeText={setEditingText} multiline autoFocus textAlignVertical="top" />
+                  <View style={s.buttonRow}>
+                    <Pressable style={[s.primaryButton, { flex: 1 }]} onPress={saveQuestion}><Text style={s.primaryText}>Save</Text></Pressable>
+                    <Pressable style={[s.secondaryButton, { flex: 1 }]} onPress={() => setEditingIndex(null)}><Text style={s.secondaryText}>Cancel</Text></Pressable>
                   </View>
                 </View>
               ) : (
                 <>
-                  <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{questions.length} question{questions.length !== 1 ? 's' : ''} — tap to edit text</Text>
-                  {questions.map((q, i) => (
-                    <Pressable key={q.id} style={s.qCard} onPress={() => { setEditingQIdx(i); setEditingQText(q.text) }}>
-                      <View style={s.qNum}><Text style={s.qNumText}>{i+1}</Text></View>
+                  {questions.map((question, index) => (
+                    <Pressable key={question.id} style={s.questionCard} onPress={() => { setEditingIndex(index); setEditingText(question.text) }}>
+                      <View style={s.questionNumber}><Text style={s.questionNumberText}>{index + 1}</Text></View>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.qText}>{q.text}</Text>
-                        <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{q.type}{q.required ? ' · required' : ' · optional'}</Text>
+                        <Text style={s.questionText}>{question.text}</Text>
+                        <Text style={s.questionMeta}>{question.type}{question.required ? ' - required' : ' - optional'}{question.isScoreField ? ' - score field' : ''}</Text>
                       </View>
-                      {!q.required && (
-                        <Pressable onPress={() => removeQuestion(i)} hitSlop={12}>
-                          <Text style={{ color: '#dc2626', fontSize: 18, paddingHorizontal: 6 }}>✕</Text>
+                      {!question.required ? (
+                        <Pressable accessibilityLabel="Remove question" onPress={() => setQuestions((prev) => prev.filter((_, i) => i !== index))} hitSlop={12}>
+                          <Ionicons name="trash-outline" size={18} color={colors.red} />
                         </Pressable>
-                      )}
+                      ) : null}
                     </Pressable>
                   ))}
-                  <Pressable style={[s.nextBtn, { backgroundColor: '#f3f4f6', marginTop: 4 }]} onPress={addQuestion}>
-                    <Text style={[s.nextBtnText, { color: '#374151' }]}>+ Add Open-Text Question</Text>
-                  </Pressable>
-                  <Pressable style={[s.nextBtn, { marginTop: 10 }]} onPress={() => setStep(3)}>
-                    <Text style={s.nextBtnText}>Preview →</Text>
-                  </Pressable>
-                  <Pressable style={[s.nextBtn, { backgroundColor: '#f3f4f6', marginTop: 8 }]} onPress={() => setStep(1)}>
-                    <Text style={[s.nextBtnText, { color: '#374151' }]}>← Back to Basics</Text>
-                  </Pressable>
+                  <Pressable style={s.secondaryButton} onPress={addTextQuestion}><Text style={s.secondaryText}>Add open-text question</Text></Pressable>
+                  <View style={s.buttonRow}>
+                    <Pressable style={[s.secondaryButton, { flex: 1 }]} onPress={() => setStep(1)}><Text style={s.secondaryText}>Back</Text></Pressable>
+                    <Pressable style={[s.primaryButton, { flex: 1 }]} onPress={() => setStep(3)}><Text style={s.primaryText}>Review</Text></Pressable>
+                  </View>
                 </>
               )}
             </ScrollView>
-          )}
+          ) : null}
 
-          {/* ── Step 3: Preview + Publish ── */}
-          {step === 3 && (
-            <ScrollView style={s.modalBody}>
+          {step === 3 ? (
+            <ScrollView contentContainerStyle={s.formContent}>
               <View style={s.previewCard}>
-                <Text style={s.previewTitle}>{surveyTitle || surveyName || 'Untitled'}</Text>
-                {surveyTitle && surveyTitle !== surveyName && <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>Internal: {surveyName}</Text>}
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <View style={[s.typeBadge, { backgroundColor: TYPE_COLORS[surveyType] ?? '#6b7280' }]}>
-                    <Text style={s.typeBadgeText}>{surveyType}</Text>
-                  </View>
-                  <View style={s.chip}><Text style={s.chipText}>{responsePolicy.replace('_', ' ').toLowerCase()}</Text></View>
-                </View>
-                {surveyDesc ? <Text style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{surveyDesc}</Text> : null}
-                <Text style={s.formLabel}>{questions.length} QUESTION{questions.length !== 1 ? 'S' : ''}</Text>
-                {questions.map((q, i) => (
-                  <Text key={i} style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>{i+1}. {q.text}</Text>
-                ))}
+                <Text style={s.previewTitle}>{surveyTitle || surveyName || 'Untitled survey'}</Text>
+                <View style={s.cardMeta}><TypeBadge type={surveyType} /><Chip label={responsePolicy.replace(/_/g, ' ').toLowerCase()} /></View>
+                {surveyDesc ? <Text style={s.previewDesc}>{surveyDesc}</Text> : null}
+                {questions.map((question, index) => <Text key={question.id} style={s.previewQuestion}>{index + 1}. {question.text}</Text>)}
               </View>
-              <Pressable style={[s.nextBtn, { backgroundColor: '#059669' }, createSurvey.isPending && s.nextBtnDisabled]} onPress={handlePublish} disabled={createSurvey.isPending}>
-                {createSurvey.isPending
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.nextBtnText}>🚀 Publish Survey</Text>
-                }
+              <Pressable style={[s.primaryButton, createSurvey.isPending && s.disabled]} onPress={handleCreate} disabled={createSurvey.isPending}>
+                {createSurvey.isPending ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Create survey</Text>}
               </Pressable>
-              <Pressable style={[s.nextBtn, { backgroundColor: '#f3f4f6', marginTop: 8 }]} onPress={() => setStep(2)}>
-                <Text style={[s.nextBtnText, { color: '#374151' }]}>← Back to Questions</Text>
-              </Pressable>
+              <Pressable style={s.secondaryButton} onPress={() => setStep(2)}><Text style={s.secondaryText}>Back to questions</Text></Pressable>
             </ScrollView>
-          )}
+          ) : null}
         </View>
-      </Modal>
+      ) : null}
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  addBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#4F46E5', alignItems: 'center', justifyContent: 'center' },
-  addBtnText: { color: '#fff', fontSize: 20, fontWeight: '300', lineHeight: 26 },
-  filterRow: { backgroundColor: '#fff', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexGrow: 0 },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f3f4f6' },
-  chipActive: { backgroundColor: '#eef2ff' },
-  chipText: { fontSize: 13, color: '#6b7280', fontWeight: '500' },
-  chipTextActive: { color: '#4F46E5', fontWeight: '700' },
-  card: { backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#f3f4f6' },
-  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  cardName: { fontSize: 15, fontWeight: '700', color: '#111827', flex: 1 },
-  cardSubname: { fontSize: 12, color: '#9ca3af', marginBottom: 6 },
-  typeBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  typeBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
-  cardMetaText: { fontSize: 12, color: '#6b7280' },
-  statusChip: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  statusText: { fontSize: 11, fontWeight: '600' },
-  modal: { flex: 1, backgroundColor: '#f8fafc' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: '#fff' },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  closeBtn: { fontSize: 18, color: '#6b7280' },
-  stepDots: { flexDirection: 'row', gap: 6, justifyContent: 'center', paddingVertical: 12 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#e5e7eb' },
-  dotActive: { width: 20, borderRadius: 4, backgroundColor: '#4F46E5' },
-  modalBody: { flex: 1, padding: 20 },
-  formLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
-  formInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 12, fontSize: 15 },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-  typeOpt: { flex: 1, minWidth: '45%', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#e5e7eb', alignItems: 'center' },
-  typeOptSel: { borderColor: '#4F46E5', backgroundColor: '#eef2ff' },
-  typeOptText: { fontSize: 15, fontWeight: '600', color: '#374151' },
-  typeOptTextSel: { color: '#4F46E5' },
-  policyOpt: { padding: 12, borderRadius: 10, borderWidth: 1.5, borderColor: '#e5e7eb', marginBottom: 6 },
-  policyOptSel: { borderColor: '#4F46E5', backgroundColor: '#eef2ff' },
-  policyLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  policyLabelSel: { color: '#4F46E5' },
-  policyDesc: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
-  nextBtn: { backgroundColor: '#4F46E5', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 20 },
-  nextBtnDisabled: { opacity: 0.5 },
-  nextBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  qCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, gap: 10 },
-  qNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center' },
-  qNumText: { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
-  qText: { flex: 1, fontSize: 13, color: '#374151' },
-  previewTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  previewCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12 },
-  verbatimCard: { backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f3f4f6' },
-  sentimentChip: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  verbatimText: { fontSize: 13, color: '#374151', lineHeight: 18, fontStyle: 'italic' },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, elevation: 20, backgroundColor: colors.bg },
+  filterScroller: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line, flexGrow: 0 },
+  filterContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  content: { padding: 16, gap: 12, paddingBottom: 28 },
+  card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.line, padding: 14 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardTitle: { fontSize: 16, lineHeight: 22, fontWeight: '800', color: colors.ink },
+  cardSub: { marginTop: 2, fontSize: 12, color: colors.faint, fontWeight: '700' },
+  cardMeta: { marginTop: 10, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  badge: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
+  badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '800', textTransform: 'capitalize' },
+  statLine: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  statItem: { flex: 1, borderRadius: 8, backgroundColor: '#f8fafc', padding: 10 },
+  statValue: { fontSize: 15, fontWeight: '900', color: colors.ink },
+  statLabel: { marginTop: 2, fontSize: 11, fontWeight: '700', color: colors.faint },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
+  sheetTitle: { fontSize: 19, lineHeight: 25, fontWeight: '800', color: colors.ink },
+  sheetSub: { marginTop: 2, fontSize: 13, color: colors.muted },
+  closeButton: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  detailFilters: { paddingVertical: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
+  responseCard: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.line, padding: 14 },
+  responseTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  responseScore: { width: 42, fontSize: 25, fontWeight: '900', color: colors.primary, textAlign: 'center' },
+  responseMember: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  responseDate: { marginTop: 2, fontSize: 12, fontWeight: '700', color: colors.faint },
+  responseSummary: { marginTop: 10, fontSize: 14, lineHeight: 20, color: colors.ink, fontWeight: '600' },
+  responseText: { marginTop: 8, fontSize: 14, lineHeight: 20, color: colors.muted },
+  noText: { marginTop: 8, fontSize: 13, color: colors.faint, fontStyle: 'italic' },
+  loadMoreButton: { height: 44, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  loadMoreText: { color: colors.primary, fontSize: 14, fontWeight: '800' },
+  formContent: { padding: 20, gap: 10, paddingBottom: 32 },
+  label: { marginTop: 4, fontSize: 13, fontWeight: '800', color: colors.ink },
+  input: { minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.ink },
+  textArea: { minHeight: 92 },
+  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  typeOption: { flexBasis: '47%', flexGrow: 1, minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  typeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  typeOptionText: { fontSize: 15, fontWeight: '900', color: colors.muted },
+  typeOptionTextActive: { color: colors.primary },
+  programOption: { flexBasis: '47%', flexGrow: 1, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  programText: { fontSize: 13, fontWeight: '800', color: colors.muted },
+  policyOption: { borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, padding: 12 },
+  policyOptionActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  policyTitle: { fontSize: 14, color: colors.ink, fontWeight: '800' },
+  policyDesc: { marginTop: 2, fontSize: 12, lineHeight: 17, color: colors.muted },
+  primaryButton: { minHeight: 48, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  primaryText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  secondaryButton: { minHeight: 48, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  secondaryText: { color: colors.primary, fontSize: 15, fontWeight: '900' },
+  disabled: { opacity: 0.5 },
+  buttonRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  questionCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, padding: 12 },
+  questionNumber: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
+  questionNumberText: { fontSize: 13, fontWeight: '900', color: colors.primary },
+  questionText: { fontSize: 14, lineHeight: 19, color: colors.ink, fontWeight: '700' },
+  questionMeta: { marginTop: 2, fontSize: 12, color: colors.faint, fontWeight: '700' },
+  previewCard: { borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, padding: 16 },
+  previewTitle: { fontSize: 20, lineHeight: 26, color: colors.ink, fontWeight: '900' },
+  previewDesc: { marginTop: 10, fontSize: 13, lineHeight: 19, color: colors.muted },
+  previewQuestion: { marginTop: 10, fontSize: 14, lineHeight: 20, color: colors.ink },
 })
