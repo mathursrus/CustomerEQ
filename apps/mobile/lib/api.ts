@@ -1,6 +1,12 @@
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000'
-export const DEV_BYPASS = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH?.trim() === 'true'
+export const DEV_BYPASS = resolveDevBypass(process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH, typeof __DEV__ !== 'undefined' && __DEV__)
 export const DEV_API_KEY = process.env.EXPO_PUBLIC_MOBILE_API_KEY ?? ''
+
+// Dev bypass must never survive into OTA/production bundles. In production it
+// would replace the Clerk JWT/org context with a tenant-agnostic API key.
+export function resolveDevBypass(value: string | undefined, isDev: boolean): boolean {
+  return isDev && value?.trim() === 'true'
+}
 
 // Pure helper — testable without module resets.
 export function buildQueryEnabled(opts: {
