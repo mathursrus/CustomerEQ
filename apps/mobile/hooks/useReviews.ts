@@ -5,6 +5,8 @@ import { API_URL, queryEnabled, apiHeaders } from '../lib/api'
 export interface Review { id: string; author: string; rating: number; text: string; date: string | null; replied: boolean }
 export interface ReviewMeta { total: number; page: number; limit: number; hasMore: boolean; overallRating: number | null; distribution: Record<string, number> }
 
+const EMPTY_REVIEWS: Review[] = []
+
 export function useReviews(page = 1) {
   const { getToken, isSignedIn } = useAuth()
   const qc = useQueryClient()
@@ -42,7 +44,7 @@ export function useReviews(page = 1) {
   })
 
   return {
-    reviews: query.data?.data ?? [],
+    reviews: query.data?.data ?? EMPTY_REVIEWS,
     meta: query.data?.meta ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
