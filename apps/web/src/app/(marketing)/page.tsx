@@ -242,7 +242,7 @@ export default function HomePage() {
         <FeatureRow
           eyebrow="Support Intelligence"
           eyebrowColor="text-emerald-600"
-          title="Every support conversation makes every customer smarter"
+          title="Every support interaction sharpens customer and business intelligence"
           copy="CustomerEQ routes conversations through AI that classifies intent, searches your knowledge base, and escalates to the right person, feeding every interaction back into the Customer 360."
           features={[
             { title: 'AI-powered conversations', copy: 'Customers chat with AI that has full context (tier, health score, recent orders, sentiment history) before a human is ever needed.' },
