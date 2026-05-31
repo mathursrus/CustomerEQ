@@ -2,10 +2,14 @@
 // expiry sweep (R31/R35, §G). Direction-agnostic: the worker reads fromKind/
 // toKind off the batch row and sets the PII sidecar for the target kind. Slice 1
 // wires CUSTOMER_ID → EMAIL (target sidecar = email).
+//
+// The dispatch functions accept an injectable Prisma client (default: the
+// @customerEQ/database singleton) so integration tests can drive the re-key
+// against a per-test schema. Production (the BullMQ adapters) uses the default.
 
 import type { Job } from 'bullmq'
-import { prisma } from '@customerEQ/database'
-import { Prisma } from '@prisma/client'
+import { prisma as defaultPrisma } from '@customerEQ/database'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import type { MemberIdentifierMigrationPayload } from '@customerEQ/shared'
 import pino from 'pino'
 import { reconcileMigration } from './migrationReconciliation.js'
@@ -25,12 +29,13 @@ function messageOf(err: unknown): string {
 }
 
 async function emitMigrationAudit(
+  db: PrismaClient,
   action: string,
   brandId: string,
   migrationId: string,
   metadata: Prisma.InputJsonObject,
 ): Promise<void> {
-  await prisma.auditEvent.create({
+  await db.auditEvent.create({
     data: {
       brandId,
       actorId: 'system',
@@ -56,9 +61,10 @@ export type RekeyResult = {
  */
 export async function dispatchMemberIdentifierMigration(
   payload: MemberIdentifierMigrationPayload,
+  db: PrismaClient = defaultPrisma,
 ): Promise<RekeyResult> {
   const { migrationId } = payload
-  const migration = await prisma.memberIdentifierMigration.findUniqueOrThrow({
+  const migration = await db.memberIdentifierMigration.findUniqueOrThrow({
     where: { id: migrationId },
   })
 
@@ -72,7 +78,7 @@ export async function dispatchMemberIdentifierMigration(
     }
   }
 
-  await prisma.memberIdentifierMigration.update({
+  await db.memberIdentifierMigration.update({
     where: { id: migrationId },
     data: { status: 'PROCESSING' },
   })
@@ -81,7 +87,7 @@ export async function dispatchMemberIdentifierMigration(
   // polling endpoint between chunks.
   let cursor: string | undefined
   for (;;) {
-    const chunk = await prisma.memberIdentifierMigrationMapping.findMany({
+    const chunk = await db.memberIdentifierMigrationMapping.findMany({
       where: { migrationId, appliedAt: null, errorReason: null },
       orderBy: { id: 'asc' },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -92,7 +98,7 @@ export async function dispatchMemberIdentifierMigration(
 
     for (const mapping of chunk) {
       try {
-        await prisma.$transaction(async (tx) => {
+        await db.$transaction(async (tx) => {
           // R16 + R27: brandId-scoped, tenant-isolated re-key. Set the canonical
           // key and the target PII sidecar (EMAIL adapter) atomically.
           await tx.member.update({
@@ -109,11 +115,11 @@ export async function dispatchMemberIdentifierMigration(
           })
         })
       } catch (err) {
-        await prisma.memberIdentifierMigrationMapping.update({
+        await db.memberIdentifierMigrationMapping.update({
           where: { id: mapping.id },
           data: { errorReason: messageOf(err) },
         })
-        await prisma.memberIdentifierMigration.update({
+        await db.memberIdentifierMigration.update({
           where: { id: migrationId },
           data: { failedMembers: { increment: 1 } },
         })
@@ -122,7 +128,7 @@ export async function dispatchMemberIdentifierMigration(
     }
   }
 
-  const final = await prisma.memberIdentifierMigration.findUniqueOrThrow({
+  const final = await db.memberIdentifierMigration.findUniqueOrThrow({
     where: { id: migrationId },
   })
 
@@ -131,17 +137,17 @@ export async function dispatchMemberIdentifierMigration(
     // the status transition + grace-window start.
     const now = new Date()
     const graceExpiresAt = addDays(now, GRACE_DAYS)
-    await prisma.$transaction([
-      prisma.brand.update({
+    await db.$transaction([
+      db.brand.update({
         where: { id: migration.brandId },
         data: { memberIdentifierKind: migration.toKind, activeMigrationId: migrationId },
       }),
-      prisma.memberIdentifierMigration.update({
+      db.memberIdentifierMigration.update({
         where: { id: migrationId },
         data: { status: 'REKEY_COMPLETE_IN_GRACE', rekeyCompletedAt: now, graceExpiresAt },
       }),
     ])
-    await emitMigrationAudit('brand.identifier_migration.completed', migration.brandId, migrationId, {
+    await emitMigrationAudit(db, 'brand.identifier_migration.completed', migration.brandId, migrationId, {
       before: migration.fromKind,
       after: migration.toKind,
       totalMembers: final.totalMembers,
@@ -151,7 +157,7 @@ export async function dispatchMemberIdentifierMigration(
     })
     // One-shot reconciliation for members that enrolled on the old key during
     // the re-key window (R20).
-    const { reconciled } = await reconcileMigration(prisma, migrationId)
+    const { reconciled } = await reconcileMigration(db, migrationId)
     log.info({ migrationId, processed: final.processedMembers, reconciled }, 're-key complete; in grace')
     return { status: 'REKEY_COMPLETE_IN_GRACE', processed: final.processedMembers, failed: 0, reconciled }
   }
@@ -159,17 +165,17 @@ export async function dispatchMemberIdentifierMigration(
   // R23 — terminal failure: compensate already-applied members back to their
   // original key so no member is left stranded, then mark FAILED. The brand kind
   // was never flipped (only flips on success above).
-  await rollbackAppliedMembers(migrationId, migration.brandId)
-  await prisma.memberIdentifierMigration.update({
+  await rollbackAppliedMembers(db, migrationId, migration.brandId)
+  await db.memberIdentifierMigration.update({
     where: { id: migrationId },
     data: { status: 'FAILED' },
   })
-  const errorSample = await prisma.memberIdentifierMigrationMapping.findMany({
+  const errorSample = await db.memberIdentifierMigrationMapping.findMany({
     where: { migrationId, errorReason: { not: null } },
     select: { memberId: true, errorReason: true },
     take: 5,
   })
-  await emitMigrationAudit('brand.identifier_migration.failed', migration.brandId, migrationId, {
+  await emitMigrationAudit(db, 'brand.identifier_migration.failed', migration.brandId, migrationId, {
     failedMembers: final.failedMembers,
     errorSample,
   })
@@ -183,10 +189,14 @@ export async function dispatchMemberIdentifierMigration(
  * (R24) re-processes it. `errorReason` is preserved for the failed rows so the
  * admin still sees per-member errors until they retry.
  */
-async function rollbackAppliedMembers(migrationId: string, brandId: string): Promise<void> {
+async function rollbackAppliedMembers(
+  db: PrismaClient,
+  migrationId: string,
+  brandId: string,
+): Promise<void> {
   let cursor: string | undefined
   for (;;) {
-    const applied = await prisma.memberIdentifierMigrationMapping.findMany({
+    const applied = await db.memberIdentifierMigrationMapping.findMany({
       where: { migrationId, appliedAt: { not: null } },
       orderBy: { id: 'asc' },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -196,7 +206,7 @@ async function rollbackAppliedMembers(migrationId: string, brandId: string): Pro
     cursor = applied[applied.length - 1].id
 
     for (const mapping of applied) {
-      await prisma.$transaction(async (tx) => {
+      await db.$transaction(async (tx) => {
         await tx.member.update({
           where: { id: mapping.memberId, brandId },
           data: { externalId: mapping.oldExternalId, email: mapping.oldEmail },
@@ -226,18 +236,21 @@ export type GraceSweepResult = { expired: number }
  * Correctness does not depend on sub-minute timing — request-time rejection
  * (R35) gates on `status`, not `now()`.
  */
-export async function dispatchGraceExpirySweep(at: Date = new Date()): Promise<GraceSweepResult> {
-  const due = await prisma.memberIdentifierMigration.findMany({
+export async function dispatchGraceExpirySweep(
+  at: Date = new Date(),
+  db: PrismaClient = defaultPrisma,
+): Promise<GraceSweepResult> {
+  const due = await db.memberIdentifierMigration.findMany({
     where: { status: 'REKEY_COMPLETE_IN_GRACE', graceExpiresAt: { lte: at } },
     select: { id: true, brandId: true },
   })
   for (const migration of due) {
-    await reconcileMigration(prisma, migration.id)
-    await prisma.memberIdentifierMigration.update({
+    await reconcileMigration(db, migration.id)
+    await db.memberIdentifierMigration.update({
       where: { id: migration.id },
       data: { status: 'GRACE_EXPIRED' },
     })
-    await emitMigrationAudit('brand.identifier_migration.grace_expired', migration.brandId, migration.id, {
+    await emitMigrationAudit(db, 'brand.identifier_migration.grace_expired', migration.brandId, migration.id, {
       expiredAt: at.toISOString(),
     })
     log.info({ migrationId: migration.id }, 'grace window expired; old key now rejected')

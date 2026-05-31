@@ -19,6 +19,9 @@ vi.mock('../../src/queues/bullmq.js', () => ({
   // dispatch path never ran in tests. B7 fixed extraction; this mock entry is
   // required so the existing MANAGED_EMAIL integration test no longer 500s.
   enqueueManagedEmailSend: vi.fn(async (payload: unknown) => InMemoryQueue.add('managed-email-send', payload)),
+  // Issue #524 — the re-key is driven manually in tests via the worker dispatch
+  // (against the test schema); the route's enqueue is captured here.
+  enqueueMemberIdentifierMigration: vi.fn(async (payload: unknown) => InMemoryQueue.add('member-identifier-migration', payload)),
 }))
 
 // Mock ioredis — avoid real Redis connection
