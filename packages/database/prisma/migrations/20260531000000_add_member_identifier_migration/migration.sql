@@ -44,6 +44,7 @@ CREATE TABLE "member_identifier_migration_mappings" (
     "memberId" TEXT NOT NULL,
     "oldExternalId" TEXT NOT NULL,
     "newExternalId" TEXT NOT NULL,
+    "oldEmail" TEXT,
     "appliedAt" TIMESTAMP(3),
     "errorReason" TEXT,
 

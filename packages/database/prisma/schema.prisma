@@ -463,6 +463,10 @@ model MemberIdentifierMigrationMapping {
   // Engine: direction-agnostic; opaque normalized (lowercased+trimmed) values.
   oldExternalId String // pre-migration externalId
   newExternalId String // post-migration externalId
+  // Pre-migration PII sidecar captured at intake, so a failed re-key can be
+  // faithfully compensated back to the member's original state (R23 — members
+  // remain on their original key on failure). Null when the member had no email.
+  oldEmail      String?
 
   // Per-row outcome (R12, R22)
   appliedAt   DateTime?

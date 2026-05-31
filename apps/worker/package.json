@@ -7,6 +7,10 @@
     "./processors/managedEmailSend": {
       "import": "./dist/processors/managedEmailSend.js",
       "types": "./dist/processors/managedEmailSend.d.ts"
+    },
+    "./processors/memberIdentifierMigration": {
+      "import": "./dist/processors/memberIdentifierMigration.js",
+      "types": "./dist/processors/memberIdentifierMigration.d.ts"
     }
   },
   "scripts": {
