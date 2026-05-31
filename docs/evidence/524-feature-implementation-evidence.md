@@ -24,3 +24,54 @@ Edge-case, boundary, and adjacent-flow exploration (code-level + integration-bac
 | B-9 | Info | engine | Dual-key fallback fires only on a primary-lookup MISS and only when an active migration exists → hero `/v1/events` path (internal-id) pays nothing. | By design (§E/§M.2); dual-key path covered by the PROCESSING integration test. |
 
 **Result: 0 Critical/High bugs open after edge-case, boundary, and adjacent-flow exploration** (B-1 was found and fixed in implement-code; B-2 fixed in implement-validate). Phase not blocked.
+
+## Security Review
+
+### Executive Summary
+Diff-scoped review of the #524 implementation. **1 finding fixed (Low — CSV formula injection), 0 Critical/High/Medium open.** No escalations. Phase passes.
+
+### Review Scope
+`reviewType=embedded-diff-review`, `reviewScope=diff` (branch vs `main`). Surfaces reviewed: API routes (`adminBrandMigrations.ts`, `members.ts`, `public.ts`, `distributionBatches.ts`, `admin-brand-profile.ts`), worker (`memberIdentifierMigration.ts`, `migrationReconciliation.ts`), web (`migrations/**`, `MemberIdentificationSection.tsx`, `UsageWarningBanner.tsx`, `lib/migrations.ts`), schema/migration. Referenced-not-reviewed: unchanged auth/clerk plumbing.
+
+### Threat Surface Summary
+- **api** — `apps/api/src/routes/adminBrandMigrations.ts` (8 admin endpoints) + ingress edits to 3 existing routes.
+- **web** — admin wizard + status pages + banner under `apps/web/src/app/(admin)/.../migrations/**`.
+- **capability-authoring** — `docs/retrospectives/...-design-postmortem.md` (benign narrative; no agent-instruction/prompt-injection content).
+- Not present: llm-app, mobile, data-pipeline (worker uses Prisma ORM, no raw driver).
+
+### Coverage Matrix
+| Category | Result |
+|---|---|
+| API01 Broken Object-Level Auth (BOLA/IDOR) | Pass — all routes scope by `request.brandId`; `loadOwnedMigration` enforces `{id, brandId}` (cross-tenant 404 tested). |
+| API02 Broken Authentication | Pass — admin routes behind the auth plugin; no auth code changed. |
+| API03 Broken Object Property / Mass Assignment | Pass — `brandId`/`fromKind`/`toKind` server-set; body never supplies tenant/identity. |
+| API03 Injection (SQL/CSV) | **Fail→Fixed** — Prisma parameterized (no raw SQL); CSV template export hardened against formula injection. |
+| API04 Unrestricted Resource Consumption | N/A→Accept — re-key is async (worker); preflight loads members in-memory (admin-only, documented perf note). |
+| API05 Broken Function-Level Auth | Pass — all mutations admin-scoped + audited. |
+| Web A03 XSS | Pass — React-escaped; no `dangerouslySetInnerHTML`; CSV download via Blob. |
+| Web A05 Security Misconfig | Pass — no new external links / `target=_blank`; no client secrets. |
+| Secrets-in-code | Pass — none introduced. |
+| Privacy / PII | Pass — erased/soft-deleted excluded from re-key (cannot re-PII an erased member; tested); attestation captures lawful basis; logs carry cuids + Prisma field names, not PII values; `errorRows`/audit visible only to the owning brand admin. |
+
+### Findings
+| ID | Severity | Class | Location | Summary | Disposition |
+|---|---|---|---|---|---|
+| SEC-1 | Low | CSV/Formula injection (API03) | `adminBrandMigrations.ts:csvCell` | Mapping-template export wrote brand-supplied `customer_id`/`email` cells without neutralizing leading `= + - @`; opening in Excel could execute. | fix (auto) |
+
+### Prioritized Remediation Queue
+1. SEC-1 — fixed inline (prefix `'` on formula-leading cells before quoting). No remaining queue.
+
+### Verification Evidence
+- SEC-1: fix at `csvCell` prefixes a single quote for cells matching `/^[=+\-@\t\r]/`; api typecheck green; commit `5199ef2`.
+
+### Applied Fixes and Filed Work Items
+- `5199ef2` — `security(API03/CSV-INJECTION): neutralize formula-injection in mapping-template export`.
+
+### Accepted / Deferred / Blocked
+- Preflight/impact-preview in-memory aggregation on very large brands — accepted for Slice 1 (admin-only, RFC Confidence-Level notes a 30s cache mitigation if adoption grows). Owner: future perf issue if needed.
+
+### Compliance Control Mapping
+No formal regulations configured in `fraim/config.json`. Project Rule 13 (GDPR/CCPA): erasure preserved (R26, tested), lawful-basis attestation captured (R13), auditability (R25) — all satisfied.
+
+### Run Metadata
+- Date: 2026-05-31. Commit at review: `5199ef2`. Auto-fix cap: 1/10 used. Skill errors: none. Environment: local diff review against `main`.
