@@ -13,7 +13,14 @@
 //   - `enrolledVia` is set at create time only and never updated (audit invariant).
 //   - Identifier shape is validated against `Brand.memberIdentifierKind` (R4).
 
-import type { PrismaClient, Member, MemberEnrolledVia, MemberIdentifierKind } from '@prisma/client'
+import type {
+  PrismaClient,
+  Member,
+  MemberEnrolledVia,
+  MemberIdentifierKind,
+  MigrationOldKeyIngress,
+} from '@prisma/client'
+import { recordOldKeyUsage } from './migrationOldKeyUsage.js'
 
 export interface ResolveOrEnrollMemberOpts {
   memberId: string
@@ -27,6 +34,11 @@ export interface ResolveOrEnrollMemberOpts {
   smsOptIn?: boolean
   clerkUserId?: string
   enrolledVia: MemberEnrolledVia
+  // Issue #524 — when set, an old-identifier resolution during an active
+  // migration is attributed to this ingress for R33 telemetry. The three
+  // honor-kind callers (public respond / API enroll / distribution) pass it;
+  // other callers leave it undefined (they never carry the old external id).
+  ingress?: MigrationOldKeyIngress
 }
 
 export type IdentifierShapeError = {
@@ -34,6 +46,19 @@ export type IdentifierShapeError = {
   message: string
   expectedKind: MemberIdentifierKind
 }
+
+// Issue #524 (R35 / §M.4a) — after a migration's grace window expires, an old
+// identifier that still matches a retained mapping is rejected with an
+// actionable error naming the brand's current (new) identifier kind, instead of
+// the generic shape error. `expectedKind` is the brand's CURRENT kind so callers
+// can read `error.expectedKind` uniformly across both error shapes.
+export type IdentifierDeprecatedError = {
+  code: 'IDENTIFIER_DEPRECATED_AFTER_MIGRATION'
+  message: string
+  expectedKind: MemberIdentifierKind
+}
+
+export type MemberResolutionError = IdentifierShapeError | IdentifierDeprecatedError
 
 export type ResolveOrEnrollResult =
   | {
@@ -44,8 +69,20 @@ export type ResolveOrEnrollResult =
       // existing members (created=false). Empty array if the caller's input
       // matched the existing row exactly.
       updatedFields: string[]
+      // Issue #524 — true when the member was resolved via the migration's
+      // old-key mapping (dual-key fallback), not the primary lookup.
+      resolvedViaOldKey?: boolean
     }
-  | { ok: false; error: IdentifierShapeError }
+  | { ok: false; error: MemberResolutionError }
+
+// Statuses during which the migration mapping is consulted on a primary miss.
+// PROCESSING + grace → dual-key RESOLVE (R19/R32). GRACE_EXPIRED → mapping is
+// consulted only to return the actionable deprecated error (R35/§M.4a).
+const MIGRATION_LOOKUP_STATUSES = [
+  'PROCESSING',
+  'REKEY_COMPLETE_IN_GRACE',
+  'GRACE_EXPIRED',
+] as const
 
 const E164_RE = /^\+[1-9]\d{1,14}$/
 // Exported so the identifier-migration pre-flight validator (R10 email-shape
@@ -123,15 +160,6 @@ export async function resolveOrEnrollMember(
   const trimmedMemberId = opts.memberId.trim()
   const trimmedEmail = opts.email?.trim()
 
-  const shapeError = validateIdentifierShape(
-    trimmedMemberId,
-    trimmedEmail,
-    brand.memberIdentifierKind,
-  )
-  if (shapeError) {
-    return { ok: false, error: shapeError }
-  }
-
   const externalId = trimmedMemberId.toLowerCase()
 
   // For EMAIL brands, derive the email PII sidecar from memberId when the
@@ -143,9 +171,68 @@ export async function resolveOrEnrollMember(
       ? trimmedMemberId
       : undefined)
 
-  const existing = await prisma.member.findUnique({
+  // Primary lookup on the canonical key.
+  let existing = await prisma.member.findUnique({
     where: { brandId_externalId: { brandId, externalId } },
   })
+
+  // Issue #524 — dual-key fallback (R19/R32/§E). Only on a primary MISS, and
+  // only when an active/in-grace/expired migration exists for this brand (so the
+  // hero hot path pays nothing in steady state). The supplied identifier might
+  // be the OLD external id of an already-re-keyed member.
+  let resolvedViaOldKey = false
+  if (!existing) {
+    const migration = await prisma.memberIdentifierMigration.findFirst({
+      where: { brandId, status: { in: [...MIGRATION_LOOKUP_STATUSES] } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
+    })
+    if (migration) {
+      const mapping = await prisma.memberIdentifierMigrationMapping.findUnique({
+        where: {
+          migrationId_oldExternalId: { migrationId: migration.id, oldExternalId: externalId },
+        },
+        select: { memberId: true },
+      })
+      if (mapping) {
+        if (migration.status === 'GRACE_EXPIRED') {
+          // R35 / §M.4a — the grace window is over: don't resolve, don't create.
+          // Return the actionable deprecated error naming the brand's new kind.
+          return {
+            ok: false,
+            error: {
+              code: 'IDENTIFIER_DEPRECATED_AFTER_MIGRATION',
+              message: `This member was migrated. The organization now identifies members by ${brand.memberIdentifierKind}; supply their ${brand.memberIdentifierKind} value instead of the retired identifier.`,
+              expectedKind: brand.memberIdentifierKind,
+            },
+          }
+        }
+        // PROCESSING or REKEY_COMPLETE_IN_GRACE — resolve to the migrated member.
+        existing = await prisma.member.findUnique({ where: { id: mapping.memberId } })
+        if (existing) {
+          resolvedViaOldKey = true
+          // R33 — attribute the old-key hit when the caller declared an ingress.
+          if (opts.ingress) {
+            await recordOldKeyUsage(prisma, migration.id, brandId, opts.ingress)
+          }
+        }
+      }
+    }
+  }
+
+  // Shape validation gates a brand-NEW create and any primary-hit re-supply, but
+  // is SKIPPED when we resolved via the old-key mapping — an old-shape identifier
+  // is expected there and must not be rejected against the post-flip kind (§E).
+  if (!resolvedViaOldKey) {
+    const shapeError = validateIdentifierShape(
+      trimmedMemberId,
+      trimmedEmail,
+      brand.memberIdentifierKind,
+    )
+    if (shapeError) {
+      return { ok: false, error: shapeError }
+    }
+  }
 
   if (!existing) {
     const member = await prisma.member.create({
@@ -164,7 +251,7 @@ export async function resolveOrEnrollMember(
         smsOptIn: opts.smsOptIn ?? false,
       },
     })
-    return { ok: true, member, created: true, updatedFields: [] }
+    return { ok: true, member, created: true, updatedFields: [], resolvedViaOldKey }
   }
 
   // R6: existing member — last-write-wins on non-identifier fields only.
@@ -215,12 +302,12 @@ export async function resolveOrEnrollMember(
   }
 
   if (updatedFields.length === 0) {
-    return { ok: true, member: existing, created: false, updatedFields: [] }
+    return { ok: true, member: existing, created: false, updatedFields: [], resolvedViaOldKey }
   }
 
   const member = await prisma.member.update({
     where: { id: existing.id },
     data: updates,
   })
-  return { ok: true, member, created: false, updatedFields }
+  return { ok: true, member, created: false, updatedFields, resolvedViaOldKey }
 }
