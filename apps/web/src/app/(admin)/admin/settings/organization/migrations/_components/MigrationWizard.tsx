@@ -285,16 +285,37 @@ export function MigrationWizard() {
                 </StatGrid>
               </>
             ) : (
-              // Scene 2B — partial coverage.
+              // Scene 2B — partial coverage. Surface EVERY blocking condition
+              // detected in the existing email data (F1), not just missing
+              // emails, so the admin can fix them all in one pass.
               <>
                 <Callout tone="info">
                   <strong className="font-semibold">
-                    Partial coverage — {counts.withEmail.toLocaleString()} of{' '}
-                    {counts.total.toLocaleString()} members have an email on file.
+                    {counts.withEmail.toLocaleString()} of {counts.total.toLocaleString()} members
+                    have a usable email on file.
                   </strong>{' '}
-                  The template is pre-filled with those existing emails; you only need to fill in the
-                  remaining {counts.withoutEmail.toLocaleString()} rows. You can also edit pre-filled
-                  rows if you want to override an existing email before migrating.
+                  Before you can migrate, these need fixing — download the template (each flagged row
+                  has an <code>issue</code> note), correct them, and upload:
+                  <ul className="mt-1.5 list-disc space-y-1 pl-5">
+                    {counts.withoutEmail > 0 && (
+                      <li>
+                        <strong>{counts.withoutEmail.toLocaleString()}</strong> missing an email
+                      </li>
+                    )}
+                    {counts.collisionGroups > 0 && (
+                      <li>
+                        <strong>{counts.collisionGroups.toLocaleString()}</strong> duplicate-email
+                        group{counts.collisionGroups === 1 ? '' : 's'} (members sharing an email)
+                      </li>
+                    )}
+                    {counts.invalidShape > 0 && (
+                      <li>
+                        <strong>{counts.invalidShape.toLocaleString()}</strong> invalid email
+                        {counts.invalidShape === 1 ? '' : 's'}
+                      </li>
+                    )}
+                  </ul>
+                  You can also override any pre-filled email before migrating.
                 </Callout>
                 <div className="flex flex-col gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm text-indigo-900">
@@ -367,6 +388,9 @@ export function MigrationWizard() {
                 disabled={busy}
                 onChange={(e) => {
                   const f = e.target.files?.[0]
+                  // Clear the input value so re-selecting the SAME filename still
+                  // fires onChange and re-validates the corrected file (F3).
+                  e.target.value = ''
                   if (f) void handleFile(f)
                 }}
                 className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3.5 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"

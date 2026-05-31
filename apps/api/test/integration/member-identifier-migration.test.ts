@@ -339,9 +339,24 @@ describe('Member identifier migration — CUSTOMER_ID → EMAIL', () => {
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toContain('text/csv')
     const body = res.text
-    expect(body).toContain('customer_id,new_email')
-    expect(body).toContain('cust_1,alice@acme.com')
-    expect(body).toMatch(/cust_2,\s*(\r|\n|$)/) // cust_2 row has a blank email
+    // F2 — header now includes an `issue` annotation column.
+    expect(body).toContain('customer_id,new_email,issue')
+    expect(body).toContain('cust_1,alice@acme.com,') // valid row → empty issue
+    expect(body).toMatch(/cust_2,,missing email/i) // blank email flagged
+  })
+
+  // ── Create is idempotent + race-safe (F4) ────────────────────────────────
+  it('returns the same pre-start migration on a repeated create (no duplicate row)', async () => {
+    const brand = await seedCustomerIdBrand('Acme')
+    await seedCustomerMember(brand.id, 'cust_1', 'alice@acme.com')
+    const req = authenticatedRequest(brand.id)
+    const first = await req.post('/v1/admin/brand/migrations').send({})
+    const second = await req.post('/v1/admin/brand/migrations').send({})
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(200) // reused, not a new row
+    expect(second.body.id).toBe(first.body.id)
+    const count = await getTestPrisma().memberIdentifierMigration.count({ where: { brandId: brand.id } })
+    expect(count).toBe(1)
   })
 
   // ── Impact preview lists active surfaces, omits /v1/events (R30 / §M) ──────

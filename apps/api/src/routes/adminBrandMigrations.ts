@@ -184,13 +184,34 @@ const adminBrandMigrationsRoutes: FastifyPluginAsync = async (fastify) => {
     })
   })
 
-  // GET mapping-template.csv — pre-filled template (R4).
+  // GET mapping-template.csv — pre-filled template (R4) with an `issue` column
+  // (F2) flagging each row's pre-flight problem against the existing email data
+  // so the admin sees exactly which rows to fix. The upload path ignores any
+  // column other than `customer_id` / `new_email` (parseMappingCsv matches by
+  // header name), so re-uploading this file as-is is fine.
   fastify.get(`${base}/mapping-template.csv`, async (request, reply) => {
     const brandId = request.brandId
     const members = await loadEligibleMembers(fastify.prisma, brandId)
-    const lines = ['customer_id,new_email']
+    const { EMAIL_RE } = await import('../services/memberResolution.js')
+
+    // Count normalized emails so we can flag duplicates.
+    const emailCounts = new Map<string, number>()
     for (const m of members) {
-      lines.push(`${csvCell(m.externalId)},${csvCell(m.email ?? '')}`)
+      if (m.email && m.email.trim().length > 0) {
+        const k = norm(m.email)
+        emailCounts.set(k, (emailCounts.get(k) ?? 0) + 1)
+      }
+    }
+    const issueFor = (email: string | null): string => {
+      if (!email || email.trim().length === 0) return 'missing email — add one'
+      if (!EMAIL_RE.test(email.trim())) return 'invalid email — fix the address'
+      if ((emailCounts.get(norm(email)) ?? 0) > 1) return 'duplicate email — give this member a unique address'
+      return ''
+    }
+
+    const lines = ['customer_id,new_email,issue']
+    for (const m of members) {
+      lines.push(`${csvCell(m.externalId)},${csvCell(m.email ?? '')},${csvCell(issueFor(m.email))}`)
     }
     return reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -216,26 +237,47 @@ const adminBrandMigrationsRoutes: FastifyPluginAsync = async (fastify) => {
           code: 'UNSUPPORTED_MIGRATION_DIRECTION',
         })
       }
-      const active = await fastify.prisma.memberIdentifierMigration.findFirst({
-        where: { brandId, status: { in: [...ACTIVE_STATUSES] } },
-        select: { id: true },
+      // Race-safe + idempotent (F4). A row-level lock on the brand serializes
+      // concurrent creates (e.g. the wizard's create-on-mount firing twice under
+      // React strict-mode), so the read-then-create can't interleave into two
+      // rows. If a pre-start migration already exists we RETURN it (idempotent),
+      // so a double create yields one row; an in-flight/in-grace migration is a
+      // real conflict the caller should be redirected to.
+      const outcome = await fastify.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM brands WHERE id = ${brandId} FOR UPDATE`
+        const existing = await tx.memberIdentifierMigration.findFirst({
+          where: { brandId, status: { in: [...ACTIVE_STATUSES] } },
+          orderBy: { createdAt: 'desc' },
+        })
+        if (existing) {
+          const preStart = existing.status === 'PENDING_VALIDATION' || existing.status === 'VALIDATED'
+          return { kind: preStart ? ('existing' as const) : ('conflict' as const), migration: existing }
+        }
+        const created = await tx.memberIdentifierMigration.create({
+          data: { brandId, fromKind: CUSTOMER_ID, toKind: EMAIL, status: 'PENDING_VALIDATION' },
+        })
+        return { kind: 'created' as const, migration: created }
       })
-      if (active) {
+
+      if (outcome.kind === 'conflict') {
         return reply.status(409).send({
           error: 'A migration is already in progress for this organization.',
           code: 'MIGRATION_ALREADY_IN_PROGRESS',
-          migrationId: active.id,
-          redirectTo: `/admin/settings/organization/migrations/${active.id}`,
+          migrationId: outcome.migration.id,
+          redirectTo: `/admin/settings/organization/migrations/${outcome.migration.id}`,
         })
       }
-      const created = await fastify.prisma.memberIdentifierMigration.create({
-        data: { brandId, fromKind: CUSTOMER_ID, toKind: EMAIL, status: 'PENDING_VALIDATION' },
-      })
-      request.audit = {
-        metadata: { migrationId: created.id, fromKind: CUSTOMER_ID, toKind: EMAIL },
+      if (outcome.kind === 'created') {
+        request.audit = {
+          metadata: { migrationId: outcome.migration.id, fromKind: CUSTOMER_ID, toKind: EMAIL },
+        }
       }
-      const counts = await oldKeyCountsByIngress(fastify.prisma, created.id)
-      return reply.status(201).send(serializeMigration(created, counts))
+      const counts = await oldKeyCountsByIngress(fastify.prisma, outcome.migration.id)
+      // 201 for a freshly created migration, 200 when reusing the existing
+      // pre-start one (idempotent create).
+      return reply
+        .status(outcome.kind === 'created' ? 201 : 200)
+        .send(serializeMigration(outcome.migration, counts))
     },
   )
 
