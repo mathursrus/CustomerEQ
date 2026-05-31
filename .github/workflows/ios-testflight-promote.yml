@@ -33,8 +33,9 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build_number }}
           BETA_GROUP_NAME: ${{ inputs.beta_group_name }}
         run: |
+          npm install --no-save jsonwebtoken@9.0.3
           node <<'NODE'
-          import crypto from 'node:crypto';
+          import jwtLibrary from 'jsonwebtoken';
 
           const required = ['API_KEY_ID', 'API_ISSUER_ID', 'API_PRIVATE_KEY', 'BUNDLE_ID', 'BUILD_NUMBER'];
           for (const key of required) {
@@ -43,26 +44,22 @@ jobs:
 
           const baseUrl = 'https://api.appstoreconnect.apple.com/v1';
 
-          function b64url(input) {
-            return Buffer.from(input).toString('base64url');
-          }
-
           function jwt() {
             const now = Math.floor(Date.now() / 1000);
-            const header = { alg: 'ES256', kid: process.env.API_KEY_ID, typ: 'JWT' };
-            const payload = {
-              iss: process.env.API_ISSUER_ID,
+            const privateKey = process.env.API_PRIVATE_KEY.replace(/\\n/g, '\n');
+            return jwtLibrary.sign({
+              iss: process.env.API_ISSUER_ID.trim(),
               iat: now,
               exp: now + 15 * 60,
               aud: 'appstoreconnect-v1',
-            };
-            const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
-            const privateKey = process.env.API_PRIVATE_KEY.replace(/\\n/g, '\n');
-            const signature = crypto.sign('sha256', Buffer.from(signingInput), {
-              key: privateKey,
-              dsaEncoding: 'ieee-p1363',
+            }, privateKey, {
+              algorithm: 'ES256',
+              header: {
+                alg: 'ES256',
+                kid: process.env.API_KEY_ID.trim(),
+                typ: 'JWT',
+              },
             });
-            return `${signingInput}.${signature.toString('base64url')}`;
           }
 
           const token = jwt();
