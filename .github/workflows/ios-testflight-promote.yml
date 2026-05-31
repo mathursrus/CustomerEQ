@@ -1,0 +1,146 @@
+name: iOS TestFlight Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'CFBundleVersion/build number to promote'
+        required: true
+        default: '20'
+      beta_group_name:
+        description: 'Beta group name. Leave blank to use all internal groups.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Add processed build to TestFlight groups
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          BUNDLE_ID: com.customereq.mobile
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          BETA_GROUP_NAME: ${{ inputs.beta_group_name }}
+        run: |
+          npm install --no-save jsonwebtoken@9.0.3
+          node <<'NODE'
+          import jwtLibrary from 'jsonwebtoken';
+
+          const required = ['API_KEY_ID', 'API_ISSUER_ID', 'API_PRIVATE_KEY', 'BUNDLE_ID', 'BUILD_NUMBER'];
+          for (const key of required) {
+            if (!process.env[key]) throw new Error(`Missing ${key}`);
+          }
+
+          const baseUrl = 'https://api.appstoreconnect.apple.com/v1';
+
+          function jwt() {
+            const now = Math.floor(Date.now() / 1000);
+            const privateKey = process.env.API_PRIVATE_KEY.replace(/\\n/g, '\n');
+            return jwtLibrary.sign({
+              iss: process.env.API_ISSUER_ID.trim(),
+              iat: now,
+              exp: now + 15 * 60,
+              aud: 'appstoreconnect-v1',
+            }, privateKey, {
+              algorithm: 'ES256',
+              header: {
+                alg: 'ES256',
+                kid: process.env.API_KEY_ID.trim(),
+                typ: 'JWT',
+              },
+            });
+          }
+
+          const token = jwt();
+
+          async function asc(path, init = {}) {
+            const res = await fetch(`${baseUrl}${path}`, {
+              ...init,
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...(init.headers ?? {}),
+              },
+            });
+            const text = await res.text();
+            const body = text ? JSON.parse(text) : {};
+            if (!res.ok) {
+              console.error(JSON.stringify(body, null, 2));
+              throw new Error(`${init.method ?? 'GET'} ${path} failed with ${res.status}`);
+            }
+            return body;
+          }
+
+          function encodeFilter(value) {
+            return encodeURIComponent(value);
+          }
+
+          const appRes = await asc(`/apps?filter[bundleId]=${encodeFilter(process.env.BUNDLE_ID)}&limit=1`);
+          const app = appRes.data?.[0];
+          if (!app) throw new Error(`No app found for bundle ${process.env.BUNDLE_ID}`);
+          console.log(`App: ${app.attributes.name} (${app.id})`);
+
+          const buildsRes = await asc(
+            `/builds?filter[app]=${app.id}&filter[version]=${encodeFilter(process.env.BUILD_NUMBER)}&sort=-uploadedDate&limit=5`
+          );
+          const builds = buildsRes.data ?? [];
+          if (!builds.length) {
+            throw new Error(`No App Store Connect build found with build number ${process.env.BUILD_NUMBER}`);
+          }
+
+          for (const candidate of builds) {
+            console.log(
+              `Build candidate: id=${candidate.id} version=${candidate.attributes.version} processing=${candidate.attributes.processingState} uploaded=${candidate.attributes.uploadedDate}`
+            );
+          }
+
+          const build = builds.find((item) => item.attributes.processingState === 'VALID') ?? builds[0];
+          if (build.attributes.processingState !== 'VALID') {
+            throw new Error(`Build ${build.attributes.version} is not VALID yet: ${build.attributes.processingState}`);
+          }
+          console.log(`Selected build: ${build.attributes.version} (${build.id})`);
+
+          const groupsRes = await asc(`/apps/${app.id}/betaGroups?limit=200`);
+          const groups = groupsRes.data ?? [];
+          if (!groups.length) throw new Error('No beta groups configured for this app');
+
+          for (const group of groups) {
+            console.log(
+              `Beta group: ${group.attributes.name} (${group.id}) internal=${group.attributes.isInternalGroup}`
+            );
+          }
+
+          const requestedName = (process.env.BETA_GROUP_NAME ?? '').trim().toLowerCase();
+          const selectedGroups = requestedName
+            ? groups.filter((group) => group.attributes.name.toLowerCase() === requestedName)
+            : groups.filter((group) => group.attributes.isInternalGroup);
+
+          if (!selectedGroups.length) {
+            throw new Error(
+              requestedName
+                ? `No beta group matched "${process.env.BETA_GROUP_NAME}"`
+                : 'No internal beta groups found. Re-run with beta_group_name for a specific external group.'
+            );
+          }
+
+          for (const group of selectedGroups) {
+            await asc(`/betaGroups/${group.id}/relationships/builds`, {
+              method: 'POST',
+              body: JSON.stringify({
+                data: [{ type: 'builds', id: build.id }],
+              }),
+            });
+            console.log(`Added build ${build.attributes.version} to beta group "${group.attributes.name}"`);
+          }
+          NODE

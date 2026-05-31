@@ -5,6 +5,7 @@ import {
   zConsentText,
   hasPrivacyToken,
 } from '@customerEQ/consent-text'
+import { PUBLIC_FRONTEND_HOST } from '@customerEQ/shared'
 import { DEFAULT_CONSENT_TEXT } from '../lib/consent.js'
 import { DEFAULT_THEMES } from '../lib/default-themes.js'
 
@@ -29,7 +30,7 @@ import { DEFAULT_THEMES } from '../lib/default-themes.js'
 // add an /^https?:/i refinement so javascript:/data:/mailto: schemes cannot
 // reach the React renderer's anchor href.
 
-const SUPPORT_EMAIL_FALLBACK = 'support@customereq.wellnessatwork.me'
+const SUPPORT_EMAIL_FALLBACK = `support@${PUBLIC_FRONTEND_HOST}`
 
 const HttpsUrl = z
   .string()

@@ -4,12 +4,29 @@ import { API_URL, queryEnabled, apiHeaders } from '../lib/api'
 
 export interface Survey {
   id: string; name: string; title: string | null; type: string; status: string
-  responseCount: number; score: number | null
+  responseCount: number; score: number | null; createdAt: string | null
+}
+
+export function toSurvey(raw: Record<string, unknown>): Survey {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) ?? '',
+    title: (raw.title as string | null) ?? null,
+    type: raw.type as string,
+    status: raw.status as string,
+    responseCount: (raw.responsesCount ?? raw.responseCount ?? 0) as number,
+    score: (raw.score ?? null) as number | null,
+    createdAt: (raw.createdAt ?? null) as string | null,
+  }
 }
 
 export interface SurveyQuestion {
-  id: string; text: string; type: 'rating' | 'text' | 'multiple_choice'; required: boolean
+  id: string
+  text: string
+  type: 'rating' | 'text' | 'choice' | 'multiple_choice' | 'checkbox' | 'dropdown' | 'matrix' | 'ranking' | 'slider' | 'likert' | 'image_choice' | 'file_upload'
+  required: boolean
   config: Record<string, unknown>
+  isScoreField?: boolean
 }
 
 export interface CreateSurveyInput {
@@ -34,12 +51,14 @@ export function useSurveys() {
       const res = await fetch(`${API_URL}/v1/surveys`, { headers })
       if (!res.ok) throw new Error(`Surveys fetch failed: ${res.status}`)
       const data = await res.json()
-      return (data.surveys ?? data.data ?? data) as Survey[]
+      const raw: Record<string, unknown>[] = data.surveys ?? data.data ?? data
+      return raw.map(toSurvey)
     },
   })
 
   const create = useMutation({
     mutationFn: async (input: CreateSurveyInput) => {
+      if (!input.programId) throw new Error('Create a loyalty program before creating a survey.')
       const headers = await apiHeaders(getToken)
       const res = await fetch(`${API_URL}/v1/surveys`, {
         method: 'POST',

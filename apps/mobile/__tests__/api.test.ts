@@ -2,7 +2,23 @@
  * Unit tests for lib/api.ts pure helpers.
  * These run without React Native or env mocking — all inputs are explicit.
  */
-import { buildQueryEnabled, buildApiHeaders } from '../lib/api'
+import { buildQueryEnabled, buildApiHeaders, resolveDevBypass } from '../lib/api'
+
+describe('resolveDevBypass', () => {
+  it('allows dev bypass only in development', () => {
+    expect(resolveDevBypass('true', true)).toBe(true)
+    expect(resolveDevBypass(' true ', true)).toBe(true)
+  })
+
+  it('suppresses dev bypass in production bundles even when env is true', () => {
+    expect(resolveDevBypass('true', false)).toBe(false)
+  })
+
+  it('stays off when env is missing or false', () => {
+    expect(resolveDevBypass(undefined, true)).toBe(false)
+    expect(resolveDevBypass('false', true)).toBe(false)
+  })
+})
 
 describe('buildQueryEnabled', () => {
   it('returns true when devBypass is true, regardless of sign-in state', () => {
@@ -21,11 +37,12 @@ describe('buildQueryEnabled', () => {
 })
 
 describe('buildApiHeaders', () => {
-  const base = { devBypass: false, devToken: 'dev-bypass' }
+  const base = { devBypass: false, devApiKey: 'ceq_testkey' }
 
-  it('returns Bearer dev-bypass when devBypass is true', async () => {
+  it('returns x-api-key header when devBypass is true', async () => {
     const headers = await buildApiHeaders({ ...base, devBypass: true }) as Record<string, string>
-    expect(headers['Authorization']).toBe('Bearer dev-bypass')
+    expect(headers['x-api-key']).toBe('ceq_testkey')
+    expect(headers['Authorization']).toBeUndefined()
   })
 
   it('calls getToken and returns Bearer <token> for real Clerk auth', async () => {

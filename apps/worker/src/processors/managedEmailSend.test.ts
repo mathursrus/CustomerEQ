@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { __testing__ } from './managedEmailSend.js'
 
-const { checkSuppression, classifyError } = __testing__
+const { checkSuppression, classifyError, resolveFrontendBaseUrl } = __testing__
 
 describe('checkSuppression — two-gate worker re-check', () => {
   const okMember = {
@@ -75,5 +75,66 @@ describe('classifyError — bounded failureReason taxonomy', () => {
 
   it('handles non-Error throws', () => {
     expect(classifyError('not an error object', false)).toBe('bounce')
+  })
+})
+
+// Issue #540 F1 — resolveFrontendBaseUrl
+// Production failure: customereq-worker had no NEXT_PUBLIC_FRONTEND_URL set,
+// so the inline expression fell through to `https://app.customereq.example`
+// and every email's survey link pointed at a non-existent host. The fix
+// extracts URL resolution into a named function that THROWS when no env var
+// is set, surfacing the misconfiguration loudly instead of silently
+// degrading to a placeholder.
+describe('resolveFrontendBaseUrl (Issue #540 F1)', () => {
+  const ORIGINAL_NEXT_PUBLIC = process.env.NEXT_PUBLIC_FRONTEND_URL
+  const ORIGINAL_FRONTEND = process.env.FRONTEND_URL
+
+  beforeEach(() => {
+    delete process.env.NEXT_PUBLIC_FRONTEND_URL
+    delete process.env.FRONTEND_URL
+  })
+
+  afterEach(() => {
+    if (ORIGINAL_NEXT_PUBLIC === undefined) delete process.env.NEXT_PUBLIC_FRONTEND_URL
+    else process.env.NEXT_PUBLIC_FRONTEND_URL = ORIGINAL_NEXT_PUBLIC
+    if (ORIGINAL_FRONTEND === undefined) delete process.env.FRONTEND_URL
+    else process.env.FRONTEND_URL = ORIGINAL_FRONTEND
+  })
+
+  it('returns NEXT_PUBLIC_FRONTEND_URL when set', () => {
+    process.env.NEXT_PUBLIC_FRONTEND_URL = 'https://customereq.wellnessatwork.me'
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
+  })
+
+  it('falls back to FRONTEND_URL when NEXT_PUBLIC_FRONTEND_URL is not set', () => {
+    process.env.FRONTEND_URL = 'https://example.com'
+    expect(resolveFrontendBaseUrl()).toBe('https://example.com')
+  })
+
+  it('NEXT_PUBLIC_FRONTEND_URL wins when both are set', () => {
+    process.env.NEXT_PUBLIC_FRONTEND_URL = 'https://winner.example'
+    process.env.FRONTEND_URL = 'https://loser.example'
+    expect(resolveFrontendBaseUrl()).toBe('https://winner.example')
+  })
+
+  it('strips a trailing slash so callers can concatenate paths cleanly', () => {
+    process.env.NEXT_PUBLIC_FRONTEND_URL = 'https://customereq.wellnessatwork.me/'
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
+  })
+
+  it('falls back to the shared PUBLIC_FRONTEND_URL constant when neither env var is set', () => {
+    // Default-with-warn instead of throw: env-config drift is recoverable
+    // because we know the canonical host. The fallback ships a working URL
+    // (https://customereq.wellnessatwork.me) so recipients receive a real
+    // link; the structured warn log lets ops detect the drift. Pre-fix
+    // behavior fell through to `app.customereq.example` — an unregistered
+    // host that would have shipped broken (and passively phishable) URLs.
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
+  })
+
+  it('falls back to PUBLIC_FRONTEND_URL when both env vars are empty strings', () => {
+    process.env.NEXT_PUBLIC_FRONTEND_URL = ''
+    process.env.FRONTEND_URL = ''
+    expect(resolveFrontendBaseUrl()).toBe('https://customereq.wellnessatwork.me')
   })
 })

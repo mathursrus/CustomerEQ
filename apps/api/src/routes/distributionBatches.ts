@@ -19,6 +19,7 @@ import {
   RegenerateTokensRequestSchema,
   ManagedEmailComposerSchema,
   FALLBACK_RESPONDENT_THEME,
+  PUBLIC_FRONTEND_HOST,
   deriveSurveySuppression,
   type AudienceSpecSchema,
   type ManagedEmailComposer,
@@ -40,6 +41,21 @@ const CSV_BODY_LIMIT = 11 * 1024 * 1024
 
 const RATE_LIMIT_MAX = 10
 const RATE_LIMIT_WINDOW_SECONDS = 60
+
+// Member-row select used by every audience-resolution path (random-sample,
+// pre-resolved memberIds, paste/CSV identifier lookup). The shape must stay
+// in sync with `ResolvedAudienceMember` below so each call site can push
+// directly into `members: ResolvedAudienceMember[]`.
+const AUDIENCE_MEMBER_SELECT = {
+  id: true,
+  externalId: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  erased: true,
+  consentGivenAt: true,
+  unsubscribedSurveysAt: true,
+} as const
 
 type AudienceSpec = z.infer<typeof AudienceSpecSchema>
 
@@ -176,16 +192,7 @@ async function resolveExistingMembers(
   // so the audience-list UI can disable selection of suppressed picks per R22.
   const eligible = await fastify.prisma.member.findMany({
     where: { brandId, erased: false, deletedAt: null },
-    select: {
-      id: true,
-      externalId: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      erased: true,
-      consentGivenAt: true,
-      unsubscribedSurveysAt: true,
-    },
+    select: AUDIENCE_MEMBER_SELECT,
     orderBy: { id: 'asc' },
   })
 
@@ -225,6 +232,12 @@ async function resolveCustomList(
   identifiersBody: string,
   autoEnroll: boolean,
   tx?: Prisma.TransactionClient,
+  /** Issue #531 — pre-resolved Member.id values from the audience-builder UI.
+   *  Looked up by id (brandId-scoped) before the paste body is parsed; results
+   *  are merged into the resolved set, dedupe-by-memberId against any matching
+   *  paste entries. The paste-parser's brand-kind-aware shape inference is NOT
+   *  applied to these — that's the whole point of the new path. */
+  preResolvedMemberIds: readonly string[] = [],
 ): Promise<ResolvedAudience & { rowsForAudit: ParsedRow[] }> {
   const brand = await (tx ?? fastify.prisma).brand.findUnique({
     where: { id: brandId },
@@ -267,22 +280,48 @@ async function resolveCustomList(
   const autoEnrolledMemberIds: string[] = []
   const unmatchedFinal: string[] = [...parsed.unmatched]
 
+  // Issue #531 — resolve UI-supplied memberIds first. Brand-scoped + alive
+  // (non-erased, non-deleted) — never trust a client-supplied id without
+  // re-checking ownership. This is the path the audience-builder UI takes for
+  // every row it sourced from /v1/members search or /preview; the paste-body
+  // path below remains for unresolved/typed identifiers (auto-enroll case
+  // + CSV upload + raw operator paste).
+  const seenMemberIds = new Set<string>()
+  if (preResolvedMemberIds.length > 0) {
+    const dedupedIds = Array.from(new Set(preResolvedMemberIds))
+    const preResolved = await (tx ?? fastify.prisma).member.findMany({
+      where: {
+        id: { in: dedupedIds },
+        brandId,
+        erased: false,
+        deletedAt: null,
+      },
+      select: AUDIENCE_MEMBER_SELECT,
+    })
+    for (const m of preResolved) {
+      members.push({
+        memberId: m.id,
+        identifier: m.externalId,
+        email: m.email,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        erased: m.erased,
+        consentGivenAt: m.consentGivenAt,
+        unsubscribedSurveysAt: m.unsubscribedSurveysAt,
+      })
+      seenMemberIds.add(m.id)
+    }
+  }
+
   for (const row of parsed.rows) {
     const externalId = row.identifier.toLowerCase()
     const existing = await (tx ?? fastify.prisma).member.findUnique({
       where: { brandId_externalId: { brandId, externalId } },
-      select: {
-        id: true,
-        externalId: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        erased: true,
-        consentGivenAt: true,
-        unsubscribedSurveysAt: true,
-      },
+      select: AUDIENCE_MEMBER_SELECT,
     })
     if (existing) {
+      // Issue #531 — skip if this member was already added via memberIds[].
+      if (seenMemberIds.has(existing.id)) continue
       members.push({
         memberId: existing.id,
         identifier: existing.externalId,
@@ -293,6 +332,7 @@ async function resolveCustomList(
         consentGivenAt: existing.consentGivenAt,
         unsubscribedSurveysAt: existing.unsubscribedSurveysAt,
       })
+      seenMemberIds.add(existing.id)
       continue
     }
     if (!autoEnroll) {
@@ -431,6 +471,8 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             brandId,
             input.audience.identifiers,
             input.audience.autoEnroll,
+            undefined,
+            input.audience.memberIds ?? [],
           )
           resolved = result
         }
@@ -564,7 +606,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
         })
         const envFrom = (process.env.AZURE_COMMUNICATION_SERVICES_EMAIL_FROM ?? '').trim()
         const envDomain = envFrom.includes('@') ? envFrom.split('@')[1] : undefined
-        senderDomain = brand?.managedEmailSenderDomain ?? envDomain ?? 'customereq.wellnessatwork.me'
+        senderDomain = brand?.managedEmailSenderDomain ?? envDomain ?? PUBLIC_FRONTEND_HOST
         if (!brand?.managedEmailSenderDomain && !envDomain) {
           fastify.log.warn(
             { event: 'email.sender_domain.fallback', reason: 'acs_env_unset', brandId },
@@ -603,6 +645,7 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             input.audience.identifiers,
             input.audience.autoEnroll,
             tx,
+            input.audience.memberIds ?? [],
           )
         }
 
@@ -758,6 +801,21 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
             enqueuedAt: sendMode === 'MANAGED_EMAIL' ? new Date() : null,
           })),
         })
+
+        // Issue #540 F3 — SELF_SERVE "sent" semantics are mint-time. The
+        // operator commits to sending the moment they generate the wave; the
+        // separate `mark-csv-downloaded` action is an audit signal, not a
+        // count gate. Previously `Survey.sentCount` only ticked up when the
+        // operator explicitly downloaded the CSV, which they often skipped —
+        // the Survey Sent: N header then under-reported. MANAGED_EMAIL keeps
+        // its per-delivery bump in the worker's markDelivered (the worker is
+        // the source of truth for "we actually tried to send").
+        if (sendMode === 'SELF_SERVE') {
+          await tx.survey.update({
+            where: { id: surveyId },
+            data: { sentCount: { increment: minted.length } },
+          })
+        }
 
         return { batch, minted, resolved, unsubMinted }
       })
@@ -1161,36 +1219,30 @@ const distributionBatchesRoutes: FastifyPluginAsync = async (fastify) => {
 
       const now = new Date()
       const result = await fastify.prisma.$transaction(async (tx) => {
-        // Δ = rows in this batch whose sentAt is the original mint-time (we
-        // treat any sentAt that equals creation order as "not yet downloaded").
-        // Heuristic: rows with deliveredAt IS NULL AND sentAt set to the row's
-        // createdAt are pre-download. For idempotency, count rows where sentAt
-        // hasn't been bumped yet — we encode this by tracking sentAt < NOW().
-        // Simpler V0 contract: count BEFORE we bump, so the second call returns
-        // delta=0.
+        // Issue #540 F3 — `Survey.sentCount` is now bumped at batch create
+        // time for SELF_SERVE (see create handler), so the operator-triggered
+        // download moment is purely an audit signal here: count rows we
+        // haven't audit-stamped yet, bump their `sentAt`, return the survey's
+        // current (mint-time) sentCount unchanged. The endpoint stays
+        // idempotent — a second call sees `delta === 0`.
         const before = await tx.surveyDistribution.findMany({
           where: { batchId },
           select: { sentAt: true, id: true },
         })
         const delta = before.filter((r) => r.sentAt < now).length
+        const surveySentCountRow = await tx.survey.findUniqueOrThrow({
+          where: { id: surveyId },
+          select: { sentCount: true },
+        })
         if (delta === 0) {
-          // Idempotent no-op.
-          const surveySentCount = await tx.survey.findUniqueOrThrow({
-            where: { id: surveyId },
-            select: { sentCount: true },
-          })
-          return { delta: 0, surveySentCount: surveySentCount.sentCount, sentAt: now.toISOString() }
+          // Idempotent no-op — already audit-stamped.
+          return { delta: 0, surveySentCount: surveySentCountRow.sentCount, sentAt: now.toISOString() }
         }
         await tx.surveyDistribution.updateMany({
           where: { batchId },
           data: { sentAt: now },
         })
-        const updated = await tx.survey.update({
-          where: { id: surveyId },
-          data: { sentCount: { increment: delta } },
-          select: { sentCount: true },
-        })
-        return { delta, surveySentCount: updated.sentCount, sentAt: now.toISOString() }
+        return { delta, surveySentCount: surveySentCountRow.sentCount, sentAt: now.toISOString() }
       })
 
       request.audit = { metadata: { batchId, delta: result.delta } }

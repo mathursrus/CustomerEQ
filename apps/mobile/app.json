@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.customereq.mobile",
-      "buildNumber": "17",
+      "buildNumber": "20",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -26,8 +26,18 @@
       },
       "package": "com.customereq.mobile"
     },
+    "updates": {
+      "url": "https://u.expo.dev/c78d8409-8165-4225-8be1-102374d5f562",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-updates"
     ],
     "extra": {
       "router": {

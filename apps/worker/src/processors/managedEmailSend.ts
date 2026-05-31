@@ -1,8 +1,17 @@
 import type { Job } from 'bullmq'
+import pino from 'pino'
 import { prisma } from '@customerEQ/database'
 import { sendEmailMessage } from '@customerEQ/connectors'
-import { renderEmailHtml, renderEmailPlainText, type BrandThemeSnapshot, type ComposerSnapshot } from '@customerEQ/shared'
+import {
+  renderEmailHtml,
+  renderEmailPlainText,
+  PUBLIC_FRONTEND_URL,
+  type BrandThemeSnapshot,
+  type ComposerSnapshot,
+} from '@customerEQ/shared'
 import type { ManagedEmailSendPayload } from '@customerEQ/shared'
+
+const logger = pino({ name: 'managed-email-send' })
 
 // ---------------------------------------------------------------------------
 // BullMQ processor — Issue #420
@@ -173,7 +182,7 @@ export async function dispatchManagedEmailSend(
   }
 
   const composer = batch.composerSnapshot as unknown as ComposerSnapshotJson
-  const frontendBaseUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? process.env.FRONTEND_URL ?? 'https://app.customereq.example').replace(/\/$/, '')
+  const frontendBaseUrl = resolveFrontendBaseUrl()
 
   // 4. Resolve URLs from payload-supplied plaintext tokens. The retry-failed
   //    fallback below preserves the previous (broken) behavior rather than
@@ -294,9 +303,40 @@ async function markFailed(batchId: string, memberId: string, failureReason: Mana
   })
 }
 
+/**
+ * Issue #540 F1 — Resolve the public frontend base URL used to build
+ * recipient-facing survey + unsubscribe links.
+ *
+ * Precedence: NEXT_PUBLIC_FRONTEND_URL > FRONTEND_URL > shared canonical
+ * default (`PUBLIC_FRONTEND_URL`). Resolves lazily per call so tests can
+ * manipulate env vars per-case without re-importing the module, and so the
+ * runtime path that dispatches the actual email is the one that surfaces
+ * the warning log (not an unused module-load).
+ *
+ * Pattern mirrors `apps/api/src/routes/distributionBatches.ts:567` — the
+ * existing sender-domain fallback. When the env var is missing we warn
+ * (so ops sees the drift) but still ship a known-correct host so the
+ * recipient receives a working link. The previous behavior fell through
+ * to a placeholder (`https://app.customereq.example`) which IS an
+ * unregistered host — shipping that into recipient inboxes is the
+ * incident this fix prevents.
+ */
+function resolveFrontendBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL
+  if (!raw) {
+    logger.warn(
+      { event: 'frontend_url.fallback', reason: 'env_unset', fallback: PUBLIC_FRONTEND_URL },
+      'NEXT_PUBLIC_FRONTEND_URL/FRONTEND_URL not set — using canonical default',
+    )
+    return PUBLIC_FRONTEND_URL
+  }
+  return raw.replace(/\/$/, '')
+}
+
 // Test-only exports
 export const __testing__ = {
   checkSuppression,
   classifyError,
+  resolveFrontendBaseUrl,
   SKIP_REASONS,
 }

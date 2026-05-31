@@ -1,0 +1,77 @@
+{
+  "auditDate": "2026-05-28",
+  "appVersion": "1.0.0",
+  "buildNumber": "18",
+  "bundleId": "com.customereq.mobile",
+  "dataTypes": [
+    {
+      "category": "User ID",
+      "specificType": "Clerk JWT / session token",
+      "collected": true,
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["App Functionality"],
+      "evidence": "apps/mobile/lib/api.ts — sent as Bearer token in Authorization header on every API request",
+      "thirdPartiesShared": ["Clerk (auth provider)"]
+    },
+    {
+      "category": "User ID",
+      "specificType": "Clerk organization ID (orgId)",
+      "collected": true,
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["App Functionality"],
+      "evidence": "apps/mobile/app/(tabs)/profile.tsx — useOrganization() reads active org; used to scope API data to the correct brand",
+      "thirdPartiesShared": []
+    },
+    {
+      "category": "Contact Info",
+      "specificType": "Email address",
+      "collected": true,
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["App Functionality"],
+      "evidence": "apps/mobile/app/(auth)/sign-in.tsx — email entered by user during Clerk sign-in; managed by Clerk SDK, not stored by the app directly",
+      "thirdPartiesShared": ["Clerk (auth provider)"]
+    },
+    {
+      "category": "Analytics",
+      "specificType": "CX survey response data",
+      "collected": false,
+      "linkedToUser": false,
+      "usedForTracking": false,
+      "purposes": ["App Functionality"],
+      "evidence": "apps/mobile/hooks/useSurveys.ts — app READS aggregated survey data from the CustomerEQ API; does not send new survey responses",
+      "thirdPartiesShared": []
+    }
+  ],
+  "thirdPartySDKs": [
+    {
+      "name": "@clerk/clerk-expo",
+      "version": "^2.19.31",
+      "purpose": "Authentication (sign-in, session management, org switching)",
+      "dataTouched": "Email address, JWT tokens, org membership",
+      "autoCollectsOnInit": true,
+      "note": "Clerk connects to clerk.customereq.wellnessatwork.me FAPI on initialization"
+    },
+    {
+      "name": "expo-notifications",
+      "version": "^0.29.0",
+      "purpose": "Push notification registration (not yet wired — dependency only)",
+      "dataTouched": "None (not initialized)",
+      "autoCollectsOnInit": false
+    }
+  ],
+  "networkEndpoints": [
+    "https://clerk.customereq.wellnessatwork.me (Clerk FAPI)",
+    "https://customereq-api.salmonsea-4eb14bdc.eastus.azurecontainerapps.io (CustomerEQ API)"
+  ],
+  "tracksUsersAcrossApps": false,
+  "usesAdvertisingIdentifier": false,
+  "requestsPermissions": [],
+  "requiredReasonsAPIs": [
+    "NSUserDefaults — used by Expo/React Native framework internals",
+    "fileTimestamp — used by Expo framework"
+  ],
+  "privacyManifest": "Expo SDK 52 ships PrivacyInfo.xcprivacy covering framework-level Required Reasons APIs. No additional app-level manifest required for current data flows."
+}

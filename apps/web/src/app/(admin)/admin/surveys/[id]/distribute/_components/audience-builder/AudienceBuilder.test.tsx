@@ -103,12 +103,16 @@ describe('<AudienceBuilder>', () => {
     fireEvent.click(screen.getByRole('button', { name: /add 1 selected members/i }))
 
     // The accumulated list now contains Alice; the audience-builder state has
-    // emitted with selectedCount=1 and a custom_list paste of her externalId.
+    // emitted with selectedCount=1. Issue #531 — Alice came from /v1/members
+    // search, so her canonical Member.id rides on `memberIds[]`, NOT the paste
+    // body. The previous shape (identifiers containing 'alice@artistos.com')
+    // was the round-trip that this fix removes.
     await waitFor(() => {
       const last = states[states.length - 1]
       expect(last.selectedCount).toBe(1)
       expect(last.submitAudience.mode).toBe('custom_list')
-      expect(last.submitAudience.identifiers).toContain('alice@artistos.com')
+      expect(last.submitAudience.memberIds).toEqual(['m-alice'])
+      expect(last.submitAudience.identifiers).toBe('')
     })
   })
 
@@ -161,5 +165,43 @@ describe('<AudienceBuilder>', () => {
     const last = states[states.length - 1]
     expect(last.rows).toHaveLength(1)
     expect(last.selectedCount).toBe(1)
+  })
+
+  // Issue #531 — audience-builder pre-resolved memberIds path.
+  // For rows that came back from /v1/members search, the UI already has the
+  // canonical Member.id. Sending those as memberIds[] (instead of a paste body)
+  // lets the server resolve them directly — bypassing the brand-kind-aware
+  // shape inference that was silently dropping rows in production.
+  it('emits memberIds[] for search-result rows (Issue #531)', async () => {
+    const states: AudienceBuilderState[] = []
+    render(
+      <AudienceBuilder
+        surveyId="srv_test"
+        surveyNameInMail="Q2 2026 NPS"
+        expiresAtIso="2026-05-30T00:00:00.000Z"
+        totalMemberCount={100}
+        onChange={(s) => {
+          states.push(s)
+        }}
+      />,
+    )
+
+    const searchInput = screen.getByLabelText(/search members/i)
+    fireEvent.change(searchInput, { target: { value: '*@artistos.com' } })
+    fireEvent.keyDown(searchInput, { key: 'Enter', code: 'Enter' })
+    await screen.findByText(/Alice Chen/)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /select Alice Chen/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 selected members/i }))
+
+    await waitFor(() => {
+      const last = states[states.length - 1]
+      expect(last.selectedCount).toBe(1)
+      // Resolved row's memberId rides on memberIds[] — NOT on the paste body.
+      expect(last.submitAudience.memberIds).toEqual(['m-alice'])
+      // Paste body stays empty for purely-resolved audiences (no auto-enroll
+      // typed identifiers in this scenario).
+      expect(last.submitAudience.identifiers).toBe('')
+    })
   })
 })
