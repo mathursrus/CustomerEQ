@@ -324,8 +324,11 @@ async function resolveCustomList(
       firstName: row.firstName,
       lastName: row.lastName,
       enrolledVia: 'BULK_DISTRIBUTION',
+      ingress: 'DISTRIBUTION_BATCH', // Issue #524 — old-key telemetry (R33)
     })
     if (!enrollResult.ok) {
+      // Includes a post-grace deprecated old id (R35) — treated as unmatched in
+      // the batch context (no per-row 410; the row is reported as unmatched).
       unmatchedFinal.push(row.identifier)
       continue
     }

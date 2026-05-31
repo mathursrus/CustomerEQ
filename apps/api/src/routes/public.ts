@@ -462,10 +462,14 @@ const publicRoutes: FastifyPluginAsync = async (fastify) => {
           lastName: data.lastName,
           consentVersion: data.consentVersion,
           enrolledVia,
+          ingress: 'PUBLIC_SURVEY_RESPOND', // Issue #524 — old-key telemetry (R33)
         })
 
         if (!enrollResult.ok) {
-          return reply.status(400).send({
+          // Issue #524 R35 — old identifier after grace expiry → 410 deprecated.
+          const status =
+            enrollResult.error.code === 'IDENTIFIER_DEPRECATED_AFTER_MIGRATION' ? 410 : 400
+          return reply.status(status).send({
             error: enrollResult.error.code,
             message: enrollResult.error.message,
             expectedKind: enrollResult.error.expectedKind,

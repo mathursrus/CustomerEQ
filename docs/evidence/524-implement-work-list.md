@@ -73,5 +73,9 @@ Phase: `feature-implementation` (FRAIM). Source of truth: spec `docs/feature-spe
 - Competitor config (Smile.io/Yotpo/Annex) — deferred to user approval; not committed here.
 - Phantom-member open question (RFC Confidence Level) — keep member (no data loss), remains old-shape until brand supplies email; not auto-resolved in Slice 1.
 
+## Implementation decisions (durable)
+- **Re-key failure semantics — RFC §D deviation (FLAGGED for review).** RFC §D specified per-member committed transactions with NO whole-batch rollback ("a failing member is flagged, the rest continues, status=FAILED"). That strands successfully-re-keyed members on failure (their externalId became email, brand kind stays CUSTOMER_ID, FAILED is not a dual-key status → their old customer_id no longer resolves). That violates spec R17/R23 ACs ("member 1 is still keyed by its customer_id"). **Implemented instead:** chunked *committed* re-key (keeps R18 live progress) + a **compensating rollback** on terminal failure that reverts applied members to their original `externalId`/`email`. Requires capturing each member's pre-migration email → added `MemberIdentifierMigrationMapping.oldEmail` (schema + same migration `20260531000000`). Rollback clears `appliedAt` (so R24 retry re-processes) but preserves `errorReason` (so R24 shows per-member errors). Spec ACs are authoritative SHALLs; this is the only design satisfying R17+R18+R19+R23 together. Worker concurrency=1 (one brand's re-key at a time → sequential per-member tx, monotonic progress).
+- Reconciliation moved to `apps/worker/src/processors/` (worker-only concern; worker cannot import from `apps/api`).
+
 ## Phase N/A markers (Rule 24 — record, don't silently drop)
 - `implement-repro` — N/A: this is a feature, not a bug. No failing-repro-first required; tests written alongside code (`implement-tests`).

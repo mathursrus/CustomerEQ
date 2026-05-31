@@ -320,16 +320,29 @@ const adminBrandProfileRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       // Cross-field rule 1: identifier-kind change blocked when members exist.
+      // The radio-toggle path remains rejected (the guided migration flow is the
+      // only way to change the kind once members exist — Issue #524 R1/R2). The
+      // 409 now points the admin at the guided flow (or an in-flight migration).
       if (
         body.memberIdentifierKind !== undefined &&
         body.memberIdentifierKind !== current.memberIdentifierKind
       ) {
         const memberCount = await fastify.prisma.member.count({ where: { brandId } })
         if (memberCount > 0) {
+          const activeMigration = await fastify.prisma.memberIdentifierMigration.findFirst({
+            where: {
+              brandId,
+              status: { in: ['PENDING_VALIDATION', 'VALIDATED', 'PROCESSING', 'REKEY_COMPLETE_IN_GRACE'] },
+            },
+            select: { id: true },
+          })
           return reply.status(409).send({
             error: 'Identifier kind cannot be changed while members exist',
             code: 'MEMBER_IDENTIFIER_KIND_LOCKED',
             memberCount,
+            redirectTo: activeMigration
+              ? `/admin/settings/organization/migrations/${activeMigration.id}`
+              : '/admin/settings/organization/migrations/new',
           })
         }
       }
