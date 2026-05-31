@@ -523,8 +523,14 @@ async function buildImpactPreview(
 }
 
 function csvCell(value: string): string {
-  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
-  return value
+  // CSV formula-injection hardening: a cell beginning with = + - @ (or a control
+  // char) can execute as a formula when the downloaded file is opened in Excel /
+  // Sheets. Member external ids and emails are brand-supplied, so neutralize by
+  // prefixing a single quote before quoting/escaping.
+  let v = value
+  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`
+  if (/[",\r\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`
+  return v
 }
 
 export default adminBrandMigrationsRoutes
