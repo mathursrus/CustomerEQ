@@ -156,3 +156,90 @@ button:disabled {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Marketing site: motion + decorative helpers
+ *
+ * Used only by the (marketing) route group. Kept here (rather than inline)
+ * so the scroll-reveal initial state ships with SSR and there's no flash of
+ * already-visible content before the IntersectionObserver hydrates.
+ * Everything degrades to "fully visible, no motion" under
+ * prefers-reduced-motion so the page stays accessible.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Scroll-triggered entrance (paired with _components/reveal.tsx). */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Gradient text for headline accents. */
+.text-gradient {
+  background-image: linear-gradient(120deg, #6366f1 0%, #8b5cf6 45%, #d946ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Soft floating colour blobs behind the hero / CTA. */
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  opacity: 0.6;
+  pointer-events: none;
+  animation: blob-drift 18s ease-in-out infinite alternate;
+}
+@keyframes blob-drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(24px, -32px) scale(1.08);
+  }
+  100% {
+    transform: translate(-18px, 20px) scale(0.96);
+  }
+}
+
+/* Subtle dot grid backdrop. */
+.bg-dot-grid {
+  background-image: radial-gradient(circle, rgba(99, 102, 241, 0.12) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Slow shimmer used on the "live" badge dot. */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+.pulse-dot {
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .blob,
+  .pulse-dot {
+    animation: none;
+  }
+}
