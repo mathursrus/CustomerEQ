@@ -33,7 +33,7 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build_number }}
           BETA_GROUP_NAME: ${{ inputs.beta_group_name }}
         run: |
-          node <<'NODE'
+          node --input-type=commonjs <<'NODE'
           const crypto = require('crypto');
 
           const required = ['API_KEY_ID', 'API_ISSUER_ID', 'API_PRIVATE_KEY', 'BUNDLE_ID', 'BUILD_NUMBER'];
