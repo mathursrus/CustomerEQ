@@ -85,3 +85,83 @@ Run 2026-05-31. **15/18 turbo tasks pass; the only test failure is pre-existing 
   - *Proof:* checked out base commit `3c86613` (pre-#524, my files removed) → fails identically (1 failed | 552 passed). Independent of this issue.
   - *Why CI is green:* the CI gate `pnpm test:smoke` (`scripts/test-suite-runner.mjs`) isolates each test file in its own process, so the singleFork cross-file env leak never occurs; `pnpm test:smoke` passed this run.
   - *Disposition:* **not fixed on this branch** — the fix (read `QUEUE_MODE` at plugin-invocation rather than module-load) is an unrelated cross-cutting change to a non-#524 file (Rule 21 / Rule 25c). Recommend a separate dev-environment issue. #524 introduces no new regressions.
+
+## Completeness Review
+
+Test name keys: **IT** = `member-identifier-migration.test.ts` (integration, 14 tests); **UT-preflight/dualkey/recon** = the named unit suites; **UI** = component + `next build` + UI baseline (`524-ui-polish-validation.md`); live Clerk click-through = user functional pass.
+
+### Feature Requirement Traceability Matrix
+| Requirement | Implemented (file/fn) | Proof | Status |
+|---|---|---|---|
+| R0 direction-agnostic engine | schema `fromKind/toKind`; worker reads `migration.toKind` | IT happy-path | Met |
+| R1 "Switch" action when CUSTOMER_ID + members | `MemberIdentificationSection.LockedPanel` | UI + `current` endpoint | Met |
+| R2 radios non-editable; guided flow only | section radios disabled; PATCH rejects toggle w/ redirect | UI + code guard | Met |
+| R3 only EMAIL selectable | wizard radios (Phone disabled); `POST /migrations` 400 non-CUSTOMER_ID | IT create-guard + UI | Met |
+| R4 downloadable template pre-filled | `GET mapping-template.csv` + `buildFastPathRows` | IT "downloads a mapping template pre-filled" | Met |
+| R5 accept CSV upload scoped to brand | `POST /:id/mapping` (text/csv) | IT "blocks…CSV omits a member" | Met |
+| R6 validation before any write | `validatePreflight` (pure); persist only on ok | UT-preflight + IT (PENDING after fail) | Met |
+| R7 report counts | `MigrationPreflightResult.counts` | UT-preflight | Met |
+| R8 unmapped → blocking | coverage check | UT-preflight + IT | Met |
+| R9 collision → blocking | collision check | UT-preflight | Met |
+| R10 invalid shape → blocking | `EMAIL_RE` | UT-preflight | Met |
+| R11 not startable while blocking | advance only on ok | IT (PENDING after unmapped) | Met |
+| R12 per-row detail | `rowIssues[]` | UT-preflight + UI error table | Met |
+| R13 attestation recorded | start writes audit `…started` w/ admin+text+ts | IT "persists the attestation text…" | Met |
+| R14 migrate disabled until attestation | wizard checkbox gate; `StartSchema` 422 w/o | UI + zod guard | Met |
+| R15 async off hot path | BullMQ worker | code | Met |
+| R16 re-key externalId+email in brand tx | worker | IT happy (externalId==email) | Met |
+| R17 flip only on terminal success | worker final tx; failure never flips | IT happy + IT rollback | Met |
+| R18 live progress | committed-chunk counters + poll panel | IT (processedMembers) + UI | Met |
+| R19 dual-key during re-key | resolver fallback | UT-dualkey + IT PROCESSING | Met |
+| R20 reconcile late old-key enrol | `reconcileMigration` | UT-recon + IT reconcile | Met |
+| R21 LWW, no hard-delete | reconcile create-only | UT-recon | Met |
+| R22 completion summary counts | `reconciledMembers` + UI summary | IT reconcile (count>=1) + UI | Met |
+| R23 failure rollback, members on original key | `rollbackAppliedMembers` | IT rollback | Met |
+| R24 per-member errors + retry | `errorRows` + `MigrationFailedPanel` + start-from-FAILED | IT rollback (errorRows>=1) | Met |
+| R25 audit before/after+counts+attestation | worker+route audits | IT completed/started/extend | Met |
+| R26 preserve attrs; exclude erased | UPDATE-only; erased/deletedAt excluded | IT erased-excluded + IT clerkUserId | Met |
+| R27 tenant-scoped | `request.brandId` + `loadOwnedMigration` | IT cross-tenant 404 | Met |
+| R28 fast path | `preflight-context.fastPathAvailable` | IT happy + UT | Met |
+| R29 fast-path unavailable → upload | false branch | UT-preflight + UI | Met |
+| R30 data-driven impact preview, omit /v1/events | `buildImpactPreview` | IT "never lists /v1/events" | Met |
+| R31 30-day grace | worker `graceExpiresAt=+30d` | IT happy | Met |
+| R32 dual-key during grace | resolver grace status | UT-dualkey + IT | Met |
+| R33 old-key telemetry per ingress | `recordOldKeyUsage` | IT PROCESSING (usage count) | Met |
+| R34 grace panel + extend (no attestation) | `GraceStatusPanel` + `POST /:id/extend-grace` | IT "extends the grace window…" | Met |
+| R35 post-grace 410 / reject | resolver post-grace branch | IT "rejects an old id after grace" + UT-dualkey | Met (shape-error 400 per existing route contract vs spec-prose 422 — see Decisions) |
+| R36 loyalty-only; clerkUserId preserved | coverage over Member rows | IT clerkUserId + IT erased totals | Met |
+| R37 pre-expiry banner | `GET /usage-warnings` + `UsageWarningBanner` | IT pre-expiry + UI | Met |
+
+**Feature-requirement matrix: PASS — 0 Unmet/Partial.**
+
+### Technical Design Traceability Matrix
+| Design commitment (RFC) | Implemented | Proof | Status |
+|---|---|---|---|
+| §A direction-agnostic adapters | `fromKind/toKind` drive worker sidecar | IT happy | Met |
+| §A out-of-scope: surveyImport A1, PHONE untouched | not modified | diff (no surveyImport change) | Met (deferral) |
+| §B 3 tables + `Brand.activeMigrationId` | migration `20260531000000` | `migrate status` clean | Met |
+| §B (added) `mapping.oldEmail` for rollback | schema + migration | IT rollback | Met (deviation, documented) |
+| §C 8 endpoints (+`/current` for UI) | `adminBrandMigrations.ts` | IT suite | Met |
+| §C.1 preflight contract | `MigrationPreflightResult` | UT-preflight | Met |
+| §C.2 fast-path detect (JS not raw SQL) | preflight-context JS aggregation | IT happy | Met (deviation documented) |
+| §D re-key worker | `dispatchMemberIdentifierMigration` | IT happy + IT rollback | Met (failure=compensating rollback, deviation documented) |
+| §E dual-key resolution | resolver fallback | UT-dualkey + IT | Met |
+| §F reconciliation (record, no merge) | `reconcileMigration` | UT-recon + IT | Met (phantom-merge deferred per RFC) |
+| §G grace + sweep + pre-expiry | `dispatchGraceExpirySweep` + usage-warnings | IT grace + IT pre-expiry | Met |
+| §H impact preview (omit /v1/events) | `buildImpactPreview` | IT impact-preview | Met |
+| §I audit family | `emitMigrationAudit` + `request.audit` | IT audits | Met |
+| §J UI structure | `migrations/**` + section + banner | next build + UI baseline | Met |
+| §M ingress audit (paths 1-3 only; events excluded) | 3-value enum; events untouched | IT impact-preview + events.ts unchanged | Met |
+| Callout: reuse `usePollingQuery` | progress/grace/[id] panels | import + UI | Met |
+| Callout: reuse consent-mode attestation pattern | wizard checkbox + `…started` audit | IT attestation | Met (pattern reused; inline checkbox per mock Scene 5) |
+| Callout: mirror historical-import (#262) upload | built equivalent (file input + preflight + error table) | UI baseline | Met (#262 UI absent in repo; built to pattern intent) |
+| Arch-doc additions (banner/dual-key patterns, engine ADR) | — | — | Deferred (RFC defers to architecture-update/work-completion) |
+
+**Technical-design matrix: PASS — 0 Unmet/Partial; 0 unresolved named callouts; deviations are intentional tradeoffs (documented in Decisions).**
+
+### Feedback Verification
+- `524-design-feedback.md` (technical-design Round 1): all 3 comments ADDRESSED (`15a2159`/`3c86613`).
+- `524-feature-implementation-feedback.md` (quality): Q-1 ADDRESSED (fixed); Q-2/Q-3 ADDRESSED (justified). 0 UNADDRESSED.
+- No open human PR-review feedback yet (PR goes Ready only at work-completion; `address-feedback` is the hold-point).
+
+**Completeness review: PASS.**
