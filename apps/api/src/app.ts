@@ -39,6 +39,7 @@ import outboundWebhooksRoutes from './routes/outboundWebhooks.js'
 import authRoutes from './routes/auth.js'
 import identityProviderWebhookRoutes from './routes/identityProviderWebhook.js'
 import adminBrandProfileRoutes from './routes/admin-brand-profile.js'
+import adminBrandMigrationsRoutes from './routes/adminBrandMigrations.js'
 import distributionBatchesRoutes from './routes/distributionBatches.js'
 import mobileRoutes from './routes/mobile.js'
 import unsubscribeRoutes from './routes/unsubscribe.js'
@@ -146,6 +147,7 @@ export async function buildApp() {
   await fastify.register(developerRoutes, { prefix: '/v1' })
   await fastify.register(outboundWebhooksRoutes, { prefix: '/v1' })
   await fastify.register(adminBrandProfileRoutes, { prefix: '/v1' })
+  await fastify.register(adminBrandMigrationsRoutes, { prefix: '/v1' })
   await fastify.register(distributionBatchesRoutes, { prefix: '/v1' })
   await fastify.register(mobileRoutes, { prefix: '/v1' })
 

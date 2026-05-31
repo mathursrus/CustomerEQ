@@ -104,6 +104,12 @@ export interface SurveyImportRowPayload {
   rawAnswers: Record<string, unknown>
 }
 
+// Issue #524 — payload for the member-identifier-migration re-key worker.
+// Slim: the worker loads the migration + mappings via Prisma by id.
+export interface MemberIdentifierMigrationPayload {
+  migrationId: string
+}
+
 export interface ExternalSignalSyncPayload {
   brandId: string
   sourceId: string

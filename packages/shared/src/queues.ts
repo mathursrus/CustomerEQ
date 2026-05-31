@@ -14,6 +14,8 @@ export const QUEUES = {
   SURVEY_DISTRIBUTE: 'survey-distribute',
   SURVEY_IMPORT: 'survey-import',
   MANAGED_EMAIL_SEND: 'managed-email-send', // Issue #420 — per-recipient ACS dispatch for MANAGED_EMAIL batches
+  MEMBER_IDENTIFIER_MIGRATION: 'member-identifier-migration', // Issue #524 — async re-key worker
+  MEMBER_MIGRATION_GRACE_SWEEP: 'member-migration-grace-sweep', // Issue #524 — repeatable grace-expiry sweep
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

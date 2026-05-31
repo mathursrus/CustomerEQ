@@ -176,12 +176,12 @@ enum ConsentMode {
 }
 
 enum MemberEnrolledVia {
-  MANUAL_API         // integrator POST /v1/members/enroll
-  BULK_IMPORT        // bulk migration import
-  SURVEY_RESPONSE    // auto-enrolled via standalone survey link/email — responder self-identified on form
-  EMBEDDED_FORM      // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
-  CLERK_OAUTH        // signup via Clerk webhook
-  BULK_DISTRIBUTION  // Issue #378 — auto-enrolled via Custom List batch generation
+  MANUAL_API // integrator POST /v1/members/enroll
+  BULK_IMPORT // bulk migration import
+  SURVEY_RESPONSE // auto-enrolled via standalone survey link/email — responder self-identified on form
+  EMBEDDED_FORM // auto-enrolled via host-application embedded survey — host SDK supplied identity via URL param
+  CLERK_OAUTH // signup via Clerk webhook
+  BULK_DISTRIBUTION // Issue #378 — auto-enrolled via Custom List batch generation
 }
 
 enum ResponsePolicy {
@@ -190,50 +190,79 @@ enum ResponsePolicy {
   LATEST_OVERWRITES
 }
 
+// ─── Issue #524: Switch member identifier kind (direction-agnostic engine) ────
+
+enum MemberIdentifierMigrationStatus {
+  PENDING_VALIDATION // mapping uploaded or fast-path data validated → pre-flight running
+  VALIDATED // pre-flight clean; awaiting admin confirm + attestation
+  PROCESSING // re-key worker running
+  REKEY_COMPLETE_IN_GRACE // re-key terminal-success; grace window open
+  GRACE_EXPIRED // grace deadline passed; old key now rejected
+  FAILED // worker failure; no kind flip; retryable
+  CANCELLED // admin cancelled before PROCESSING
+}
+
+// Only the inbound paths that resolve an existing member by the brand EXTERNAL
+// identifier (via resolveOrEnrollMember) can be hit with the OLD customer_id
+// during the window — so only these produce old-key telemetry. RFC §M ingress
+// audit: /v1/events is excluded (keys on internal Member.id); bulk import /
+// external-signal / CRM-webhook paths key on email, never the customer_id.
+enum MigrationOldKeyIngress {
+  PUBLIC_SURVEY_RESPOND // /v1/public/surveys/:id/respond  (public.ts:457)
+  API_MEMBERS_ENROLL // /v1/members/enroll              (members.ts:106)
+  DISTRIBUTION_BATCH // distribution-batch audience     (distributionBatches.ts:320)
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model Brand {
-  id                    String                 @id @default(cuid())
-  clerkOrgId            String                 @unique // Clerk organization ID → brandId mapping
-  name                  String
+  id                       String                      @id @default(cuid())
+  clerkOrgId               String                      @unique // Clerk organization ID → brandId mapping
+  name                     String
   // Step 1.5 org-profile fields (Issue #170)
-  siteDomain            String?
-  logoUrl               String?
+  siteDomain               String?
+  logoUrl                  String?
   // Issue #231 — Survey response data model rework
-  memberIdentifierKind  MemberIdentifierKind   @default(EMAIL)   // R4
-  consentMode           ConsentMode            @default(EXPLICIT) // R16
-  consentTextDefault    String?                                  // R16 — brand-wide disclosure / checkbox text
-  privacyPolicyUrl      String?                                  // R16 — captured at brand onboarding
-  termsUrl              String?                                  // R16 — captured at brand onboarding
+  memberIdentifierKind     MemberIdentifierKind        @default(EMAIL) // R4
+  consentMode              ConsentMode                 @default(EXPLICIT) // R16
+  consentTextDefault       String? // R16 — brand-wide disclosure / checkbox text
+  privacyPolicyUrl         String? // R16 — captured at brand onboarding
+  termsUrl                 String? // R16 — captured at brand onboarding
   // FK to BrandTheme.id when set. Restored in #291 alongside the SurveyTheme→BrandTheme split.
-  defaultThemeId        String?
-  defaultTheme          BrandTheme?            @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
+  defaultThemeId           String?
+  defaultTheme             BrandTheme?                 @relation("BrandDefaultTheme", fields: [defaultThemeId], references: [id])
   // Issue #277 — Organization Settings: orgSize (renamed from sizeCategory), timezone, locale.
-  orgSize               OrgSizeCategory?
-  timezone              String                 @default("UTC")
-  locale                String                 @default("en-US")
+  orgSize                  OrgSizeCategory?
+  timezone                 String                      @default("UTC")
+  locale                   String                      @default("en-US")
   // Issue #420 — operator-configured ACS sender domain. Null in V0 (custom domains
   // ship V1 once ACS custom-domain verification lands); ships code-wired so V1
   // toggle is a config change, not a migration.
   managedEmailSenderDomain String?
-  programs              Program[]
-  members               Member[]
-  surveys               Survey[]
-  brandThemes           BrandTheme[]           @relation("BrandThemes")
-  questionTemplates     QuestionTemplate[]
-  alertRules            AlertRule[]
-  caseFollowUps         CaseFollowUp[]
-  conversations         Conversation[]
-  supportRules          SupportRule[]
-  cxPlaybooks           CxPlaybook[]
-  externalSignalSources ExternalSignalSource[]
-  externalSignals       ExternalSignal[]
-  apiKeys               ApiKey[]
-  webhookEndpoints      WebhookEndpoint[]
+  programs                 Program[]
+  members                  Member[]
+  surveys                  Survey[]
+  brandThemes              BrandTheme[]                @relation("BrandThemes")
+  questionTemplates        QuestionTemplate[]
+  alertRules               AlertRule[]
+  caseFollowUps            CaseFollowUp[]
+  conversations            Conversation[]
+  supportRules             SupportRule[]
+  cxPlaybooks              CxPlaybook[]
+  externalSignalSources    ExternalSignalSource[]
+  externalSignals          ExternalSignal[]
+  apiKeys                  ApiKey[]
+  webhookEndpoints         WebhookEndpoint[]
   // Onboarding (Issue #170)
-  onboardingState       OnboardingState?
-  activationEvents      OnboardingActivationEvent[]
-  createdAt             DateTime               @default(now())
+  onboardingState          OnboardingState?
+  activationEvents         OnboardingActivationEvent[]
+  // Issue #524 — identifier-kind migrations. `activeMigrationId` is a fast-lookup
+  // pointer to the single non-terminal migration (enforced at the app layer, not a
+  // DB partial-unique, because a brand accrues many historical terminal rows).
+  identifierMigrations     MemberIdentifierMigration[] @relation("BrandMigrations")
+  activeMigrationId        String?                     @unique
+  activeMigration          MemberIdentifierMigration?  @relation("BrandActiveMigration", fields: [activeMigrationId], references: [id])
+  createdAt                DateTime                    @default(now())
 
   @@map("brands")
 }
@@ -319,64 +348,150 @@ model EarningRule {
 }
 
 model Member {
-  id                   String               @id @default(cuid())
-  brandId              String
-  brand                Brand                @relation(fields: [brandId], references: [id])
+  id                    String                             @id @default(cuid())
+  brandId               String
+  brand                 Brand                              @relation(fields: [brandId], references: [id])
   // Issue #231 — polymorphic identifier (PR1)
   // externalId is the canonical lookup column (lowercased + trimmed at insert/lookup).
   // PR1 ships externalId as the canonical key alongside the existing email column.
   // PR2 will make `email` nullable when auto-enrolling members for PHONE / CUSTOMER_ID brands.
   // V0 is uniformly case-insensitive across all identifier kinds (R5).
-  externalId           String               // R4 — canonical lookup column (lowercased + trimmed)
-  enrolledVia          MemberEnrolledVia    // R15 — set at create time per channel attribution
+  externalId            String // R4 — canonical lookup column (lowercased + trimmed)
+  enrolledVia           MemberEnrolledVia // R15 — set at create time per channel attribution
   // PR2 (#231): email is now nullable. Auto-enrolled members on PHONE /
   // CUSTOMER_ID brands have no email at create time; the field is populated
   // later if/when the integrator provides one (R6 idempotent upsert).
-  email                String?
-  clerkUserId          String?
-  firstName            String?
-  lastName             String?
-  phone                String?
-  pointsBalance        Int                  @default(0)
-  status               MemberStatus         @default(ACTIVE)
-  consentGivenAt       DateTime?
-  consentVersion       String?
-  emailOptIn           Boolean              @default(false)
-  smsOptIn             Boolean              @default(false)
+  email                 String?
+  clerkUserId           String?
+  firstName             String?
+  lastName              String?
+  phone                 String?
+  pointsBalance         Int                                @default(0)
+  status                MemberStatus                       @default(ACTIVE)
+  consentGivenAt        DateTime?
+  consentVersion        String?
+  emailOptIn            Boolean                            @default(false)
+  smsOptIn              Boolean                            @default(false)
   // Issue #420 — brand-wide survey-specific opt-out. DISTINCT from emailOptIn
   // (marketing-channel preference). Surveys are legitimate-interest use, exempt
   // from marketing opt-out; the worker pre-dispatch gate checks this column,
   // not emailOptIn. Set by POST /u/:token/confirm (public unsubscribe link).
   unsubscribedSurveysAt DateTime?
-  deletedAt            DateTime? // soft delete (C-02)
-  currentTierId        String?
-  currentTier          Tier?                @relation(fields: [currentTierId], references: [id])
-  erased               Boolean              @default(false) // GDPR erasure flag (C-03)
-  healthScore          Int? // 0-100 computed health score (null = never computed)
-  healthScoreUpdatedAt DateTime? // timestamp of last health score computation
-  healthScoreBreakdown Json? // full HealthScoreBreakdown (sub-scores + note modifier + inconsistency)
-  loyaltyEvents        LoyaltyEvent[]
-  redemptions          Redemption[]
-  campaignEvents       CampaignEvent[]
-  surveyResponses      SurveyResponse[]
-  conversations        Conversation[]
-  notes                MemberNote[]
-  externalSignals      ExternalSignal[]
-  surveyDistributions  SurveyDistribution[]       // Issue #117
-  distributionTokens   SurveyDistributionToken[]  // Issue #378 — tokenized distribution batches
-  unsubscribeTokens    MemberUnsubscribeToken[]   // Issue #420 — per-recipient unsubscribe tokens
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  deletedAt             DateTime? // soft delete (C-02)
+  currentTierId         String?
+  currentTier           Tier?                              @relation(fields: [currentTierId], references: [id])
+  erased                Boolean                            @default(false) // GDPR erasure flag (C-03)
+  healthScore           Int? // 0-100 computed health score (null = never computed)
+  healthScoreUpdatedAt  DateTime? // timestamp of last health score computation
+  healthScoreBreakdown  Json? // full HealthScoreBreakdown (sub-scores + note modifier + inconsistency)
+  loyaltyEvents         LoyaltyEvent[]
+  redemptions           Redemption[]
+  campaignEvents        CampaignEvent[]
+  surveyResponses       SurveyResponse[]
+  conversations         Conversation[]
+  notes                 MemberNote[]
+  externalSignals       ExternalSignal[]
+  surveyDistributions   SurveyDistribution[] // Issue #117
+  distributionTokens    SurveyDistributionToken[] // Issue #378 — tokenized distribution batches
+  unsubscribeTokens     MemberUnsubscribeToken[] // Issue #420 — per-recipient unsubscribe tokens
+  migrationMappings     MemberIdentifierMigrationMapping[] // Issue #524 — identifier-migration mapping rows
+  createdAt             DateTime                           @default(now())
+  updatedAt             DateTime                           @updatedAt
 
   // PR2 (#231): @@unique([brandId, email]) dropped — externalId is now the
   // canonical lookup. email is a PII sidecar populated when identifierKind=EMAIL
   // (and may be set via the late-arriving update path R6 for non-EMAIL brands).
-  @@unique([brandId, externalId])               // R4 — canonical lookup
+  @@unique([brandId, externalId]) // R4 — canonical lookup
   @@index([brandId])
-  @@index([brandId, externalId])                // R5 — canonical lookup index
+  @@index([brandId, externalId]) // R5 — canonical lookup index
   @@index([clerkUserId, brandId])
   @@index([brandId, healthScore])
   @@map("members")
+}
+
+// ─── Issue #524: Member identifier migration engine (direction-agnostic) ──────
+// Batch row mirrors SurveyImportBatch's shape. Direction-agnostic: fromKind +
+// toKind drive per-direction adapters; Slice 1 wires CUSTOMER_ID → EMAIL only.
+
+model MemberIdentifierMigration {
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation("BrandMigrations", fields: [brandId], references: [id])
+
+  fromKind MemberIdentifierKind // engine: direction-agnostic source kind
+  toKind   MemberIdentifierKind // engine: direction-agnostic target kind
+  status   MemberIdentifierMigrationStatus @default(PENDING_VALIDATION)
+
+  // Progress counters (R7, R18, R22)
+  totalMembers      Int  @default(0)
+  processedMembers  Int  @default(0)
+  failedMembers     Int  @default(0)
+  reconciledMembers Int  @default(0) // late-arriving rows merged in (R20)
+  errors            Json @default("[]") // [{ memberId, reason }]
+
+  // Attestation (R13/R25)
+  attestedByClerkUserId String?
+  attestationText       String? // verbatim copy of the confirm-modal language
+  attestedAt            DateTime?
+
+  // Grace window (R31/R34)
+  rekeyCompletedAt DateTime? // moment the kind flipped
+  graceExpiresAt   DateTime? // rekeyCompletedAt + 30d initial; extended by R34
+  graceExtensions  Json      @default("[]") // [{ by, at, deltaDays }]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  cancelledAt DateTime?
+
+  mappings       MemberIdentifierMigrationMapping[]
+  oldKeyUsage    MemberIdentifierMigrationOldKeyUsage[]
+  // Back-relation for Brand.activeMigration (fast-lookup pointer).
+  activeForBrand Brand?                                 @relation("BrandActiveMigration")
+
+  @@index([brandId, status])
+  @@map("member_identifier_migrations")
+}
+
+model MemberIdentifierMigrationMapping {
+  id          String                    @id @default(cuid())
+  migrationId String
+  migration   MemberIdentifierMigration @relation(fields: [migrationId], references: [id], onDelete: Cascade)
+
+  memberId String // FK to Member.id (stable cuid; survives re-key)
+  member   Member @relation(fields: [memberId], references: [id])
+
+  // Engine: direction-agnostic; opaque normalized (lowercased+trimmed) values.
+  oldExternalId String // pre-migration externalId
+  newExternalId String // post-migration externalId
+  // Pre-migration PII sidecar captured at intake, so a failed re-key can be
+  // faithfully compensated back to the member's original state (R23 — members
+  // remain on their original key on failure). Null when the member had no email.
+  oldEmail      String?
+
+  // Per-row outcome (R12, R22)
+  appliedAt   DateTime?
+  errorReason String?
+
+  @@unique([migrationId, memberId])
+  @@unique([migrationId, oldExternalId]) // dual-key reverse-lookup index (R32)
+  @@index([migrationId, appliedAt])
+  @@map("member_identifier_migration_mappings")
+}
+
+// Per-ingress old-key telemetry (R33). Day-bucketed counters; R37's trailing
+// 7-day window aggregates these.
+model MemberIdentifierMigrationOldKeyUsage {
+  id          String                    @id @default(cuid())
+  migrationId String
+  migration   MemberIdentifierMigration @relation(fields: [migrationId], references: [id], onDelete: Cascade)
+  brandId     String // denormalized for tenant-scoped aggregation
+  ingress     MigrationOldKeyIngress
+  dayBucket   DateTime // truncated to day in UTC
+  count       Int                       @default(0)
+
+  @@unique([migrationId, ingress, dayBucket])
+  @@index([brandId, migrationId, dayBucket])
+  @@map("member_identifier_migration_old_key_usage")
 }
 
 model MemberNote {
@@ -576,9 +691,9 @@ model Campaign {
   status           CampaignStatus  @default(DRAFT)
   startDate        DateTime
   endDate          DateTime?
-  surveyId         String?         // denormalized for loop monitor queries (Issue #80)
+  surveyId         String? // denormalized for loop monitor queries (Issue #80)
   survey           Survey?         @relation(fields: [surveyId], references: [id])
-  surveyRule       SurveyRule?     // back-relation; null for non-survey campaigns
+  surveyRule       SurveyRule? // back-relation; null for non-survey campaigns
   campaignEvents   CampaignEvent[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -589,16 +704,16 @@ model Campaign {
 }
 
 model CampaignEvent {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   brandId          String
   campaignId       String
-  campaign         Campaign       @relation(fields: [campaignId], references: [id])
+  campaign         Campaign        @relation(fields: [campaignId], references: [id])
   memberId         String
-  member           Member         @relation(fields: [memberId], references: [id])
-  triggeredAt      DateTime       @default(now())
+  member           Member          @relation(fields: [memberId], references: [id])
+  triggeredAt      DateTime        @default(now())
   executedAt       DateTime?
   latencyMs        Int? // measured latency from event ingestion to action execution
-  status           String         @default("executed")
+  status           String          @default("executed")
   result           Json? // spin_wheel: { winningIndex, rewardId?, points?, label }
   surveyResponseId String? // FK → SurveyResponse, for loop monitor linkage (Issue #80)
   surveyResponse   SurveyResponse? @relation(fields: [surveyResponseId], references: [id])
@@ -610,48 +725,48 @@ model CampaignEvent {
 }
 
 model Survey {
-  id                 String           @id @default(cuid())
-  brandId            String
-  brand              Brand            @relation(fields: [brandId], references: [id])
-  programId          String
-  name               String
-  title              String?          // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
-  description        String?          // Issue #241 Slice 2 — list-page meta line (R26 / D26); nullable
-  type               SurveyType       @default(NPS)
-  questions          Json             // Question definitions (array of question objects)
-  settings           Json?            // Distribution settings, branding, etc.
-  status             SurveyStatus     @default(DRAFT)
-  responsesCount     Int              @default(0)
-  distributionCount  Int              @default(0) // incremented by survey distribution jobs (Issue #80)
-  sentCount          Int              @default(0) // Issue #420 — denormalized aggregate. SELF_SERVE += tokenCount on CSV-download and Regenerate; MANAGED_EMAIL += 1 per worker deliveredAt transition. No backfill — matches responsesCount/distributionCount pattern.
-  themeId            String?
-  theme              BrandTheme?      @relation(fields: [themeId], references: [id])
-  triggerCategory    String?          // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
-  triggerKey         String?          // e.g. 'tier_upgrade', 'after_support' (Issue #79)
-  surveyTypeOverride String?          // Manager override of recommended type (Issue #79)
+  id                          String         @id @default(cuid())
+  brandId                     String
+  brand                       Brand          @relation(fields: [brandId], references: [id])
+  programId                   String
+  name                        String
+  title                       String? // Issue #241 — respondent-facing form heading (R7 / D16); nullable; backfilled from name
+  description                 String? // Issue #241 Slice 2 — list-page meta line (R26 / D26); nullable
+  type                        SurveyType     @default(NPS)
+  questions                   Json // Question definitions (array of question objects)
+  settings                    Json? // Distribution settings, branding, etc.
+  status                      SurveyStatus   @default(DRAFT)
+  responsesCount              Int            @default(0)
+  distributionCount           Int            @default(0) // incremented by survey distribution jobs (Issue #80)
+  sentCount                   Int            @default(0) // Issue #420 — denormalized aggregate. SELF_SERVE += tokenCount on CSV-download and Regenerate; MANAGED_EMAIL += 1 per worker deliveredAt transition. No backfill — matches responsesCount/distributionCount pattern.
+  themeId                     String?
+  theme                       BrandTheme?    @relation(fields: [themeId], references: [id])
+  triggerCategory             String? // 'loyalty' | 'cx_risk' | 'scheduled' (Issue #79)
+  triggerKey                  String? // e.g. 'tier_upgrade', 'after_support' (Issue #79)
+  surveyTypeOverride          String? // Manager override of recommended type (Issue #79)
   // Issue #231 — Survey response data model rework
-  responsePolicy                ResponsePolicy @default(MULTIPLE)  // R3
-  consentTextOverride           String?                            // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
-  consentSuppressedAttestedBy   String?                            // R17 / Issue #276 — admin/system who attested
-  consentSuppressedAttestedAt   DateTime?                          // R17 / Issue #276 — attestation timestamp
+  responsePolicy              ResponsePolicy @default(MULTIPLE) // R3
+  consentTextOverride         String? // R16 — null → use Brand.consentTextDefault; '' → R17 suppress UI
+  consentSuppressedAttestedBy String? // R17 / Issue #276 — admin/system who attested
+  consentSuppressedAttestedAt DateTime? // R17 / Issue #276 — attestation timestamp
   // Issue #276 — survey-level consent mode override
-  consentMode                   ConsentMode?                       // null → inherit Brand.consentMode
-  consentReason                 String?       @db.VarChar(500)     // operator/system justification when override is set
+  consentMode                 ConsentMode? // null → inherit Brand.consentMode
+  consentReason               String?        @db.VarChar(500) // operator/system justification when override is set
   // Issue #291 — per-survey thank-you copy/routing/toggle (moved from SurveyTheme)
-  thankYouMessage               String        @default("Thank you for your feedback!")
-  thankYouRedirectUrl           String?
+  thankYouMessage             String         @default("Thank you for your feedback!")
+  thankYouRedirectUrl         String?
   // Issue #241 — showIncentivePoints + incentivePoints removed (D19, D40, D50): points never appear
   // on the form; earning consolidates to EarningRule keyed on cx events.
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  deletedAt          DateTime?        // Issue #332 — soft delete (matches Program/Member/Reward convention)
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  deletedAt                   DateTime? // Issue #332 — soft delete (matches Program/Member/Reward convention)
 
   responses           SurveyResponse[]
-  surveyRules         SurveyRule[]              // response-to-action rules (Issue #80)
-  campaigns           Campaign[]                // campaigns linked to this survey (Issue #80)
-  distributions       SurveyDistribution[]      // triggered distribution records (Issue #117)
-  importBatches       SurveyImportBatch[]       // historical import batches (Issue #262)
-  distributionBatches DistributionBatch[]       // Issue #378 — tokenized distribution waves
+  surveyRules         SurveyRule[] // response-to-action rules (Issue #80)
+  campaigns           Campaign[] // campaigns linked to this survey (Issue #80)
+  distributions       SurveyDistribution[] // triggered distribution records (Issue #117)
+  importBatches       SurveyImportBatch[] // historical import batches (Issue #262)
+  distributionBatches DistributionBatch[] // Issue #378 — tokenized distribution waves
 
   @@index([brandId, status])
   @@index([brandId, triggerKey, status]) // survey distribution lookup (Issue #117)
@@ -661,108 +776,108 @@ model Survey {
 // ─── Issue #117: Survey Trigger Distribution ──────────────────────────────────
 
 model SurveyDistribution {
-  id        String             @id @default(cuid())
-  surveyId  String
-  survey    Survey             @relation(fields: [surveyId], references: [id])
-  memberId  String
-  member    Member             @relation(fields: [memberId], references: [id])
-  brandId   String
+  id       String             @id @default(cuid())
+  surveyId String
+  survey   Survey             @relation(fields: [surveyId], references: [id])
+  memberId String
+  member   Member             @relation(fields: [memberId], references: [id])
+  brandId  String
   // sentAt semantics:
   //   #117 trigger rows: creation time (= dispatch handoff)
   //   #378 SELF_SERVE rows: creation time at mint, overwritten to now() on CSV-download or Regenerate
   //   #420 MANAGED_EMAIL rows: creation time at mint (= enqueue time); deliveredAt is the worker-confirmed signal
-  sentAt    DateTime           @default(now())
+  sentAt   DateTime           @default(now())
   // Issue #378 — tokenized distribution batches. Null for legacy and
   // share-link / embed rows; required for rows written by token-mint.
-  batchId   String?
-  batch     DistributionBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId  String?
+  batch    DistributionBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   // Issue #420 — MANAGED_EMAIL per-recipient lifecycle. All nullable for back-compat.
   // sendMode mirrors parent batch.sendMode for fast per-mode aggregation without a join;
   // backfilled to SELF_SERVE in the migration; defaults to SELF_SERVE for new rows
   // (overridden at insert time for MANAGED_EMAIL).
-  enqueuedAt    DateTime?         // set when worker job enqueued (MANAGED_EMAIL only)
-  deliveredAt   DateTime?         // set when ACS confirmed delivery (MANAGED_EMAIL only); drives Survey.sentCount increment
-  failedAt      DateTime?         // set on worker-confirmed dispatch failure; mutually exclusive with deliveredAt
-  failureReason String?           // bounded: 'bounce' | 'invalid_address' | 'skipped_unsubscribed' | 'skipped_no_consent' | 'skipped_erased' | 'skipped_no_email' | 'transient_error_after_retries'
-  sendMode      SurveySendMode    @default(SELF_SERVE)
+  enqueuedAt    DateTime? // set when worker job enqueued (MANAGED_EMAIL only)
+  deliveredAt   DateTime? // set when ACS confirmed delivery (MANAGED_EMAIL only); drives Survey.sentCount increment
+  failedAt      DateTime? // set on worker-confirmed dispatch failure; mutually exclusive with deliveredAt
+  failureReason String? // bounded: 'bounce' | 'invalid_address' | 'skipped_unsubscribed' | 'skipped_no_consent' | 'skipped_erased' | 'skipped_no_email' | 'transient_error_after_retries'
+  sendMode      SurveySendMode @default(SELF_SERVE)
 
   // Issue #378 — constraint moved from (surveyId, memberId) to (batchId, memberId).
   // Postgres treats NULL as distinct in unique constraints, so all legacy rows
   // (batchId IS NULL) coexist; share-link / embed rows continue to write
   // batchId IS NULL and never collide.
   @@unique([batchId, memberId])
-  @@index([surveyId, memberId, sentAt])                  // cooldown window query (Issue #117)
-  @@index([surveyId, sendMode, deliveredAt])             // Issue #420 — MANAGED_EMAIL sent-count aggregation
-  @@index([surveyId, sendMode, sentAt])                  // Issue #420 — SELF_SERVE sent-count aggregation
+  @@index([surveyId, memberId, sentAt]) // cooldown window query (Issue #117)
+  @@index([surveyId, sendMode, deliveredAt]) // Issue #420 — MANAGED_EMAIL sent-count aggregation
+  @@index([surveyId, sendMode, sentAt]) // Issue #420 — SELF_SERVE sent-count aggregation
   @@map("survey_distributions")
 }
 
 // ─── Issue #378: Personalized survey links for BYO-email distribution ─────────
 
 model DistributionBatch {
-  id                 String                    @id @default(cuid())
-  surveyId           String
-  survey             Survey                    @relation(fields: [surveyId], references: [id])
-  brandId            String                    // tenant-scoped per project rule R6
-  label              String                    // operator-facing wave name; <Survey.title> · <YYYY-MM-DD>
-  surveyNameInMail   String                    // respondent-facing survey name flowing into CSV's `surveyName` column
-  audienceSpec       Json                      // mode + counts + identifiersResolved; see RFC §audienceSpec shape
-  expiresAt          DateTime                  // wave expiry stored as UTC; copied to every child token
-  samplingSeed       String?                   // internal infrastructure for V1 re-sample; null for Custom List
-  createdBy          String                    // clerk user id of the operator
-  createdAt          DateTime                  @default(now())
+  id               String   @id @default(cuid())
+  surveyId         String
+  survey           Survey   @relation(fields: [surveyId], references: [id])
+  brandId          String // tenant-scoped per project rule R6
+  label            String // operator-facing wave name; <Survey.title> · <YYYY-MM-DD>
+  surveyNameInMail String // respondent-facing survey name flowing into CSV's `surveyName` column
+  audienceSpec     Json // mode + counts + identifiersResolved; see RFC §audienceSpec shape
+  expiresAt        DateTime // wave expiry stored as UTC; copied to every child token
+  samplingSeed     String? // internal infrastructure for V1 re-sample; null for Custom List
+  createdBy        String // clerk user id of the operator
+  createdAt        DateTime @default(now())
 
   // Issue #420 — MANAGED_EMAIL extensions
-  sendMode           SurveySendMode            @default(SELF_SERVE)  // backfill existing rows to SELF_SERVE
-  composerSnapshot   Json?                                            // MANAGED_EMAIL only: { senderName, senderAlias, senderDomain, subject, body, themeSnapshot, brandLogoUrl }. Null for SELF_SERVE.
+  sendMode         SurveySendMode @default(SELF_SERVE) // backfill existing rows to SELF_SERVE
+  composerSnapshot Json? // MANAGED_EMAIL only: { senderName, senderAlias, senderDomain, subject, body, themeSnapshot, brandLogoUrl }. Null for SELF_SERVE.
 
-  tokens             SurveyDistributionToken[]
-  distributions      SurveyDistribution[]
-  responses          SurveyResponse[]
-  unsubscribeTokens  MemberUnsubscribeToken[]  // Issue #420 — minted alongside SurveyDistributionToken for MANAGED_EMAIL batches
+  tokens            SurveyDistributionToken[]
+  distributions     SurveyDistribution[]
+  responses         SurveyResponse[]
+  unsubscribeTokens MemberUnsubscribeToken[] // Issue #420 — minted alongside SurveyDistributionToken for MANAGED_EMAIL batches
 
-  @@index([surveyId, createdAt])               // filter-row dropdown query
-  @@index([brandId, expiresAt])                // future "expiring soon" surfaces
+  @@index([surveyId, createdAt]) // filter-row dropdown query
+  @@index([brandId, expiresAt]) // future "expiring soon" surfaces
   @@map("distribution_batches")
 }
 
 model SurveyDistributionToken {
-  id          String              @id @default(cuid())
+  id          String            @id @default(cuid())
   batchId     String
-  batch       DistributionBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch       DistributionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   memberId    String
-  member      Member              @relation(fields: [memberId], references: [id])
-  brandId     String              // tenant-scoped per project rule R6
-  tokenHash   String              @unique // SHA-256(plaintext); plaintext never stored
-  tokenPrefix String                      // first 8 chars of plaintext, display-only
-  expiresAt   DateTime                    // copied from DistributionBatch.expiresAt; updated atomically on Edit Expiry
-  consumedAt  DateTime?                   // single-use marker; set atomically with SurveyResponse write
-  responses   SurveyResponse[]            // reverse relation for optional FK on SurveyResponse
+  member      Member            @relation(fields: [memberId], references: [id])
+  brandId     String // tenant-scoped per project rule R6
+  tokenHash   String            @unique // SHA-256(plaintext); plaintext never stored
+  tokenPrefix String // first 8 chars of plaintext, display-only
+  expiresAt   DateTime // copied from DistributionBatch.expiresAt; updated atomically on Edit Expiry
+  consumedAt  DateTime? // single-use marker; set atomically with SurveyResponse write
+  responses   SurveyResponse[] // reverse relation for optional FK on SurveyResponse
 
-  @@unique([batchId, memberId])           // one token per member per batch
-  @@index([batchId, consumedAt])          // batch-detail "responded vs awaiting" counters
+  @@unique([batchId, memberId]) // one token per member per batch
+  @@index([batchId, consumedAt]) // batch-detail "responded vs awaiting" counters
   @@map("survey_distribution_tokens")
 }
 
 // ─── Issue #420: Managed-email send (CustomerEQ delivers via ACS) ─────────────
 
 enum SurveySendMode {
-  SELF_SERVE        // #378 path — operator downloads CSV and sends from their own ESP
-  MANAGED_EMAIL     // #420 path — platform sends via the email connector (currently ACS-backed)
+  SELF_SERVE // #378 path — operator downloads CSV and sends from their own ESP
+  MANAGED_EMAIL // #420 path — platform sends via the email connector (currently ACS-backed)
 }
 
 model MemberUnsubscribeToken {
-  id          String              @id @default(cuid())
-  brandId     String                                  // tenant-scoped per project rule R6
+  id          String            @id @default(cuid())
+  brandId     String // tenant-scoped per project rule R6
   memberId    String
-  member      Member              @relation(fields: [memberId], references: [id])
-  batchId     String                                  // links the unsub click back to the wave that triggered it (audit trail)
-  batch       DistributionBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  tokenHash   String              @unique             // SHA-256(plaintext); plaintext is rendered into the email footer once, never stored
-  tokenPrefix String                                  // first 8 chars of plaintext, for audit display
-  createdAt   DateTime            @default(now())
-  consumedAt  DateTime?                               // set when POST /u/:token/confirm is called; idempotent
+  member      Member            @relation(fields: [memberId], references: [id])
+  batchId     String // links the unsub click back to the wave that triggered it (audit trail)
+  batch       DistributionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  tokenHash   String            @unique // SHA-256(plaintext); plaintext is rendered into the email footer once, never stored
+  tokenPrefix String // first 8 chars of plaintext, for audit display
+  createdAt   DateTime          @default(now())
+  consumedAt  DateTime? // set when POST /u/:token/confirm is called; idempotent
 
   @@index([memberId])
   @@map("member_unsubscribe_tokens")
@@ -776,8 +891,8 @@ model CxPlaybook {
   brand      Brand      @relation(fields: [brandId], references: [id])
   name       String
   surveyType SurveyType
-  rules      Json       // Array of SurveyRuleInput objects
-  deletedAt  DateTime?  // soft delete
+  rules      Json // Array of SurveyRuleInput objects
+  deletedAt  DateTime? // soft delete
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -795,8 +910,8 @@ model SurveyRule {
   campaign     Campaign @relation(fields: [campaignId], references: [id])
   scoreMin     Float
   scoreMax     Float
-  actionType   String   // award_points | award_reward | send_message | spin_wheel | scratch_card | mystery_box
-  actionConfig Json     // same shape as Campaign.actionConfig
+  actionType   String // award_points | award_reward | send_message | spin_wheel | scratch_card | mystery_box
+  actionConfig Json // same shape as Campaign.actionConfig
   ruleLabel    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -811,10 +926,10 @@ model SurveyRule {
 // moved to Survey columns. Logo / brand-name fall through to Brand.logoUrl /
 // Brand.name. Default-theme flag replaced by Brand.defaultThemeId FK.
 model BrandTheme {
-  id        String  @id @default(cuid())
-  brandId   String
-  brand     Brand   @relation("BrandThemes", fields: [brandId], references: [id])
-  name      String
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation("BrandThemes", fields: [brandId], references: [id])
+  name    String
 
   primaryColor    String @default("#6366f1")
   secondaryColor  String @default("#818cf8")
@@ -861,36 +976,36 @@ model SurveyResponse {
   id             String           @id @default(cuid())
   surveyId       String
   survey         Survey           @relation(fields: [surveyId], references: [id])
-  memberId       String?          // null for anonymous sources (e.g. Google Reviews)
+  memberId       String? // null for anonymous sources (e.g. Google Reviews)
   member         Member?          @relation(fields: [memberId], references: [id])
   brandId        String
-  answers        Json             // { questionId: answer }
-  score          Float?           // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
-  sentiment      Float?           // -1.0 to 1.0 (AI-analyzed from open-ended text)
-  confidence     Float?           // AI confidence in sentiment score, 0.0 to 1.0
-  topics         String[]         // AI-extracted topics from open-ended responses
-  summary        String?          // AI-generated one-line summary
-  clusterId      String?          // FK to FeedbackCluster
+  answers        Json // { questionId: answer }
+  score          Float? // NPS (0-10), CSAT (1-5), CES (1-7) numeric score
+  sentiment      Float? // -1.0 to 1.0 (AI-analyzed from open-ended text)
+  confidence     Float? // AI confidence in sentiment score, 0.0 to 1.0
+  topics         String[] // AI-extracted topics from open-ended responses
+  summary        String? // AI-generated one-line summary
+  clusterId      String? // FK to FeedbackCluster
   cluster        FeedbackCluster? @relation(fields: [clusterId], references: [id])
   channel        String           @default("link") // email, in_app, link, sms, review
   completedAt    DateTime         @default(now())
   createdAt      DateTime         @default(now())
-  campaignEvents CampaignEvent[]  // campaign events triggered by this response (Issue #80)
-  caseFollowUps  CaseFollowUp[]   // cases opened from this response
+  campaignEvents CampaignEvent[] // campaign events triggered by this response (Issue #80)
+  caseFollowUps  CaseFollowUp[] // cases opened from this response
 
   // Issue #262: historical import fields (null = live response)
   importBatchId        String?
   importBatch          SurveyImportBatch? @relation(fields: [importBatchId], references: [id])
-  importedAt           DateTime?          // original response timestamp from source
-  externalRespondentId String?            // source-system respondent ID for deduplication
+  importedAt           DateTime? // original response timestamp from source
+  externalRespondentId String? // source-system respondent ID for deduplication
 
   // Issue #378 — tokenized distribution batches. Both nullable: null for
   // share-link / embed / import responses; populated when the response was
   // authorized by a SurveyDistributionToken from a DistributionBatch.
-  distributionBatchId  String?
-  distributionBatch    DistributionBatch?       @relation(fields: [distributionBatchId], references: [id])
-  distributionTokenId  String?
-  distributionToken    SurveyDistributionToken? @relation(fields: [distributionTokenId], references: [id])
+  distributionBatchId String?
+  distributionBatch   DistributionBatch?       @relation(fields: [distributionBatchId], references: [id])
+  distributionTokenId String?
+  distributionToken   SurveyDistributionToken? @relation(fields: [distributionTokenId], references: [id])
 
   // R2 — `@@unique([surveyId, memberId])` removed; policy-controlled by Survey.responsePolicy (R3).
   // #262 added a partial unique index `survey_responses_live_dedup` for live
@@ -908,20 +1023,20 @@ model SurveyResponse {
 
 // Issue #262: tracks a single historical import operation
 model SurveyImportBatch {
-  id            String           @id @default(cuid())
+  id            String    @id @default(cuid())
   surveyId      String
-  survey        Survey           @relation(fields: [surveyId], references: [id])
+  survey        Survey    @relation(fields: [surveyId], references: [id])
   brandId       String
-  sourceType    String           // 'excel' | 'google_reviews'
+  sourceType    String // 'excel' | 'google_reviews'
   filename      String?
-  status        String           @default("pending") // pending | processing | complete | failed
-  totalRows     Int              @default(0)
-  processedRows Int              @default(0)
-  failedRows    Int              @default(0)
-  errors        Json             @default("[]") // array of { rowIndex, message }
+  status        String    @default("pending") // pending | processing | complete | failed
+  totalRows     Int       @default(0)
+  processedRows Int       @default(0)
+  failedRows    Int       @default(0)
+  errors        Json      @default("[]") // array of { rowIndex, message }
   deletedAt     DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   responses SurveyResponse[]
 
@@ -1019,12 +1134,12 @@ model AlertRule {
 }
 
 model CaseFollowUp {
-  id               String    @id @default(cuid())
+  id               String          @id @default(cuid())
   brandId          String
-  brand            Brand     @relation(fields: [brandId], references: [id])
+  brand            Brand           @relation(fields: [brandId], references: [id])
   alertRuleId      String
-  alertRule        AlertRule      @relation(fields: [alertRuleId], references: [id])
-  surveyResponseId String?        // nullable: cases can be created without a survey response
+  alertRule        AlertRule       @relation(fields: [alertRuleId], references: [id])
+  surveyResponseId String? // nullable: cases can be created without a survey response
   surveyResponse   SurveyResponse? @relation(fields: [surveyResponseId], references: [id])
   memberId         String
 
@@ -1163,17 +1278,17 @@ model SupportRule {
 }
 
 model KBArticle {
-  id        String                       @id @default(cuid())
+  id        String                              @id @default(cuid())
   brandId   String
   title     String
   body      String // Markdown content
-  category  KBArticleCategory            @default(FAQ)
+  category  KBArticleCategory                   @default(FAQ)
   tags      String[]
-  status    KBArticleStatus              @default(DRAFT)
+  status    KBArticleStatus                     @default(DRAFT)
   embedding Unsupported("public.vector(1536)")? // pgvector -- schema-qualified so db push works in isolated test schemas
   deletedAt DateTime? // soft delete (GDPR/CCPA, project rule #13)
-  createdAt DateTime                     @default(now())
-  updatedAt DateTime                     @updatedAt
+  createdAt DateTime                            @default(now())
+  updatedAt DateTime                            @updatedAt
 
   @@index([brandId, status])
   @@index([brandId, category])
@@ -1191,7 +1306,7 @@ model McpOAuthCode {
   clerkUserId         String
   clientId            String
   redirectUri         String
-  codeChallenge       String    // PKCE S256 challenge (base64url SHA-256 of verifier)
+  codeChallenge       String // PKCE S256 challenge (base64url SHA-256 of verifier)
   codeChallengeMethod String    @default("S256")
   expiresAt           DateTime
   usedAt              DateTime? // set when exchanged — prevents replay
@@ -1249,9 +1364,9 @@ model WebhookDeliveryLog {
 // the post-activation widget). Single mutable row per brand; activation
 // history lives in OnboardingActivationEvent.
 model OnboardingState {
-  id                  String       @id @default(cuid())
-  brandId             String       @unique
-  brand               Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  brandId String @unique
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   useCasePath         UseCasePath?
   // Shape: { brandCreated, dataSourceConnected, firstEventReceived,
@@ -1262,9 +1377,9 @@ model OnboardingState {
   dismissedByUserIds  String[]     @default([])
   invitedAdminUserIds String[]     @default([])
 
-  activatedAt         DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  activatedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([activatedAt])
   @@map("onboarding_state")
@@ -1275,18 +1390,17 @@ model OnboardingState {
 // event. metadata captures per-step context (oauth provider, picked path,
 // etc.) for forensics.
 model OnboardingActivationEvent {
-  id           String          @id @default(cuid())
-  brandId      String
-  brand        Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   step         OnboardingStep
   previousStep OnboardingStep?
   occurredAt   DateTime        @default(now())
-  dwellMs     Int?
+  dwellMs      Int?
   metadata     Json            @default("{}")
 
   @@index([brandId, occurredAt])
   @@index([step, occurredAt])
   @@map("onboarding_activation_events")
 }
-

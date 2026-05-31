@@ -49,6 +49,12 @@ export async function seedTestDb(prisma?: PrismaClient): Promise<SeedResult> {
   await deleteAll((prisma as any).conversation)
   await deleteAll((prisma as any).memberNote)
   await deleteAll((prisma as any).externalSignal)  // has memberId FK → must precede member
+  // Issue #524 — identifier-migration tables. Mappings have memberId FK RESTRICT
+  // (must precede member) and migrations have brandId FK RESTRICT (must precede
+  // brand). Order child→parent: old-key usage, mappings, then migrations.
+  await deleteAll((prisma as any).memberIdentifierMigrationOldKeyUsage)
+  await deleteAll((prisma as any).memberIdentifierMigrationMapping)
+  await deleteAll((prisma as any).memberIdentifierMigration)
   await deleteAll(prisma.member)
   await deleteAll((prisma as any).cxPlaybook)
   await deleteAll(prisma.program)

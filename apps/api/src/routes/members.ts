@@ -115,6 +115,7 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
         smsOptIn: data.smsOptIn,
         clerkUserId,
         enrolledVia: 'MANUAL_API',
+        ingress: 'API_MEMBERS_ENROLL',
       })
     } catch (err: unknown) {
       // Race-condition duplicate (P2002 unique constraint) — another concurrent
@@ -141,7 +142,10 @@ const membersRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (!result.ok) {
-      return reply.status(400).send({
+      // Issue #524 R35 — an old identifier sent after grace expiry is rejected
+      // 410 (deprecated), distinct from the 400 generic shape error.
+      const status = result.error.code === 'IDENTIFIER_DEPRECATED_AFTER_MIGRATION' ? 410 : 400
+      return reply.status(status).send({
         error: result.error.code,
         message: result.error.message,
         expectedKind: result.error.expectedKind,

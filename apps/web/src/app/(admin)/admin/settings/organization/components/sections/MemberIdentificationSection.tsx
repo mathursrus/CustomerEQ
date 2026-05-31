@@ -1,11 +1,26 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useAuth } from '@clerk/nextjs'
 import { useFormContext } from 'react-hook-form'
 import type { OrgFormValues, MemberIdentifierKind } from '../../lib/types'
+import { getCurrentMigration, type Migration } from '@/lib/migrations'
+import {
+  MigrationProgressPanel,
+  GraceStatusPanel,
+  GraceExpiredPanel,
+} from '../../migrations/_components/panels'
+import { Badge } from '../../migrations/_components/shared'
 
 // Issue #292 Slice 4 — Member identification. Spec §F6.
+// Issue #524 Slice 1 — the locked panel now drives the guided migration:
+// it reads the brand's current migration (client) and renders inline state
+// (progress / grace / cutover / failed / setup-in-progress / entry link)
+// instead of the old mailto:support dead-end.
+//
 // Lock semantics: when memberCount > 0, all radios disabled on first paint;
-// no self-serve change path; mailto:SUPPORT_EMAIL surfaces for managed migration.
+// the kind only changes via the guided flow, never by toggling a radio.
 
 const OPTIONS: { value: MemberIdentifierKind; title: string; recommended?: boolean; desc: string }[] = [
   {
@@ -26,18 +41,43 @@ const OPTIONS: { value: MemberIdentifierKind; title: string; recommended?: boole
   },
 ]
 
+const MIGRATIONS_NEW_HREF = '/admin/settings/organization/migrations/new'
+
 interface MemberIdentificationSectionProps {
   memberCount: number
-  supportEmail: string
+  // Retained to avoid breaking the caller; the mailto: support path was removed
+  // in Slice 1 (the locked panel now drives the guided migration instead).
+  supportEmail?: string
 }
 
-export function MemberIdentificationSection({
-  memberCount,
-  supportEmail,
-}: MemberIdentificationSectionProps) {
+export function MemberIdentificationSection({ memberCount }: MemberIdentificationSectionProps) {
   const { watch, setValue } = useFormContext<OrgFormValues>()
+  const { getToken } = useAuth()
   const value = watch('memberIdentifierKind')
   const locked = memberCount > 0
+
+  const [migration, setMigration] = useState<Migration | null>(null)
+  const [loadingMigration, setLoadingMigration] = useState(false)
+
+  useEffect(() => {
+    if (!locked) return
+    let cancelled = false
+    setLoadingMigration(true)
+    void (async () => {
+      try {
+        const current = await getCurrentMigration(getToken)
+        if (!cancelled) setMigration(current)
+      } catch {
+        // Non-fatal: fall back to the plain locked notice.
+        if (!cancelled) setMigration(null)
+      } finally {
+        if (!cancelled) setLoadingMigration(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [locked, getToken])
 
   return (
     <div className="space-y-3">
@@ -87,24 +127,153 @@ export function MemberIdentificationSection({
       </div>
 
       {locked ? (
-        <div className="flex items-center justify-between gap-4 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-3">
-          <div className="flex-1 text-sm leading-relaxed text-gray-900">
-            <strong className="font-semibold">{memberCount.toLocaleString()}+ members</strong> are
-            already enrolled. The member identifier kind cannot be changed once members exist.
-            Contact CustomerEQ Support to request a managed migration.
-          </div>
-          <a
-            href={`mailto:${supportEmail}`}
-            className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Contact support
-          </a>
-        </div>
+        <LockedPanel
+          memberCount={memberCount}
+          kind={value}
+          migration={migration}
+          loading={loadingMigration}
+        />
       ) : (
         <p className="text-xs text-gray-500">
           This option cannot be changed after a member is enrolled in your organization.
         </p>
       )}
+    </div>
+  )
+}
+
+function LockedPanel({
+  memberCount,
+  kind,
+  migration,
+  loading,
+}: {
+  memberCount: number
+  kind: MemberIdentifierKind
+  migration: Migration | null
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-md border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-500">
+        Checking migration status…
+      </div>
+    )
+  }
+
+  // Active or completed migration drives the panel.
+  if (migration) {
+    const detailHref = `/admin/settings/organization/migrations/${migration.id}`
+    switch (migration.status) {
+      case 'PROCESSING':
+        return (
+          <PanelShell
+            badge={<Badge tone="info">Migrating</Badge>}
+            link={{ href: detailHref, label: 'View migration progress →' }}
+          >
+            <MigrationProgressPanel migration={migration} />
+          </PanelShell>
+        )
+      case 'REKEY_COMPLETE_IN_GRACE':
+        return (
+          <PanelShell
+            badge={<Badge tone="warn">Grace window</Badge>}
+            link={{ href: detailHref, label: 'Manage grace window →' }}
+          >
+            {/* Extend is handled on the detail page; inline view is read-only. */}
+            <GraceStatusPanel migration={migration} onExtend={() => {}} />
+          </PanelShell>
+        )
+      case 'GRACE_EXPIRED':
+        return (
+          <PanelShell badge={<Badge tone="success">✓ Cutover complete</Badge>}>
+            <GraceExpiredPanel migration={migration} />
+          </PanelShell>
+        )
+      case 'FAILED':
+        return (
+          <div className="flex items-center justify-between gap-4 rounded-md border border-amber-200 bg-amber-50 px-3.5 py-3">
+            <div className="flex-1 text-sm leading-relaxed text-amber-900">
+              <strong className="font-semibold">The last migration failed and was rolled back.</strong>{' '}
+              Your members are unchanged. You can review the details and retry.
+            </div>
+            <Link
+              href={detailHref}
+              className="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+            >
+              Resume →
+            </Link>
+          </div>
+        )
+      case 'PENDING_VALIDATION':
+      case 'VALIDATED':
+        return (
+          <div className="flex items-center justify-between gap-4 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-3">
+            <div className="flex-1 text-sm leading-relaxed text-gray-900">
+              <strong className="font-semibold">Migration setup in progress.</strong> You started
+              switching your identifier method but haven’t finished yet.
+            </div>
+            <Link
+              href={MIGRATIONS_NEW_HREF}
+              className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Resume →
+            </Link>
+          </div>
+        )
+      default:
+        break
+    }
+  }
+
+  // No current migration. Offer the switch only for CUSTOMER_ID brands (Slice 1
+  // supports CUSTOMER_ID → EMAIL only); other kinds get a plain locked notice.
+  if (kind === 'CUSTOMER_ID') {
+    return (
+      <div className="flex items-center justify-between gap-4 rounded-md border border-gray-200 bg-gray-50 px-3.5 py-3">
+        <div className="flex-1 text-sm leading-relaxed text-gray-900">
+          <strong className="font-semibold">{memberCount.toLocaleString()} members enrolled.</strong>{' '}
+          The identifier method is locked while members exist. To change it, run a guided migration —
+          you’ll map each member to their new identifier and we migrate everything safely.
+        </div>
+        <Link
+          href={MIGRATIONS_NEW_HREF}
+          className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+        >
+          Switch identifier method →
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm leading-relaxed text-gray-900">
+      <strong className="font-semibold">{memberCount.toLocaleString()} members enrolled.</strong> The
+      identifier method is locked while members exist.
+    </div>
+  )
+}
+
+function PanelShell({
+  badge,
+  link,
+  children,
+}: {
+  badge: React.ReactNode
+  link?: { href: string; label: string }
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-3 rounded-md border border-gray-200 bg-white px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>{badge}</div>
+        {link && (
+          <Link href={link.href} className="text-xs font-medium text-indigo-700 hover:underline">
+            {link.label}
+          </Link>
+        )}
+      </div>
+      {children}
     </div>
   )
 }

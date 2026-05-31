@@ -14,6 +14,7 @@ import {
   type WebhookDeliveryPayload,
   type SurveyImportRowPayload,
   type ManagedEmailSendPayload,
+  type MemberIdentifierMigrationPayload,
   extractExternalSignalDeliveries,
   normalizeExternalSignalCandidate,
   deriveExternalSignalStatus,
@@ -24,6 +25,7 @@ import type { ConditionGroup } from '@customerEQ/shared'
 import type { SupportRuleInput } from '@customerEQ/shared'
 import { deliverNotification } from '@customerEQ/connectors'
 import { dispatchManagedEmailSend } from '@customerEQ/worker/processors/managedEmailSend'
+import { dispatchMemberIdentifierMigration } from '@customerEQ/worker/processors/memberIdentifierMigration'
 import { processSentimentForResponse, discoverClusters, detectAnomalies, generateEmbedding, generateSupportResponse as aiGenerateSupportResponse } from '@customerEQ/ai'
 import { processHealthScoreComputation } from './healthScore.js'
 import { resolveOrEnrollMember } from '../services/memberResolution.js'
@@ -52,6 +54,7 @@ let _externalSignalIngestionQueue: Queue | null = null
 let _webhookDeliveryQueue: Queue | null = null
 let _surveyImportQueue: Queue | null = null
 let _managedEmailSendQueue: Queue | null = null
+let _memberIdentifierMigrationQueue: Queue | null = null
 
 export function initQueues(redis: ConnectionOptions): void {
   if (QUEUE_MODE === 'inline') return
@@ -71,6 +74,7 @@ export function initQueues(redis: ConnectionOptions): void {
   _webhookDeliveryQueue = new Queue(QUEUES.WEBHOOK_DELIVERY, { connection })
   _surveyImportQueue = new Queue(QUEUES.SURVEY_IMPORT, { connection })
   _managedEmailSendQueue = new Queue(QUEUES.MANAGED_EMAIL_SEND, { connection })
+  _memberIdentifierMigrationQueue = new Queue(QUEUES.MEMBER_IDENTIFIER_MIGRATION, { connection })
 }
 
 const INLINE_STUB = { id: 'inline' } as unknown as Job
@@ -130,6 +134,11 @@ function getSurveyImportQueue(): Queue {
 function getManagedEmailSendQueue(): Queue {
   if (!_managedEmailSendQueue) throw new Error('Queues not initialized.')
   return _managedEmailSendQueue
+}
+
+function getMemberIdentifierMigrationQueue(): Queue {
+  if (!_memberIdentifierMigrationQueue) throw new Error('Queues not initialized.')
+  return _memberIdentifierMigrationQueue
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1186,4 +1195,16 @@ export async function enqueueWebhookDelivery(payload: WebhookDeliveryPayload): P
     attempts: 5,
     backoff: { type: 'exponential', delay: 1000 },
   })
+}
+
+// Issue #524 — enqueue the async re-key. Inline mode runs the dispatch in-process
+// (tests / no-Redis deploys); the re-key is long-running but bounded per brand.
+export async function enqueueMemberIdentifierMigration(
+  payload: MemberIdentifierMigrationPayload,
+): Promise<Job> {
+  if (QUEUE_MODE === 'inline') {
+    scheduleInline('member-identifier-migration', payload, dispatchMemberIdentifierMigration)
+    return INLINE_STUB
+  }
+  return getMemberIdentifierMigrationQueue().add('rekey', payload)
 }

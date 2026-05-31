@@ -535,6 +535,10 @@ sequenceDiagram
     - **Demo-storefront exception** — `apps/demo-storefront` deliberately has zero workspace dependencies (it simulates a 3rd-party customer storefront integrating with CustomerEQ). The `customereq.wellnessatwork.me` literal inside the demo is intentional non-coupling, documented inline; do NOT add `@customerEQ/shared` to its deps.
     - **IaC tech debt** — the deploy step is currently an inline `az containerapp update --set-env-vars` mutation in the GitHub Actions workflow (matching the existing pattern; 7 such mutations live there today). Declarative IaC (Bicep / Container Apps YAML) is the correct long-term approach — tracked as a separate tech-debt ticket.
 
+- **During-migration dual-key member resolution** *(Issue #524)*: While a `MemberIdentifierMigration` is `PROCESSING` or in its post-flip grace window, `resolveOrEnrollMember` (`apps/api/src/services/memberResolution.ts`) consults the migration **mapping table** on a primary-lookup miss: it reverse-looks-up the supplied identifier against `MemberIdentifierMigrationMapping.oldExternalId` and, on a hit, resolves to the already-re-keyed member (skipping shape validation for that old-shape id) and records per-ingress old-key telemetry (R19/R32/R33). The fallback fires **only on a primary miss and only when an active migration exists**, so steady-state traffic — and the hero `POST /v1/events` path, which keys on the internal `Member.id` and never calls `resolveOrEnrollMember` — pays nothing (§5.1 SLA preserved). After grace expiry the mapping is retained for error quality only: a matched old id returns `410 IDENTIFIER_DEPRECATED_AFTER_MIGRATION` instead of a generic shape error (R35). The canonical-key derivation `normalizeExternalId(v) = v.trim().toLowerCase()` is exported from the same module and is the single source used by live enrollment, the migration pre-flight validator, the re-key worker, and the admin routes — so collision detection and dual-key lookups can never drift. This is the engine-level reuse surface for every future identifier-migration lane (see ADR 0005).
+
+- **Brand-wide admin-shell warning banner** *(Issue #524)*: A non-dismissible, brand-scoped warning surface mounted once in the admin shell (`apps/web/src/app/(admin)/layout.tsx` → `UsageWarningBanner`) that renders on every admin page from a single `GET /v1/admin/brand/usage-warnings` endpoint returning a discriminated `{ kind, ... } | null` payload. The banner renders nothing when the endpoint returns `null`, so adding a new warning kind is a server-side change plus one client branch. First consumer: the identifier-migration pre-expiry warning (R37). Reuse for future brand-wide signals (compliance flags, billing/plan-cap notices) by extending the endpoint's union and the banner's switch rather than adding per-page banners.
+
 ---
 
 ## 7. Configuration & Environment
@@ -688,6 +692,7 @@ ADRs document one-way-door decisions. Each ADR lives in `docs/architecture/adr/`
 | ADR-005 | Vercel (frontend) + Azure (backend) hybrid deployment | 2026-03-24 |
 | ADR-006 | Shared test-utils package as single mock source of truth | 2026-03-24 |
 | [ADR 0004](./adr/0004-onboarding-activation-funnel-and-identity-provider.md) | OnboardingActivationEvent funnel model + IdentityProvider abstraction (Issue #170) | 2026-04-27 |
+| [ADR 0005](./adr/0005-direction-agnostic-member-identifier-migration-engine.md) | Direction-agnostic member identifier migration engine (Issue #524) | 2026-05-31 |
 
 ---
 

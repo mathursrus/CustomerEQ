@@ -72,6 +72,17 @@ function buildPrismaMock(opts: {
       create,
       update,
     },
+    // Issue #524 — dual-key fallback consults these on a primary miss. Default
+    // to "no active migration" so existing resolution behavior is unchanged.
+    memberIdentifierMigration: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    memberIdentifierMigrationMapping: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    memberIdentifierMigrationOldKeyUsage: {
+      upsert: vi.fn().mockResolvedValue(undefined),
+    },
   } as unknown as PrismaClient
   return { prisma, spies: { create, update } }
 }
