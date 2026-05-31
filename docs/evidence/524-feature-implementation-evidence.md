@@ -75,3 +75,13 @@ No formal regulations configured in `fraim/config.json`. Project Rule 13 (GDPR/C
 
 ### Run Metadata
 - Date: 2026-05-31. Commit at review: `5199ef2`. Auto-fix cap: 1/10 used. Skill errors: none. Environment: local diff review against `main`.
+
+## Regression (`pnpm test`, full monorepo)
+Run 2026-05-31. **15/18 turbo tasks pass; the only test failure is pre-existing and unrelated to #524.**
+- Green: `shared` 726, `worker` 184 (incl. moved reconciliation), `web` (all incl. new migration UI tests via build), `connectors` 42, `consent-text` 69, `ui` 7, `mcp-server` 8, `database` 2, and `api` 572/573.
+- **1 failure — `apps/api src/plugins/redis.test.ts > calls redis.quit on app close`.** Triage:
+  - *Classification:* pre-existing test-isolation/environment defect, **not a #524 regression**.
+  - *Root cause:* `redis.ts` captures `QUEUE_MODE` at module-load; `apps/api/.env`'s `QUEUE_MODE=inline` leaks into the unit-test process; `vitest.config.ts` forces `singleFork`, so the cached redis-plugin module decorates `redis=null`, breaking the test's mocked-ioredis assumption.
+  - *Proof:* checked out base commit `3c86613` (pre-#524, my files removed) → fails identically (1 failed | 552 passed). Independent of this issue.
+  - *Why CI is green:* the CI gate `pnpm test:smoke` (`scripts/test-suite-runner.mjs`) isolates each test file in its own process, so the singleFork cross-file env leak never occurs; `pnpm test:smoke` passed this run.
+  - *Disposition:* **not fixed on this branch** — the fix (read `QUEUE_MODE` at plugin-invocation rather than module-load) is an unrelated cross-cutting change to a non-#524 file (Rule 21 / Rule 25c). Recommend a separate dev-environment issue. #524 introduces no new regressions.
