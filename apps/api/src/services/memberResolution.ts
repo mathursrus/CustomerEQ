@@ -48,7 +48,10 @@ export type ResolveOrEnrollResult =
   | { ok: false; error: IdentifierShapeError }
 
 const E164_RE = /^\+[1-9]\d{1,14}$/
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Exported so the identifier-migration pre-flight validator (R10 email-shape
+// check) reuses the exact same shape contract — no regex drift between live
+// enrollment and the migration mapping validation.
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function validateIdentifierShape(
   memberId: string,
