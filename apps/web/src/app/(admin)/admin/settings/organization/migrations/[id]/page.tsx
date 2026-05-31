@@ -4,7 +4,7 @@
 // (2s) while it is actively PROCESSING or in grace, then renders the panel for
 // the current status. Mock scenes 6 / 7 / 7B / 7Bw / 7C / 8.
 
-import { use, useCallback } from 'react'
+import { use, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
 import { usePollingQuery } from '@/lib/hooks/usePollingQuery'
@@ -30,14 +30,20 @@ export default function MigrationDetailPage({
 
   const fetchFn = useCallback(() => getMigration(getToken, id), [getToken, id])
 
-  // Poll continuously; the hook keeps the latest fetchFn in a ref. We can't
-  // condition `enabled` on the not-yet-loaded status, so poll for all states —
-  // a 2s GET is cheap and terminal states simply return the same row.
+  // Poll while the migration is live (PROCESSING or in grace); stop on terminal
+  // states (complete-expired / failed / cancelled / setup) so we don't poll a
+  // finished migration forever. Start enabled so the first load always runs.
+  const [polling, setPolling] = useState(true)
   const { data, loading, error, refetch } = usePollingQuery<Migration>({
     fetchFn,
     intervalMs: POLL_MS,
-    enabled: true,
+    enabled: polling,
   })
+  useEffect(() => {
+    if (!data) return
+    const live = data.status === 'PROCESSING' || data.status === 'REKEY_COMPLETE_IN_GRACE'
+    setPolling(live)
+  }, [data])
 
   const handleExtend = useCallback(async () => {
     await extendGrace(getToken, id, 30)
