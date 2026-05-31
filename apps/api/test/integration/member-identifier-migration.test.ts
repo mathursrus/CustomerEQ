@@ -9,6 +9,8 @@ import {
   seedTestDb,
   createBrand,
   createProgram,
+  createSurvey,
+  createSurveyResponse,
   createErasedMember,
   createMemberIdentifierMigration,
   createMigrationMapping,
@@ -326,5 +328,80 @@ describe('Member identifier migration — CUSTOMER_ID → EMAIL', () => {
     expect(res.body.kind).toBe('IDENTIFIER_MIGRATION_PRE_EXPIRY')
     expect(res.body.daysRemaining).toBeLessThanOrEqual(7)
     expect(res.body.oldKeyIngressesActive[0].ingress).toBe('API_MEMBERS_ENROLL')
+  })
+
+  // ── Mapping template is pre-filled from existing emails (R4) ──────────────
+  it('downloads a mapping template pre-filled with customer_id + existing email', async () => {
+    const brand = await seedCustomerIdBrand('Acme')
+    await seedCustomerMember(brand.id, 'cust_1', 'alice@acme.com')
+    await seedCustomerMember(brand.id, 'cust_2', null)
+    const res = await authenticatedRequest(brand.id).get('/v1/admin/brand/migrations/mapping-template.csv')
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/csv')
+    const body = res.text
+    expect(body).toContain('customer_id,new_email')
+    expect(body).toContain('cust_1,alice@acme.com')
+    expect(body).toMatch(/cust_2,\s*(\r|\n|$)/) // cust_2 row has a blank email
+  })
+
+  // ── Impact preview lists active surfaces, omits /v1/events (R30 / §M) ──────
+  it('lists embedded-form activity in the impact preview and never lists /v1/events', async () => {
+    const brand = await seedCustomerIdBrand('Acme')
+    const program = await createProgram({ brandId: brand.id, status: 'ACTIVE' })
+    const member = await seedCustomerMember(brand.id, 'cust_1', 'alice@acme.com')
+    const survey = await createSurvey({ brandId: brand.id, programId: program.id, status: 'ACTIVE' })
+    await createSurveyResponse({ surveyId: survey.id, memberId: member.id, brandId: brand.id, channel: 'in_app' })
+
+    const ctx = await authenticatedRequest(brand.id).get('/v1/admin/brand/migrations/preflight-context')
+    expect(ctx.status).toBe(200)
+    const surfaces = (ctx.body.impactPreview as Array<{ surface: string }>).map((r) => r.surface)
+    expect(surfaces).toContain('embedded_forms')
+    // /v1/events is internal-id keyed and migration-stable — never listed (§M).
+    expect(surfaces.join(',')).not.toMatch(/events/i)
+  })
+
+  // ── Extend grace is a simple audited action (R34/R25) ─────────────────────
+  it('extends the grace window and appends an audit entry', async () => {
+    const brand = await createBrand({ name: 'Acme', memberIdentifierKind: 'EMAIL' })
+    const prisma = getTestPrisma()
+    const originalDeadline = new Date(Date.now() + 5 * DAY)
+    const migration = await createMemberIdentifierMigration({
+      brandId: brand.id,
+      status: 'REKEY_COMPLETE_IN_GRACE',
+      rekeyCompletedAt: new Date(Date.now() - 25 * DAY),
+      graceExpiresAt: originalDeadline,
+    })
+    const res = await authenticatedRequest(brand.id)
+      .post(`/v1/admin/brand/migrations/${migration.id}/extend-grace`)
+      .send({ deltaDays: 30 })
+    expect(res.status).toBe(200)
+    const after = await prisma.memberIdentifierMigration.findUniqueOrThrow({ where: { id: migration.id } })
+    expect(after.graceExpiresAt!.getTime()).toBeGreaterThan(originalDeadline.getTime())
+    expect((after.graceExtensions as unknown[]).length).toBe(1)
+    const audit = await prisma.auditEvent.findFirst({
+      where: { brandId: brand.id, action: 'brand.identifier_migration.grace_extended' },
+    })
+    expect(audit).not.toBeNull()
+  })
+
+  // ── Attestation is persisted to the audit log on start (R13/R25) ──────────
+  it('persists the attestation text + admin + timestamp in the audit log on start', async () => {
+    const brand = await seedCustomerIdBrand('Acme')
+    await seedCustomerMember(brand.id, 'cust_1', 'alice@acme.com')
+    const prisma = getTestPrisma()
+    const req = authenticatedRequest(brand.id)
+    const created = await req.post('/v1/admin/brand/migrations').send({})
+    const migrationId = created.body.id
+    await req.post(`/v1/admin/brand/migrations/${migrationId}/mapping`).send({ mode: 'from_existing_emails' })
+    const attestationText = 'I confirm I have permission to use these emails.'
+    const start = await req
+      .post(`/v1/admin/brand/migrations/${migrationId}/start`)
+      .send({ attestationText, confirmed: true })
+    expect(start.status).toBe(202)
+    const audit = await prisma.auditEvent.findFirst({
+      where: { brandId: brand.id, action: 'brand.identifier_migration.started' },
+    })
+    expect(audit).not.toBeNull()
+    expect((audit!.metadata as Record<string, unknown>).attestationText).toBe(attestationText)
   })
 })
