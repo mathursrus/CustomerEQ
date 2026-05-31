@@ -153,6 +153,12 @@ describe('Member identifier migration — CUSTOMER_ID → EMAIL', () => {
     expect(brandAfter.memberIdentifierKind).toBe('CUSTOMER_ID')
     const migAfter = await prisma.memberIdentifierMigration.findUniqueOrThrow({ where: { id: migration.id } })
     expect(migAfter.status).toBe('FAILED')
+
+    // R24 — per-member errors are surfaced via the status endpoint.
+    const status = await authenticatedRequest(brand.id).get(`/v1/admin/brand/migrations/${migration.id}`)
+    expect(status.status).toBe(200)
+    expect(status.body.errorRows.length).toBeGreaterThanOrEqual(1)
+    expect(status.body.errorRows[0].customerId).toBe('cust_1')
   })
 
   // ── Dual-key resolution during PROCESSING (R19/R32/R33) ───────────────────

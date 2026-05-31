@@ -101,9 +101,23 @@ async function oldKeyCountsByIngress(
   return out
 }
 
+// Per-member error rows for a FAILED migration (R24 — show per-member errors).
+async function loadErrorRows(
+  prisma: import('@prisma/client').PrismaClient,
+  migrationId: string,
+): Promise<Array<{ customerId: string; newEmail: string; error: string }>> {
+  const rows = await prisma.memberIdentifierMigrationMapping.findMany({
+    where: { migrationId, errorReason: { not: null } },
+    select: { oldExternalId: true, newExternalId: true, errorReason: true },
+    take: 200,
+  })
+  return rows.map((r) => ({ customerId: r.oldExternalId, newEmail: r.newExternalId, error: r.errorReason ?? '' }))
+}
+
 function serializeMigration(
   m: MemberIdentifierMigration,
   oldKeyCounts: Record<MigrationOldKeyIngress, number>,
+  errorRows: Array<{ customerId: string; newEmail: string; error: string }> = [],
 ): Record<string, unknown> {
   return {
     id: m.id,
@@ -119,6 +133,7 @@ function serializeMigration(
     graceExpiresAt: m.graceExpiresAt?.toISOString() ?? null,
     graceExtensions: m.graceExtensions,
     oldKeyUsage: oldKeyCounts,
+    errorRows,
     createdAt: m.createdAt.toISOString(),
   }
 }
@@ -294,6 +309,21 @@ const adminBrandMigrationsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  // GET /current — the brand's most recent non-cancelled migration (drives the
+  // Member identification section's inline state), or null. Declared before
+  // `/:id` so "current" isn't captured as an id param.
+  fastify.get(`${base}/current`, async (request, reply) => {
+    const brandId = request.brandId
+    const migration = await fastify.prisma.memberIdentifierMigration.findFirst({
+      where: { brandId, status: { not: 'CANCELLED' } },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (!migration) return reply.status(200).send(null)
+    const counts = await oldKeyCountsByIngress(fastify.prisma, migration.id)
+    const errorRows = migration.status === 'FAILED' ? await loadErrorRows(fastify.prisma, migration.id) : []
+    return reply.status(200).send(serializeMigration(migration, counts, errorRows))
+  })
+
   // GET /:id — status + counters + grace + per-ingress old-key counts (polling).
   fastify.get(`${base}/:id`, async (request, reply) => {
     const brandId = request.brandId
@@ -301,7 +331,8 @@ const adminBrandMigrationsRoutes: FastifyPluginAsync = async (fastify) => {
     const migration = await loadOwnedMigration(fastify.prisma, brandId, id, reply)
     if (!migration) return
     const counts = await oldKeyCountsByIngress(fastify.prisma, id)
-    return reply.status(200).send(serializeMigration(migration, counts))
+    const errorRows = migration.status === 'FAILED' ? await loadErrorRows(fastify.prisma, id) : []
+    return reply.status(200).send(serializeMigration(migration, counts, errorRows))
   })
 
   // POST /:id/start — attestation + enqueue (R13, R14, R15). Retries a FAILED one.

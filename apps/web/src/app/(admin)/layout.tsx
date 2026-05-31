@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { UserButton, OrganizationSwitcher } from '@clerk/nextjs'
+import { UsageWarningBanner } from './_components/UsageWarningBanner'
 
 const navLinks: { href: string; label: string; section?: string }[] = [
   // ── Customer (top-level, cross-functional) ──
@@ -126,7 +127,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
          *  - `bg-white` keeps the canvas consistent so the admin-layout's
          *    bg-gray-50 (line 37) never shows through as a contrasting
          *    "box" between content and the empty area at the bottom. */}
-        <main className="flex-1 min-h-0 overflow-y-auto bg-white p-4 md:p-6">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto bg-white p-4 md:p-6">
+          <UsageWarningBanner />
+          {children}
+        </main>
       </div>
     </div>
   )
