@@ -90,6 +90,14 @@ const E164_RE = /^\+[1-9]\d{1,14}$/
 // enrollment and the migration mapping validation.
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// Canonical external-id key derivation (lowercased + trimmed). The single source
+// of this invariant — live enrollment, migration pre-flight, the re-key worker,
+// and the admin routes all key on the same normalized value, so collisions and
+// dual-key lookups can never drift apart.
+export function normalizeExternalId(value: string): string {
+  return value.trim().toLowerCase()
+}
+
 export function validateIdentifierShape(
   memberId: string,
   email: string | undefined,
@@ -160,7 +168,7 @@ export async function resolveOrEnrollMember(
   const trimmedMemberId = opts.memberId.trim()
   const trimmedEmail = opts.email?.trim()
 
-  const externalId = trimmedMemberId.toLowerCase()
+  const externalId = normalizeExternalId(trimmedMemberId)
 
   // For EMAIL brands, derive the email PII sidecar from memberId when the
   // integrator didn't supply one explicitly and memberId is email-shaped.

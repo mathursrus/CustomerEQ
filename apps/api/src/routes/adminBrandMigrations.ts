@@ -9,6 +9,7 @@ import {
   type MappingRow,
   type MigrationPreflightResult,
 } from '../services/migrationPreflight.js'
+import { normalizeExternalId } from '../services/memberResolution.js'
 import { enqueueMemberIdentifierMigration } from '../queues/bullmq.js'
 
 // Issue #524 — Switch member identifier kind (Slice 1: CUSTOMER_ID → EMAIL).
@@ -36,9 +37,8 @@ function migrationsBase(): string {
   return '/admin/brand/migrations'
 }
 
-function norm(v: string): string {
-  return v.trim().toLowerCase()
-}
+// Shared canonical-key derivation — see normalizeExternalId (memberResolution).
+const norm = normalizeExternalId
 
 // Per-surface cutover guidance for the impact preview (R30).
 const BRAND_SIDE_ACTION: Record<string, string> = {

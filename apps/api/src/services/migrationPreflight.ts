@@ -9,7 +9,7 @@
 // The `new_email` column is the target external id; shape is checked with the
 // shared EMAIL_RE so the migration contract never drifts from live enrollment.
 
-import { EMAIL_RE } from './memberResolution.js'
+import { EMAIL_RE, normalizeExternalId } from './memberResolution.js'
 
 export type MappingRow = {
   /** 1-based row number within the uploaded file (for R12 per-row display). */
@@ -53,11 +53,8 @@ export type MigrationPreflightResult = {
   rowIssues: RowIssue[]
 }
 
-/** Normalize an external-id / email value the way the re-key worker will:
- *  lowercased + trimmed. Used for both matching and collision detection. */
-function normalize(value: string): string {
-  return value.trim().toLowerCase()
-}
+// Matching + collision detection use the shared canonical-key derivation
+// (normalizeExternalId) so the pre-flight result agrees with the re-key worker.
 
 /**
  * Parse a `customer_id,new_email` CSV into rows. Column order is irrelevant;
@@ -154,14 +151,14 @@ export function validatePreflight(
   // Index rows by normalized customer id for coverage matching.
   const rowsByCustomerId = new Map<string, MappingRow>()
   for (const r of rows) {
-    rowsByCustomerId.set(normalize(r.customerId), r)
+    rowsByCustomerId.set(normalizeExternalId(r.customerId), r)
   }
 
   // R8 — coverage: every member must be mapped.
   let unmappedMembers = 0
   let membersMatched = 0
   for (const m of members) {
-    const key = normalize(m.customerId)
+    const key = normalizeExternalId(m.customerId)
     if (rowsByCustomerId.has(key)) {
       membersMatched++
     } else {
@@ -177,7 +174,7 @@ export function validatePreflight(
   // R9 — collision: group rows by normalized new_email; any group >1 → all flagged.
   const byEmail = new Map<string, MappingRow[]>()
   for (const r of rows) {
-    const norm = normalize(r.newEmail)
+    const norm = normalizeExternalId(r.newEmail)
     if (norm.length === 0) continue // blank handled as invalid_shape below
     const group = byEmail.get(norm) ?? []
     group.push(r)
